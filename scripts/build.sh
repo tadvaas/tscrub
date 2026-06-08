@@ -30,8 +30,7 @@ for part in \
   "$SRC_DIR/32_device_scsi.sh" \
   "$SRC_DIR/33_device_ata.sh" \
   "$SRC_DIR/40_table.sh" \
-  "$SRC_DIR/50_report.sh" \
-  "$SRC_DIR/99_entrypoint.sh"; do
+  "$SRC_DIR/50_report.sh"; do
   [[ -f "$part" ]] || {
     echo "Missing source part: $part" >&2
     exit 1
@@ -40,11 +39,20 @@ for part in \
   printf "\n" >> "$OUT_FILE"
 done
 
+# Embed sedutil-cli binary as base64 so the built script is self-contained
+SEDUTIL_BIN="$PAYLOAD_DIR/sedutil-cli"
+[[ -f "$SEDUTIL_BIN" ]] || { echo "Missing payload: $SEDUTIL_BIN" >&2; exit 1; }
+printf 'SEDUTIL_PAYLOAD_B64="%s"\n\n' "$(base64 < "$SEDUTIL_BIN" | tr -d '\n')" >> "$OUT_FILE"
+
+# Entrypoint (must be last)
+[[ -f "$SRC_DIR/99_entrypoint.sh" ]] || { echo "Missing source part: $SRC_DIR/99_entrypoint.sh" >&2; exit 1; }
+cat "$SRC_DIR/99_entrypoint.sh" >> "$OUT_FILE"
+printf "\n" >> "$OUT_FILE"
+
 if bash -c 'coproc X { cat; }' >/dev/null 2>&1; then
   bash -n "$OUT_FILE"
 else
   echo "Skipping bash -n: local bash does not support 'coproc' syntax used by tscrub.sh" >&2
 fi
-cp -R "$PAYLOAD_DIR"/. "$BUILD_DIR"/
 
 echo "Build complete: $OUT_FILE"

@@ -105,6 +105,7 @@ fn_main() {
     if [[ "$DRY_RUN" -eq 0 ]]; then
         report::parse_ftp
         report::upload "$report_file"
+        ui::post_run_prompt
     fi
 }
 

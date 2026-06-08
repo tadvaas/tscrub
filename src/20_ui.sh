@@ -53,3 +53,48 @@ ui::show_finish_green() {
     table::render
 }
 
+# Blocking decision prompt shown after sanitization completes.
+# Holds the terminal so the caller (e.g. ShredOS) does not paint over the
+# final report. Offers Reboot / Shutdown / Continue.
+ui::post_run_prompt() {
+    local key theme=""
+
+    ui::cursor_show
+
+    # Match the finish theme (green background, black foreground) so the
+    # prompt blends into the previously painted completion screen. \033[K
+    # paints each line's full width with the green background.
+    if ui::terminal_controls_supported; then
+        theme="\033[0;42;30m"
+    fi
+
+    while :; do
+        printf "\n${theme}\033[K%s\033[1m[R]\033[22m Reboot    \033[1m[S]\033[22m Shutdown    \033[1m[C]\033[22m Continue (start nwipe)\n" "$TABLE_INDENT"
+        printf "${theme}\033[K%sSelect an option: " "$TABLE_INDENT"
+
+        read -r -n1 key < /dev/tty
+        printf "\n"
+
+        case "$key" in
+            r|R)
+                printf "${theme}\033[K%sRebooting...\n" "$TABLE_INDENT"
+                reboot
+                return 0
+                ;;
+            s|S)
+                printf "${theme}\033[K%sShutting down...\n" "$TABLE_INDENT"
+                poweroff
+                return 0
+                ;;
+            c|C|"")
+                # Reset to default colors before handing off to nwipe.
+                [[ -n "$theme" ]] && printf "\033[0m"
+                return 0
+                ;;
+            *)
+                printf "${theme}\033[K%s[!] Invalid selection. Press R, S, or C.\n" "$TABLE_INDENT"
+                ;;
+        esac
+    done
+}
+

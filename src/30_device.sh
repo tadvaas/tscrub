@@ -17,14 +17,14 @@ device::capability_label() {
 
 device::install_sedutil() {
     if ! command -v sedutil-cli &> /dev/null; then
-        printf "%s[!] sedutil-cli not found. Downloading...\n" "$TABLE_INDENT"
-        
-        if wget -qO /usr/bin/sedutil-cli extra.tfix.co.uk/sedutil-cli; then
+        printf "%s[!] sedutil-cli not found. Extracting embedded binary...\n" "$TABLE_INDENT"
+
+        if printf '%s' "$SEDUTIL_PAYLOAD_B64" | base64 -d > /usr/bin/sedutil-cli 2>/dev/null; then
             chmod +x /usr/bin/sedutil-cli
             printf "%s[+] sedutil-cli installed successfully.\n" "$TABLE_INDENT"
             sleep 1
         else
-            printf "%s[!] Failed to download sedutil-cli. Network down?\n" "$TABLE_INDENT"
+            printf "%s[!] Failed to extract sedutil-cli.\n" "$TABLE_INDENT"
             sleep 3
         fi
     fi
