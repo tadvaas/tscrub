@@ -48,9 +48,27 @@ ui::show_finish_green() {
     [[ -n "${TERM:-}" ]] || return 0
     [[ "${TERM:-}" != "dumb" ]] || return 0
 
-    UI_COMPLETE_THEME=1
+    # Red theme if any drive did not complete successfully, green otherwise.
+    if ui::any_drive_failed; then
+        UI_COMPLETE_THEME=2
+    else
+        UI_COMPLETE_THEME=1
+    fi
     UI_INPLACE=0
     table::render
+}
+
+# Returns success (0) if at least one drive ended in a non-success state
+# (anything other than COMPLETED or DRY-RUN).
+ui::any_drive_failed() {
+    local dev
+    for dev in "${devices[@]}"; do
+        case "${devrow[$dev.status]}" in
+            COMPLETED|DRY-RUN) ;;
+            *) return 0 ;;
+        esac
+    done
+    return 1
 }
 
 # Blocking decision prompt shown after sanitization completes.
@@ -61,15 +79,19 @@ ui::post_run_prompt() {
 
     ui::cursor_show
 
-    # Match the finish theme (green background, black foreground) so the
-    # prompt blends into the previously painted completion screen. \033[K
-    # paints each line's full width with the green background.
+    # Match the finish theme so the prompt blends into the previously painted
+    # completion screen (green on success, red if any drive failed). \033[K
+    # paints each line's full width with the chosen background.
     if ui::terminal_controls_supported; then
-        theme="\033[0;42;30m"
+        if [[ "${UI_COMPLETE_THEME:-1}" -eq 2 ]]; then
+            theme="\033[0;41;37m"
+        else
+            theme="\033[0;42;30m"
+        fi
     fi
 
     while :; do
-        printf "\n${theme}\033[K%s\033[1m[R]\033[22m Reboot    \033[1m[S]\033[22m Shutdown    \033[1m[C]\033[22m Continue (start nwipe)\n" "$TABLE_INDENT"
+        printf "\n${theme}\033[K%s\033[1m[R]\033[22m Reboot    \033[1m[S]\033[22m Shutdown    \033[1m[C]\033[22m Continue (start nwipe)    \033[1m[A]\033[22m Run tScrub again\n" "$TABLE_INDENT"
         printf "${theme}\033[K%sSelect an option: " "$TABLE_INDENT"
 
         read -r -n1 key < /dev/tty
@@ -86,13 +108,20 @@ ui::post_run_prompt() {
                 poweroff
                 return 0
                 ;;
+            a|A)
+                # Reset colors and request another full run of tScrub.
+                [[ -n "$theme" ]] && printf "\033[0m"
+                printf "%sRestarting tScrub...\n" "$TABLE_INDENT"
+                RERUN=1
+                return 0
+                ;;
             c|C|"")
                 # Reset to default colors before handing off to nwipe.
                 [[ -n "$theme" ]] && printf "\033[0m"
                 return 0
                 ;;
             *)
-                printf "${theme}\033[K%s[!] Invalid selection. Press R, S, or C.\n" "$TABLE_INDENT"
+                printf "${theme}\033[K%s[!] Invalid selection. Press R, S, C, or A.\n" "$TABLE_INDENT"
                 ;;
         esac
     done

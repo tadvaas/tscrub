@@ -55,7 +55,7 @@ report::upload() {
     printf "%sUploading report...\n" "$TABLE_INDENT"
 
     if lftp -u "$SHRED_USER,$SHRED_PASS" "$SHRED_HOST" \
-        -e "cd $SHRED_PATH; put $file; bye"; then
+        -e "cd $SHRED_PATH; put $file; bye" >>"$LOG_FILE" 2>&1; then
         printf "%sReport uploaded successfully.\n" "$TABLE_INDENT"
     else
         printf "%sReport upload FAILED.\n" "$TABLE_INDENT"

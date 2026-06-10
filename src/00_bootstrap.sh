@@ -15,6 +15,7 @@ DRY_RUN_SIM_ETA_MINS=0
 START_TS=0
 UI_INPLACE=0
 UI_COMPLETE_THEME=0
+RERUN=0
 UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
 UI_ETA_COL=162
@@ -147,10 +148,18 @@ system::gather_info() {
 # UI / IPC setup
 # =============================================================================
 
-coproc UI { cat; }
-exec 3>&${UI[1]}
-exec 4<&${UI[0]}
+# Log fd is opened once for the lifetime of the process.
 exec 5>>"$LOG_FILE"
+
+# (Re)establish the worker -> UI IPC channel. Workers write status lines to
+# fd 3; the UI reads them from fd 4. A single run consumes (closes) fds 3 and 4
+# and lets the coprocess exit, so this is called at the start of every run to
+# rebuild the channel when the post-run prompt's "Run again" option is chosen.
+ipc::open() {
+    coproc UI { cat; }
+    exec 3>&${UI[1]}
+    exec 4<&${UI[0]}
+}
 
 parse_args() {
     local mins

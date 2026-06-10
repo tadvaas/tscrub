@@ -88,8 +88,8 @@ ui::eta_text_for() {
         COMPLETED)
             printf "Done"
             ;;
-        FAILED|FROZEN)
-            printf "--"
+        FAILED|FROZEN|BLOCKED)
+            printf '%s' "--"
             ;;
         *)
             printf "N/A"
@@ -124,8 +124,14 @@ ui::tick_inplace() {
 }
 
 table::render() {
-    if [[ "$UI_COMPLETE_THEME" -eq 1 ]] && [[ -t 1 ]]; then
-        printf "\033[0;42;30m\033[2J\033[H"
+    if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
+        if [[ "$UI_COMPLETE_THEME" -eq 2 ]]; then
+            # Red background: one or more drives failed/blocked.
+            printf "\033[0;41;37m\033[2J\033[H"
+        else
+            # Green background: all drives completed successfully.
+            printf "\033[0;42;30m\033[2J\033[H"
+        fi
     else
         clear
         printf "\n"
@@ -276,7 +282,7 @@ table::render() {
 
     printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 170 "" | tr ' ' '-')"
 
-    if [[ "$UI_COMPLETE_THEME" -eq 1 ]] && [[ -t 1 ]]; then
+    if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
     fi
 
@@ -304,11 +310,34 @@ ui::loop() {
                 table::render
             fi
         else
-            # EOF — all writers closed
-            break
+            # read failed without timing out. This is normally EOF (all writers
+            # closed), but a timed read can also be cut short when a SIGCHLD
+            # arrives from a short-lived helper (sleep/awk/nvme/date) spawned by
+            # a worker's monitor. Only stop once every drive has actually
+            # reached a terminal state, or the IPC coprocess has truly exited;
+            # otherwise this was a spurious wake-up and we must keep reading so
+            # we never paint the finish screen while a wipe is still running.
+            if ui::all_drives_terminal; then
+                break
+            fi
+            if [[ -z "${UI_PID:-}" ]] || ! kill -0 "$UI_PID" 2>/dev/null; then
+                break
+            fi
         fi
     done
     exec 4<&-
+}
+
+# Returns success (0) only when every drive has reached a terminal state.
+ui::all_drives_terminal() {
+    local dev
+    for dev in "${devices[@]}"; do
+        case "${devrow[$dev.status]}" in
+            COMPLETED|FAILED|FROZEN|BLOCKED|DRY-RUN) ;;
+            *) return 1 ;;
+        esac
+    done
+    return 0
 }
 
 

@@ -25,6 +25,14 @@ dryrun::simulate_running_eta() {
 fn_main() {
     trap 'ui::cursor_show' EXIT INT TERM
 
+    # Reset per-run state so a repeat run (post-run "Run again" option) starts
+    # clean, and rebuild the worker -> UI IPC channel the previous run consumed.
+    RERUN=0
+    devrow=()
+    ui_eta_row=()
+    pids=()
+    ipc::open
+
     if [ -t 1 ]; then
         # Ensure each run starts from default terminal colors.
         printf "\033[0m"
