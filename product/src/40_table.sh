@@ -309,6 +309,12 @@ ui::loop() {
             if ! ui::tick_inplace; then
                 table::render
             fi
+            # If every drive is already terminal but the pipe read end never
+            # EOFs (e.g. a leaked writer keeps fd 3 open), stop instead of
+            # ticking forever so the finish screen/report can still run.
+            if ui::all_drives_terminal; then
+                break
+            fi
         else
             # read failed without timing out. This is normally EOF (all writers
             # closed), but a timed read can also be cut short when a SIGCHLD

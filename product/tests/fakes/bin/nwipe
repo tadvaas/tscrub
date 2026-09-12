@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+if [[ "$1" == "--help" ]]; then
+    printf 'nwipe usage... --nogui ...\n'
+    exit 0
+fi
+printf '[sda]  0%% complete, eta 0:00\n'
+exit "${FAKE_NWIPE_RC:-0}"

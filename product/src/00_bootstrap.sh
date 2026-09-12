@@ -19,6 +19,8 @@ RERUN=0
 UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
 UI_ETA_COL=162
+LICENSE_FILE="/etc/tscrub/license.key"
+LICENSE_VENDOR_PUBLIC_KEY_B64=""
 NO_SUPPORTED_DRIVES=0
 DISCOVERY_NOTICE=""
 
@@ -148,8 +150,13 @@ system::gather_info() {
 # UI / IPC setup
 # =============================================================================
 
-# Log fd is opened once for the lifetime of the process.
-exec 5>>"$LOG_FILE"
+# Log fd is opened once for the lifetime of the process. When the default
+# path is not writable (e.g. an unprivileged test run), fall back to /tmp so
+# fd 5 is always available to the workers.
+if [[ ! -w "$(dirname "$LOG_FILE")" ]]; then
+    LOG_FILE="/tmp/$SCRIPT_NAME.log"
+fi
+exec 5>>"$LOG_FILE" 2>/dev/null || true
 
 # (Re)establish the worker -> UI IPC channel. Workers write status lines to
 # fd 3; the UI reads them from fd 4. A single run consumes (closes) fds 3 and 4
@@ -180,6 +187,12 @@ parse_args() {
                 ;;
             --help|-h)
                 echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES]"
+                echo "       $0 verify <report.csv> [public-key.pem]"
+                echo ""
+                echo "Modes:"
+                echo "  (default)        Run disk sanitisation."
+                echo "  --dry-run        Simulate without wiping any drive."
+                echo "  verify <csv>     Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
             *)

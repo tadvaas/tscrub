@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+p="$1"
+dev="${p##*/block/}"
+dev="${dev%%/*}"
+case " ${FAKE_USB_DEVICES:-} " in
+    *" $dev "*) printf '/sys/devices/usb/1-1\n' ;;
+    *) printf '%s\n' "$p" ;;
+esac
+exit 0

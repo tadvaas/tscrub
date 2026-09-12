@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# mimic `readlink -f` for the fake device tree
+printf '%s\n' "$2"
+exit 0

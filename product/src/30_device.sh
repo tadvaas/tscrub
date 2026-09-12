@@ -42,7 +42,10 @@ device::discover() {
     declare -Ag type
     declare -Ag opal_locked
 
-    for path in /sys/block/*; do
+    # Allow tests to point discovery at a fake block-device tree.
+    local block_dir="${SYS_BLOCK_DIR:-/sys/block}"
+
+    for path in "$block_dir"/*; do
         dev="${path##*/}"
 
         # Filter out virtual devices and optical drives
@@ -75,12 +78,12 @@ device::discover() {
         # --- SATA/SCSI DISCOVERY ---
         elif [[ "$dev" =~ ^sd[a-z]+$ ]]; then
             # Accept any non-USB block device (SATA, SCSI, SAS) — hdparm determines capability
-            if ! realpath /sys/block/$dev/device | grep -q '/usb'; then
+            if ! realpath "$block_dir/$dev/device" | grep -q '/usb'; then
                 devices+=("$dev")
                 
                 # Check for rotation (HDD vs SSD)
-                if [[ -f /sys/block/$dev/queue/rotational ]]; then
-                    if [[ "$(cat /sys/block/$dev/queue/rotational)" -eq 1 ]]; then
+                if [[ -f "$block_dir/$dev/queue/rotational" ]]; then
+                    if [[ "$(cat "$block_dir/$dev/queue/rotational")" -eq 1 ]]; then
                         type[$dev]="HDD"
                     else
                         type[$dev]="SSD"
@@ -90,13 +93,13 @@ device::discover() {
                 fi
 
                 # Detect Bus/Transport
-                if [[ -f /sys/block/$dev/device/transport ]]; then
-                    transport=$(< /sys/block/$dev/device/transport)
+                if [[ -f "$block_dir/$dev/device/transport" ]]; then
+                    transport=$(< "$block_dir/$dev/device/transport")
                     # Show kernel-reported transport directly for broader SCSI visibility.
                     bus[$dev]="${transport^^}"
                 else
                     # Fallback for transport detection
-                    link=$(readlink -f /sys/block/$dev 2>&5)
+                    link=$(readlink -f "$block_dir/$dev" 2>&5)
                     if [[ "$link" == *ata* ]]; then
                         bus[$dev]="SATA"
                     elif [[ "$link" == *pci* ]]; then
@@ -249,20 +252,20 @@ device::frozen() {
             while :; do
                 status="$(hdparm -I /dev/$dev 2>&5)"
                 if [[ $status == *"not"?"frozen"* ]]; then
-                    echo " $dev not_frozen" >&3
+                    echo " $dev not_frozen"
                     break
                 elif [[ $status == *"frozen"* ]]; then
-                    echo " $dev frozen" >&3
-                    echo " $dev unfreezing" >&3
+                    echo " $dev frozen"
+                    echo " $dev unfreezing"
                     sleep 1 #give some time to CTRL+C if wanted
                     rtcwake -m mem -s 5 >&5 2>&5
                 fi
                 if [[ $i -ge $times ]];then
-                    echo -n "Tried unfreezing $dev $i times: Continue? [Y/n]: " >&3
-                    read answer < /dev/tty
+                    printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"
+                    read -r answer < /dev/tty
                     i=0
                     if [[ "$answer" != "${answer#[Nn]}" ]]; then
-                        echo " $dev aborted." >&3
+                        echo " $dev aborted."
                         exit 0
                     fi
                 fi
@@ -399,6 +402,12 @@ device::classify() {
             devrow["$dev.method"]="NVMe Format"
             ;;
 
+        CAP_ATA_FROZEN)
+            devrow["$dev.class"]="FROZEN"
+            devrow["$dev.cert"]="PHYS_DESTR"
+            devrow["$dev.method"]="Frozen Drive"
+            ;;
+
         CAP_NONE)
             devrow["$dev.class"]="FAILED"
             devrow["$dev.cert"]="PHYS_DESTR"
@@ -416,7 +425,6 @@ device::classify() {
 device::execute() {
     local dev="$1"
     local cap="${devrow[$dev.capability]}"
-    local cmd="${devrow[$dev.command]}"
 
     if [[ "${devrow[$dev.class]}" == "FAILED" ]]; then
         echo "$dev STATUS FAILED" >&3

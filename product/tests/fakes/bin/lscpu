@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+printf 'Model name:                      Fake CPU\n'
+printf 'Socket(s):                       2\n'

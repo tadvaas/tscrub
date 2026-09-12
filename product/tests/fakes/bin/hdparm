@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+if [[ "$1" == "-I" ]]; then
+    dev="${2:-/dev/sda}"
+    mode="${FAKE_HDPARM_MODE:-enhanced}"
+    printf '%s:\n\n' "$dev"
+    printf 'ATA device, with non-removable media\n'
+    printf '\tModel Number:       FAKE DISK\n'
+    printf '\tSerial Number:      S123456789\n'
+    printf 'Security:\n'
+    printf '\tMaster password revision code = 65534\n'
+    case "$mode" in
+        frozen)
+            printf '\t\tsupported\n'
+            printf '\tnot\tenabled\n'
+            printf '\tnot\tlocked\n'
+            printf '\t\tfrozen\n'
+            ;;
+        none)
+            printf '\tnot\tsupported\n'
+            ;;
+        clear)
+            printf '\t\tsupported\n'
+            printf '\tnot\tenabled\n'
+            printf '\tnot\tlocked\n'
+            printf '\tnot\tfrozen\n'
+            printf '\t120min for SECURITY ERASE UNIT.\n'
+            ;;
+        *)
+            printf '\t\tsupported\n'
+            printf '\tnot\tenabled\n'
+            printf '\tnot\tlocked\n'
+            printf '\tnot\tfrozen\n'
+            printf '\t\tsupported: enhanced erase\n'
+            printf '\t120min for SECURITY ERASE UNIT.\n'
+            printf '\t90min for ENHANCED SECURITY ERASE UNIT.\n'
+            ;;
+    esac
+    exit 0
+fi
+# --user-master u --security-set-pass p | --security-erase(-enhanced) p
+exit 0

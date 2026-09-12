@@ -44,6 +44,14 @@ SEDUTIL_BIN="$PAYLOAD_DIR/sedutil-cli"
 [[ -f "$SEDUTIL_BIN" ]] || { echo "Missing payload: $SEDUTIL_BIN" >&2; exit 1; }
 printf 'SEDUTIL_PAYLOAD_B64="%s"\n\n' "$(base64 < "$SEDUTIL_BIN" | tr -d '\n')" >> "$OUT_FILE"
 
+# Embed the vendor licence public key when present (Team/Enterprise builds).
+# Provide payload/vendor-public-key.pem (PEM public key) to enable licence
+# verification; omit it for community builds (self-signed reports only).
+VENDOR_PUB="$PAYLOAD_DIR/vendor-public-key.pem"
+if [[ -f "$VENDOR_PUB" ]]; then
+  printf 'LICENSE_VENDOR_PUBLIC_KEY_B64="%s"\n\n' "$(base64 < "$VENDOR_PUB" | tr -d '\n')" >> "$OUT_FILE"
+fi
+
 # Entrypoint (must be last)
 [[ -f "$SRC_DIR/99_entrypoint.sh" ]] || { echo "Missing source part: $SRC_DIR/99_entrypoint.sh" >&2; exit 1; }
 cat "$SRC_DIR/99_entrypoint.sh" >> "$OUT_FILE"

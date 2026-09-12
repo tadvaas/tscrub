@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+sub="$1"
+case "$sub" in
+    id-ctrl)
+        if [[ "$2" == "-H" ]]; then
+            case "${FAKE_NVME_MODE:-crypto}" in
+                crypto)    printf '  [2:2] : 0x1 Crypto Erase Sanitize Operation Supported\n' ;;
+                block)     printf '  [2:2] : 0x2 Block Erase Sanitize Operation Supported\n' ;;
+                overwrite) printf '  [2:2] : 0x4 Overwrite Sanitize Operation Supported\n' ;;
+                format)    printf '  [1:0] : 0x1 Format NVM Supported\n' ;;
+                none)      ;;
+            esac
+        else
+            printf 'sn      : SN-NVME-1\n'
+            printf 'mn      : NVMe Fake Model\n'
+        fi
+        ;;
+    sanitize-log)
+        printf 'SSTAT %s\n' "${FAKE_NVME_SSTAT:-0x1}"
+        printf 'SPROG %s\n' "${FAKE_NVME_SPROG:-65535}"
+        ;;
+    sanitize)
+        [[ -n "${FAKE_NVME_SANITIZE_OUT:-}" ]] && printf '%s\n' "$FAKE_NVME_SANITIZE_OUT"
+        exit "${FAKE_NVME_SANITIZE_RC:-0}"
+        ;;
+    format)
+        [[ -n "${FAKE_NVME_FORMAT_OUT:-}" ]] && printf '%s\n' "$FAKE_NVME_FORMAT_OUT"
+        exit "${FAKE_NVME_FORMAT_RC:-0}"
+        ;;
+esac
+exit 0

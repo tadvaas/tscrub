@@ -1,0 +1,22 @@
+{
+  "name": "tscrub-marketing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Marketing site for tScrub — verifiable disk sanitization.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "bash deploy.sh"
+  },
+  "dependencies": {
+    "flowbite": "^2.5.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "vite": "^5.4.10"
+  }
+}

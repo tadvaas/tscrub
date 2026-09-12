@@ -1,0 +1,13 @@
+{
+  "host": "smtp.mail.me.com",
+  "port": 587,
+  "user": "YOUR_ICLOUD_EMAIL@icloud.com",
+  "password": "YOUR_APP_SPECIFIC_PASSWORD",
+  "from": "hello@tscrub.com",
+  "from_licence": "support@tscrub.com",
+  "to_contact": "hello@tscrub.com",
+  "to_download": "support@tscrub.com",
+  "to_support": "support@tscrub.com",
+  "vendor_key": "/home/oxwet/webs/tscrub-form/vendor.key",
+  "download_url": "https://tscrub.com/downloads/tscrub.sh"
+}

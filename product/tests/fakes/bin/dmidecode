@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+if [[ "$1" == "-s" ]]; then
+    case "$2" in
+        system-manufacturer)   printf 'Fake Inc.\n' ;;
+        system-product-name)   printf 'FakeStation\n' ;;
+        system-serial-number)  printf 'SYSSN123\n' ;;
+        baseboard-serial-number) printf 'BBSN123\n' ;;
+        chassis-serial-number) printf 'CHSN123\n' ;;
+        chassis-type)          printf 'Tower\n' ;;
+        bios-version)          printf '1.0\n' ;;
+        bios-release-date)     printf '01/01/2024\n' ;;
+        *) printf 'N/A\n' ;;
+    esac
+fi
+exit 0

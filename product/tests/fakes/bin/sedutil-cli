@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+case "$1" in
+    --query)
+        if [[ "${FAKE_SEDUTIL_LOCKED:-0}" == "1" ]]; then
+            printf 'Locked = Y\n'
+        else
+            printf 'Locked = N\n'
+        fi
+        printf 'LockingEnabled = N\n'
+        ;;
+    *)
+        printf 'revertTper completed\n'
+        ;;
+esac
+exit 0

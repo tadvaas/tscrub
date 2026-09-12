@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Tests the licence mechanism: verify, expiry, tampering, and attributable signing.
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+t::setup_env
+t::source_src
+
+[[ -x /opt/homebrew/bin/openssl ]] && export PATH="/opt/homebrew/bin:$PATH"
+
+have_ed25519=0
+_tmpkey="$(mktemp)"
+if command -v openssl >/dev/null 2>&1 && openssl genpkey -algorithm ED25519 -out "$_tmpkey" 2>/dev/null; then
+    have_ed25519=1
+fi
+rm -f "$_tmpkey"
+
+if (( have_ed25519 == 0 )); then
+    t::check "licence test skipped (no Ed25519 openssl)" 'true'
+    t::summary
+    exit 0
+fi
+
+tdir="$(mktemp -d)"
+openssl genpkey -algorithm ED25519 -out "$tdir/vendor.key" 2>/dev/null
+LICENSE_VENDOR_PUBLIC_KEY_B64="$(openssl pkey -in "$tdir/vendor.key" -pubout 2>/dev/null | openssl base64 -A)"
+
+# Issue a valid licence and an expired one.
+bash "$ROOT_DIR/scripts/issue_license.sh" "Acme ITAD Ltd" 2099-12-31 "$tdir/vendor.key" "$tdir/license.key" >/dev/null 2>&1
+bash "$ROOT_DIR/scripts/issue_license.sh" "Old Co" 2020-01-01 "$tdir/vendor.key" "$tdir/expired.key" >/dev/null 2>&1
+
+t::check "valid licence verifies" 'license::verify "$tdir/license.key"'
+t::check "expired licence rejected" '! license::verify "$tdir/expired.key"'
+
+# Tamper with the signed payload; signature must no longer verify.
+sed 's/"expiry": "2099-12-31"/"expiry": "2099-12-30"/' "$tdir/license.key" > "$tdir/tampered.key"
+t::check "tampered licence rejected" '! license::verify "$tdir/tampered.key"'
+
+# Apply the licence and confirm reports are signed with the licensed key.
+license::apply "$tdir/license.key"
+t::check "apply sets REPORT_KEY" '[[ -n "$REPORT_KEY" && -f "$REPORT_KEY" ]]'
+
+COCID="99999"; TABLE_INDENT="    "
+SYS_MANUFACTURER="D"; SYS_PRODUCT="P"; SYS_SERIAL="S"; SYS_BASEBOARD_SERIAL="B"
+REPORT_DIR="$tdir/"
+devices=(nvme0n1)
+devrow=()
+devrow[nvme0n1.status]=COMPLETED; devrow[nvme0n1.method]="NVMe Crypto Purge"; devrow[nvme0n1.cert]=DESTRUCTION
+devrow[nvme0n1.model]=M; devrow[nvme0n1.serial]=S; devrow[nvme0n1.size]=1TB; devrow[nvme0n1.bus]=NVMe
+devrow[nvme0n1.type]=SSD; devrow[nvme0n1.class]=PURGE; devrow[nvme0n1.device]=nvme0n1
+
+csv="$(report::csv 2>/dev/null)"
+t::check "report signed with licence key" '[[ -f "$csv.sig" ]]'
+vout="$(report::verify "$csv")"
+t::check "licensed report verifies VALID" '[[ "$vout" == *"Signature: VALID"* ]]'
+
+rm -rf "$tdir"
+t::summary

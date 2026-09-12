@@ -52,6 +52,12 @@ fn_main() {
     system::gather_info
     START_TS=$(date +%s)
 
+    # Enable attributable (vendor-signed) reports when a valid licence is present.
+    if license::verify; then
+        license::apply
+        printf "%sLicence valid — signed reports enabled.\n" "$TABLE_INDENT"
+    fi
+
     ui::coc_prompt
     if ! cocid::is_valid "$COCID"; then
         printf "%s[!] Invalid COCID '%s'. Must be exactly 5 digits.\n" "$TABLE_INDENT" "$COCID" >&2
