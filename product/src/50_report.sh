@@ -189,17 +189,58 @@ report::verify() {
 # The vendor public key is embedded in the image as LICENSE_VENDOR_PUBLIC_KEY_B64.
 # Licences are issued with scripts/issue_license.sh (vendor side).
 
-# Resolve the licence path from the kernel command line (ShredOS/PXE boot).
-# Accepts tscrub_license=/path/to/license.key or shredos_license=/path. When
-# absent, LICENSE_FILE is left as-is (--license flag or the compiled default).
+# Fetch a licence from a URL (e.g. local-network hosted .lic). Sets LICENSE_FILE
+# to a mode-600 temp file on success. Prefers curl, then wget. NOTE: a .lic
+# contains the PRIVATE report-signing key, so host it on an authenticated or
+# isolated LAN endpoint rather than a public URL.
+license::fetch() {
+    local url="$1" out
+
+    [[ -n "$url" ]] || return 1
+    out="$(mktemp /tmp/tscrub-lic.XXXXXX)"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout 10 --max-time 30 "$url" -o "$out" 2>/dev/null || { rm -f "$out"; return 1; }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "$out" --timeout=30 "$url" 2>/dev/null || { rm -f "$out"; return 1; }
+    else
+        rm -f "$out"
+        return 1
+    fi
+    [[ -s "$out" ]] || { rm -f "$out"; return 1; }
+    chmod 600 "$out" 2>/dev/null || true
+    LICENSE_FILE="$out"
+    return 0
+}
+
+# Resolve the licence location from the kernel command line (ShredOS/PXE boot)
+# and the CLI flags set by parse_args:
+#   path: tscrub_license=/path/to/license.key or shredos_license=/path
+#   URL:  tscrub_license_url=http://host/license.key or shredos_license_url=http://host/license.key
+# When nothing is set, LICENSE_FILE is left as-is (compiled default).
 license::detect() {
-    local param
+    local param url
 
     param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^(tscrub_license|shredos_license)=//p' | head -n 1)"
-    [[ -n "$param" ]] || return 0
-    param="${param#\"}"
-    param="${param%\"}"
-    LICENSE_FILE="$param"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"
+        param="${param%\"}"
+        LICENSE_FILE="$param"
+    fi
+
+    url="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^(tscrub_license_url|shredos_license_url)=//p' | head -n 1)"
+    if [[ -n "$url" ]]; then
+        url="${url#\"}"
+        url="${url%\"}"
+        LICENSE_URL="$url"
+    fi
+
+    if [[ -n "$LICENSE_URL" ]]; then
+        if license::fetch "$LICENSE_URL"; then
+            printf "%sLicence fetched from %s.\n" "$TABLE_INDENT" "$LICENSE_URL"
+        else
+            printf "%s[!] Licence fetch failed: %s\n" "$TABLE_INDENT" "$LICENSE_URL" >&2
+        fi
+    fi
 }
 
 license::verify() {

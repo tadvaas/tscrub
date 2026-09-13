@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.1"
+SCRIPT_VERSION="v1.2"
 REPORT_DIR="/"
 TABLE_INDENT="    "
 COCID=""
@@ -20,6 +20,7 @@ UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
 UI_ETA_COL=162
 LICENSE_FILE="/etc/tscrub/license.key"
+LICENSE_URL=""
 LICENSE_VENDOR_PUBLIC_KEY_B64=""
 NO_SUPPORTED_DRIVES=0
 DISCOVERY_NOTICE=""
@@ -194,15 +195,24 @@ parse_args() {
                 [[ $# -gt 0 ]] || { echo "--license requires a path"; exit 1; }
                 LICENSE_FILE="$1"
                 ;;
+            --license-url=*)
+                LICENSE_URL="${arg#*=}"
+                ;;
+            --license-url)
+                shift
+                [[ $# -gt 0 ]] || { echo "--license-url requires a URL"; exit 1; }
+                LICENSE_URL="$1"
+                ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
-                echo "  (default)        Run disk sanitisation."
-                echo "  --dry-run        Simulate without wiping any drive."
-                echo "  --license PATH   Read the licence from PATH (default /etc/tscrub/license.key)."
-                echo "  verify <csv>     Verify a signed report (SHA-256 + signature)."
+                echo "  (default)            Run disk sanitisation."
+                echo "  --dry-run            Simulate without wiping any drive."
+                echo "  --license PATH       Read the licence from PATH (default /etc/tscrub/license.key)."
+                echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.key)."
+                echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
             *)

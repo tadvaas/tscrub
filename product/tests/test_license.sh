@@ -60,5 +60,19 @@ LICENSE_FILE=""
 parse_args "--license=$tdir/license.key"
 t::check "--license=PATH sets LICENSE_FILE" '[[ "$LICENSE_FILE" == "$tdir/license.key" ]]'
 
+# --license-url (both forms) and remote fetch.
+LICENSE_URL=""
+parse_args --license-url "file://$tdir/license.key"
+t::check "--license-url sets LICENSE_URL" '[[ "$LICENSE_URL" == "file://$tdir/license.key" ]]'
+LICENSE_URL=""
+parse_args "--license-url=file://$tdir/license.key"
+t::check "--license-url=URL sets LICENSE_URL" '[[ "$LICENSE_URL" == "file://$tdir/license.key" ]]'
+
+LICENSE_FILE=""
+license::fetch "file://$tdir/license.key"
+t::check "license::fetch downloads licence" '[[ -s "$LICENSE_FILE" && -f "$LICENSE_FILE" ]]'
+t::check "fetched licence verifies" 'license::verify "$LICENSE_FILE"'
+rm -f "$LICENSE_FILE"
+
 rm -rf "$tdir"
 t::summary
