@@ -33,13 +33,14 @@ Builds the self-contained script and uploads it via scp.
 cd product
 make build            # free/community build (no vendor key)
 make build-enterprise # Team/Enterprise build (embeds the vendor public key)
+make build-customer   # customer build (embeds vendor key + a specific licence)
 make deploy           # build (free) + upload
 make deploy-check     # build + local preflight only (no upload)
 ```
 
 What it does:
 - `scripts/build.sh` assembles `build/tscrub.sh` (concatenates `src/*.sh`, embeds `payload/sedutil-cli`).
-- The vendor public key (`keys/vendor-public-key.pem`) is embedded **only** by `make build-enterprise`, which enables licence verification and vendor-signed reports.
+- The vendor public key (`keys/vendor-public-key.pem`) is embedded **only** by `make build-enterprise` / `make build-customer`, which enables licence verification and vendor-signed reports. `make build-customer CUSTOMER="..." LIC=/path/to/Acme.lic` also bakes that licence into the image so the customer does not need to supply one at boot.
 - `scripts/deploy.sh` reads `product/.config` for `TSCRUB_DEPLOY_HOST`, `TSCRUB_DEPLOY_USER`, `TSCRUB_DEPLOY_DOCROOT`, `TSCRUB_DOMAIN`, then scp-uploads `build/*` and curl-checks the public URLs.
 
 Notes:

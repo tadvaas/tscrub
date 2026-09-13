@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.2"
+SCRIPT_VERSION="v1.3"
 REPORT_DIR="/"
 TABLE_INDENT="    "
 COCID=""
@@ -21,6 +21,8 @@ UI_RUNTIME_COL=0
 UI_ETA_COL=162
 LICENSE_FILE="/etc/tscrub/license.key"
 LICENSE_URL=""
+LICENSE_SOURCE_SET=0
+LICENSE_EMBEDDED_B64=""
 LICENSE_VENDOR_PUBLIC_KEY_B64=""
 NO_SUPPORTED_DRIVES=0
 DISCOVERY_NOTICE=""
@@ -189,19 +191,23 @@ parse_args() {
                 ;;
             --license=*)
                 LICENSE_FILE="${arg#*=}"
+                LICENSE_SOURCE_SET=1
                 ;;
             --license)
                 shift
                 [[ $# -gt 0 ]] || { echo "--license requires a path"; exit 1; }
                 LICENSE_FILE="$1"
+                LICENSE_SOURCE_SET=1
                 ;;
             --license-url=*)
                 LICENSE_URL="${arg#*=}"
+                LICENSE_SOURCE_SET=1
                 ;;
             --license-url)
                 shift
                 [[ $# -gt 0 ]] || { echo "--license-url requires a URL"; exit 1; }
                 LICENSE_URL="$1"
+                LICENSE_SOURCE_SET=1
                 ;;
             --help|-h)
                 echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL]"

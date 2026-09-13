@@ -212,11 +212,26 @@ license::fetch() {
     return 0
 }
 
-# Resolve the licence location from the kernel command line (ShredOS/PXE boot)
-# and the CLI flags set by parse_args:
-#   path: tscrub_license=/path/to/license.key or shredos_license=/path
-#   URL:  tscrub_license_url=http://host/license.key or shredos_license_url=http://host/license.key
-# When nothing is set, LICENSE_FILE is left as-is (compiled default).
+# Decode a licence embedded at build time (LICENSE_EMBEDDED_B64 = base64 of the
+# .lic JSON) to a mode-600 temp file and point LICENSE_FILE at it. Customer
+# builds use this so no licence needs to be supplied at boot.
+license::apply_embedded() {
+    local out
+
+    [[ -n "$LICENSE_EMBEDDED_B64" ]] || return 1
+    out="$(mktemp /tmp/tscrub-lic.XXXXXX)"
+    printf '%s\n' "$LICENSE_EMBEDDED_B64" | openssl base64 -d -out "$out" 2>/dev/null || { rm -f "$out"; return 1; }
+    [[ -s "$out" ]] || { rm -f "$out"; return 1; }
+    chmod 600 "$out" 2>/dev/null || true
+    LICENSE_FILE="$out"
+    return 0
+}
+
+# Resolve the licence location, in priority order:
+#   1. explicit path (--license / tscrub_license=/shredos_license=)
+#   2. URL (--license-url / tscrub_license_url=/shredos_license_url=)
+#   3. licence embedded at build time (customer builds)
+#   4. the compiled default path (/etc/tscrub/license.key)
 license::detect() {
     local param url
 
@@ -225,6 +240,7 @@ license::detect() {
         param="${param#\"}"
         param="${param%\"}"
         LICENSE_FILE="$param"
+        LICENSE_SOURCE_SET=1
     fi
 
     url="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^(tscrub_license_url|shredos_license_url)=//p' | head -n 1)"
@@ -232,6 +248,7 @@ license::detect() {
         url="${url#\"}"
         url="${url%\"}"
         LICENSE_URL="$url"
+        LICENSE_SOURCE_SET=1
     fi
 
     if [[ -n "$LICENSE_URL" ]]; then
@@ -240,6 +257,12 @@ license::detect() {
         else
             printf "%s[!] Licence fetch failed: %s\n" "$TABLE_INDENT" "$LICENSE_URL" >&2
         fi
+    fi
+
+    # Customer builds carry an embedded licence; use it when no external
+    # source was configured.
+    if [[ "$LICENSE_SOURCE_SET" -eq 0 ]]; then
+        license::apply_embedded || true
     fi
 }
 

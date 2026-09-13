@@ -244,6 +244,10 @@ tscrub --license /path/to/Acme-ITAD-Ltd-2027-09-12.lic</pre>
 tscrub_license_url=http://192.168.1.10/license.key
 # or: shredos_license_url=http://192.168.1.10/license.key</pre>
               <p class="mt-3 text-sm text-slate-600">Fetching requires <code class="font-mono">curl</code> or <code class="font-mono">wget</code> on the appliance. Because a <code class="font-mono">.lic</code> contains the <strong>private</strong> report-signing key, host it on an authenticated or isolated LAN endpoint — not a public URL.</p>
+              <p class="mt-3 text-sm text-slate-600">Team/Enterprise appliances can ship with the licence <strong>baked in</strong> at build time, so nothing needs to be supplied at boot:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200"># Vendor side: build a customer image with the licence embedded
+make build-customer CUSTOMER="Acme ITAD Ltd" LIC=/path/to/Acme-ITAD-Ltd-2027-09-12.lic</pre>
+              <p class="mt-3 text-sm text-slate-600">The embedded licence is still verified at boot (signature + expiry). An explicit <code class="font-mono">--license</code>, <code class="font-mono">--license-url</code>, or kernel-command-line value takes precedence over it.</p>
               <p class="mt-3 text-sm text-slate-600">A licence is only verified on Team/Enterprise builds that embed the vendor public key; the free community build ignores it and keeps self-signed reports.</p>
               <p class="mt-3 text-sm text-slate-600">Vendor public key (published for audit verification):</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">-----BEGIN PUBLIC KEY-----
@@ -258,6 +262,7 @@ MCowBQYDK2VwAyEAbBDdsD4wQh7aoBRe890V8LcTOZNe6n6Cvh0AkrBA4B4=
                     <tr><th class="px-6 py-3 font-semibold">Release</th><th class="px-6 py-3 font-semibold">SHA-256</th><th class="px-6 py-3 font-semibold">Signing key fingerprint</th></tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.3</td><td class="px-6 py-3 font-mono text-xs">425dce8629ebfa38a671d992e884bbfcfbfecfc558113d0241acac734d21c3b5</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
                     <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.2</td><td class="px-6 py-3 font-mono text-xs">80182216d58926902627bd4a68365ba446410b88683d9f41dcc028fc963e7df4</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
                     <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.1</td><td class="px-6 py-3 font-mono text-xs">e87549ead705b5d618c8fd21bd18375e21d4088bb4e3d8205770136432323ee0</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
                     <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.0</td><td class="px-6 py-3 font-mono text-xs">85e83b2f09dcc020d96787b4d92ce8604e475364c0856d61e8253df9b11b67a0</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>

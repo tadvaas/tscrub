@@ -74,5 +74,23 @@ t::check "license::fetch downloads licence" '[[ -s "$LICENSE_FILE" && -f "$LICEN
 t::check "fetched licence verifies" 'license::verify "$LICENSE_FILE"'
 rm -f "$LICENSE_FILE"
 
+# Embedded licence (customer builds): apply_embedded + detect fallback.
+LICENSE_EMBEDDED_B64="$(openssl base64 -A -in "$tdir/license.key")"
+LICENSE_FILE=""
+LICENSE_SOURCE_SET=0
+license::apply_embedded
+t::check "embedded licence decoded" '[[ -s "$LICENSE_FILE" && -f "$LICENSE_FILE" ]]'
+t::check "embedded licence verifies" 'license::verify "$LICENSE_FILE"'
+rm -f "$LICENSE_FILE"
+
+LICENSE_FILE=""
+LICENSE_URL=""
+LICENSE_SOURCE_SET=0
+license::detect
+t::check "detect falls back to embedded licence" '[[ -s "$LICENSE_FILE" && -f "$LICENSE_FILE" ]]'
+t::check "detected embedded licence verifies" 'license::verify "$LICENSE_FILE"'
+rm -f "$LICENSE_FILE"
+LICENSE_EMBEDDED_B64=""
+
 rm -rf "$tdir"
 t::summary

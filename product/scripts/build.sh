@@ -52,6 +52,14 @@ if [[ -f "$VENDOR_PUB" ]]; then
   printf 'LICENSE_VENDOR_PUBLIC_KEY_B64="%s"\n\n' "$(base64 < "$VENDOR_PUB" | tr -d '\n')" >> "$OUT_FILE"
 fi
 
+# Embed a customer licence when present (customer builds). Provide
+# payload/license.lic to bake a licence into the image so the customer does
+# not need to supply one at boot.
+EMBED_LIC="$PAYLOAD_DIR/license.lic"
+if [[ -f "$EMBED_LIC" ]]; then
+  printf 'LICENSE_EMBEDDED_B64="%s"\n\n' "$(base64 < "$EMBED_LIC" | tr -d '\n')" >> "$OUT_FILE"
+fi
+
 # Entrypoint (must be last)
 [[ -f "$SRC_DIR/99_entrypoint.sh" ]] || { echo "Missing source part: $SRC_DIR/99_entrypoint.sh" >&2; exit 1; }
 cat "$SRC_DIR/99_entrypoint.sh" >> "$OUT_FILE"
