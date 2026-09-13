@@ -1,0 +1,13 @@
+{
+  "schema": "tscrub-report/1",
+  "cocid": "10002",
+  "created": "2026-09-10T09:15:00Z",
+  "report": "unsigned-report_10002.csv",
+  "sha256": "1fab15f7219e1dc40362a51918a720d16cd60ab196375592a1a5bfc1d23d710f",
+  "signed": false,
+  "drives": [
+    {"device":"nvme0n1","status":"COMPLETED","method":"NVMe Crypto Erase","cert":"DESTRUCTION"},
+    {"device":"sda","status":"COMPLETED","method":"ATA Enhanced Secure Erase","cert":"SANITISATION"},
+    {"device":"sdb","status":"COMPLETED","method":"SCSI Sanitize Overwrite","cert":"SANITISATION"}
+  ]
+}

@@ -4,17 +4,13 @@
 
 report::csv() {
     local report_file="$REPORT_DIR${SCRIPT_NAME}_${COCID}_$(date -u +%Y%m%dT%H%M%SZ).csv"
-    local system_name="$SYS_MANUFACTURER $SYS_PRODUCT"
 
     {
-        echo "COCID,Timestamp,System,SystemSerial,BaseboardSerial,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus"
         for dev in "${devices[@]}"; do
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$COCID" \
                 "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                "$system_name" \
-                "$SYS_SERIAL" \
-                "$SYS_BASEBOARD_SERIAL" \
                 "${devrow[$dev.model]}" \
                 "${devrow[$dev.serial]}" \
                 "${devrow[$dev.size]}" \

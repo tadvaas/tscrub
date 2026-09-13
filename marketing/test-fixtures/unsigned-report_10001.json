@@ -1,0 +1,11 @@
+{
+  "schema": "tscrub-report/1",
+  "cocid": "10001",
+  "created": "2026-09-11T14:05:00Z",
+  "report": "unsigned-report_10001.csv",
+  "sha256": "516eb470fa9c240e65e633b23243962e28e530712c718ae0ce6565b7758faa44",
+  "signed": false,
+  "drives": [
+    {"device":"nvme0n1","status":"COMPLETED","method":"NVMe Format","cert":"DESTRUCTION"}
+  ]
+}

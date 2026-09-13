@@ -1,0 +1,3 @@
+COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus
+"12345","2026-09-12T10:30:00Z","SAMSUNG MZQL23T8HCLS-00A07","S123456","3.8TB","NVMe","SSD","nvme0n1","PURGE","DESTRUCTION","NVMe Crypto Purge","COMPLETED"
+"12345","2026-09-12T10:30:00Z","Seagate Exos X20 ST20000NM007D","57890","20TB","SATA","HDD","sda","PURGE","SANITISATION","ATA Secure Erase","COMPLETED"

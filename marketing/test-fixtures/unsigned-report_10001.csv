@@ -1,0 +1,2 @@
+COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus
+"10001","2026-09-11T14:05:00Z","Intel SSD DC P5520","PHKS12345","3.2TB","NVMe","SSD","nvme0n1","PURGE","DESTRUCTION","NVMe Format","COMPLETED"

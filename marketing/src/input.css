@@ -7,7 +7,24 @@ html {
 }
 
 body {
-  @apply bg-white text-slate-800 antialiased;
+  @apply flex min-h-screen flex-col bg-white text-slate-800 antialiased;
+}
+
+/* Flex children must behave like blocks (full width) and be allowed to shrink
+   below their min-content width, otherwise wide tables/code blocks force
+   horizontal page overflow. */
+body > * {
+  @apply w-full min-w-0;
+}
+
+footer {
+  @apply mt-auto;
+}
+
+/* Long unbroken inline tokens (e.g. 64-char fingerprints) must wrap on mobile
+   rather than force horizontal overflow. `<pre>` blocks stay scrollable. */
+code {
+  @apply break-all;
 }
 
 /* ---- Design flourishes ---- */

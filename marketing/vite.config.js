@@ -12,7 +12,8 @@ const pages = {
   privacy: 'privacy.html',
   terms: 'terms.html',
   docs: 'docs.html',
-  contact: 'contact.html'
+  contact: 'contact.html',
+  certify: 'certify.html'
 }
 
 export default defineConfig({

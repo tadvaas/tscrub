@@ -1,0 +1,120 @@
+<?php
+/**
+ * Certificate verification page: /verify?cert=COD-XXXXXXXX-XX-XXX-XXXX-XXXX
+ * Looks up an issued certificate in the registry and confirms its details,
+ * including the document hash so the PDF can be checked for tampering.
+ */
+
+$cert = strtoupper(trim((string)($_GET['cert'] ?? '')));
+$isValidId = (preg_match('/^COD-[A-Z0-9-]{6,}$/', $cert) === 1);
+
+$record = null;
+if ($isValidId) {
+    $path = __DIR__ . '/certificates/' . $cert . '.json';
+    if (is_file($path)) {
+        $data = json_decode((string)file_get_contents($path), true);
+        if (is_array($data)) { $record = $data; }
+    }
+}
+
+function v_ts($ts) {
+    if (is_string($ts) && preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/', $ts, $m)) {
+        return $m[1] . ' ' . $m[2];
+    }
+    if (is_string($ts) && preg_match('/^(\d{4}-\d{2}-\d{2})/', $ts, $m)) {
+        return $m[1];
+    }
+    return $ts === null ? '' : (string)$ts;
+}
+function v_sha_state($s) {
+    if ($s === 'verified') return 'SHA-256 VERIFIED';
+    if ($s === 'mismatch') return 'SHA-256 MISMATCH';
+    return 'SHA-256 RECORDED';
+}
+function v_sig_state($s) {
+    if ($s === 'valid') return 'SIGNATURE VALID';
+    if ($s === 'invalid') return 'SIGNATURE INVALID';
+    return 'NOT SIGNED';
+}
+function v_h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
+$found = $record !== null;
+
+$window = '';
+if ($found) {
+    $first = $record['first'] ?? null;
+    $last  = $record['last'] ?? null;
+    if ($first !== null) {
+        $window = v_ts($first);
+        if ($last !== null && $first !== $last) { $window .= ' to ' . v_ts($last); }
+    }
+}
+?>
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $found ? 'Certificate Verified' : 'Certificate Not Found' ?> — tScrub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:Inter,system-ui,sans-serif;background:#f8fafc;color:#0b1220;margin:0;display:flex;flex-direction:column;min-height:100vh;}
+  header{padding:18px 24px;display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid #e2e8f0;}
+  header .logo{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:#059669;color:#fff;border-radius:8px;font-family:monospace;font-weight:700;font-size:15px;}
+  header .brand{font-weight:800;font-size:18px;letter-spacing:-0.02em;}
+  main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:40px 20px;}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;}
+  .status{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;margin-bottom:6px;}
+  .dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;}
+  .ok{color:#059669;} .bad{color:#dc2626;}
+  .dot.ok{background:#059669;} .dot.bad{background:#dc2626;}
+  .sub{color:#64748b;font-size:14px;margin-bottom:20px;}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+  th{color:#64748b;font-weight:600;width:40%;}
+  td code{font-size:12px;word-break:break-all;}
+  .reports p{margin:16px 0 6px;font-weight:700;font-size:13px;}
+  .reports div{padding:4px 0;border-bottom:1px dashed #e2e8f0;font-size:12px;color:#475569;word-break:break-all;}
+  .note{margin-top:18px;font-size:12.5px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;}
+  a{color:#059669;}
+  footer{padding:18px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0;background:#fff;}
+</style>
+</head>
+<body>
+<header><span class="logo">t</span><span class="brand">tScrub</span></header>
+<main>
+  <div class="card">
+<?php if ($found): ?>
+    <div class="status"><span class="dot ok"></span><span class="ok">Certificate Verified</span></div>
+    <div class="sub">This certificate of destruction was issued by tScrub and its underlying reports passed integrity checks at the time of issuance.</div>
+    <table>
+      <tr><th>Certificate ID</th><td><code><?= v_h($record['cert'] ?? $cert) ?></code></td></tr>
+      <tr><th>Chain of Custody ID</th><td><?= v_h($record['cocid'] ?? '') ?></td></tr>
+      <tr><th>Issued</th><td><?= v_h(v_ts($record['issued'] ?? '')) ?></td></tr>
+      <tr><th>Sanitisation window</th><td><?= v_h($window) ?></td></tr>
+      <tr><th>Devices / Methods / Runs</th><td><?= (int)($record['devices'] ?? 0) ?> / <?= (int)($record['methods'] ?? 0) ?> / <?= (int)($record['runs'] ?? 0) ?></td></tr>
+      <tr><th>Integrity</th><td><?= v_h(v_sha_state($record['sha_state'] ?? 'unverified')) ?></td></tr>
+      <tr><th>Signature</th><td><?= v_h(v_sig_state($record['sig_state'] ?? 'none')) ?></td></tr>
+      <tr><th>Document hash (SHA-256)</th><td><code><?= v_h($record['pdf_sha256'] ?? '') ?></code></td></tr>
+    </table>
+    <?php if (!empty($record['reports'])): ?>
+    <div class="reports">
+      <p>Consolidated reports</p>
+      <?php foreach ((array)$record['reports'] as $r): ?>
+      <div><?= v_h($r['name'] ?? '') ?> — <code><?= v_h($r['sha'] ?? '') ?></code></div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <div class="note">To check this document hasn't been altered, compute the SHA-256 of your PDF and compare it with the document hash above.</div>
+<?php else: ?>
+    <div class="status"><span class="dot bad"></span><span class="bad">Certificate Not Found</span></div>
+    <div class="sub"><?= $isValidId ? 'No certificate with that ID was issued through tscrub.com.' : 'The certificate ID format is invalid.' ?></div>
+    <div class="note">Use the exact Certificate ID printed on the certificate (for example <code>COD-123456-AB-CDE-1234-ABCD</code>).</div>
+<?php endif; ?>
+  </div>
+</main>
+<footer>tScrub — verifiable disk sanitisation · <a href="/docs">Documentation</a></footer>
+</body>
+</html>

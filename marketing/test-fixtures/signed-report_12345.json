@@ -1,0 +1,13 @@
+{
+  "schema": "tscrub-report/1",
+  "cocid": "12345",
+  "created": "2026-09-12T10:30:00Z",
+  "report": "signed-report_12345.csv",
+  "sha256": "631c6fabb036a528561039ff190519af0c458988b7d69dee3e6e2794bf1473ba",
+  "signed": true,
+  "public_key": "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQXA2RFZUMWJxWXdkRnVoQXQ1MU05SVhtK1dmWXlLRWtHK1JmUlBRVW1DdFk9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=",
+  "drives": [
+    {"device":"nvme0n1","status":"COMPLETED","method":"NVMe Crypto Purge","cert":"DESTRUCTION"},
+    {"device":"sda","status":"COMPLETED","method":"ATA Secure Erase","cert":"SANITISATION"}
+  ]
+}

@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "bash deploy.sh"
+    "deploy": "bash deploy.sh",
+    "deploy:server": "bash deploy-server.sh"
   },
   "dependencies": {
     "flowbite": "^2.5.2"

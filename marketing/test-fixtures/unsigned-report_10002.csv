@@ -1,0 +1,4 @@
+COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus
+"10002","2026-09-10T09:15:00Z","Micron 7450 MAX","MIC123","1.6TB","NVMe","SSD","nvme0n1","PURGE","DESTRUCTION","NVMe Crypto Erase","COMPLETED"
+"10002","2026-09-10T09:15:00Z","Samsung 870 QVO","SME456","4TB","SATA","SSD","sda","PURGE","SANITISATION","ATA Enhanced Secure Erase","COMPLETED"
+"10002","2026-09-10T09:15:00Z","HGST Ultrastar C10K1800","HGST789","1.2TB","SAS","HDD","sdb","PURGE","SANITISATION","SCSI Sanitize Overwrite","COMPLETED"

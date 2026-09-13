@@ -41,6 +41,7 @@
           <li><a href="docs" class="font-semibold text-ink-900">Docs</a></li>
           <li><a href="download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
           <li><a href="faq" class="text-slate-600 hover:text-ink-900">FAQ</a></li>
+          <li><a href="certify" class="text-slate-600 hover:text-ink-900">Certify</a></li>
           <li><a href="contact" class="text-slate-600 hover:text-ink-900">Contact</a></li>
         </ul>
         <a href="download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Download</a>
@@ -54,7 +55,7 @@
       <p class="mt-3 text-slate-600">Everything you need to run tScrub — from boot to a verifiable report.</p>
     </div>
 
-    <div class="mt-12 grid gap-12 lg:grid-cols-[260px_1fr]">
+    <div class="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-[260px_1fr]">
       <!-- Sidebar table of contents -->
       <aside class="hidden lg:block">
         <nav class="sticky top-24 space-y-7 text-sm" aria-label="Documentation table of contents">
@@ -77,20 +78,21 @@
             <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
               <li><a href="#report" class="block text-slate-600 hover:text-ink-900">5. The report</a></li>
               <li><a href="#verify" class="block text-slate-600 hover:text-ink-900">6. Verify a report</a></li>
+              <li><a href="#certificate" class="block text-slate-600 hover:text-ink-900">7. Certificate of Destruction</a></li>
             </ul>
           </div>
           <div>
             <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Reference</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
-              <li><a href="#licensing" class="block text-slate-600 hover:text-ink-900">7. Licensing</a></li>
-              <li><a href="#media" class="block text-slate-600 hover:text-ink-900">8. Supported media</a></li>
+              <li><a href="#licensing" class="block text-slate-600 hover:text-ink-900">8. Licensing</a></li>
+              <li><a href="#media" class="block text-slate-600 hover:text-ink-900">9. Supported media</a></li>
             </ul>
           </div>
         </nav>
       </aside>
 
       <!-- Content -->
-      <div class="max-w-3xl space-y-14">
+      <div class="min-w-0 max-w-3xl space-y-14">
         <!-- Mobile jump nav -->
         <nav class="flex flex-wrap gap-2 text-sm lg:hidden" aria-label="Table of contents">
           <a href="#quickstart" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Quick start</a>
@@ -98,6 +100,7 @@
           <a href="#run" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Run</a>
           <a href="#report" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Report</a>
           <a href="#verify" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Verify</a>
+          <a href="#certificate" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Certify</a>
           <a href="#licensing" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Licensing</a>
           <a href="#media" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Media</a>
           <a href="#requirements" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Requirements</a>
@@ -165,7 +168,7 @@ tscrub --dry-run --simulate-running-eta=10   # simulated run with live progress<
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_48213_20260912T1030Z.csv    # human-readable report (one row per drive)
 tscrub_48213_20260912T1030Z.sig    # base64 Ed25519 signature over the CSV
 tscrub_48213_20260912T1030Z.json   # manifest (SHA-256, public key, drive summary)</pre>
-              <p class="mt-3 text-sm text-slate-600">The CSV columns are: <code class="font-mono">COCID, Timestamp, System, SystemSerial, BaseboardSerial, Model, Serial, Size, Bus, Type, Device, Class, Certification, Method, FinalStatus</code>.</p>
+              <p class="mt-3 text-sm text-slate-600">The CSV columns are: <code class="font-mono">COCID, Timestamp, Model, Serial, Size, Bus, Type, Device, Class, Certification, Method, FinalStatus</code>.</p>
 
               <h3 class="mt-6 text-base font-bold text-ink-900">Uploading reports</h3>
               <p class="mt-2 text-sm text-slate-600">tScrub can upload all three files to an FTP server at the end of a run. The destination is set at <strong>boot time</strong> on the kernel command line (PXE, GRUB, or the ShredOS boot entry) — not inside the script:</p>
@@ -185,6 +188,27 @@ tscrub_48213_20260912T1030Z.json   # manifest (SHA-256, public key, drive summar
               <p class="mt-3 text-sm text-slate-600">The official tScrub vendor public key fingerprint (for audit reference):</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</pre>
             </div>
+            <div id="certificate">
+              <h2 class="text-xl font-bold text-ink-900">7. Certificate of Destruction</h2>
+              <p class="mt-3 text-sm text-slate-600">Turn one or more tScrub reports into a single, printable Certificate of Destruction at <a href="/certify" class="text-brand-600 hover:underline">tscrub.com/certify</a>. Upload the <code class="font-mono">.csv</code> (and, if you have them, the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code>) files — reports sharing the same Chain of Custody ID are consolidated into one certificate.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">What happens when you upload</h3>
+              <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600">
+                <li>Each <code class="font-mono">.csv</code> is hashed (SHA-256) and, when a manifest is present, checked against its recorded checksum.</li>
+                <li>Where a report is signed, the Ed25519 signature is verified against the key embedded in the manifest.</li>
+                <li>Drives from every report with the same COCID are merged into a single certificate, sorted by wipe time.</li>
+                <li>A tamper-evident PDF is generated with a unique Certificate ID, an annex listing every device, and a verification QR code.</li>
+              </ol>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">Verifying a certificate online</h3>
+              <p class="mt-3 text-sm text-slate-600">Each certificate carries a unique Certificate ID (<code class="font-mono">COD-…</code>). Scanning the QR code — or visiting <code class="font-mono">tscrub.com/verify?cert=COD-…</code> — looks up the issuance record and confirms:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                <li>the Certificate ID, Chain of Custody ID, and sanitisation window;</li>
+                <li>device, method, and run counts;</li>
+                <li>the integrity and signature status recorded at issuance;</li>
+                <li>a SHA-256 hash of the PDF itself, so the document can be checked for alteration since issue.</li>
+              </ul>
+            </div>
           </div>
         </section>
 
@@ -193,7 +217,7 @@ tscrub_48213_20260912T1030Z.json   # manifest (SHA-256, public key, drive summar
           <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 4 · Reference</p>
           <div class="mt-5 space-y-10">
             <div id="licensing">
-              <h2 class="text-xl font-bold text-ink-900">7. Licensing</h2>
+              <h2 class="text-xl font-bold text-ink-900">8. Licensing</h2>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[480px] text-left text-sm">
                   <thead class="bg-ink-900 text-xs uppercase text-slate-300">
@@ -228,7 +252,7 @@ MCowBQYDK2VwAyEAbBDdsD4wQh7aoBRe890V8LcTOZNe6n6Cvh0AkrBA4B4=
               <p class="mt-2 text-sm text-slate-600">When the vendor key is rotated, the old <strong>public</strong> key is listed here (never deleted) so licences and releases signed by it remain verifiable.</p>
             </div>
             <div id="media">
-              <h2 class="text-xl font-bold text-ink-900">8. Supported media</h2>
+              <h2 class="text-xl font-bold text-ink-900">9. Supported media</h2>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[480px] text-left text-sm">
                   <thead class="bg-ink-900 text-xs uppercase text-slate-300">
@@ -272,6 +296,7 @@ MCowBQYDK2VwAyEAbBDdsD4wQh7aoBRe890V8LcTOZNe6n6Cvh0AkrBA4B4=
         <li><a href="compliance" class="hover:text-white">Compliance</a></li>
         <li><a href="download" class="hover:text-white">Pricing</a></li>
         <li><a href="faq" class="hover:text-white">FAQ</a></li>
+        <li><a href="certify" class="hover:text-white">Certify</a></li>
         <li><a href="docs" class="hover:text-white">Docs</a></li>
         <li><a href="privacy" class="hover:text-white">Privacy</a></li>
         <li><a href="terms" class="hover:text-white">Terms</a></li>

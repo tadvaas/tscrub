@@ -11,6 +11,7 @@
 - [Pricing & download](https://tscrub.com/download): Free community build, Pay-as-you-go £0.25/device, Team £99/month, Enterprise custom — choose a plan and request the download.
 - [Docs](https://tscrub.com/docs): Building your appliance, running sanitisation, verifying signed reports.
 - [FAQ](https://tscrub.com/faq): Certification, build-your-own-appliance, and edge-case drive handling.
+- [Certificate of Destruction](https://tscrub.com/certify): Upload a report and generate a verified, printable certificate.
 - [Contact](https://tscrub.com/contact): Sales, support, and compliance enquiries.
 
 ## Legal

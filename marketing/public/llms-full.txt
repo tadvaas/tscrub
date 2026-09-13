@@ -41,6 +41,10 @@ Choose a plan and request the download on the Download page (https://tscrub.com/
 
 Download the appliance image and builder script from the Download page, build your own bootable sanitisation appliance, and verify signed reports with the `tscrub verify` command (documented in the Docs page).
 
+## Certificate of Destruction
+
+Upload a tScrub report (CSV + JSON manifest + optional signature) at tscrub.com/certify to verify it and generate a printable PDF Certificate of Destruction per Chain of Custody ID.
+
 ## Contact
 
 For general, sales, and compliance questions, email hello@tscrub.com; for support, email support@tscrub.com. See the Contact page for details. UK-based team; priority support is included on Team and Enterprise plans.
