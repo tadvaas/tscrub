@@ -189,6 +189,19 @@ report::verify() {
 # The vendor public key is embedded in the image as LICENSE_VENDOR_PUBLIC_KEY_B64.
 # Licences are issued with scripts/issue_license.sh (vendor side).
 
+# Resolve the licence path from the kernel command line (ShredOS/PXE boot).
+# Accepts tscrub_license=/path/to/license.key or shredos_license=/path. When
+# absent, LICENSE_FILE is left as-is (--license flag or the compiled default).
+license::detect() {
+    local param
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^(tscrub_license|shredos_license)=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 0
+    param="${param#\"}"
+    param="${param%\"}"
+    LICENSE_FILE="$param"
+}
+
 license::verify() {
     local lic="${1:-$LICENSE_FILE}"
     local customer expiry key_b64 sig_b64 msg tmp

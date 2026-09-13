@@ -53,6 +53,7 @@ fn_main() {
     START_TS=$(date +%s)
 
     # Enable attributable (vendor-signed) reports when a valid licence is present.
+    license::detect
     if license::verify; then
         license::apply
         printf "%sLicence valid — signed reports enabled.\n" "$TABLE_INDENT"

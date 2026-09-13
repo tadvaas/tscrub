@@ -52,5 +52,13 @@ t::check "report signed with licence key" '[[ -f "$csv.sig" ]]'
 vout="$(report::verify "$csv")"
 t::check "licensed report verifies VALID" '[[ "$vout" == *"Signature: VALID"* ]]'
 
+# --license flag (both forms) must override the default licence path.
+LICENSE_FILE=""
+parse_args --license "$tdir/license.key"
+t::check "--license PATH sets LICENSE_FILE" '[[ "$LICENSE_FILE" == "$tdir/license.key" ]]'
+LICENSE_FILE=""
+parse_args "--license=$tdir/license.key"
+t::check "--license=PATH sets LICENSE_FILE" '[[ "$LICENSE_FILE" == "$tdir/license.key" ]]'
+
 rm -rf "$tdir"
 t::summary

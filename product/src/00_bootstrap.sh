@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.0"
+SCRIPT_VERSION="v1.1"
 REPORT_DIR="/"
 TABLE_INDENT="    "
 COCID=""
@@ -169,9 +169,10 @@ ipc::open() {
 }
 
 parse_args() {
-    local mins
+    local arg mins
 
-    for arg in "$@"; do
+    while (($# > 0)); do
+        arg="$1"
         case "$arg" in
             --dry-run|-n)
                 DRY_RUN=1
@@ -185,13 +186,22 @@ parse_args() {
                     exit 1
                 fi
                 ;;
+            --license=*)
+                LICENSE_FILE="${arg#*=}"
+                ;;
+            --license)
+                shift
+                [[ $# -gt 0 ]] || { echo "--license requires a path"; exit 1; }
+                LICENSE_FILE="$1"
+                ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
                 echo "  (default)        Run disk sanitisation."
                 echo "  --dry-run        Simulate without wiping any drive."
+                echo "  --license PATH   Read the licence from PATH (default /etc/tscrub/license.key)."
                 echo "  verify <csv>     Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -200,6 +210,7 @@ parse_args() {
                 exit 1
                 ;;
         esac
+        shift
     done
 
     if [[ "$DRY_RUN" -eq 0 ]] && [[ "$DRY_RUN_SIM_ETA_MINS" -gt 0 ]]; then
