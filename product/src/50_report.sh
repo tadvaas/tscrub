@@ -6,9 +6,9 @@ report::csv() {
     local report_file="$REPORT_DIR${SCRIPT_NAME}_${COCID}_$(date -u +%Y%m%dT%H%M%SZ).csv"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost"
         for dev in "${devices[@]}"; do
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$COCID" \
                 "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                 "${devrow[$dev.model]}" \
@@ -20,7 +20,18 @@ report::csv() {
                 "${devrow[$dev.class]}" \
                 "${devrow[$dev.cert]}" \
                 "${devrow[$dev.method]}" \
-                "${devrow[$dev.status]}"
+                "${devrow[$dev.status]}" \
+                "${devrow[$dev.smart]}" \
+                "${devrow[$dev.temp]}" \
+                "${devrow[$dev.poh]}" \
+                "${devrow[$dev.cycles]}" \
+                "${devrow[$dev.realloc]}" \
+                "${devrow[$dev.pct_used]}" \
+                "${devrow[$dev.spare]}" \
+                "${devrow[$dev.tbw]}" \
+                "${devrow[$dev.smart_post]}" \
+                "${devrow[$dev.temp_post]}" \
+                "${devrow[$dev.poh_post]}"
         done
     } > "$report_file"
 

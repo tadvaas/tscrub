@@ -248,29 +248,34 @@ table::render() {
         "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
     printf "%s+%s+  +%s+\n\n" "$TABLE_INDENT" "$hline" "$hline"
 
-    printf "%s%-30s %-25s %-8s %-8s %-8s %-8s %-13s %-15s %-20s %-12s %-9s\n" \
+    printf "%s%-30s %-25s %-8s %-8s %-8s %-8s %-6s %-8s %-13s %-15s %-20s %-12s %-9s\n" \
         "$TABLE_INDENT" \
-        "MODEL" "SERIAL" "SIZE" "BUS" "TYPE" "DEVICE" "CLASS" "CERT" "METHOD" "STATUS" "ETA"
+        "MODEL" "SERIAL" "SIZE" "BUS" "TYPE" "SMART" "TEMP" "DEVICE" "CLASS" "CERT" "METHOD" "STATUS" "ETA"
 
-    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 170 "" | tr ' ' '-')"
+    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 186 "" | tr ' ' '-')"
 
     if [[ "$NO_SUPPORTED_DRIVES" -eq 1 ]]; then
-        printf "%s%-170s\n" "$TABLE_INDENT" "[!] $DISCOVERY_NOTICE"
+        printf "%s%-186s\n" "$TABLE_INDENT" "[!] $DISCOVERY_NOTICE"
     fi
 
     for dev in "${devices[@]}"; do
-        local eta_col
+        local eta_col smart_col temp_col
         eta_col="$(ui::eta_text_for "$dev" "$now")"
+        smart_col="${devrow[$dev.smart]:--}"
+        temp_col="${devrow[$dev.temp]:-}"
+        [[ -n "$temp_col" ]] && temp_col="${temp_col}C" || temp_col="-"
         row=$((eta_base_row + cpu_rows + gpu_rows + ${#ui_eta_row[@]} ))
         ui_eta_row["$dev"]="$row"
 
-        printf "%s%-30s %-25s %-8s %-8s %-8s %-8s %-13s %-15s %-20s %-12s %-9s\n" \
+        printf "%s%-30s %-25s %-8s %-8s %-8s %-8s %-6s %-8s %-13s %-15s %-20s %-12s %-9s\n" \
             "$TABLE_INDENT" \
             "${devrow[$dev.model]}" \
             "${devrow[$dev.serial]}" \
             "${devrow[$dev.size]}" \
             "${devrow[$dev.bus]}" \
             "${devrow[$dev.type]}" \
+            "$smart_col" \
+            "$temp_col" \
             "${devrow[$dev.device]}" \
             "${devrow[$dev.class]}" \
             "${devrow[$dev.cert]}" \
@@ -280,7 +285,7 @@ table::render() {
 
     done
 
-    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 170 "" | tr ' ' '-')"
+    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 186 "" | tr ' ' '-')"
 
     if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"

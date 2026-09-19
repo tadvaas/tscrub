@@ -21,7 +21,11 @@ t::setup_env() {
     export SYS_BLOCK_DIR="$FIXTURES/sys/block"
     unset FAKE_HDPARM_MODE FAKE_NVME_MODE FAKE_NVME_SSTAT FAKE_NVME_SPROG \
           FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_NVME_FORMAT_RC \
-          FAKE_NVME_FORMAT_OUT FAKE_USB_DEVICES FAKE_SEDUTIL_LOCKED \
+          FAKE_NVME_FORMAT_OUT FAKE_NVME_CW FAKE_NVME_TEMP FAKE_NVME_SPARE \
+          FAKE_NVME_PCT_USED FAKE_NVME_DUW FAKE_NVME_CYCLES FAKE_NVME_POH \
+          FAKE_SMART_MODE FAKE_SMART_TEMP FAKE_SMART_POH FAKE_SMART_CYCLES \
+          FAKE_SMART_REALLOC FAKE_SMART_LIFE_REMAIN FAKE_SMART_LBA_WRITTEN \
+          FAKE_USB_DEVICES FAKE_SEDUTIL_LOCKED \
           FAKE_NWIPE_RC 2>/dev/null || true
 }
 
@@ -35,6 +39,7 @@ t::source_src() {
         "$ROOT_DIR/src/31_device_nvme.sh" \
         "$ROOT_DIR/src/32_device_scsi.sh" \
         "$ROOT_DIR/src/33_device_ata.sh" \
+        "$ROOT_DIR/src/34_smart.sh" \
         "$ROOT_DIR/src/40_table.sh" \
         "$ROOT_DIR/src/50_report.sh"; do
         source "$f" || return 1

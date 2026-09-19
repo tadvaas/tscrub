@@ -27,5 +27,14 @@ case "$sub" in
         [[ -n "${FAKE_NVME_FORMAT_OUT:-}" ]] && printf '%s\n' "$FAKE_NVME_FORMAT_OUT"
         exit "${FAKE_NVME_FORMAT_RC:-0}"
         ;;
+    smart-log)
+        printf 'critical_warning                    : %s\n' "${FAKE_NVME_CW:-0}"
+        printf 'temperature                         : %s C\n' "${FAKE_NVME_TEMP:-41}"
+        printf 'available_spare                     : %s%%\n' "${FAKE_NVME_SPARE:-100}"
+        printf 'percentage_used                     : %s%%\n' "${FAKE_NVME_PCT_USED:-12}"
+        printf 'data_units_written                  : %s\n' "${FAKE_NVME_DUW:-9876543}"
+        printf 'power_cycles                        : %s\n' "${FAKE_NVME_CYCLES:-55}"
+        printf 'power_on_hours                      : %s\n' "${FAKE_NVME_POH:-8765}"
+        ;;
 esac
 exit 0

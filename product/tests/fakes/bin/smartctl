@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Fake smartctl for tests. Emits the health self-assessment line plus a
+# synthetic attribute table, driven by FAKE_SMART_* env vars.
+mode="${FAKE_SMART_MODE:-pass}"
+
+case "$mode" in
+    unsupported)
+        printf 'SMART support is: Unavailable - device lacks SMART capability\n'
+        exit 0
+        ;;
+    hang)
+        # Busy loop with no child process so kill -9 stops it immediately.
+        while :; do :; done
+        ;;
+    fail)
+        printf 'SMART overall-health self-assessment test result: FAILED!\n'
+        ;;
+    *)
+        printf 'SMART overall-health self-assessment test result: PASSED\n'
+        ;;
+esac
+
+printf 'SMART support is: Available - device has SMART capability.\n'
+printf 'SMART Attributes Data Structure revision number: 16\n'
+printf 'Vendor Specific SMART Attributes with Thresholds:\n'
+printf 'ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE\n'
+printf '  1 Raw_Read_Error_Rate     0x002f   200   200   051    Pre-fail  Always       -       0\n'
+printf '  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       %s\n' "${FAKE_SMART_REALLOC:-0}"
+printf '  9 Power_On_Hours          0x0032   100   100   000    Old_age   Always       -       %s\n' "${FAKE_SMART_POH:-12345}"
+printf ' 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       %s\n' "${FAKE_SMART_CYCLES:-55}"
+printf '194 Temperature_Celsius     0x0022   112   104   000    Old_age   Always       -       %s\n' "${FAKE_SMART_TEMP:-36}"
+printf '202 Percent_Lifetime_Remain 0x0031   095   095   000    Old_age   Offline      -       %s\n' "${FAKE_SMART_LIFE_REMAIN:-95}"
+printf '241 Total_LBAs_Written      0x0032   100   100   000    Old_age   Always       -       %s\n' "${FAKE_SMART_LBA_WRITTEN:-123456789}"
+exit 0

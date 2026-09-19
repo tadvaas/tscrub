@@ -70,6 +70,8 @@ fn_main() {
         table::render
         exit 1
     fi
+    smart::capture_all pre
+
     device::handle_locks
     device::frozen
     device::detect
@@ -115,6 +117,8 @@ fn_main() {
     else
         ui::show_finish_green "Sanitization process finished"
     fi
+
+    smart::capture_all post
 
     report_file=$(report::csv)
     if [[ "$DRY_RUN" -eq 0 ]]; then

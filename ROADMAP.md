@@ -21,13 +21,18 @@ Buildroot** (not reselling ShredOS — just matching its drive-operation capabil
 | `util-linux` (`lscpu`, `blockdev`, `rtcwake`) | CPU info, block queries, freeze-cycle wake | yes |
 | `ncurses` (`tput`, `clear`) | terminal UI | yes |
 | `openssl` (with Ed25519) | licence verify + report signing | yes |
+| `sedutil-cli` | OPAL/SED unlock, PSID revert, Block SID detect | yes |
 | `lftp` | optional FTP report upload | optional |
-| `smartmontools` | diagnostics (not called by tScrub) | optional |
+| `smartmontools` | pre/post-wipe SMART capture for value assessment (`smart::capture_*`) | yes |
 | `sg3_utils` | SAS ops (not called by tScrub) | optional |
 
-sedutil for OPAL is **already embedded** in `tscrub.sh` as `SEDUTIL_PAYLOAD_B64`
-(extracted by `device::install_sedutil`); a separate sedutil package is optional
-for manual OPAL recovery in a shell.
+sedutil-cli is **also embedded** in `tscrub.sh` as `SEDUTIL_PAYLOAD_B64`
+(extracted by `device::install_sedutil`) so tScrub can unlock drives itself. The
+image should also ship `sedutil-cli` as a shell utility for manual OPAL/SED work
+(unlock, PSID revert, LockingRange inspect). It is **not in upstream Buildroot**,
+so either add a custom `package/sedutil` (build from
+github.com/Drive-Trust-Alliance/sedutil) or extract tScrub's embedded copy to
+`/usr/sbin/sedutil-cli` in the overlay — the latter requires no build at all.
 
 ### Kernel config areas (match ShredOS's drive ops)
 
@@ -45,6 +50,17 @@ firmware sanitise/format. Options:
 
 - [ ] Keep nwipe (GPL-2.0, small) as one more bundled package
 - [ ] Replace `device::exec_scsi_nwipe` with a `dd`/`blkdiscard` zero pass and drop nwipe
+
+### Build host
+
+- Build on the project server: `ssh oxwet@192.168.0.6` (SSH key already added).
+- Buildroot runs as the non-root `oxwet` user; the one-time host prerequisites
+  (`build-essential`, `cpio`, `dosfstools`, `mtools`, `libncurses-dev`,
+  `libssl-dev`, `git`, `unzip`, …) need a one-off `sudo apt install` — confirm
+  oxwet has sudo, or have whoever does run that step.
+- Needs ~8 GB RAM and several GB of free disk (ShredOS tree + downloaded sources).
+- Keep the ShredOS `output/` directory on the server so overlay-only tScrub
+  changes rebuild in minutes rather than a full cold build.
 
 ### Build steps
 

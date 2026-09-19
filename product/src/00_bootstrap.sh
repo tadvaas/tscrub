@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.3"
+SCRIPT_VERSION="v1.4"
 REPORT_DIR="/"
 TABLE_INDENT="    "
 COCID=""
@@ -18,7 +18,7 @@ UI_COMPLETE_THEME=0
 RERUN=0
 UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
-UI_ETA_COL=162
+UI_ETA_COL=178
 LICENSE_FILE="/etc/tscrub/license.key"
 LICENSE_URL=""
 LICENSE_SOURCE_SET=0
@@ -26,6 +26,7 @@ LICENSE_EMBEDDED_B64=""
 LICENSE_VENDOR_PUBLIC_KEY_B64=""
 NO_SUPPORTED_DRIVES=0
 DISCOVERY_NOTICE=""
+SMART_TIMEOUT="${SMART_TIMEOUT:-10}"
 
 declare -Ag devrow
 declare -Ag ui_eta_row
