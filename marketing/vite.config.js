@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 const pages = {
   main: 'index.html',
+  'getting-started': 'getting-started.html',
   how: 'how-it-works.html',
   compliance: 'compliance.html',
   compare: 'compare.html',

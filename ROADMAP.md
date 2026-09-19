@@ -81,7 +81,7 @@ firmware sanitise/format. Options:
 - [ ] Auto-upload reports → auto Certificate of Destruction (machine-facing `/api/certify` ingestion)
 - [ ] Billing (Stripe) + automatic licence issuance on payment webhook *(parked)*
 - [x] Repo-root README — **done** (layout, build, licence, output/upload, tests, deploy).
-- [ ] "Boot and wipe in 60 seconds" onboarding page/video
+- [x] "Boot and wipe in 60 seconds" onboarding — **done** as the `/getting-started` page (full step-by-step journey).
 
 ## 3. Self-serve platform (accounts → licence → app → dashboard → certs)
 

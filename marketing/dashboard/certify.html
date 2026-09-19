@@ -24,6 +24,20 @@
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-2 font-medium md:mt-0 md:flex-row md:items-center md:gap-6">
+          <li><a href="/getting-started" class="text-slate-600 hover:text-ink-900">Getting started</a></li>
+          <li class="relative">
+            <button id="mega-menu-btn" data-dropdown-toggle="mega-menu" class="flex items-center gap-1 py-2 text-sm text-slate-600 hover:text-ink-900">
+              Product
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="mega-menu" class="absolute left-0 top-full z-50 hidden w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+              <ul class="space-y-1">
+                  <li><a href="/how-it-works" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-ink-900">How it works</a></li>
+                  <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-ink-900">Compliance</a></li>
+                  <li><a href="/compare" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-ink-900">Compare</a></li>
+              </ul>
+            </div>
+          </li>
           <li><a href="/docs" class="text-slate-600 hover:text-ink-900">Docs</a></li>
           <li><a href="/download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
           <li><a href="/faq" class="text-slate-600 hover:text-ink-900">FAQ</a></li>

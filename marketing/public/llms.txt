@@ -5,6 +5,7 @@
 ## Pages
 
 - [Home](https://tscrub.com/): Overview, value proposition, features, and audiences.
+- [Getting started](https://tscrub.com/getting-started): The full journey — account, licence, download, boot, wipe, report, certificate, verify.
 - [How it works](https://tscrub.com/how-it-works): From boot to certificate — the four-step sanitisation walkthrough.
 - [Compliance](https://tscrub.com/compliance): How each wipe method maps to NIST 800-88 Clear, Purge, and Destroy, with GDPR/HIPAA/ISO 27001 reporting.
 - [Compare](https://tscrub.com/compare): tScrub vs Blancco — same compliance outcome, no vendor lock-in.
