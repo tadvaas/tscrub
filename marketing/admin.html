@@ -55,6 +55,16 @@
       <h2 class="text-lg font-bold text-ink-900">Certificates</h2>
       <div id="cert-list" class="mt-3"></div>
     </div>
+
+    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+      <h2 class="text-lg font-bold text-ink-900">Licences</h2>
+      <div id="licence-list" class="mt-3"></div>
+    </div>
+
+    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+      <h2 class="text-lg font-bold text-ink-900">Audit log</h2>
+      <div id="audit-list" class="mt-3"></div>
+    </div>
   </section>
 
   <footer class="bg-ink-900 text-slate-400">
@@ -105,6 +115,8 @@
         loadStats();
         loadUsers();
         loadCerts();
+        loadLicences();
+        loadAudit();
       });
 
       function loadStats() {
@@ -135,7 +147,9 @@
             left.appendChild(el('span', 'block text-sm font-semibold text-ink-900', u.name || u.email));
             left.appendChild(el('span', 'block text-xs text-slate-500', u.email + (u.account_type === 'company' && u.company_name ? ' · ' + u.company_name : '')));
             row.appendChild(left);
-            row.appendChild(el('span', 'text-xs font-semibold ' + (u.status === 'active' ? 'text-brand-700' : 'text-red-600'), u.status === 'active' ? (u.role === 'admin' ? 'ADMIN' : 'ACTIVE') : 'SUSPENDED'));
+            var badge = u.status === 'active' ? (u.role === 'admin' ? 'ADMIN' : 'ACTIVE') : 'SUSPENDED';
+            if (u.licences) { badge += ' · ' + u.licences + ' lic'; }
+            row.appendChild(el('span', 'text-xs font-semibold ' + (u.status === 'active' ? 'text-brand-700' : 'text-red-600'), badge));
             row.addEventListener('click', function () { loadUserDetail(u.id); });
             list.appendChild(row);
           });
@@ -196,6 +210,28 @@
           l.appendChild(lList);
           box.appendChild(l);
 
+          var issue = el('div', 'mt-4 rounded-lg border border-brand-200 bg-brand-50 p-3');
+          issue.appendChild(el('div', 'text-xs font-bold uppercase text-slate-500', 'Issue licence'));
+          var form = el('div', 'mt-2 flex flex-wrap items-center gap-2');
+          var sel = el('select', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800');
+          ['free', 'payg', 'team', 'enterprise'].forEach(function (t) {
+            var opt = el('option', null, t);
+            opt.value = t;
+            sel.appendChild(opt);
+          });
+          var issueBtn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700', 'Issue');
+          issueBtn.addEventListener('click', function () {
+            issueBtn.disabled = true;
+            apiPost('/api/admin/users/' + u.id + '/licence', { tier: sel.value }).then(function (res) {
+              issueBtn.disabled = false;
+              if (res.ok) { loadUserDetail(u.id); loadLicences(); loadStats(); }
+              else { alert(res.data.error || 'Could not issue licence.'); }
+            });
+          });
+          form.appendChild(sel); form.appendChild(issueBtn);
+          issue.appendChild(form);
+          box.appendChild(issue);
+
           var sess = el('div', 'mt-4');
           sess.appendChild(el('h3', 'text-xs font-bold uppercase text-slate-500', 'Active sessions (' + (u.sessions || []).length + ')'));
           var sessList = el('ul', 'mt-2 space-y-1');
@@ -228,6 +264,54 @@
             tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', c.cocid));
             tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', String(c.devices)));
             tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', (c.issued || '').slice(0, 10)));
+            table.appendChild(tr);
+          });
+          list.appendChild(table);
+        });
+      }
+
+      function loadLicences() {
+        fetch('/api/admin/licences').then(function (r) { return r.json(); }).then(function (d) {
+          var list = document.getElementById('licence-list');
+          list.innerHTML = '';
+          if (!(d.licences || []).length) { list.appendChild(el('p', 'text-sm text-slate-500', 'No licences issued yet.')); return; }
+          var table = el('table', 'w-full border-collapse text-sm');
+          var hr = el('tr');
+          ['Tier', 'Customer', 'Owner', 'Expiry', 'Issued'].forEach(function (h) {
+            hr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500', h));
+          });
+          table.appendChild(hr);
+          (d.licences || []).forEach(function (l) {
+            var tr = el('tr');
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs font-semibold text-ink-900', l.tier));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', l.customer));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', l.owner_email));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', l.expiry));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', (l.created_at || '').slice(0, 10)));
+            table.appendChild(tr);
+          });
+          list.appendChild(table);
+        });
+      }
+
+      function loadAudit() {
+        fetch('/api/admin/audit').then(function (r) { return r.json(); }).then(function (d) {
+          var list = document.getElementById('audit-list');
+          list.innerHTML = '';
+          if (!(d.audit || []).length) { list.appendChild(el('p', 'text-sm text-slate-500', 'No admin actions recorded yet.')); return; }
+          var table = el('table', 'w-full border-collapse text-sm');
+          var hr = el('tr');
+          ['Time', 'Admin', 'Action', 'Target', 'IP'].forEach(function (h) {
+            hr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500', h));
+          });
+          table.appendChild(hr);
+          (d.audit || []).forEach(function (a) {
+            var tr = el('tr');
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs whitespace-nowrap', (a.created_at || '').replace('T', ' ').slice(0, 19)));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', a.admin_email));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs font-mono', a.action));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', a.target));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-xs', a.ip));
             table.appendChild(tr);
           });
           list.appendChild(table);

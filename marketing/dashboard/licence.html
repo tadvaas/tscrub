@@ -72,6 +72,7 @@
           </select>
           <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Issue licence</button>
         </form>
+        <p id="licence-note" class="hidden w-full text-xs text-slate-500">Paid licences are issued by tScrub — <a href="/contact" class="font-semibold text-brand-700 hover:underline">contact us</a>.</p>
       </div>
       <div id="licence-list" class="mt-4 space-y-2"></div>
       <p id="licence-status" class="mt-3 hidden text-sm font-semibold" aria-live="polite"></p>
@@ -133,7 +134,19 @@
       fetch('/api/me').then(function (r) {
         if (r.status === 401) { window.location.href = '/login?next=/dashboard/licence'; return Promise.reject(); }
         return r.json();
-      }).then(function () { loadLicences(); });
+      }).then(function (d) {
+        if (!(d.user && d.user.role === 'admin')) {
+          var sel = document.getElementById('tier');
+          sel.innerHTML = '';
+          var opt = document.createElement('option');
+          opt.value = 'free';
+          opt.textContent = 'Free';
+          sel.appendChild(opt);
+          var note = document.getElementById('licence-note');
+          if (note) { note.classList.remove('hidden'); }
+        }
+        loadLicences();
+      });
 
       document.getElementById('licence-form').addEventListener('submit', function (e) {
         e.preventDefault();

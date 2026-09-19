@@ -24,7 +24,10 @@ declare(strict_types=1);
  *   POST /api/admin/users/{id}/role
  *   POST /api/admin/users/{id}/status
  *   POST /api/admin/users/{id}/sessions/revoke
+ *   POST /api/admin/users/{id}/licence
  *   GET  /api/admin/certificates
+ *   GET  /api/admin/licences
+ *   GET  /api/admin/audit
  */
 
 require_once __DIR__ . '/http.php';
@@ -466,7 +469,14 @@ if ($method === 'POST' && $route === '/licence') {
     if (!in_array($tier, TIERS, true)) {
         fail(400, 'Invalid tier.');
     }
+    // Paid tiers are issued by admins only; the free tier stays self-serve.
+    if ($tier !== 'free' && ($u['role'] ?? '') !== 'admin') {
+        fail(403, 'Paid licences are issued by tScrub — please contact us.');
+    }
     $lic = issue_licence($u, $tier);
+    if ($tier !== 'free') {
+        audit_log($u, 'issue_licence:' . $tier, (string)$u['email']);
+    }
     json_out(['ok' => true, 'licence' => $lic], 201);
 }
 
@@ -630,6 +640,11 @@ if ($method === 'GET' && $route === '/admin/users') {
     foreach ($cnt as $r) { $map[(int)$r['user_id']] = (int)$r['n']; }
     foreach ($users as &$row) { $row['certificates'] = $map[$row['id']] ?? 0; }
     unset($row);
+    $lcnt = db()->query('SELECT user_id, COUNT(*) n FROM licences GROUP BY user_id')->fetchAll();
+    $lmap = [];
+    foreach ($lcnt as $r) { $lmap[(int)$r['user_id']] = (int)$r['n']; }
+    foreach ($users as &$row) { $row['licences'] = $lmap[$row['id']] ?? 0; }
+    unset($row);
     json_out(['ok' => true, 'users' => $users, 'total' => $total, 'page' => $page, 'per' => $per]);
 }
 
@@ -650,6 +665,15 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'admin' && $seg[1] ===
     $stmt = db()->prepare('SELECT id, ip, user_agent, created_at, expires_at FROM sessions WHERE user_id = ? ORDER BY created_at DESC');
     $stmt->execute([$u['id']]);
     $row['sessions'] = $stmt->fetchAll();
+    $stmt = db()->prepare('SELECT id, label, created_at, last_used_at, token FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC');
+    $stmt->execute([$u['id']]);
+    $row['tokens'] = array_map(fn($t) => [
+        'id'          => (int)$t['id'],
+        'label'       => (string)$t['label'],
+        'created_at'  => (string)$t['created_at'],
+        'last_used_at' => $t['last_used_at'],
+        'token'       => substr((string)$t['token'], -8),
+    ], $stmt->fetchAll());
     json_out(['ok' => true, 'user' => $row]);
 }
 
@@ -722,6 +746,73 @@ if ($method === 'GET' && $route === '/admin/certificates') {
         $certs[] = $row;
     }
     json_out(['ok' => true, 'certs' => $certs, 'total' => $total, 'page' => $page, 'per' => $per]);
+}
+
+// GET /api/admin/licences — all licences with their owner
+if ($method === 'GET' && $route === '/admin/licences') {
+    auth_require_admin();
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per = 25;
+    $offset = ($page - 1) * $per;
+    $total = (int)db()->query('SELECT COUNT(*) FROM licences')->fetchColumn();
+    $stmt = db()->prepare(
+        'SELECT l.id, l.tier, l.customer, l.expiry, l.created_at, u.email AS owner_email
+         FROM licences l JOIN users u ON u.id = l.user_id
+         ORDER BY l.created_at DESC LIMIT ? OFFSET ?'
+    );
+    $stmt->bindValue(1, $per, PDO::PARAM_INT);
+    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $licences = array_map(fn($l) => [
+        'id'          => (int)$l['id'],
+        'tier'        => (string)$l['tier'],
+        'customer'    => (string)$l['customer'],
+        'expiry'      => (string)$l['expiry'],
+        'created_at'  => (string)$l['created_at'],
+        'owner_email' => (string)($l['owner_email'] ?? ''),
+    ], $stmt->fetchAll());
+    json_out(['ok' => true, 'licences' => $licences, 'total' => $total, 'page' => $page, 'per' => $per]);
+}
+
+// POST /api/admin/users/{id}/licence — issue a licence to a specific user
+if ($method === 'POST' && count($seg) === 4 && $seg[0] === 'admin' && $seg[1] === 'users' && $seg[3] === 'licence') {
+    $admin = auth_require_admin();
+    $target = fetch_user_by_id((int)$seg[2]);
+    if ($target === null) {
+        fail(404, 'User not found.');
+    }
+    $tier = (string)(json_body()['tier'] ?? '');
+    if (!in_array($tier, TIERS, true)) {
+        fail(400, 'Invalid tier.');
+    }
+    $lic = issue_licence($target, $tier);
+    audit_log($admin, 'issue_licence:' . $tier, (string)$target['email']);
+    json_out(['ok' => true, 'licence' => $lic], 201);
+}
+
+// GET /api/admin/audit — admin actions log
+if ($method === 'GET' && $route === '/admin/audit') {
+    auth_require_admin();
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per = 50;
+    $offset = ($page - 1) * $per;
+    $total = (int)db()->query('SELECT COUNT(*) FROM admin_audit_log')->fetchColumn();
+    $stmt = db()->prepare(
+        'SELECT a.action, a.target, a.ip, a.created_at, u.email AS admin_email
+         FROM admin_audit_log a JOIN users u ON u.id = a.admin_id
+         ORDER BY a.id DESC LIMIT ? OFFSET ?'
+    );
+    $stmt->bindValue(1, $per, PDO::PARAM_INT);
+    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = array_map(fn($a) => [
+        'admin_email' => (string)($a['admin_email'] ?? ''),
+        'action'      => (string)$a['action'],
+        'target'      => (string)$a['target'],
+        'ip'          => (string)$a['ip'],
+        'created_at'  => (string)$a['created_at'],
+    ], $stmt->fetchAll());
+    json_out(['ok' => true, 'audit' => $rows, 'total' => $total, 'page' => $page, 'per' => $per]);
 }
 
 fail(404, 'Not found.');

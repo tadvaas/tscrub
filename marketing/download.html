@@ -107,7 +107,7 @@
       </div>
     </div>
 
-    <p class="mx-auto mt-6 max-w-3xl text-center text-xs text-slate-400">All prices are in GBP and exclude VAT. Self-serve billing is launching soon.</p>
+    <p class="mx-auto mt-6 max-w-3xl text-center text-xs text-slate-400">All prices are in GBP and exclude VAT. Free licences are self-serve; paid licences are issued by the tScrub team — contact us.</p>
 
     <!-- Download / licence -->
     <div id="request" class="mx-auto mt-12 max-w-xl rounded-2xl border border-slate-200 bg-slate-50 p-8 text-left shadow-sm">
@@ -226,11 +226,28 @@
       }
 
       // Auth guard: show the wall or the download panel.
+      var isAdmin = false;
       fetch('/api/me').then(function (r) {
         if (r.status === 401) {
           wall.classList.remove('hidden');
         } else {
           panel.classList.remove('hidden');
+          return r.json().then(function (d) {
+            isAdmin = !!(d.user && d.user.role === 'admin');
+            if (!isAdmin) {
+              // Paid licences are issued by the tScrub team — swap the paid
+              // plan buttons for contact links.
+              Array.prototype.forEach.call(document.querySelectorAll('[data-tier]'), function (btn) {
+                if (btn.getAttribute('data-tier') !== 'free') {
+                  var a = document.createElement('a');
+                  a.href = '/contact';
+                  a.className = btn.className;
+                  a.textContent = 'Contact us';
+                  btn.parentNode.replaceChild(a, btn);
+                }
+              });
+            }
+          });
         }
       });
 

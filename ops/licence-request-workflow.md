@@ -40,9 +40,12 @@ No manual step for the free tier.
 | Team (£99/mo) | `team` | Self-serve licence today; billing not wired. |
 | Enterprise (custom) | `enterprise` | Contact sales; issue manually (section 3). |
 
-**Governance note:** payg/team/enterprise licences can currently be issued by any
-logged-in user with one click (no payment gate yet). Until billing lands, accept
-that, or restrict `/download` to free and issue paid tiers manually.
+**Governance note:** payg/team/enterprise licences are **admin-only**. The API
+(`POST /api/licence`) and the UI both reject paid tiers for non-admins (403), and
+the pricing/plan buttons become "Contact us" for non-admins. Admins issue paid
+licences from `/admin` (per-user "Issue licence") or via
+`POST /api/admin/users/{id}/licence`; every admin action is written to
+`admin_audit_log` (viewable on `/admin`).
 
 ## 3. Manual issue (CLI fallback / Enterprise)
 
@@ -71,9 +74,14 @@ ad-hoc/Enterprise issuance.
 ## 5. Admin view
 
 Sign in as an admin and open `/admin`:
-- **Users** — list, per-user role change, suspend/activate, revoke sessions.
-- **User details** — a user's certificates, licences, and active sessions.
+- **Users** — list (with cert/licence counts), per-user role change, suspend/activate, revoke sessions.
+- **User details** — a user's certificates, licences, tokens, and active sessions, plus an "Issue licence" form (any tier).
 - **Certificates** — every certificate (owner, CoC, devices, issued date).
+- **Licences** — every licence across all users (tier, customer, owner, expiry).
+- **Audit log** — every admin action (admin, action, target, IP, time).
+
+Every admin mutation (role, status, session revoke, licence issuance) is recorded
+in `admin_audit_log`.
 
 DB access for audits:
 
