@@ -178,7 +178,7 @@ tscrub_48213_20260912T1030Z.json   # manifest (SHA-256, public key, drive summar
               <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Where the report is written</span> — tScrub saves to the first writable removable FAT32 partition it finds (normally the ShredOS boot stick), falling back to RAM (<code class="font-mono">/</code>). Override it with <code class="font-mono">tscrub_output=</code>:</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_output=/mnt/usb</pre>
 
-              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Push to the dashboard (network)</span> — send the report straight to your tScrub account. The token comes from the Account page of your dashboard; this needs <code class="font-mono">curl</code> on the appliance:</p>
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Push to the dashboard (network)</span> — send the report straight to your tScrub account. The token comes from the Account page of your dashboard. This needs <code class="font-mono">curl</code> and a CA-certificate bundle on the appliance — stock ShredOS ships neither, so on ShredOS use USB or FTP; the dashboard push works on your own Linux environment (or the upcoming tScrub appliance image):</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_upload=https://tscrub.com/api/reports
 tscrub_api_token=YOUR-64-HEX-TOKEN</pre>
 
