@@ -151,6 +151,7 @@
               <h2 class="text-xl font-bold text-ink-900">4. Run a sanitisation job</h2>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub                      # full run (wipes all supported drives)
 tscrub --dry-run            # discover and classify, wipe nothing
+tscrub --output /mnt/usb    # write the report to /mnt/usb
 tscrub --dry-run --simulate-running-eta=10   # simulated run with live progress</pre>
               <p class="mt-3 text-sm text-slate-600">tScrub prompts for a COCID, then wipes all supported drives in parallel. Frozen, locked, or blocked drives are flagged rather than marked clean.</p>
             </div>
@@ -169,8 +170,17 @@ tscrub_48213_20260912T1030Z.sig    # base64 Ed25519 signature over the CSV
 tscrub_48213_20260912T1030Z.json   # manifest (SHA-256, public key, drive summary)</pre>
               <p class="mt-3 text-sm text-slate-600">The CSV columns are: <code class="font-mono">COCID, Timestamp, Model, Serial, Size, Bus, Type, Device, Class, Certification, Method, FinalStatus</code>.</p>
 
-              <h3 class="mt-6 text-base font-bold text-ink-900">Uploading reports</h3>
-              <p class="mt-2 text-sm text-slate-600">tScrub can upload all three files to an FTP server at the end of a run. The destination is set at <strong>boot time</strong> on the kernel command line (PXE, GRUB, or the ShredOS boot entry) — not inside the script:</p>
+              <h3 class="mt-6 text-base font-bold text-ink-900">Getting reports off the appliance</h3>
+              <p class="mt-2 text-sm text-slate-600">At the end of a run tScrub writes the three report files locally, then optionally uploads them. Everything is configured at <strong>boot time</strong> on the kernel command line (PXE, GRUB, or the ShredOS boot entry) — not inside the script.</p>
+
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Where the report is written</span> — tScrub saves to the first writable removable FAT32 partition it finds (normally the ShredOS boot stick), falling back to RAM (<code class="font-mono">/</code>). Override it with <code class="font-mono">tscrub_output=</code>:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_output=/mnt/usb</pre>
+
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Push to the dashboard (network)</span> — send the report straight to your tScrub account. The token comes from the Account page of your dashboard; this needs <code class="font-mono">curl</code> on the appliance:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_upload=https://tscrub.com/api/reports
+tscrub_api_token=YOUR-64-HEX-TOKEN</pre>
+
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Upload via FTP</span> — upload all three files to an FTP server:</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">shredos_output=ftp:host:path:user:password
 # e.g. shredos_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               <p class="mt-3 text-sm text-slate-600"><code class="font-mono">ftp</code> is the protocol (FTP only). <code class="font-mono">host</code> is the FTP server, <code class="font-mono">path</code> is the remote directory (relative to the FTP user's home, no leading slash), then the username and password.</p>

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Fake curl for upload_http tests.
+# Multipart uploads (the -F flag) return a canned JSON response and log their
+# arguments; anything else (e.g. license::fetch GETs) delegates to the real curl.
+
+upload=0
+for a in "$@"; do
+    [[ "$a" == "-F" ]] && upload=1
+done
+
+if (( upload == 0 )); then
+    # Resolve the real curl, skipping this fakes directory.
+    IFS=: read -ra _dirs <<< "$PATH"
+    for _d in "${_dirs[@]}"; do
+        [[ "$_d" == */tests/fakes/bin ]] && continue
+        if [[ -x "$_d/curl" ]]; then
+            exec "$_d/curl" "$@"
+        fi
+    done
+    echo "curl: command not found" >&2
+    exit 127
+fi
+
+if [[ -n "${FAKE_CURL_LOG:-}" ]]; then
+    printf '%s\n' "$@" >> "$FAKE_CURL_LOG"
+fi
+if [[ -n "${FAKE_CURL_FAIL:-}" ]]; then
+    echo "curl: connection refused" >&2
+    exit 7
+fi
+printf '{"ok":true,"certificates":["COD-000001-XX-YY-0001-ABCD"],"count":2}\n'
+exit 0

@@ -7,6 +7,7 @@
 SCRIPT_NAME="tScrub"
 SCRIPT_VERSION="v1.4"
 REPORT_DIR="/"
+REPORT_OUTPUT=""
 TABLE_INDENT="    "
 COCID=""
 LOG_FILE="/$SCRIPT_NAME.log"
@@ -210,8 +211,16 @@ parse_args() {
                 LICENSE_URL="$1"
                 LICENSE_SOURCE_SET=1
                 ;;
+            --output=*)
+                REPORT_OUTPUT="${arg#*=}"
+                ;;
+            --output)
+                shift
+                [[ $# -gt 0 ]] || { echo "--output requires a path"; exit 1; }
+                REPORT_OUTPUT="$1"
+                ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
@@ -219,6 +228,7 @@ parse_args() {
                 echo "  --dry-run            Simulate without wiping any drive."
                 echo "  --license PATH       Read the licence from PATH (default /etc/tscrub/license.key)."
                 echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.key)."
+                echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;

@@ -112,7 +112,7 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && php seed-admin.php <admin-email>
 - Host `127.0.0.1:3306`, database `tScrub`, user `tScrub`. Credentials live only in `config.json` (mode 640, group www-data); `config.example.json` is the template. Never commit the real password.
 - Tables: `users`, `sessions`, `certificates`, `certificate_reports`, `certificate_drives`, `licences`, `api_tokens`, `tokens`, `admin_audit_log`.
 - `/verify` reads MySQL only. The `certificates/` JSON dir is kept on disk for the record but is no longer the source of truth.
-- Back up the DB (cron `mysqldump`) — the certificate registry no longer lives in files.
+- Backups are handled by Proxmox Backup Server (hypervisor-level, covers MySQL) — no separate `mysqldump` cron needed.
 
 What NOT to overwrite:
 - `config.json` — live SMTP + DB credentials. Only edit on the server.

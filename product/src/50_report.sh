@@ -332,6 +332,92 @@ license::apply() {
     return 0
 }
 
+# --- Output location ---------------------------------------------------------
+# Reports are written to REPORT_DIR. Resolution order:
+#   1. explicit --output / tscrub_output=<path>
+#   2. the first writable removable FAT32/vfat partition (the boot stick)
+#   3. / (RAM) as a last resort, with a warning
+report::detect_output() {
+    local param dir
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_output=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"
+        param="${param%\"}"
+        REPORT_OUTPUT="$param"
+    fi
+
+    if [[ -n "${REPORT_OUTPUT:-}" ]]; then
+        dir="$REPORT_OUTPUT"
+        if [[ -d "$dir" && -w "$dir" ]]; then
+            REPORT_DIR="${dir%/}/"
+            return 0
+        fi
+        printf "%s[!] Output path '%s' is not writable — falling back.\n" "$TABLE_INDENT" "$dir" >&2
+    fi
+
+    if report::mount_boot_usb; then
+        return 0
+    fi
+
+    printf "%s[!] No writable USB partition found — report stays in RAM (/).\n" "$TABLE_INDENT" >&2
+    REPORT_DIR="/"
+    return 0
+}
+
+# Mount the first writable removable FAT32/vfat partition (normally the ShredOS
+# boot stick) and point REPORT_DIR at it.
+report::mount_boot_usb() {
+    local name type rm ro fstype dev mnt
+
+    command -v lsblk >/dev/null 2>&1 || return 1
+
+    while read -r name type rm ro fstype; do
+        [[ "$type" == "part" && "$rm" == "1" && "$ro" == "0" ]] || continue
+        [[ "$fstype" == "vfat" || "$fstype" == "fat32" ]] || continue
+        dev="/dev/$name"
+
+        # Reuse the mountpoint if the partition is already mounted writable.
+        mnt="$(findmnt -no TARGET "$dev" 2>/dev/null || true)"
+        if [[ -n "$mnt" && -d "$mnt" && -w "$mnt" ]]; then
+            REPORT_DIR="${mnt%/}/"
+            return 0
+        fi
+
+        mnt="$(mktemp -d /tmp/tscrub-usb.XXXXXX)"
+        if mount -o rw "$dev" "$mnt" 2>/dev/null && [[ -w "$mnt" ]]; then
+            REPORT_DIR="${mnt%/}/"
+            return 0
+        fi
+        rm -rf "$mnt" 2>/dev/null || true
+    done < <(lsblk -rno NAME,TYPE,RM,RO,FSTYPE 2>/dev/null)
+
+    return 1
+}
+
+# --- Network upload ----------------------------------------------------------
+# Kernel command line: tscrub_upload=https://tscrub.com/api/reports and
+# tscrub_api_token=<64-hex token> (from the dashboard Account page).
+report::parse_upload() {
+    local param
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_upload=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"
+        param="${param%\"}"
+        TSCRUB_UPLOAD_URL="$param"
+    fi
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_api_token=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"
+        param="${param%\"}"
+        TSCRUB_API_TOKEN="$param"
+    fi
+
+    export TSCRUB_UPLOAD_URL TSCRUB_API_TOKEN
+}
+
 report::parse_ftp() {
     local param
 
@@ -346,7 +432,43 @@ report::parse_ftp() {
     export SHRED_PROTO SHRED_HOST SHRED_PATH SHRED_USER SHRED_PASS
 }
 
-report::upload() {
+# Push a report to the tScrub dashboard (POST /api/reports). Requires curl for
+# multipart form upload.
+report::upload_http() {
+    local file="$1" manifest sig url token args=() resp count
+
+    [[ -n "${TSCRUB_UPLOAD_URL:-}" && -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
+    [[ -f "$file" ]] || return 0
+    command -v curl >/dev/null 2>&1 || {
+        printf "%sReport upload skipped: curl not available.\n" "$TABLE_INDENT"
+        return 1
+    }
+
+    manifest="${file%.csv}.json"
+    sig="${file}.sig"
+    url="$TSCRUB_UPLOAD_URL"
+    token="$TSCRUB_API_TOKEN"
+
+    args=(-fsS --connect-timeout 10 --max-time 60 -H "X-Api-Token: $token" -F "reports[]=@$file" -F "reports[]=@$manifest")
+    [[ -f "$sig" ]] && args+=(-F "reports[]=@$sig")
+
+    printf "%sUploading report to %s...\n" "$TABLE_INDENT" "$url"
+
+    if ! resp="$(curl "${args[@]}" "$url" 2>&1)"; then
+        printf "%sReport upload FAILED.\n" "$TABLE_INDENT"
+        return 1
+    fi
+
+    count="$(printf '%s' "$resp" | sed -n 's/.*"count":\([0-9]*\).*/\1/p' | head -n1)"
+    if [[ -n "$count" ]]; then
+        printf "%sSynced to tScrub dashboard — %s certificate(s).\n" "$TABLE_INDENT" "$count"
+    else
+        printf "%sReport uploaded successfully.\n" "$TABLE_INDENT"
+    fi
+    return 0
+}
+
+report::upload_ftp() {
     local file="$1" manifest sig uploads=""
 
     [[ "$SHRED_PROTO" == "ftp" ]] || return
@@ -370,5 +492,20 @@ report::upload() {
         printf "%sReport upload FAILED.\n" "$TABLE_INDENT"
         return 1
     fi
+}
+
+# Upload dispatcher: network push (tscrub_upload=) takes priority, then FTP
+# (shredos_output=ftp:...); otherwise the report just stays local.
+report::upload() {
+    local file="$1"
+
+    [[ -f "$file" ]] || return
+
+    if [[ -n "${TSCRUB_UPLOAD_URL:-}" ]]; then
+        report::upload_http "$file"
+        return
+    fi
+
+    report::upload_ftp "$file"
 }
 

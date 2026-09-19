@@ -77,9 +77,9 @@ firmware sanitise/format. Options:
 
 ## 2. Related simplification backlog
 
-- [ ] Zero-touch kernel-cmdline config (`tscrub_cocid=`, `tscrub_autoconfirm=`, `tscrub_upload=`) for PXE fleets
+- [ ] Zero-touch kernel-cmdline config: `tscrub_cocid=` + `tscrub_autoconfirm=` for PXE fleets (`tscrub_upload=` is done)
 - [ ] Auto-upload reports → auto Certificate of Destruction (machine-facing `/api/certify` ingestion)
-- [ ] Billing (Stripe) + automatic licence issuance on payment webhook
+- [ ] Billing (Stripe) + automatic licence issuance on payment webhook *(parked)*
 - [ ] Repo-root README and "boot and wipe in 60 seconds" onboarding
 
 ## 3. Self-serve platform (accounts → licence → app → dashboard → certs)
@@ -114,18 +114,17 @@ Target user journey:
       - `issue_licence.py` / `issue_license.sh` omit `key` for the free tier.
 - [x] **Machine ingestion endpoint** — token-authenticated `POST /api/reports`
       (per-user `api_tokens`, managed in the dashboard) stores reports (no PDF)
-      straight to the user's dashboard — **done** (website side). The appliance
-      still needs a product-side upload path (see below).
-- [ ] **USB output mode** — `REPORT_DIR` is hardcoded to `/`; add USB mount
-      detection (a `tscrub_output=/mnt/usb` kernel/flag option) so the appliance
-      writes CSV + SMART + manifest/sig to removable storage.
+      straight to the user's dashboard — **done**.
+- [x] **USB output mode** — `report::detect_output` resolves the write location:
+      `--output` / `tscrub_output=` override, else the first writable removable
+      FAT32/vfat partition (the boot stick), else `/` (RAM) with a warning.
 - [x] **Per-drive persistence** — full CSV rows (device, method, serial, final
       status, SMART pre/post) are stored in `certificate_drives` — **done**.
 - [x] **Dashboard drill-down** — `/api/certs/{id}` returns per-drive + SMART; the
       dashboard renders a drill-down table — **done**.
-- [ ] **Network-mode config in the product** — an explicit
-      `tscrub_upload=https://tscrub.com/api/reports` + `tscrub_api_token=…` path
-      (curl/wget when available) alongside the existing FTP `shredos_output=`, so
-      appliances can push straight to the dashboard.
+- [x] **Network-mode config in the product** — `tscrub_upload=https://tscrub.com/api/reports`
+      + `tscrub_api_token=…` pushes reports straight to the dashboard (curl
+      multipart + `X-Api-Token`), alongside the existing FTP `shredos_output=`.
 - [ ] **Billing gate** — payg/team/enterprise licences are currently self-serve
       with no payment; wire Stripe before relying on tier differences for revenue.
+      *(parked — no ETA; DB backups are covered by Proxmox Backup Server)*

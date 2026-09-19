@@ -40,7 +40,7 @@ Choose a plan and request the download on the Download page (https://tscrub.com/
 
 ## Getting started
 
-Issue your licence on the Download page (account required) and download the tScrub script from your dashboard's Licence page. Boot a Linux live environment (ShredOS or your own) from USB or PXE, place the `.lic` alongside `tscrub.sh`, and run it. Verify reports with the `tscrub verify` command (documented in the Docs page).
+Issue your licence on the Download page (account required) and download the tScrub script from your dashboard's Licence page. Boot a Linux live environment (ShredOS or your own) from USB or PXE, place the `.lic` alongside `tscrub.sh`, and run it. At the end of a run the appliance writes the report locally (boot USB, or `tscrub_output=`) and can push it to your dashboard (`tscrub_upload=` + `tscrub_api_token=`) or FTP (`shredos_output=`). Verify reports with the `tscrub verify` command (documented in the Docs page).
 
 ## Certificate of Destruction
 

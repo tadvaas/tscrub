@@ -128,8 +128,10 @@ fn_main() {
 
     smart::capture_all post
 
+    report::detect_output
     report_file=$(report::csv)
     if [[ "$DRY_RUN" -eq 0 ]]; then
+        report::parse_upload
         report::parse_ftp
         report::upload "$report_file"
         ui::post_run_prompt
