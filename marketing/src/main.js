@@ -1,3 +1,5 @@
 import 'flowbite'
 import './input.css'
 import './terminal.js'
+import './auth.js'
+import './dashboard.js'

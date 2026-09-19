@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <title>Certify — tScrub Dashboard</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-white text-slate-800">
+
+  <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-2 font-medium md:mt-0 md:flex-row md:items-center md:gap-6">
+          <li><a href="/docs" class="text-slate-600 hover:text-ink-900">Docs</a></li>
+          <li><a href="/download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/faq" class="text-slate-600 hover:text-ink-900">FAQ</a></li>
+          <li><a href="/contact" class="text-slate-600 hover:text-ink-900">Contact</a></li>
+        </ul>
+        <a href="/login" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Sign in</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="mx-auto w-full max-w-5xl px-4 py-10">
+    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900">Dashboard</h1>
+    <div id="dashboard-nav" class="mt-4"></div>
+
+    <div class="mt-8">
+      <h2 class="text-xl font-bold text-ink-900">Generate a Certificate of Destruction</h2>
+      <p class="mt-1 text-sm text-slate-600">Turn the reports your appliance produces into a printable certificate. Every one you generate is listed below alongside your other certificates.</p>
+
+      <ol class="mt-6 grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
+        <li class="rounded-xl border border-slate-200 bg-white p-4"><span class="font-bold text-ink-900">1. Run tScrub.</span> The appliance writes a <code class="font-mono">.csv</code> report per job.</li>
+        <li class="rounded-xl border border-slate-200 bg-white p-4"><span class="font-bold text-ink-900">2. Upload it.</span> Add the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars if you have them.</li>
+        <li class="rounded-xl border border-slate-200 bg-white p-4"><span class="font-bold text-ink-900">3. Download.</span> We verify and consolidate into one printable PDF per Chain of Custody ID.</li>
+      </ol>
+
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
+        <form id="certify-form" class="space-y-5">
+          <div>
+            <label for="reports" class="mb-1 block text-sm font-semibold text-slate-700">Report files</label>
+            <div class="flex w-full items-stretch overflow-hidden rounded-lg border border-slate-300 bg-white">
+              <label for="reports" class="inline-flex shrink-0 cursor-pointer items-center bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700">Choose files</label>
+              <span id="reports-name" class="flex min-w-0 flex-1 items-center truncate px-3 py-2.5 text-sm text-slate-500">No file chosen</span>
+            </div>
+            <input id="reports" name="reports[]" type="file" multiple accept=".csv,.sig,.json" class="sr-only" />
+            <p class="mt-2 text-xs text-slate-500">Select one or more <code class="font-mono">.csv</code> report files. Runs sharing the same Chain of Custody ID are consolidated into one certificate. Add the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars to verify integrity and signatures.</p>
+          </div>
+          <button type="submit" class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Generate certificate</button>
+          <p id="certify-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
+        </form>
+
+        <div id="auth-wall" class="hidden text-center">
+          <p class="text-sm font-semibold text-ink-900">Sign in to generate certificates</p>
+          <p class="mt-2 text-sm text-slate-600">You need a tScrub account to upload reports and generate Certificates of Destruction.</p>
+          <a href="/login?next=/dashboard/certify" class="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Sign in</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="cert-section" class="mt-8">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-ink-900">Certificates of destruction</h2>
+          <p class="mt-1 text-sm text-slate-600">Every certificate on your account. Open the SMART data report for per-drive details.</p>
+        </div>
+        <a href="/dashboard/reports" class="text-sm font-semibold text-brand-700 hover:underline">SMART data reports →</a>
+      </div>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+        <div id="cert-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-ink-900 text-slate-400">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="/terms" class="hover:text-white">Terms</a></li>
+        <li><a href="/contact" class="hover:text-white">Contact</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+  <script>
+    (function () {
+      function el(tag, cls, text) {
+        var n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text != null) n.textContent = text;
+        return n;
+      }
+      function cell(cls, text) { return el('td', 'border-b border-slate-100 px-3 py-2' + (cls ? ' ' + cls : ''), text); }
+      function loadCerts() {
+        fetch('/api/certs').then(function (r) { return r.json(); }).then(function (d) {
+          var list = document.getElementById('cert-list');
+          list.innerHTML = '';
+          var rows = d.certs || [];
+          if (!rows.length) {
+            list.appendChild(el('p', 'text-sm text-slate-500', 'No certificates yet — generate one above.'));
+            return;
+          }
+          var table = el('table', 'w-full border-collapse text-sm');
+          var hr = el('tr');
+          ['Certificate ID', 'Chain of custody', 'Devices', 'Issued', 'PDF', 'SMART data'].forEach(function (h) {
+            hr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500', h));
+          });
+          table.appendChild(hr);
+          rows.forEach(function (c) {
+            var tr = el('tr');
+            tr.appendChild(cell('font-mono text-xs font-semibold text-ink-900', c.cert));
+            tr.appendChild(cell('', c.cocid));
+            tr.appendChild(cell('', String(c.devices)));
+            tr.appendChild(cell('', (c.issued || '').slice(0, 10)));
+            var pdfTd = el('td', 'border-b border-slate-100 px-3 py-2');
+            if (c.has_pdf) {
+              var dl = el('a', 'text-xs font-semibold text-brand-700 hover:underline', 'Download');
+              dl.href = '/api/certs/' + encodeURIComponent(c.cert) + '/download';
+              pdfTd.appendChild(dl);
+            } else {
+              pdfTd.appendChild(el('span', 'text-xs text-slate-400', '—'));
+            }
+            tr.appendChild(pdfTd);
+            var smartTd = el('td', 'border-b border-slate-100 px-3 py-2');
+            var sa = el('a', 'text-xs font-semibold text-brand-700 hover:underline', 'View →');
+            sa.href = '/dashboard/reports?cert=' + encodeURIComponent(c.cert);
+            smartTd.appendChild(sa);
+            tr.appendChild(smartTd);
+            table.appendChild(tr);
+          });
+          list.appendChild(table);
+        });
+      }
+      var form = document.getElementById('certify-form');
+      var status = document.getElementById('certify-status');
+      var input = document.getElementById('reports');
+      var nameEl = document.getElementById('reports-name');
+      var wall = document.getElementById('auth-wall');
+      function setStatus(msg, color) { status.textContent = msg; status.className = 'text-xs font-semibold ' + color; }
+      function getCsrf() {
+        return fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) { return (d && d.csrf) || ''; });
+      }
+      // Require sign-in before uploading.
+      fetch('/api/me').then(function (r) {
+        if (r.status === 401) {
+          form.classList.add('hidden');
+          wall.classList.remove('hidden');
+          document.getElementById('cert-section').classList.add('hidden');
+        } else {
+          loadCerts();
+        }
+      });
+      input.addEventListener('change', function () {
+        if (!input.files.length) { nameEl.textContent = 'No file chosen'; return; }
+        var names = [];
+        for (var i = 0; i < input.files.length; i++) names.push(input.files[i].name);
+        nameEl.textContent = names.join(', ');
+      });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!input.files.length) { setStatus('Please choose your report files first.', 'text-red-600'); return; }
+        getCsrf().then(function (csrf) {
+          var fd = new FormData();
+          for (var i = 0; i < input.files.length; i++) fd.append('reports[]', input.files[i]);
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = true;
+          btn.textContent = 'Generating…';
+          setStatus('Verifying and generating your certificate…', 'text-slate-500');
+          return fetch('/api/certify', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': csrf } })
+            .then(function (r) {
+              if (r.status === 401) { window.location.href = '/login?next=/dashboard/certify'; throw new Error('Sign in required.'); }
+              if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || 'Something went wrong.'); });
+              var disposition = r.headers.get('Content-Disposition') || '';
+              var m = /filename="?([^";]+)"?/i.exec(disposition);
+              var fname = (m && m[1]) ? m[1] : 'Certificate-of-Destruction.pdf';
+              return r.blob().then(function (blob) { return { blob: blob, name: fname }; });
+            })
+            .then(function (res) {
+              var url = URL.createObjectURL(res.blob);
+              var a = document.createElement('a');
+              a.href = url;
+              a.download = res.name;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              btn.disabled = false;
+              btn.textContent = 'Generate certificate';
+              setStatus('Certificate downloaded.', 'text-brand-700');
+              loadCerts();
+            });
+        }).catch(function (err) {
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = false;
+          btn.textContent = 'Generate certificate';
+          setStatus(err.message || 'Could not generate the certificate.', 'text-red-600');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

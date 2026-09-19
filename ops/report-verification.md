@@ -38,12 +38,13 @@ Failure signals:
 
 ## The official vendor key
 
-Reports from **licensed** builds are signed with a vendor-issued key and verify against the published vendor public key.
+Every build requires a licence (even the free tier). Paid licences carry a
+vendor-issued report-signing key, so their reports are signed and verify against
+the published vendor public key. Free licences carry no report key, so free
+reports are unsigned (checksum-only).
 
 - **Fingerprint:** `be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02`
 - **PEM:** published on https://tscrub.com/docs (section 7, Licensing)
-
-Without a licence, reports are **self-signed** — they still prove integrity (`MISMATCH` detection) but not attribution to a customer.
 
 ## Count drives for billing
 
@@ -54,7 +55,7 @@ The report is the meter. Drives erased = number of entries in `drives[]`.
 python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['drives']))" tscrub_48213_20260912T1030Z.json
 ```
 
-Per-customer totals require the manifest to carry a `licence_id`/customer identifier — currently a **to-do** (see licence workflow runbook).
+Per-customer totals require the manifest to carry a `licence_id`/customer identifier — the licence is recorded in the `licences` table (tied to a user), but reports don't yet reference it. Still a **to-do** (see licence workflow runbook).
 
 ## Manual signature check (no tscrub binary)
 

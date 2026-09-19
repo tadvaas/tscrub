@@ -9,14 +9,15 @@ tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe,
 - **SCSI sanitise** — for SAS/SCSI drives.
 - **SED / OPAL unlock** — PSID revert for locked self-encrypting drives, plus detection of BIOS Block SID lockdown (0x4286).
 - **Chain of custody** — COCID, system serials, and per-drive final status in a single CSV report for the whole job.
+- **SMART capture** — pre/post-wipe SMART health (status, temperature, power-on hours, wear) recorded per drive.
 - **Verifiable proof of destruction** — reports can be signed (SHA-256 + Ed25519), producing a sidecar signature and manifest that auditors can independently verify.
 
 ## How it works (four steps)
 
-1. **Boot** — flash the image or PXE-boot; tScrub runs on Linux with zero installation.
+1. **Boot** — boot Linux from USB or PXE and run the script; tScrub needs zero installation.
 2. **Discover & classify** — every drive is detected and mapped to its best Purge or Clear capability.
 3. **Sanitise** — live progress across all drives, with frozen and blocked drives flagged.
-4. **Report** — a chain-of-custody CSV with method, certification, and final status per drive.
+4. **Report** — a chain-of-custody CSV with method, certification, final status, and pre/post-wipe SMART per drive.
 
 ## Compliance
 
@@ -30,7 +31,7 @@ tScrub is the open, auditable alternative to Blancco for verifiable disk sanitis
 
 ## Pricing & download
 
-- **Free** — community build: full erasure with self-signed (integrity-only) reports, no licence required.
+- **Free** — community build: full erasure with unsigned (checksum-only) reports; a free licence is required.
 - **Pay-as-you-go** — £0.25 per device for signed reports.
 - **Team** — £99/month for signed reports and support.
 - **Enterprise** — custom pricing for regulated fleets.
@@ -39,11 +40,15 @@ Choose a plan and request the download on the Download page (https://tscrub.com/
 
 ## Getting started
 
-Download the appliance image and builder script from the Download page, build your own bootable sanitisation appliance, and verify signed reports with the `tscrub verify` command (documented in the Docs page).
+Issue your licence on the Download page (account required) and download the tScrub script from your dashboard's Licence page. Boot a Linux live environment (ShredOS or your own) from USB or PXE, place the `.lic` alongside `tscrub.sh`, and run it. Verify reports with the `tscrub verify` command (documented in the Docs page).
 
 ## Certificate of Destruction
 
-Upload a tScrub report (CSV + JSON manifest + optional signature) at tscrub.com/certify to verify it and generate a printable PDF Certificate of Destruction per Chain of Custody ID.
+Upload a tScrub report (CSV + JSON manifest + optional signature) at tscrub.com/dashboard/certify (account required) to verify it and generate a printable PDF Certificate of Destruction per Chain of Custody ID. Certificates include a device annex (Annex A) and — when present in the report — a pre/post-wipe SMART capture annex (Annex B: status, temperature, power-on hours, wear). Generated certificates are listed on the same page for download and management.
+
+## SMART data reports
+
+Per-drive details and pre/post-wipe SMART data for every certificate are available at tscrub.com/dashboard/reports: device, type, model, serial, sanitisation method, certification, final status, and before/after SMART attributes (status, temperature, power-on hours, power cycles, wear, TBW).
 
 ## Contact
 

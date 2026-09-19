@@ -1,96 +1,86 @@
-# Licence Request Workflow
+# Licence & Download Workflow
 
-What to do when a visitor submits a licence/download request on the website.
+How customers get tScrub and a licence, and how paid tiers are fulfilled.
 
 ## Overview
 
-A visitor fills the form on **tscrub.com/download** ("Request download"). The request flows through:
+tScrub **always requires a licence** — even the free tier. Downloads and licence
+issuance are self-serve, backed by MySQL:
 
 ```
-download form → POST /submit → submit.php → sendmail.py → Apple SMTP
-                                                          ↓
-                                            notification lands in support@tscrub.com
+login/register → /download (plan cards) → POST /api/licence {tier} → licences table
+                                                                      ↓
+                                                         .lic downloaded from the dashboard
 ```
 
-There is **no automation after this point** — fulfilment is manual. This doc is the runbook.
+The old email-gated "Request download" form (POST `/submit`) is gone from the
+download page — `/submit` is now only the contact form. Every issued licence is a
+row in the `licences` table and shows on the user's dashboard and the admin page.
 
 ---
 
-## 1. Read the request
+## 1. Self-serve (default path)
 
-Open the notification email in **support@tscrub.com** (subject: *"tScrub download request"*).
+1. Visitor signs up at `/register` (personal or company) and verifies their email.
+2. They sign in, open `/download`, pick a plan, and click **Get licence**.
+3. The licence is issued to their account (a `licences` row with the tier) and
+   they download the `.lic` from `/dashboard` (or the download page).
+4. They download `tscrub.sh` from `/downloads/tscrub.sh` and place the `.lic`
+   alongside it — or serve it via `--license-url` / `shredos_license_url=`.
 
-It contains:
-- **Name** — the requester
-- **Email** — their reply address (`Reply-To` is set to this)
-- **Organisation**
-- **Plan** — Free, Pay-as-you-go, Team, or Enterprise (chosen in the form)
-- **Message** — "Plan: <chosen plan>. Please send tScrub download links and licence details."
+No manual step for the free tier.
 
----
+## 2. Tiers
 
-## 2. Decide the tier
-
-| Tier | What they get | What you send |
+| Tier | Licence `tier` | Notes |
 |---|---|---|
-| **Free** (£0) | Full erasure, self-signed reports | Download link only (no licence) |
-| **Pay-as-you-go** (£0.25/device) | Signed reports, no subscription | Download link + billing instructions *(billing not built yet)* |
-| **Team** (£99/mo) | Signed reports, licence key, support | Download link + `.lic` file |
-| **Enterprise** (custom) | Everything + integrations/SLA | Download link + `.lic` file, follow up for scoping |
+| Free (£0) | `free` | Full erasure, unsigned (checksum-only) reports. Fully self-serve. |
+| Pay-as-you-go (£0.25/device) | `payg` | Self-serve licence today; billing not wired (below). |
+| Team (£99/mo) | `team` | Self-serve licence today; billing not wired. |
+| Enterprise (custom) | `enterprise` | Contact sales; issue manually (section 3). |
 
-The plan is chosen on the **tscrub.com/download** page (pricing now lives there). If it's unclear, ask which plan they want before issuing anything.
+**Governance note:** payg/team/enterprise licences can currently be issued by any
+logged-in user with one click (no payment gate yet). Until billing lands, accept
+that, or restrict `/download` to free and issue paid tiers manually.
 
----
+## 3. Manual issue (CLI fallback / Enterprise)
 
-## 3. Issue a licence (Team / Enterprise)
-
-Run the issuer on the server:
+The website issues licences by calling `issue_licence.py --tier <tier> --json`.
+To issue one by hand (or re-issue):
 
 ```bash
-ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && python3 issue_licence.py "Customer Ltd" 2027-09-12 buyer@example.com'
+# with file + email (now takes a tier)
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && python3 issue_licence.py --tier enterprise "Acme ITAD Ltd" 2027-09-12 buyer@example.com'
+
+# machine-readable: print the .lic JSON to stdout (no file, no email)
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && python3 issue_licence.py --tier free --json "Acme ITAD Ltd" 2027-09-12'
 ```
 
-Arguments:
-1. **Customer name** — goes on the licence (e.g. `"Acme ITAD Ltd"`)
-2. **Expiry** — `YYYY-MM-DD` (e.g. 1 year from today, or the end of their subscription)
-3. **Email** — the buyer's address
+The CLI writes `licences/<slug>-<expiry>.lic` and emails, but does **not** create
+a DB row — use the dashboard/admin path for DB-tracked licences; the CLI is for
+ad-hoc/Enterprise issuance.
 
-This does two things automatically:
-- Writes the licence to `~/webs/tscrub-form/licences/<slug>-<expiry>.lic` (on the server, for the record).
-- Emails the `.lic` file to the buyer **from support@tscrub.com** with the download link.
+## 4. Expiry guidance
 
-### Expiry guidance
-- Team (monthly): issue short windows and re-issue on renewal (e.g. next month-end).
-- Enterprise (annual): issue to the contract end date.
+- Free: 1 year, renewable.
+- Team (monthly): short windows, re-issue on renewal.
+- Enterprise (annual): contract end date.
 - Trials: 14–30 days.
 
----
+## 5. Admin view
 
-## 4. Send the download link
+Sign in as an admin and open `/admin`:
+- **Users** — list, per-user role change, suspend/activate, revoke sessions.
+- **User details** — a user's certificates, licences, and active sessions.
+- **Certificates** — every certificate (owner, CoC, devices, issued date).
 
-The free build is hosted at **https://tscrub.com/downloads/tscrub.sh** (checksum at `/downloads/tscrub.sh.sha256`). The licence email already includes this URL from `config.json` (`download_url`).
-
-For **Free** and **pay-as-you-go** (no licence), reply manually with the download link (and billing next steps for pay-as-you-go).
-
----
-
-## 5. Verify (optional QA)
-
-The licence is self-verifying — the appliance checks the vendor signature at boot. To confirm a licence is valid before sending:
+DB access for audits:
 
 ```bash
-ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && ls licences/'
-```
-
-Spot-check a report's signature on the appliance side with:
-
-```bash
-tscrub verify report.csv
-```
-
-**Vendor public key fingerprint** (published on tscrub.com/docs):
-```
-be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && \
+  printf "[client]\nhost=127.0.0.1\nuser=tScrub\npassword=<DB_PASSWORD>\ndatabase=tScrub\n" > /tmp/.my.cnf && \
+  mysql --defaults-extra-file=/tmp/.my.cnf -e "SELECT id,user_id,tier,customer,expiry,created_at FROM licences ORDER BY id DESC LIMIT 20" && \
+  rm -f /tmp/.my.cnf'
 ```
 
 ---
@@ -99,22 +89,23 @@ be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02
 
 | Thing | Location |
 |---|---|
-| Form backend | `/home/oxwet/webs/tscrub-form/` |
-| Handler / mailer / issuer | `submit.php`, `sendmail.py`, `issue_licence.py` |
-| Config (SMTP, routing, vendor key path) | `config.json` |
-| Vendor private key | `vendor.key` (mode 600, never leaves the server) |
-| Issued licences | `licences/` |
+| Backend (PHP/Python) | `/home/oxwet/webs/tscrub-form/` |
+| Database | MySQL `tScrub` @ 127.0.0.1:3306 (creds in `config.json`) |
+| Tables | `users`, `sessions`, `certificates`, `certificate_reports`, `licences`, `tokens`, `admin_audit_log` |
+| Config (SMTP, DB, vendor key path) | `config.json` |
+| Vendor private key | `vendor.key` (mode 640 group www-data, never leaves the server) |
+| Issued licences | `licences` table (legacy files kept in `licences/`) |
 
 Key routing (from `config.json`):
-- `to_download` → `support@tscrub.com` (licence/download requests)
-- `from_licence` → `support@tscrub.com` (licence emails sent from here)
-- `to_contact` → `hello@tscrub.com` (general contact)
-- `to_support` → `support@tscrub.com` (contact form "Support" option)
+- `to_download` → `support@tscrub.com`
+- `from_licence` → `support@tscrub.com`
+- `to_contact` → `hello@tscrub.com`
+- `to_support` → `support@tscrub.com`
 
 ---
 
-## Not built yet (future automation)
+## Not built yet
 
-- [ ] Billing / payment gateway (Stripe)
-- [ ] Auto-issue licence on payment webhook (removes this manual step)
-- [ ] Drive-count metering from submitted signed reports
+- [ ] Billing / payment gateway (Stripe) → gate payg/team/enterprise licence issuance
+- [ ] Auto-issue licence on payment webhook
+- [ ] Drive-count metering from submitted signed reports (link reports → licences via a `licence_id`)

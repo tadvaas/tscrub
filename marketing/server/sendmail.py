@@ -32,12 +32,14 @@ def main():
         sys.exit(2)
 
     typ = payload.get("type", "contact")
-    if typ == "download":
-        to = cfg.get("to_download", cfg["from"])
-    elif typ == "support":
-        to = cfg.get("to_support", cfg.get("to_contact", cfg["from"]))
-    else:
-        to = cfg.get("to_contact", cfg["from"])
+    to = payload.get("to")  # optional direct recipient for transactional mail
+    if not to:
+        if typ == "download":
+            to = cfg.get("to_download", cfg["from"])
+        elif typ == "support":
+            to = cfg.get("to_support", cfg.get("to_contact", cfg["from"]))
+        else:
+            to = cfg.get("to_contact", cfg["from"])
     reply_to = payload.get("reply_to")
 
     msg = MIMEText(payload.get("text", ""), "plain", "utf-8")

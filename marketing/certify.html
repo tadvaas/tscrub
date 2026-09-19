@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <title>Certificate of Destruction — tScrub</title>
-  <link rel="canonical" href="https://tscrub.com/certify" />
+  <meta http-equiv="refresh" content="0; url=/dashboard/certify" />
+  <link rel="canonical" href="https://tscrub.com/dashboard/certify" />
   <meta name="description" content="Upload a tScrub report and generate a verified, printable Certificate of Destruction per Chain of Custody ID." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body class="bg-white text-slate-800">
+  <script>location.replace('/dashboard/certify');</script>
 
   <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
@@ -41,10 +43,9 @@
           <li><a href="docs" class="text-slate-600 hover:text-ink-900">Docs</a></li>
           <li><a href="download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
           <li><a href="faq" class="text-slate-600 hover:text-ink-900">FAQ</a></li>
-          <li><a href="certify" class="font-semibold text-ink-900">Certify</a></li>
           <li><a href="contact" class="text-slate-600 hover:text-ink-900">Contact</a></li>
         </ul>
-        <a href="download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Download</a>
+        <a href="login" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Sign in</a>
       </div>
     </div>
   </nav>
@@ -69,6 +70,12 @@
         <button type="submit" class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Generate certificate</button>
         <p id="certify-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
       </form>
+
+      <div id="auth-wall" class="hidden text-center">
+        <p class="text-sm font-semibold text-ink-900">Sign in to generate certificates</p>
+        <p class="mt-2 text-sm text-slate-600">You need a tScrub account to upload reports and generate Certificates of Destruction.</p>
+        <a href="/login?next=/certify" class="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Sign in</a>
+      </div>
     </div>
 
     <div class="mx-auto mt-14 max-w-2xl text-sm text-slate-600">
@@ -100,6 +107,7 @@
         <li>• One PDF certificate per Chain of Custody ID, with every run consolidated.</li>
         <li>• SHA-256 and signature verification performed server-side.</li>
         <li>• Per-drive details: model, serial, type, method, certification, final status, and wiped date.</li>
+        <li>• Pre- and post-wipe SMART health (status, temperature, power-on hours, wear) captured in the certificate when present in the report.</li>
         <li>• A unique Certificate ID and QR code linking to online verification.</li>
       </ul>
     </div>
@@ -116,7 +124,6 @@
         <li><a href="download" class="hover:text-white">Pricing</a></li>
         <li><a href="faq" class="hover:text-white">FAQ</a></li>
         <li><a href="docs" class="hover:text-white">Docs</a></li>
-        <li><a href="certify" class="hover:text-white">Certify</a></li>
         <li><a href="privacy" class="hover:text-white">Privacy</a></li>
         <li><a href="terms" class="hover:text-white">Terms</a></li>
         <li><a href="contact" class="hover:text-white">Contact</a></li>
@@ -132,7 +139,18 @@
       var status = document.getElementById('certify-status');
       var input = document.getElementById('reports');
       var nameEl = document.getElementById('reports-name');
+      var wall = document.getElementById('auth-wall');
       function setStatus(msg, color) { status.textContent = msg; status.className = 'text-xs font-semibold ' + color; }
+      function getCsrf() {
+        return fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) { return (d && d.csrf) || ''; });
+      }
+      // Require sign-in before uploading.
+      fetch('/api/me').then(function (r) {
+        if (r.status === 401) {
+          form.classList.add('hidden');
+          wall.classList.remove('hidden');
+        }
+      });
       input.addEventListener('change', function () {
         if (!input.files.length) { nameEl.textContent = 'No file chosen'; return; }
         var names = [];
@@ -142,38 +160,41 @@
       form.addEventListener('submit', function (e) {
         e.preventDefault();
         if (!input.files.length) { setStatus('Please choose your report files first.', 'text-red-600'); return; }
-        var fd = new FormData();
-        for (var i = 0; i < input.files.length; i++) fd.append('reports[]', input.files[i]);
-        var btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
-        btn.textContent = 'Generating…';
-        setStatus('Verifying and generating your certificate…', 'text-slate-500');
-        fetch('/api/certify', { method: 'POST', body: fd })
-          .then(function (r) {
-            if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || 'Something went wrong.'); });
-            var disposition = r.headers.get('Content-Disposition') || '';
-            var m = /filename="?([^";]+)"?/i.exec(disposition);
-            var fname = (m && m[1]) ? m[1] : 'Certificate-of-Destruction.pdf';
-            return r.blob().then(function (blob) { return { blob: blob, name: fname }; });
-          })
-          .then(function (res) {
-            var url = URL.createObjectURL(res.blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = res.name;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            btn.disabled = false;
-            btn.textContent = 'Generate certificate';
-            setStatus('Certificate downloaded.', 'text-brand-700');
-          })
-          .catch(function (err) {
-            btn.disabled = false;
-            btn.textContent = 'Generate certificate';
-            setStatus(err.message || 'Could not generate the certificate.', 'text-red-600');
-          });
+        getCsrf().then(function (csrf) {
+          var fd = new FormData();
+          for (var i = 0; i < input.files.length; i++) fd.append('reports[]', input.files[i]);
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = true;
+          btn.textContent = 'Generating…';
+          setStatus('Verifying and generating your certificate…', 'text-slate-500');
+          return fetch('/api/certify', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': csrf } })
+            .then(function (r) {
+              if (r.status === 401) { window.location.href = '/login?next=/certify'; throw new Error('Sign in required.'); }
+              if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || 'Something went wrong.'); });
+              var disposition = r.headers.get('Content-Disposition') || '';
+              var m = /filename="?([^";]+)"?/i.exec(disposition);
+              var fname = (m && m[1]) ? m[1] : 'Certificate-of-Destruction.pdf';
+              return r.blob().then(function (blob) { return { blob: blob, name: fname }; });
+            })
+            .then(function (res) {
+              var url = URL.createObjectURL(res.blob);
+              var a = document.createElement('a');
+              a.href = url;
+              a.download = res.name;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              btn.disabled = false;
+              btn.textContent = 'Generate certificate';
+              setStatus('Certificate downloaded.', 'text-brand-700');
+            });
+        }).catch(function (err) {
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = false;
+          btn.textContent = 'Generate certificate';
+          setStatus(err.message || 'Could not generate the certificate.', 'text-red-600');
+        });
       });
     })();
   </script>

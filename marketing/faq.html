@@ -41,10 +41,9 @@
           <li><a href="docs" class="text-slate-600 hover:text-ink-900">Docs</a></li>
           <li><a href="download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
           <li><a href="faq" class="font-semibold text-ink-900">FAQ</a></li>
-          <li><a href="certify" class="text-slate-600 hover:text-ink-900">Certify</a></li>
           <li><a href="contact" class="text-slate-600 hover:text-ink-900">Contact</a></li>
         </ul>
-        <a href="download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Download</a>
+        <a href="login" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Sign in</a>
       </div>
     </div>
   </nav>
@@ -85,11 +84,30 @@
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900">Do I need an internet connection?</h3>
-            <p class="mt-2 text-sm text-slate-600">No. tScrub runs fully offline. Report upload (FTP) is optional and only used when you configure it — ideal for air-gapped decommission labs.</p>
+            <p class="mt-2 text-sm text-slate-600">No. tScrub runs fully offline. Copy the report files off the appliance by USB and upload them in the dashboard, or configure optional FTP upload — ideal for air-gapped decommission labs.</p>
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900">What if a drive can't be wiped?</h3>
             <p class="mt-2 text-sm text-slate-600">Frozen, locked, or unsupported drives are flagged with a PHYS_DESTR status in the report, so the device can be routed to physical destruction and still documented in the chain of custody.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accounts & licences -->
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-brand-600">Accounts &amp; licences</h2>
+        <div class="mt-2 divide-y divide-slate-100">
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900">Do I need a licence to run tScrub?</h3>
+            <p class="mt-2 text-sm text-slate-600">Yes — every tScrub build requires a licence, even the free tier. Sign in and issue one from your dashboard; free licences are instant.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900">What's the difference between a free and a paid licence?</h3>
+            <p class="mt-2 text-sm text-slate-600">Both erase drives the same way. Free licences produce unsigned (checksum-only) reports and certificates without a QR code. Paid licences add a report-signing key, so reports and certificates are digitally signed and verifiable against the tScrub vendor key.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900">How do I get my reports into the dashboard?</h3>
+            <p class="mt-2 text-sm text-slate-600">Upload the report files on the Certify page of your dashboard to generate a Certificate of Destruction. Per-drive and pre/post-wipe SMART data is stored and shown in the dashboard's SMART data reports.</p>
           </div>
         </div>
       </div>
@@ -129,7 +147,6 @@
         <li><a href="compliance" class="hover:text-white">Compliance</a></li>
         <li><a href="download" class="hover:text-white">Pricing</a></li>
         <li><a href="faq" class="hover:text-white">FAQ</a></li>
-        <li><a href="certify" class="hover:text-white">Certify</a></li>
         <li><a href="docs" class="hover:text-white">Docs</a></li>
         <li><a href="privacy" class="hover:text-white">Privacy</a></li>
         <li><a href="terms" class="hover:text-white">Terms</a></li>

@@ -1,11 +1,16 @@
 
 .PHONY: build build-enterprise build-customer deploy deploy-check
 
-# Free / community build: no vendor key, self-signed reports only.
+# Free / community build: embeds the vendor public key so licences verify
+# (tScrub always requires a licence — even the free tier).
 build:
-	bash scripts/build.sh
+	@test -f keys/vendor-public-key.pem || { echo "Missing keys/vendor-public-key.pem" >&2; exit 1; }
+	@cp keys/vendor-public-key.pem payload/vendor-public-key.pem
+	@bash scripts/build.sh
+	@rm -f payload/vendor-public-key.pem
+	@echo "Build complete (licence verification enabled)."
 
-# Team / Enterprise build: embeds the vendor public key so licences verify.
+# Team / Enterprise build: same as build (kept for clarity / back-compat).
 build-enterprise:
 	@test -f keys/vendor-public-key.pem || { echo "Missing keys/vendor-public-key.pem" >&2; exit 1; }
 	@cp keys/vendor-public-key.pem payload/vendor-public-key.pem

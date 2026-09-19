@@ -13,6 +13,8 @@ cd "$(dirname "$0")/server"
 # vendor.key, config.json) that must never be removed by a deploy.
 rsync -avz \
   certify.php submit.php verify.php \
+  api.php auth.php db.php http.php mail.php reports_lib.php \
+  migrate.php seed-admin.php schema.sql \
   sendmail.py issue_licence.py \
   config.example.json \
   -e "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \

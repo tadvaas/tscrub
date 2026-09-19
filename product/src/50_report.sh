@@ -279,7 +279,7 @@ license::detect() {
 
 license::verify() {
     local lic="${1:-$LICENSE_FILE}"
-    local customer expiry key_b64 sig_b64 msg tmp
+    local customer expiry tier key_b64 sig_b64 msg tmp
 
     [[ -f "$lic" ]] || return 1
     report::_openssl || return 1
@@ -287,17 +287,19 @@ license::verify() {
 
     customer="$(sed -n 's/.*"customer": "\([^"]*\)".*/\1/p' "$lic")"
     expiry="$(sed -n 's/.*"expiry": "\([^"]*\)".*/\1/p' "$lic")"
+    tier="$(sed -n 's/.*"tier": "\([^"]*\)".*/\1/p' "$lic")"
     key_b64="$(sed -n 's/.*"key": "\([^"]*\)".*/\1/p' "$lic")"
     sig_b64="$(sed -n 's/.*"signature": "\([^"]*\)".*/\1/p' "$lic")"
 
-    [[ -n "$customer" && -n "$expiry" && -n "$key_b64" && -n "$sig_b64" ]] || return 1
+    [[ -n "$customer" && -n "$expiry" && -n "$sig_b64" ]] || return 1
+    tier="${tier:-free}"
 
     if [[ "$expiry" < "$(date -u +%Y-%m-%d)" ]]; then
         printf "%s[!] Licence expired on %s.\n" "$TABLE_INDENT" "$expiry" >&2
         return 1
     fi
 
-    msg="${customer}|${expiry}|${key_b64}"
+    msg="${customer}|${expiry}|${tier}|${key_b64}"
     tmp="$(mktemp -d /tmp/tscrub-lic.XXXXXX)"
     printf '%s\n' "$LICENSE_VENDOR_PUBLIC_KEY_B64" | openssl base64 -d -out "$tmp/vendor.pub" 2>/dev/null
     printf '%s' "$msg" > "$tmp/msg"

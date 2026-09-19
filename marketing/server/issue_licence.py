@@ -43,12 +43,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("customer")
     ap.add_argument("expiry", help="YYYY-MM-DD")
-    ap.add_argument("email")
+    ap.add_argument("email", nargs="?", help="recipient email (omitted with --json)")
+    ap.add_argument("--tier", default="free", choices=["free", "payg", "team", "enterprise"])
+    ap.add_argument("--json", action="store_true", help="print the .lic JSON to stdout (no file, no email)")
     args = ap.parse_args()
 
     customer = args.customer.strip()
     expiry = args.expiry.strip()
-    email = args.email.strip()
+    email = (args.email or "").strip()
+    tier = args.tier
 
     if not customer:
         sys.stderr.write("customer name required\n")
@@ -56,7 +59,7 @@ def main():
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", expiry):
         sys.stderr.write("expiry must be YYYY-MM-DD\n")
         sys.exit(1)
-    if "@" not in email:
+    if not args.json and "@" not in email:
         sys.stderr.write("invalid email address\n")
         sys.exit(1)
 
@@ -67,12 +70,15 @@ def main():
         sys.stderr.write(f"vendor key not found: {vendor_key}\n")
         sys.exit(1)
 
-    # 1. Report signing key (private, embedded in the licence)
-    report_key = run(["openssl", "genpkey", "-algorithm", "ED25519"])
-    key_b64 = base64.b64encode(report_key).decode()
+    # 1. Report signing key (private, embedded in the licence). Paid tiers only —
+    #    free licences stay unsigned (checksum-only reports).
+    key_b64 = ""
+    if tier != "free":
+        report_key = run(["openssl", "genpkey", "-algorithm", "ED25519"])
+        key_b64 = base64.b64encode(report_key).decode()
 
-    # 2. Signature over customer|expiry|key
-    msg = f"{customer}|{expiry}|{key_b64}"
+    # 2. Signature over customer|expiry|tier|key
+    msg = f"{customer}|{expiry}|{tier}|{key_b64}"
     with tempfile.NamedTemporaryFile() as tmp:
         tmp.write(msg.encode())
         tmp.flush()
@@ -83,11 +89,18 @@ def main():
     licence = {
         "schema": "tscrub-license/1",
         "customer": customer,
+        "tier": tier,
         "expiry": expiry,
-        "key": key_b64,
         "signature": sig_b64,
     }
+    if key_b64:
+        licence["key"] = key_b64
     lic_json = json.dumps(licence, indent=2) + "\n"
+
+    # Machine-facing mode: print the licence and stop (used by the web API).
+    if args.json:
+        sys.stdout.write(lic_json)
+        return
 
     # 3. Save for the record
     outdir = os.path.join(BASE, "licences")

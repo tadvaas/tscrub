@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <title>Sign in — tScrub</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-white text-slate-800">
+
+  <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-2 font-medium md:mt-0 md:flex-row md:items-center md:gap-6">
+          <li><a href="docs" class="text-slate-600 hover:text-ink-900">Docs</a></li>
+          <li><a href="download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
+          <li><a href="faq" class="text-slate-600 hover:text-ink-900">FAQ</a></li>
+          <li><a href="contact" class="text-slate-600 hover:text-ink-900">Contact</a></li>
+        </ul>
+        <a href="login" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Sign in</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="mx-auto w-full max-w-md px-4 py-16">
+    <h1 class="text-center text-3xl font-extrabold tracking-tight text-ink-900">Sign in</h1>
+    <p class="mt-2 text-center text-sm text-slate-600">Access your dashboard, licences and certificates.</p>
+
+    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-left shadow-sm">
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label for="email" class="mb-1 block text-sm font-semibold text-slate-700">Email</label>
+          <input id="email" type="email" autocomplete="email" required placeholder="you@company.com" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:ring-brand-500" />
+        </div>
+        <div>
+          <label for="password" class="mb-1 block text-sm font-semibold text-slate-700">Password</label>
+          <input id="password" type="password" autocomplete="current-password" required class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500" />
+        </div>
+        <button type="submit" class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Sign in</button>
+        <p class="text-center text-sm text-slate-600">
+          <a href="#" id="forgot-link" class="font-semibold text-brand-700 hover:underline">Forgot password?</a>
+        </p>
+      </form>
+
+      <form id="reset-request-form" class="mt-4 hidden space-y-4">
+        <div>
+          <label for="reset-email" class="mb-1 block text-sm font-semibold text-slate-700">Email</label>
+          <input id="reset-email" type="email" required placeholder="you@company.com" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400" />
+        </div>
+        <button type="submit" class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Send reset link</button>
+        <p class="text-center text-sm text-slate-600"><a href="#" id="cancel-reset" class="font-semibold text-brand-700 hover:underline">Back to sign in</a></p>
+      </form>
+
+      <div id="reset-confirm" class="hidden">
+        <p class="mb-3 text-sm text-slate-600">Choose a new password.</p>
+        <form id="reset-confirm-form" class="space-y-4">
+          <div>
+            <label for="new-password" class="mb-1 block text-sm font-semibold text-slate-700">New password</label>
+            <input id="new-password" type="password" minlength="8" required class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800" />
+          </div>
+          <button type="submit" class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Update password</button>
+        </form>
+      </div>
+
+      <p id="status" class="mt-4 hidden text-sm font-semibold" aria-live="polite"></p>
+    </div>
+
+    <p class="mt-6 text-center text-sm text-slate-600">No account yet? <a href="register" class="font-semibold text-brand-700 hover:underline">Create one</a></p>
+  </section>
+
+  <footer class="bg-ink-900 text-slate-400">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="terms" class="hover:text-white">Terms</a></li>
+        <li><a href="contact" class="hover:text-white">Contact</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var verifyToken = params.get('verify');
+      var resetToken = params.get('reset');
+      var status = document.getElementById('status');
+      function setStatus(msg, cls) { status.textContent = msg; status.className = 'mt-4 text-sm font-semibold ' + cls; }
+
+      async function getCsrf() {
+        var r = await fetch('/api/csrf');
+        var d = await r.json();
+        return (d && d.csrf) || '';
+      }
+      async function post(url, body) {
+        var csrf = await getCsrf();
+        var r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify(body)
+        });
+        var d = await r.json().catch(function () { return {}; });
+        return { ok: r.ok, status: r.status, data: d };
+      }
+
+      if (verifyToken) {
+        setStatus('Verifying your email…', 'text-slate-500');
+        post('/api/verify-email', { token: verifyToken }).then(function (res) {
+          setStatus(res.ok ? 'Email verified — you can sign in below.' : (res.data.error || 'Verification failed.'), res.ok ? 'text-brand-700' : 'text-red-600');
+        });
+      }
+
+      // Already signed in (and not mid verify/reset)? Send them to the dashboard.
+      if (!verifyToken && !resetToken) {
+        fetch('/api/me').then(function (r) {
+          if (r.status !== 200) return null;
+          return r.json();
+        }).then(function (d) {
+          if (d && d.user) {
+            var next = params.get('next') || '/dashboard';
+            if (next.charAt(0) !== '/') next = '/dashboard';
+            window.location.href = next;
+          }
+        });
+      }
+
+      if (resetToken) {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('reset-request-form').classList.add('hidden');
+        document.getElementById('reset-confirm').classList.remove('hidden');
+        document.getElementById('reset-confirm-form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          var pw = document.getElementById('new-password').value;
+          if (pw.length < 8) { setStatus('Password must be at least 8 characters.', 'text-red-600'); return; }
+          post('/api/password/reset/confirm', { token: resetToken, password: pw }).then(function (res) {
+            if (res.ok) {
+              document.getElementById('reset-confirm').classList.add('hidden');
+              document.getElementById('login-form').classList.remove('hidden');
+              setStatus('Password updated — sign in below.', 'text-brand-700');
+            } else {
+              setStatus(res.data.error || 'Reset failed.', 'text-red-600');
+            }
+          });
+        });
+      }
+
+      document.getElementById('login-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var next = params.get('next') || '/dashboard';
+        if (next.charAt(0) !== '/') next = '/dashboard';
+        post('/api/login', {
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value
+        }).then(function (res) {
+          if (res.ok) { window.location.href = next; }
+          else { setStatus(res.data.error || 'Sign in failed.', 'text-red-600'); }
+        });
+      });
+
+      var forgot = document.getElementById('forgot-link');
+      var cancelReset = document.getElementById('cancel-reset');
+      var resetRequest = document.getElementById('reset-request-form');
+      forgot.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById('login-form').classList.toggle('hidden');
+        resetRequest.classList.toggle('hidden');
+      });
+      cancelReset.addEventListener('click', function (e) {
+        e.preventDefault();
+        resetRequest.classList.add('hidden');
+        document.getElementById('login-form').classList.remove('hidden');
+      });
+      document.getElementById('reset-request-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        setStatus('Sending reset link…', 'text-slate-500');
+        post('/api/password/reset', { email: document.getElementById('reset-email').value.trim() }).then(function (res) {
+          setStatus(res.data.message || 'If that address is registered, a reset link has been sent.', 'text-brand-700');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

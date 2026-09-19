@@ -8,10 +8,11 @@
 - [How it works](https://tscrub.com/how-it-works): From boot to certificate — the four-step sanitisation walkthrough.
 - [Compliance](https://tscrub.com/compliance): How each wipe method maps to NIST 800-88 Clear, Purge, and Destroy, with GDPR/HIPAA/ISO 27001 reporting.
 - [Compare](https://tscrub.com/compare): tScrub vs Blancco — same compliance outcome, no vendor lock-in.
-- [Pricing & download](https://tscrub.com/download): Free community build, Pay-as-you-go £0.25/device, Team £99/month, Enterprise custom — choose a plan and request the download.
+- [Pricing & download](https://tscrub.com/download): Free community build, Pay-as-you-go £0.25/device, Team £99/month, Enterprise custom — sign in to issue your licence; the tScrub script downloads from your dashboard.
 - [Docs](https://tscrub.com/docs): Building your appliance, running sanitisation, verifying signed reports.
 - [FAQ](https://tscrub.com/faq): Certification, build-your-own-appliance, and edge-case drive handling.
-- [Certificate of Destruction](https://tscrub.com/certify): Upload a report and generate a verified, printable certificate.
+- [Certificates](https://tscrub.com/dashboard/certify): Sign in and upload a report to generate a verified, printable Certificate of Destruction, and manage every certificate on your account.
+- [SMART data reports](https://tscrub.com/dashboard/reports): Per-drive details and pre/post-wipe SMART data for every certificate.
 - [Contact](https://tscrub.com/contact): Sales, support, and compliance enquiries.
 
 ## Legal

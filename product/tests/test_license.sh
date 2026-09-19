@@ -23,18 +23,23 @@ tdir="$(mktemp -d)"
 openssl genpkey -algorithm ED25519 -out "$tdir/vendor.key" 2>/dev/null
 LICENSE_VENDOR_PUBLIC_KEY_B64="$(openssl pkey -in "$tdir/vendor.key" -pubout 2>/dev/null | openssl base64 -A)"
 
-# Issue a valid licence and an expired one.
-bash "$ROOT_DIR/scripts/issue_license.sh" "Acme ITAD Ltd" 2099-12-31 "$tdir/vendor.key" "$tdir/license.key" >/dev/null 2>&1
-bash "$ROOT_DIR/scripts/issue_license.sh" "Old Co" 2020-01-01 "$tdir/vendor.key" "$tdir/expired.key" >/dev/null 2>&1
+# Issue a team licence (signed), a free licence (unsigned), and an expired one.
+bash "$ROOT_DIR/scripts/issue_license.sh" "Acme ITAD Ltd" 2099-12-31 "$tdir/vendor.key" "$tdir/license.key" team >/dev/null 2>&1
+bash "$ROOT_DIR/scripts/issue_license.sh" "Free Co" 2099-12-31 "$tdir/vendor.key" "$tdir/free.key" free >/dev/null 2>&1
+bash "$ROOT_DIR/scripts/issue_license.sh" "Old Co" 2020-01-01 "$tdir/vendor.key" "$tdir/expired.key" team >/dev/null 2>&1
 
-t::check "valid licence verifies" 'license::verify "$tdir/license.key"'
+t::check "valid (team) licence verifies" 'license::verify "$tdir/license.key"'
+t::check "free licence verifies" 'license::verify "$tdir/free.key"'
 t::check "expired licence rejected" '! license::verify "$tdir/expired.key"'
+
+# Free licences carry no report key, so reports stay unsigned.
+t::check "free licence has no report key" '! license::apply "$tdir/free.key"'
 
 # Tamper with the signed payload; signature must no longer verify.
 sed 's/"expiry": "2099-12-31"/"expiry": "2099-12-30"/' "$tdir/license.key" > "$tdir/tampered.key"
 t::check "tampered licence rejected" '! license::verify "$tdir/tampered.key"'
 
-# Apply the licence and confirm reports are signed with the licensed key.
+# Apply the team licence and confirm reports are signed with the licensed key.
 license::apply "$tdir/license.key"
 t::check "apply sets REPORT_KEY" '[[ -n "$REPORT_KEY" && -f "$REPORT_KEY" ]]'
 

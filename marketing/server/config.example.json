@@ -9,5 +9,13 @@
   "to_download": "support@tscrub.com",
   "to_support": "support@tscrub.com",
   "vendor_key": "/home/oxwet/webs/tscrub-form/vendor.key",
-  "download_url": "https://tscrub.com/downloads/tscrub.sh"
+  "download_url": "https://tscrub.com/downloads/tscrub.sh",
+  "base_url": "https://tscrub.com",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "name": "tScrub",
+    "user": "tScrub",
+    "password": "CHANGE_ME"
+  }
 }

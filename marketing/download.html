@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <title>Download — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/download" />
-  <meta name="description" content="Download the tScrub appliance image and builder script, and build your own bootable sanitisation appliance." />
+  <meta name="description" content="Issue your tScrub licence and get the script — build your own bootable sanitisation appliance for NVMe, SATA, and SCSI drives." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -41,10 +41,9 @@
           <li><a href="docs" class="text-slate-600 hover:text-ink-900">Docs</a></li>
           <li><a href="download" class="text-slate-600 hover:text-ink-900">Pricing</a></li>
           <li><a href="faq" class="text-slate-600 hover:text-ink-900">FAQ</a></li>
-          <li><a href="certify" class="text-slate-600 hover:text-ink-900">Certify</a></li>
           <li><a href="contact" class="text-slate-600 hover:text-ink-900">Contact</a></li>
         </ul>
-        <a href="download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Download</a>
+        <a href="login" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 md:mt-0 md:ml-6">Sign in</a>
       </div>
     </div>
   </nav>
@@ -52,7 +51,7 @@
     <section class="mx-auto max-w-7xl px-4 py-16">
     <div class="mx-auto max-w-3xl text-center">
       <h1 class="text-4xl font-extrabold tracking-tight text-ink-900">Get tScrub</h1>
-      <p class="mt-3 text-slate-600">Choose a plan, then tell us where to send the download. Free is self-signed; paid plans add vendor-signed reports and support.</p>
+      <p class="mt-3 text-slate-600">Every tScrub appliance needs a licence — even the free one. Sign in, pick a plan, and issue your licence. The script download lives in your dashboard.</p>
     </div>
 
     <!-- Plans -->
@@ -63,11 +62,11 @@
         <p class="mt-1 text-sm text-slate-500">community build</p>
         <ul class="mt-6 flex-1 space-y-3 text-sm text-slate-600">
           <li>• Full disk erasure</li>
-          <li>• Self-signed reports</li>
-          <li>• No licence required</li>
+          <li>• Unsigned (checksum-only) reports</li>
+          <li>• Free licence required</li>
           <li>• Community support</li>
         </ul>
-        <a href="/downloads/tscrub.sh" class="mt-8 block rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700">Download free</a>
+        <button type="button" data-tier="free" class="mt-8 block w-full rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700">Get free licence</button>
       </div>
       <div class="flex flex-col rounded-2xl border border-slate-200 p-6 shadow-sm">
         <h2 class="text-lg font-bold text-ink-900">Pay-as-you-go</h2>
@@ -79,7 +78,7 @@
           <li>• No monthly commitment</li>
           <li>• Email support</li>
         </ul>
-        <button type="button" data-plan="Pay-as-you-go" class="mt-8 w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Start pay-as-you-go</button>
+        <button type="button" data-tier="payg" class="mt-8 w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Get pay-as-you-go licence</button>
       </div>
       <div class="relative flex flex-col rounded-2xl border-2 border-brand-600 p-6 shadow-lg">
         <span class="absolute -top-3 left-6 rounded-full bg-brand-600 px-3 py-0.5 text-xs font-semibold text-white">Most popular</span>
@@ -91,7 +90,7 @@
           <li>• Licence key &amp; updates</li>
           <li>• Priority email support</li>
         </ul>
-        <button type="button" data-plan="Team" class="mt-8 w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Start with Team</button>
+        <button type="button" data-tier="team" class="mt-8 w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Get Team licence</button>
       </div>
       <div class="flex flex-col rounded-2xl border border-slate-200 p-6 shadow-sm">
         <h2 class="text-lg font-bold text-ink-900">Enterprise</h2>
@@ -110,40 +109,27 @@
 
     <p class="mx-auto mt-6 max-w-3xl text-center text-xs text-slate-400">All prices are in GBP and exclude VAT. Self-serve billing is launching soon.</p>
 
-    <!-- Request form -->
+    <!-- Download / licence -->
     <div id="request" class="mx-auto mt-12 max-w-xl rounded-2xl border border-slate-200 bg-slate-50 p-8 text-left shadow-sm">
-      <h2 class="text-lg font-bold text-ink-900">Request your download</h2>
-      <p class="mt-1 text-sm text-slate-500">We'll email the download link — plus your licence if you picked a paid plan.</p>
-      <form id="download-form" action="#" method="post" class="mt-6 space-y-4">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label for="name" class="mb-1 block text-sm font-medium text-slate-700">Name</label>
-            <input id="name" type="text" required placeholder="Jane Doe" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:ring-brand-500" />
-          </div>
-          <div>
-            <label for="email" class="mb-1 block text-sm font-medium text-slate-700">Work email</label>
-            <input id="email" type="email" required placeholder="you@company.com" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:ring-brand-500" />
-          </div>
+      <div id="auth-wall" class="hidden text-center">
+        <h2 class="text-lg font-bold text-ink-900">Sign in to get a licence</h2>
+        <p class="mt-2 text-sm text-slate-600">tScrub requires a licence — even the free tier. Sign in or create an account to issue your licence, then download the script from your dashboard.</p>
+        <div class="mt-4 flex justify-center gap-3">
+          <a href="/login?next=/download" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Sign in</a>
+          <a href="/register" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Create account</a>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label for="org" class="mb-1 block text-sm font-medium text-slate-700">Organisation <span class="font-normal text-slate-400">(optional)</span></label>
-            <input id="org" type="text" placeholder="Acme Ltd" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:ring-brand-500" />
-          </div>
-          <div>
-            <label for="plan" class="mb-1 block text-sm font-medium text-slate-700">Plan</label>
-            <select id="plan" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500">
-              <option value="Free">Free</option>
-              <option value="Pay-as-you-go">Pay-as-you-go</option>
-              <option value="Team">Team</option>
-              <option value="Enterprise">Enterprise</option>
-            </select>
-          </div>
+      </div>
+
+      <div id="download-panel" class="hidden">
+        <h2 class="text-lg font-bold text-ink-900">Your licence</h2>
+        <p class="mt-1 text-sm text-slate-500">Issue a licence below — then download the tScrub script from your <a href="/dashboard/licence" class="font-semibold text-brand-700 hover:underline">dashboard</a>.</p>
+        <div id="licence-result" class="mt-4 hidden rounded-lg border border-brand-200 bg-brand-50 p-4">
+          <p class="text-sm font-semibold text-brand-700" id="licence-result-text"></p>
+          <a id="licence-result-download" href="#" class="mt-2 inline-block text-sm font-semibold text-brand-700 hover:underline">Download .lic</a>
         </div>
-        <button type="submit" class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Request download</button>
-        <p id="download-form-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
-        <p class="text-xs text-slate-500">We'll email you the download link and licence details. No spam.</p>
-      </form>
+        <p id="download-status" class="mt-3 hidden text-xs font-semibold" aria-live="polite"></p>
+        <p class="mt-4 text-xs text-slate-500">Place the <code class="font-mono">.lic</code> alongside <code class="font-mono">tscrub.sh</code> on your appliance, or point to it with <code class="font-mono">--license</code>.</p>
+      </div>
     </div>
 
     <!-- Pricing questions -->
@@ -159,10 +145,10 @@
     <div class="mx-auto mt-14 max-w-3xl">
       <h2 class="text-2xl font-bold text-ink-900">Build your own appliance</h2>
       <ol class="mt-6 space-y-4 text-sm text-slate-600">
-        <li><span class="font-semibold text-ink-900">1.</span> Download the tScrub script and the builder.</li>
-        <li><span class="font-semibold text-ink-900">2.</span> Run the builder against a stock Linux live image.</li>
-        <li><span class="font-semibold text-ink-900">3.</span> Flash the resulting image to USB (or serve it over PXE).</li>
-        <li><span class="font-semibold text-ink-900">4.</span> Boot any machine and tScrub starts automatically.</li>
+        <li><span class="font-semibold text-ink-900">1.</span> Issue your licence, then download the tScrub script from your dashboard.</li>
+        <li><span class="font-semibold text-ink-900">2.</span> Boot a Linux live environment (ShredOS or your own) from USB or PXE.</li>
+        <li><span class="font-semibold text-ink-900">3.</span> Place the <code class="font-mono">.lic</code> alongside <code class="font-mono">tscrub.sh</code> and run it.</li>
+        <li><span class="font-semibold text-ink-900">4.</span> tScrub wipes every supported drive and writes the chain-of-custody report.</li>
       </ol>
     </div>
 
@@ -180,23 +166,13 @@
       <h2 class="text-2xl font-bold text-ink-900">What's included</h2>
       <ul class="mt-6 space-y-2 text-sm text-slate-600">
         <li>• The self-contained tScrub script</li>
-        <li>• The appliance builder</li>
         <li>• Embedded sedutil-cli for SED/OPAL handling</li>
-        <li>• SHA-256 checksums for every release</li>
+        <li>• Pre/post-wipe SMART capture for every drive</li>
+        <li>• Chain-of-custody report + Certificate of Destruction generation</li>
+        <li>• SHA-256 checksums and Ed25519 release signatures</li>
       </ul>
     </div>
 
-    <div class="mx-auto mt-14 max-w-3xl">
-      <h2 class="text-2xl font-bold text-ink-900">Verify your download</h2>
-      <p class="mt-3 text-sm text-slate-600">Always verify the checksum before building your appliance:</p>
-      <pre class="mt-4 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">36348783dd508dfae90804edc792286958483a1ce337bea33e144d8c6e09ec5d  tscrub.sh</pre>
-      <p class="mt-3 text-sm text-slate-600">Compare the output against this checksum, also published at <code class="font-mono">/downloads/tscrub.sh.sha256</code>.</p>
-      <p class="mt-3 text-sm text-slate-600">Verify the release signature (proves the file came from tScrub):</p>
-      <pre class="mt-4 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">openssl pkeyutl -verify -pubin -inkey tscrub.pub -rawin -in tscrub.sh -sigfile tscrub.sh.sig
-# → Signature Verified Successfully</pre>
-      <p class="mt-3 text-sm text-slate-600">Grab <code class="font-mono">tscrub.pub</code> and <code class="font-mono">tscrub.sh.sig</code> from <code class="font-mono">/downloads/</code> alongside the script.</p>
-      <p class="mt-3 text-sm text-slate-600">Signed reports verify against the tScrub vendor key — fingerprint <code class="font-mono">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</code>. See the <a href="docs" class="font-medium text-brand-600 hover:text-brand-700">docs</a> for the full key.</p>
-    </div>
   </section>
 
 <!-- ============ CTA ============ -->
@@ -222,7 +198,6 @@
         <li><a href="compliance" class="hover:text-white">Compliance</a></li>
         <li><a href="download" class="hover:text-white">Pricing</a></li>
         <li><a href="faq" class="hover:text-white">FAQ</a></li>
-        <li><a href="certify" class="hover:text-white">Certify</a></li>
         <li><a href="docs" class="hover:text-white">Docs</a></li>
         <li><a href="privacy" class="hover:text-white">Privacy</a></li>
         <li><a href="terms" class="hover:text-white">Terms</a></li>
@@ -235,61 +210,68 @@
   <script type="module" src="/src/main.js"></script>
   <script>
     (function () {
-      var form = document.getElementById('download-form');
-      var status = document.getElementById('download-form-status');
-      var plan = document.getElementById('plan');
+      var wall = document.getElementById('auth-wall');
+      var panel = document.getElementById('download-panel');
+      var status = document.getElementById('download-status');
+      var result = document.getElementById('licence-result');
+      var resultText = document.getElementById('licence-result-text');
+      var resultDownload = document.getElementById('licence-result-download');
+
       function setStatus(msg, color) {
         status.textContent = msg;
-        status.className = 'text-xs font-semibold ' + color;
+        status.className = 'mt-3 text-xs font-semibold ' + color;
       }
-      // Plan cards preselect the dropdown and scroll to the form.
-      Array.prototype.forEach.call(document.querySelectorAll('[data-plan]'), function (btn) {
-        btn.addEventListener('click', function () {
-          plan.value = btn.getAttribute('data-plan');
-          document.getElementById('request').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+      function getCsrf() {
+        return fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) { return (d && d.csrf) || ''; });
+      }
+
+      // Auth guard: show the wall or the download panel.
+      fetch('/api/me').then(function (r) {
+        if (r.status === 401) {
+          wall.classList.remove('hidden');
+        } else {
+          panel.classList.remove('hidden');
+        }
       });
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var name = document.getElementById('name').value.trim();
-        var email = document.getElementById('email').value.trim();
-        var org = document.getElementById('org').value.trim();
-        var planValue = plan.value;
-        if (!name || !email) return;
-        var btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-        setStatus('Sending your request…', 'text-slate-500');
-        fetch('/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'download',
-            email: email,
-            name: name,
-            org: org,
-            message: 'Plan: ' + planValue + '. Please send tScrub download links and licence details.',
-            website: ''
+
+      // Plan buttons issue a licence for their tier.
+      Array.prototype.forEach.call(document.querySelectorAll('[data-tier]'), function (btn) {
+        btn.addEventListener('click', function () {
+          var tier = btn.getAttribute('data-tier');
+          var original = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Issuing…';
+          setStatus('Issuing your ' + tier + ' licence…', 'text-slate-500');
+          getCsrf().then(function (csrf) {
+            return fetch('/api/licence', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ tier: tier })
+            }).then(function (r) {
+              if (r.status === 401) { window.location.href = '/login?next=/download'; throw new Error('Sign in required.'); }
+              return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+            });
           })
-        }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
-          .then(function (d) {
-            if (d && d.ok) {
-              btn.textContent = 'Request received';
-              setStatus('Thanks — we\u2019ll email the download link to ' + email + '.', 'text-brand-700');
-            } else {
+            .then(function (res) {
               btn.disabled = false;
-              btn.textContent = 'Request download';
-              setStatus((d && d.error) || 'Something went wrong. Email support@tscrub.com.', 'text-red-600');
-            }
-          })
-          .catch(function () {
-            btn.disabled = false;
-            btn.textContent = 'Request download';
-            setStatus('Could not send. Email support@tscrub.com directly.', 'text-red-600');
-          });
+              btn.textContent = original;
+              if (res.ok) {
+                var lic = res.data.licence;
+                resultText.textContent = 'Licence issued for ' + lic.customer + ' (expires ' + lic.expiry + ').';
+                resultDownload.href = '/api/licences/' + lic.id + '/download';
+                result.classList.remove('hidden');
+                setStatus('Licence ready below.', 'text-brand-700');
+              } else {
+                setStatus(res.data.error || 'Could not issue a licence.', 'text-red-600');
+              }
+            }).catch(function () {
+              btn.disabled = false;
+              btn.textContent = original;
+              setStatus('Could not issue a licence.', 'text-red-600');
+            });
+        });
       });
     })();
   </script>
-</script>
 </body>
 </html>

@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /login
+Disallow: /register
+Disallow: /dashboard
+Disallow: /admin
 
 Sitemap: https://tscrub.com/sitemap.xml

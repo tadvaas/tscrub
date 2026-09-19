@@ -53,10 +53,18 @@ fn_main() {
     START_TS=$(date +%s)
 
     # Enable attributable (vendor-signed) reports when a valid licence is present.
+    # tScrub always requires a licence — even the free tier.
     license::detect
     if license::verify; then
-        license::apply
-        printf "%sLicence valid — signed reports enabled.\n" "$TABLE_INDENT"
+        if license::apply; then
+            printf "%sLicence valid — signed reports enabled.\n" "$TABLE_INDENT"
+        else
+            printf "%sLicence valid — free tier (unsigned reports).\n" "$TABLE_INDENT"
+        fi
+    else
+        printf "%s[!] No valid licence found. tScrub requires a licence (even a free one).\n" "$TABLE_INDENT" >&2
+        printf "%s    Get one at https://tscrub.com/download, or supply --license / --license-url.\n" "$TABLE_INDENT" >&2
+        exit 1
     fi
 
     ui::coc_prompt

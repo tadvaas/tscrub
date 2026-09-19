@@ -1,19 +1,43 @@
 <?php
 /**
  * Certificate verification page: /verify?cert=COD-XXXXXXXX-XX-XXX-XXXX-XXXX
- * Looks up an issued certificate in the registry and confirms its details,
+ * Looks up an issued certificate in MySQL and confirms its details,
  * including the document hash so the PDF can be checked for tampering.
  */
+
+require_once __DIR__ . '/db.php';
 
 $cert = strtoupper(trim((string)($_GET['cert'] ?? '')));
 $isValidId = (preg_match('/^COD-[A-Z0-9-]{6,}$/', $cert) === 1);
 
 $record = null;
+$dbError = false;
 if ($isValidId) {
-    $path = __DIR__ . '/certificates/' . $cert . '.json';
-    if (is_file($path)) {
-        $data = json_decode((string)file_get_contents($path), true);
-        if (is_array($data)) { $record = $data; }
+    try {
+        $stmt = db()->prepare('SELECT * FROM certificates WHERE cert_id = ?');
+        $stmt->execute([$cert]);
+        $row = $stmt->fetch();
+        if ($row !== false) {
+            $rq = db()->prepare('SELECT report_name AS name, sha256 AS sha, state FROM certificate_reports WHERE certificate_id = ? ORDER BY id');
+            $rq->execute([(int)$row['id']]);
+            $record = [
+                'cert'       => (string)$row['cert_id'],
+                'cocid'      => (string)$row['cocid'],
+                'devices'    => (int)$row['devices'],
+                'methods'    => (int)$row['methods'],
+                'runs'       => (int)$row['runs'],
+                'first'      => $row['first_ts'],
+                'last'       => $row['last_ts'],
+                'sha_state'  => (string)$row['sha_state'],
+                'sig_state'  => (string)$row['sig_state'],
+                'pdf_sha256' => (string)$row['pdf_sha256'],
+                'issued'     => (string)$row['issued_at'],
+                'reports'    => $rq->fetchAll(),
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('verify.php db error: ' . $e->getMessage());
+        $dbError = true;
     }
 }
 
@@ -109,9 +133,14 @@ if ($found) {
     <?php endif; ?>
     <div class="note">To check this document hasn't been altered, compute the SHA-256 of your PDF and compare it with the document hash above.</div>
 <?php else: ?>
+    <?php if ($dbError): ?>
+    <div class="status"><span class="dot bad"></span><span class="bad">Verification Unavailable</span></div>
+    <div class="sub">The verification service is temporarily unavailable. Please try again shortly.</div>
+    <?php else: ?>
     <div class="status"><span class="dot bad"></span><span class="bad">Certificate Not Found</span></div>
     <div class="sub"><?= $isValidId ? 'No certificate with that ID was issued through tscrub.com.' : 'The certificate ID format is invalid.' ?></div>
     <div class="note">Use the exact Certificate ID printed on the certificate (for example <code>COD-123456-AB-CDE-1234-ABCD</code>).</div>
+    <?php endif; ?>
 <?php endif; ?>
   </div>
 </main>

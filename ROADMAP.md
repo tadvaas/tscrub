@@ -81,3 +81,51 @@ firmware sanitise/format. Options:
 - [ ] Auto-upload reports → auto Certificate of Destruction (machine-facing `/api/certify` ingestion)
 - [ ] Billing (Stripe) + automatic licence issuance on payment webhook
 - [ ] Repo-root README and "boot and wipe in 60 seconds" onboarding
+
+## 3. Self-serve platform (accounts → licence → app → dashboard → certs)
+
+Target user journey:
+
+1. Visitor creates an account on tscrub.com and is issued a licence (even free).
+2. They download the appliance (`tscrub.sh`) plus their `.lic`.
+3. They configure the appliance one of two ways:
+   - **Network** — the appliance uploads the finished report to tScrub (or an FTP drop).
+   - **USB** — the appliance writes the erasure + SMART data to a USB drive.
+4. The licence is required at boot at all times (free or paid). Free licences get
+   **unsigned** reports/certificates and **no QR code**; paid licences get
+   digitally signed reports + a signed certificate + QR code.
+5. Back on the dashboard, uploading the report files stores the full CSV data in
+   MySQL and displays it per drive (including SMART). Certificates are
+   downloadable per licence tier.
+
+### Gaps to close
+
+- [x] Accounts, login, dashboard, admin (MySQL-backed) — **done**.
+- [x] Self-serve licence issuance (free/payg/team/enterprise) — **done**.
+- [x] Licence enforced at boot on every build — **done**.
+- [x] Certificate generation with Annex A (devices) + Annex B (SMART) — **done**.
+- [x] **Tiered licence features** — free licence does NOT sign reports and does
+      NOT emit a QR code; paid licences do. Done:
+      - `product/src/50_report.sh` `license::verify` includes `tier` in the signed
+        message; `license::apply` only sets `REPORT_KEY` when a report key is
+        present (paid tiers). Free licences carry no `key`.
+      - `marketing/server/certify.php` looks up the user's licence tier and gates
+        the PDF digital signature + QR code (and wording) on `tier != free`.
+      - `issue_licence.py` / `issue_license.sh` omit `key` for the free tier.
+- [x] **Machine ingestion endpoint** — token-authenticated `POST /api/reports`
+      (per-user `api_tokens`, managed in the dashboard) stores reports (no PDF)
+      straight to the user's dashboard — **done** (website side). The appliance
+      still needs a product-side upload path (see below).
+- [ ] **USB output mode** — `REPORT_DIR` is hardcoded to `/`; add USB mount
+      detection (a `tscrub_output=/mnt/usb` kernel/flag option) so the appliance
+      writes CSV + SMART + manifest/sig to removable storage.
+- [x] **Per-drive persistence** — full CSV rows (device, method, serial, final
+      status, SMART pre/post) are stored in `certificate_drives` — **done**.
+- [x] **Dashboard drill-down** — `/api/certs/{id}` returns per-drive + SMART; the
+      dashboard renders a drill-down table — **done**.
+- [ ] **Network-mode config in the product** — an explicit
+      `tscrub_upload=https://tscrub.com/api/reports` + `tscrub_api_token=…` path
+      (curl/wget when available) alongside the existing FTP `shredos_output=`, so
+      appliances can push straight to the dashboard.
+- [ ] **Billing gate** — payg/team/enterprise licences are currently self-serve
+      with no payment; wire Stripe before relying on tier differences for revenue.
