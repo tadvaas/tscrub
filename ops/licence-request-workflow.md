@@ -25,8 +25,9 @@ row in the `licences` table and shows on the user's dashboard and the admin page
 2. They sign in, open `/download`, pick a plan, and click **Get licence**.
 3. The licence is issued to their account (a `licences` row with the tier) and
    they download the `.lic` from `/dashboard` (or the download page).
-4. They download `tscrub.sh` from `/downloads/tscrub.sh` and place the `.lic`
-   alongside it — or serve it via `--license-url` / `shredos_license_url=`.
+4. They download `tscrub.sh` from the dashboard's Licence page (served at
+   `/downloads/tscrub.sh`) and place the `.lic` alongside it — or serve it via
+   `--license-url` / `shredos_license_url=`.
 
 No manual step for the free tier.
 
@@ -91,7 +92,7 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && \
 |---|---|
 | Backend (PHP/Python) | `/home/oxwet/webs/tscrub-form/` |
 | Database | MySQL `tScrub` @ 127.0.0.1:3306 (creds in `config.json`) |
-| Tables | `users`, `sessions`, `certificates`, `certificate_reports`, `licences`, `tokens`, `admin_audit_log` |
+| Tables | `users`, `sessions`, `certificates`, `certificate_reports`, `certificate_drives`, `licences`, `api_tokens`, `tokens`, `admin_audit_log` |
 | Config (SMTP, DB, vendor key path) | `config.json` |
 | Vendor private key | `vendor.key` (mode 640 group www-data, never leaves the server) |
 | Issued licences | `licences` table (legacy files kept in `licences/`) |
