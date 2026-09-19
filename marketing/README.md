@@ -1,12 +1,14 @@
-# tScrub — Marketing site
+# tScrub — Marketing site & backend
 
-Static marketing site for tScrub, built with **Vite + Tailwind CSS + Flowbite**.
+The tScrub website: a static **Vite + Tailwind CSS + Flowbite** marketing site,
+plus the PHP/MySQL backend that powers accounts, licences, certificates, SMART
+data reports, and admin.
 
 ## Stack
 
-- Vite (build/dev server)
-- Tailwind CSS v3 (via PostCSS)
-- Flowbite (components + JS)
+- Vite (build) + Tailwind CSS v3 (via PostCSS) + Flowbite (components/JS)
+- PHP 8 (front controller `server/api.php`, PDO/MySQL) — see `server/`
+- Python helpers: `sendmail.py` (SMTP), `issue_licence.py` (licence issuance)
 
 ## Develop
 
@@ -21,23 +23,25 @@ npm run dev
 npm run build
 ```
 
-Output goes to `dist/`. This is a fully static site — upload the `dist/`
-folder to any static web server (or the private network server once it's set
-up).
+Static output goes to `dist/`. The PHP backend is not bundled — it deploys
+separately (below).
 
 ## Deploy
 
-The site is a static bundle. To publish it to a private server later, upload
-the contents of `dist/` to the web root, e.g.:
-
 ```sh
-npm run build
-rsync -avz --delete dist/ user@server:/var/www/tscrub/
+npm run deploy          # build + rsync dist/ to the web docroot
+npm run deploy:server   # rsync server/*.php + *.py to the backend dir
 ```
+
+Both use `marketing/deploy.sh` / `deploy-server.sh` (target host defaults live
+there; see `ops/deploy.md` for the full picture, including the one-time MySQL
+schema setup, migrations, admin seeding, and nginx `/api/` routing).
 
 ## Notes
 
-- The download form is a placeholder (`action="#"`); wire it to Formspree,
-  Mailchimp, or your own backend when registration goes live.
+- The dashboard (`/dashboard`, `/admin`, `/login`, `/register`) is `noindex`.
+- Auth pages and the static site call the backend directly over `/api/*`.
+- `public/llms.txt`, `public/llms-full.txt`, `robots.txt`, and `sitemap.xml`
+  ship with the build — keep the LLM context files in sync with page changes.
 - Compliance copy uses "aligns with" language intentionally — tScrub is not
   itself a certification.

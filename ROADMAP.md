@@ -80,7 +80,8 @@ firmware sanitise/format. Options:
 - [ ] Zero-touch kernel-cmdline config: `tscrub_cocid=` + `tscrub_autoconfirm=` for PXE fleets (`tscrub_upload=` is done)
 - [ ] Auto-upload reports → auto Certificate of Destruction (machine-facing `/api/certify` ingestion)
 - [ ] Billing (Stripe) + automatic licence issuance on payment webhook *(parked)*
-- [ ] Repo-root README and "boot and wipe in 60 seconds" onboarding
+- [x] Repo-root README — **done** (layout, build, licence, output/upload, tests, deploy).
+- [ ] "Boot and wipe in 60 seconds" onboarding page/video
 
 ## 3. Self-serve platform (accounts → licence → app → dashboard → certs)
 
