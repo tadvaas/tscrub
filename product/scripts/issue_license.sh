@@ -19,12 +19,20 @@ TIER="${5:-free}"
 command -v openssl >/dev/null 2>&1 || { echo "openssl required" >&2; exit 1; }
 [[ -f "$VENDOR_KEY" ]] || { echo "vendor key not found: $VENDOR_KEY" >&2; exit 1; }
 [[ "$EXPIRY" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "expiry must be YYYY-MM-DD" >&2; exit 1; }
+if [[ "$CUSTOMER" == *'"'* || "$CUSTOMER" == *'\\'* ]]; then
+    echo "customer name must not contain quotes or backslashes" >&2
+    exit 1
+fi
+if printf '%s' "$CUSTOMER" | grep -q '[[:cntrl:]]'; then
+    echo "customer name must not contain control characters" >&2
+    exit 1
+fi
 
 tmp="$(mktemp -d /tmp/tscrub-issue.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 
-# A report-signing key is only embedded for paid tiers; free licences stay
-# unsigned (checksum-only reports).
+# A report-signing key is only embedded for paid tiers; free licences
+# self-sign with an appliance-generated key.
 key_b64=""
 if [[ "$TIER" != "free" ]]; then
     openssl genpkey -algorithm ED25519 -out "$tmp/report.key" 2>/dev/null

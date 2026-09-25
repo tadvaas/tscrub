@@ -5,32 +5,65 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.4"
+SCRIPT_VERSION="v1.4.37"
 REPORT_DIR="/"
+REPORT_USB_MNT=""
+LICENSE_USB_DEV=""
 REPORT_OUTPUT=""
 TABLE_INDENT="    "
 COCID=""
+CONFIG_USB_DEBUG=""
+NON_INTERACTIVE=0
 LOG_FILE="/$SCRIPT_NAME.log"
 DRY_RUN=0
 DRY_RUN_SIM_ETA_MINS=0
 START_TS=0
 UI_INPLACE=0
 UI_COMPLETE_THEME=0
+REPORT_USB_STATUS=""
+REPORT_USB_REASON=""
+REPORT_DASH_STATUS=""
+REPORT_DASH_REASON=""
+REPORT_NET_STATUS=""
+REPORT_NET_REASON=""
 RERUN=0
 UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
+UI_RUNTIME_VALUE_W=0
 UI_ETA_COL=178
+UI_ETA_W=9
+UI_TABLE_MAIN_W=182
+UI_TABLE_INDENT="    "
 LICENSE_FILE="/etc/tscrub/license.key"
 LICENSE_URL=""
 LICENSE_SOURCE_SET=0
-LICENSE_EMBEDDED_B64=""
 LICENSE_VENDOR_PUBLIC_KEY_B64=""
+LICENSE_CUSTOMER=""
+LICENSE_EXPIRY=""
+LICENSE_TIER=""
+UI_SPINNER_FRAME=0
 NO_SUPPORTED_DRIVES=0
 DISCOVERY_NOTICE=""
 SMART_TIMEOUT="${SMART_TIMEOUT:-10}"
 
 declare -Ag devrow
 declare -Ag ui_eta_row
+
+# Monotonic seconds, used for every duration measurement (Elapsed, ETA countdown,
+# NVMe monitor timeout). Wall-clock `date +%s` is NOT monotonic: on machines with
+# a dead/flaky RTC (or an NTP/hwclock step) the clock can be wrong, frozen, or
+# jump backwards, which freezes the Elapsed counter at 00:00:00. Read
+# /proc/uptime (immune to clock changes) and fall back to `date +%s` where
+# /proc/uptime is unavailable (e.g. non-Linux hosts).
+ts::now() {
+    local u _idle
+    if [[ -r /proc/uptime ]]; then
+        read -r u _idle < /proc/uptime 2>/dev/null
+        u="${u%%.*}"
+        [[ "$u" =~ ^[0-9]+$ ]] && { printf '%s' "$u"; return 0; }
+    fi
+    printf '%s' "$(date +%s)"
+}
 
 # System info globals
 SYS_MANUFACTURER=""
@@ -71,6 +104,23 @@ system::gather_info() {
     [[ -n "${SYS_SERIAL//[[:space:]]/}" ]] || SYS_SERIAL="N/A"
     [[ -n "${SYS_BASEBOARD_SERIAL//[[:space:]]/}" ]] || SYS_BASEBOARD_SERIAL="N/A"
     [[ -n "${SYS_CHASSIS_SERIAL//[[:space:]]/}" ]] || SYS_CHASSIS_SERIAL="N/A"
+    [[ -n "${SYS_MANUFACTURER//[[:space:]]/}" ]] || SYS_MANUFACTURER="N/A"
+    [[ -n "${SYS_PRODUCT//[[:space:]]/}" ]] || SYS_PRODUCT="N/A"
+    [[ -n "${SYS_CHASSIS_TYPE//[[:space:]]/}" ]] || SYS_CHASSIS_TYPE="N/A"
+    [[ -n "${SYS_BIOS_VERSION//[[:space:]]/}" ]] || SYS_BIOS_VERSION="N/A"
+    [[ -n "${SYS_BIOS_DATE//[[:space:]]/}" ]] || SYS_BIOS_DATE="N/A"
+
+    # Normalise vendor placeholder strings (QEMU "Not Specified", Dell/Lenovo
+    # "To Be Filled By O.E.M.", etc.) to a single "N/A" for a clean display.
+    local _v _val
+    for _v in SYS_SERIAL SYS_BASEBOARD_SERIAL SYS_CHASSIS_SERIAL SYS_MANUFACTURER \
+              SYS_PRODUCT SYS_CHASSIS_TYPE SYS_BIOS_VERSION SYS_BIOS_DATE; do
+        _val="${!_v}"
+        case "${_val,,}" in
+            ""|"not specified"|"none"|"unknown"|"to be filled by o.e.m."|"default string"|"system product name"|"system manufacturer"|"0")
+                printf -v "$_v" "%s" "N/A" ;;
+        esac
+    done
 
     # Processor info (physical CPU sockets only, each displayed individually)
     # Use lscpu if available (more reliable), fall back to /proc/cpuinfo
@@ -161,7 +211,10 @@ system::gather_info() {
 if [[ ! -w "$(dirname "$LOG_FILE")" ]]; then
     LOG_FILE="/tmp/$SCRIPT_NAME.log"
 fi
-exec 5>>"$LOG_FILE" 2>/dev/null || true
+# `exec` with only redirections applies them to the current shell PERMANENTLY,
+# so a `2>/dev/null` here would silently swallow ALL later stderr output (the
+# licence error, diagnostics). Do not suppress stderr on this exec.
+exec 5>>"$LOG_FILE" || exec 5>/dev/null
 
 # (Re)establish the worker -> UI IPC channel. Workers write status lines to
 # fd 3; the UI reads them from fd 4. A single run consumes (closes) fds 3 and 4
@@ -193,6 +246,7 @@ parse_args() {
                 ;;
             --license=*)
                 LICENSE_FILE="${arg#*=}"
+                [[ -n "$LICENSE_FILE" ]] || { echo "--license requires a non-empty path"; exit 1; }
                 LICENSE_SOURCE_SET=1
                 ;;
             --license)
@@ -203,6 +257,7 @@ parse_args() {
                 ;;
             --license-url=*)
                 LICENSE_URL="${arg#*=}"
+                [[ -n "$LICENSE_URL" ]] || { echo "--license-url requires a non-empty URL"; exit 1; }
                 LICENSE_SOURCE_SET=1
                 ;;
             --license-url)
@@ -213,22 +268,34 @@ parse_args() {
                 ;;
             --output=*)
                 REPORT_OUTPUT="${arg#*=}"
+                [[ -n "$REPORT_OUTPUT" ]] || { echo "--output requires a non-empty path"; exit 1; }
                 ;;
             --output)
                 shift
                 [[ $# -gt 0 ]] || { echo "--output requires a path"; exit 1; }
                 REPORT_OUTPUT="$1"
                 ;;
+            --cocid=*)
+                COCID="${arg#*=}"
+                NON_INTERACTIVE=1
+                ;;
+            --cocid)
+                shift
+                [[ $# -gt 0 ]] || { echo "--cocid requires a 5-digit Chain of Custody ID"; exit 1; }
+                COCID="$1"
+                NON_INTERACTIVE=1
+                ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
                 echo "  (default)            Run disk sanitisation."
                 echo "  --dry-run            Simulate without wiping any drive."
-                echo "  --license PATH       Read the licence from PATH (default /etc/tscrub/license.key)."
+                echo "  --license PATH       Read the licence from PATH (default: boot USB, then /etc/tscrub/license.key)."
                 echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.key)."
                 echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
+                echo "  --cocid 12345        Set the Chain of Custody ID and run non-interactively (autonuke)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;

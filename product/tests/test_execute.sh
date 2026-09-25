@@ -58,5 +58,28 @@ exec 3>&-
 captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "NVMe crypto -> COMPLETED"
 
+# SCSI (non-ATA) nwipe success
+: > "$OUT"
+devices=(sda)
+capability[sda]="CAP_SCSI_NWIPE"
+devrow[sda.class]="CLEAR"
+devrow[sda.capability]="CAP_SCSI_NWIPE"
+export FAKE_NWIPE_RC=0
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "SCSI nwipe -> COMPLETED"
+
+# SCSI nwipe failure -> FAILED
+: > "$OUT"
+export FAKE_NWIPE_RC=1
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "sda STATUS FAILED" "SCSI nwipe failure -> FAILED"
+unset FAKE_NWIPE_RC
+
 rm -f "$OUT"
 t::summary

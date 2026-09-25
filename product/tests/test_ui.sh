@@ -13,6 +13,18 @@ t::assert_eq "00:00:00" "$(ui::format_runtime 999)" "format_runtime no START_TS"
 START_TS="abc"
 t::assert_eq "00:00:00" "$(ui::format_runtime 999)" "format_runtime invalid START_TS"
 
+# --- ui::spinner ---
+UI_SPINNER_FRAME=0
+t::assert_eq "|" "$(ui::spinner)" "spinner frame 0"
+UI_SPINNER_FRAME=1
+t::assert_eq "/" "$(ui::spinner)" "spinner frame 1"
+UI_SPINNER_FRAME=2
+t::assert_eq "-" "$(ui::spinner)" "spinner frame 2"
+UI_SPINNER_FRAME=3
+t::assert_eq "\\" "$(ui::spinner)" "spinner frame 3"
+UI_SPINNER_FRAME=4
+t::assert_eq "|" "$(ui::spinner)" "spinner wraps to 0"
+
 # --- ui::eta_text_for ---
 devices=(d1)
 devrow=()
@@ -28,7 +40,7 @@ devrow[d1.eta_mins]=""
 t::assert_eq "N/A" "$(ui::eta_text_for d1 0)" "eta PLANNED no eta -> N/A"
 
 devrow[d1.status]="COMPLETED"
-t::assert_eq "Done" "$(ui::eta_text_for d1 0)" "eta COMPLETED -> Done"
+t::assert_eq "--" "$(ui::eta_text_for d1 0)" "eta COMPLETED -> --"
 devrow[d1.status]="FAILED"
 t::assert_eq "--" "$(ui::eta_text_for d1 0)" "eta FAILED -> --"
 devrow[d1.status]="BLOCKED"
@@ -63,5 +75,37 @@ devrow[d2.status]="COMPLETED"
 t::check "no failure when all completed" '! ui::any_drive_failed'
 devrow[d1.status]="DRY-RUN"
 t::check "DRY-RUN not a failure" '! ui::any_drive_failed'
+
+# --- table::compute_layout (responsive widths) ---
+# The full render must never exceed the terminal width (indent included), and
+# the ETA in-place update column must stay inside the terminal too.
+has_label() { [[ " ${UI_TABLE_LABELS[*]} " == *" $1 "* ]]; }
+
+COLUMNS=186; table::compute_layout
+t::check "layout 186 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 186 ))'
+t::check "layout 186 ETA fits" '(( UI_ETA_COL - 1 + UI_ETA_W <= 186 ))'
+t::check "layout 186 has 12 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 12 ))'
+t::check "layout 186 keeps CLASS, drops CERT" 'has_label CLASS && ! has_label CERT'
+t::check "layout 186 centred (2-col margin)" '(( ${#UI_TABLE_INDENT} == 2 ))'
+COLUMNS=160; table::compute_layout
+t::check "layout 160 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 160 ))'
+t::check "layout 160 has 12 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 12 ))'
+t::check "layout 160 even (panels align)" '(( UI_TABLE_MAIN_W % 2 == 0 ))'
+t::check "layout 160 centred (6-col margin)" '(( ${#UI_TABLE_INDENT} == 6 ))'
+COLUMNS=120; table::compute_layout
+t::check "layout 120 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 120 ))'
+t::check "layout 120 has 11 cols (METHOD dropped)" '(( ${#UI_TABLE_WIDTHS[@]} == 11 ))'
+t::check "layout 120 keeps CLASS" 'has_label CLASS'
+t::check "layout 120 centred (3-col margin)" '(( ${#UI_TABLE_INDENT} == 3 ))'
+COLUMNS=100; table::compute_layout
+t::check "layout 100 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 100 ))'
+t::check "layout 100 has 11 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 11 ))'
+t::check "layout 100 even (panels align)" '(( UI_TABLE_MAIN_W % 2 == 0 ))'
+COLUMNS=80; table::compute_layout
+t::check "layout 80 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 80 ))'
+t::check "layout 80 ETA fits" '(( UI_ETA_COL - 1 + UI_ETA_W <= 80 ))'
+t::check "layout 80 has 9 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 9 ))'
+t::check "layout 80 keeps CLASS" 'has_label CLASS'
+t::check "layout 80 centred (2-col margin)" '(( ${#UI_TABLE_INDENT} == 2 ))'
 
 t::summary

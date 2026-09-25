@@ -56,44 +56,7 @@ device::exec_ata() {
             ;;
     esac
 
-    device::monitor_ata "$dev"
-}
-
-device::monitor_ata() {
-    local dev="$1"
-    local last_state=""
-    local timeout=$((60 * 60 * 24))   # 24h safety net
-    local start=$(date +%s)
-
-    while :; do
-        sleep 5
-
-        status="$(hdparm --sanitize-status /dev/$dev 2>&5 || true)"
-
-        state=$(awk '/State:/ {print $2}' <<<"$status")
-        prog=$(awk '/Progress:/ {print $3}' <<<"$status")
-
-        # Completed
-        if [[ "$state" == "SD0" ]]; then
-            echo "$dev STATUS COMPLETED" >&3
-            return 0
-        fi
-
-        # In progress
-        if [[ "$state" == "SD1" ]]; then
-            if [[ -n "$prog" ]]; then
-                echo "$dev STATUS $prog" >&3
-            else
-                echo "$dev STATUS RUNNING" >&3
-            fi
-            last_state="$state"
-        fi
-
-        # Safety timeout
-        if (( $(date +%s) - start > timeout )); then
-            echo "$dev STATUS FAILED" >&3
-            return 1
-        fi
-    done
+    # hdparm --security-erase[-enhanced] is synchronous (blocks until done), so
+    # no progress monitor is needed here.
 }
 

@@ -32,6 +32,11 @@ t::check "valid (team) licence verifies" 'license::verify "$tdir/license.key"'
 t::check "free licence verifies" 'license::verify "$tdir/free.key"'
 t::check "expired licence rejected" '! license::verify "$tdir/expired.key"'
 
+# The dashboard stores licences as compact JSON (api.php json_encode, no spaces
+# after colons). The verifier must accept both compact and pretty-printed JSON.
+sed -e ':a' -e 'N' -e '$!ba' -e 's/\n//g' -e 's/": "/":"/g' "$tdir/free.key" > "$tdir/free-compact.key"
+t::check "compact (web-issued) free licence verifies" 'license::verify "$tdir/free-compact.key"'
+
 # Free licences carry no report key, so reports stay unsigned.
 t::check "free licence has no report key" '! license::apply "$tdir/free.key"'
 
@@ -78,24 +83,6 @@ license::fetch "file://$tdir/license.key"
 t::check "license::fetch downloads licence" '[[ -s "$LICENSE_FILE" && -f "$LICENSE_FILE" ]]'
 t::check "fetched licence verifies" 'license::verify "$LICENSE_FILE"'
 rm -f "$LICENSE_FILE"
-
-# Embedded licence (customer builds): apply_embedded + detect fallback.
-LICENSE_EMBEDDED_B64="$(openssl base64 -A -in "$tdir/license.key")"
-LICENSE_FILE=""
-LICENSE_SOURCE_SET=0
-license::apply_embedded
-t::check "embedded licence decoded" '[[ -s "$LICENSE_FILE" && -f "$LICENSE_FILE" ]]'
-t::check "embedded licence verifies" 'license::verify "$LICENSE_FILE"'
-rm -f "$LICENSE_FILE"
-
-LICENSE_FILE=""
-LICENSE_URL=""
-LICENSE_SOURCE_SET=0
-license::detect
-t::check "detect falls back to embedded licence" '[[ -s "$LICENSE_FILE" && -f "$LICENSE_FILE" ]]'
-t::check "detected embedded licence verifies" 'license::verify "$LICENSE_FILE"'
-rm -f "$LICENSE_FILE"
-LICENSE_EMBEDDED_B64=""
 
 rm -rf "$tdir"
 t::summary

@@ -41,7 +41,7 @@ device::exec_nvme() {
 
     case "$cap" in
         CAP_NVME_CLEAR_ONLY)
-            out="$(nvme format /dev/$dev -s 1 -f 2>&1)"; rc=$?
+            out="$(nvme format /dev/$dev -s 1 2>&1)"; rc=$?
             echo "$out" >&5
             if (( rc == 0 )); then
                 echo "$dev STATUS COMPLETED" >&3
@@ -78,7 +78,8 @@ device::exec_nvme() {
 device::monitor_nvme() {
     local dev="$1"
     local timeout=$((60 * 60 * 6))
-    local start=$(date +%s)
+    local start=$(ts::now)
+    local no_progress=0
 
     while :; do
         sleep 2
@@ -107,6 +108,7 @@ device::monitor_nvme() {
                 return 1
                 ;;
             2)
+                no_progress=0
                 if [[ "$sprog" =~ ^[0-9]+$ ]]; then
                     pct=$(( sprog * 100 / 65535 ))
                     echo "$dev STATUS ${pct}%" >&3
@@ -114,9 +116,20 @@ device::monitor_nvme() {
                     echo "$dev STATUS RUNNING" >&3
                 fi
                 ;;
+            0|"")
+                # Never sanitized (or unparseable SSTAT): fail fast after a short
+                # grace period instead of burning the full 6-hour timeout.
+                no_progress=$((no_progress + 1))
+                if (( no_progress >= 15 )); then
+                    echo "$dev STATUS FAILED" >&3
+                    echo "$dev LOG No sanitize progress reported (SSTAT=$sstat)" >&3
+                    return 1
+                fi
+                echo "$dev STATUS RUNNING" >&3
+                ;;
         esac
 
-        if (( $(date +%s) - start > timeout )); then
+        if (( $(ts::now) - start > timeout )); then
             echo "$dev STATUS FAILED" >&3
             return 1
         fi

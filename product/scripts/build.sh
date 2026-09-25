@@ -40,24 +40,22 @@ for part in \
   printf "\n" >> "$OUT_FILE"
 done
 
-# Embed sedutil-cli binary as base64 so the built script is self-contained
-SEDUTIL_BIN="$PAYLOAD_DIR/sedutil-cli"
-[[ -f "$SEDUTIL_BIN" ]] || { echo "Missing payload: $SEDUTIL_BIN" >&2; exit 1; }
-printf 'SEDUTIL_PAYLOAD_B64="%s"\n\n' "$(base64 < "$SEDUTIL_BIN" | tr -d '\n')" >> "$OUT_FILE"
+# Embed sedutil-cli binary as base64 so the built script is self-contained.
+# Appliance (slim) builds set SKIP_SEDUTIL_PAYLOAD=1: the image ships sedutil-cli
+# (BR2_PACKAGE_SEDUTIL) and tScrub uses it from PATH instead of an embedded copy.
+if [[ "${SKIP_SEDUTIL_PAYLOAD:-0}" != "1" ]]; then
+  SEDUTIL_BIN="$PAYLOAD_DIR/sedutil-cli"
+  [[ -f "$SEDUTIL_BIN" ]] || { echo "Missing payload: $SEDUTIL_BIN" >&2; exit 1; }
+  printf 'SEDUTIL_PAYLOAD_B64="%s"\n\n' "$(base64 < "$SEDUTIL_BIN" | tr -d '\n')" >> "$OUT_FILE"
+else
+  printf 'SEDUTIL_PAYLOAD_B64=""\n\n' >> "$OUT_FILE"
+fi
 
 # Embed the vendor licence public key. Every build verifies licences (tScrub
 # always requires a licence — even the free tier), so the key is mandatory.
 VENDOR_PUB="$PAYLOAD_DIR/vendor-public-key.pem"
 [[ -f "$VENDOR_PUB" ]] || { echo "Missing vendor public key: $VENDOR_PUB" >&2; exit 1; }
 printf 'LICENSE_VENDOR_PUBLIC_KEY_B64="%s"\n\n' "$(base64 < "$VENDOR_PUB" | tr -d '\n')" >> "$OUT_FILE"
-
-# Embed a customer licence when present (customer builds). Provide
-# payload/license.lic to bake a licence into the image so the customer does
-# not need to supply one at boot.
-EMBED_LIC="$PAYLOAD_DIR/license.lic"
-if [[ -f "$EMBED_LIC" ]]; then
-  printf 'LICENSE_EMBEDDED_B64="%s"\n\n' "$(base64 < "$EMBED_LIC" | tr -d '\n')" >> "$OUT_FILE"
-fi
 
 # Entrypoint (must be last)
 [[ -f "$SRC_DIR/99_entrypoint.sh" ]] || { echo "Missing source part: $SRC_DIR/99_entrypoint.sh" >&2; exit 1; }

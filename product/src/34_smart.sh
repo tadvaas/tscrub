@@ -14,7 +14,9 @@ smart::num() {
     local v="${1:-}"
     v="${v//,/}"
     v="${v// /}"
-    if [[ "$v" =~ ^-?[0-9]+ ]]; then
+    if [[ "$v" =~ ^0[xX]([0-9A-Fa-f]+) ]]; then
+        printf '%d' "$((16#${BASH_REMATCH[1]}))"
+    elif [[ "$v" =~ ^-?[0-9]+ ]]; then
         printf '%s' "${BASH_REMATCH[0]}"
     fi
 }
@@ -28,7 +30,19 @@ smart::run() {
     local secs="${1:-10}"
     shift
     local tmp rc
-    tmp="$(mktemp /tmp/tscrub-smart.XXXXXX)" 2>/dev/null || { "$@" 2>/dev/null; return; }
+    tmp="$(mktemp /tmp/tscrub-smart.XXXXXX)" 2>/dev/null
+    if [[ -z "$tmp" ]]; then
+        # /tmp unwritable: keep the timeout guarantee by running under
+        # `timeout` directly (output is still captured by the caller's $(...)).
+        if command -v timeout >/dev/null 2>&1; then
+            timeout -s KILL "$secs" "$@" 2>/dev/null
+            rc=$?
+            [[ "$rc" == "124" || "$rc" == "137" || "$rc" == "143" ]] && rc=124
+            return "$rc"
+        fi
+        "$@" 2>/dev/null
+        return
+    fi
 
     if command -v timeout >/dev/null 2>&1; then
         timeout -s KILL "$secs" "$@" >"$tmp" 2>/dev/null
@@ -55,7 +69,7 @@ smart::run() {
 # Echo the raw value (last column) of a SMART attribute from smartctl output.
 smart::ata_attr() {
     local attrs="$1" name="$2"
-    awk -v n="$name" '$2==n {print $10}' <<<"$attrs"
+    awk -v n="$name" '$2==n {print $NF}' <<<"$attrs"
 }
 
 # Echo the first non-empty raw value among the given attribute names.
@@ -99,9 +113,9 @@ smart::capture_ata() {
 
     out="$(smart::run "$SMART_TIMEOUT" smartctl -a /dev/$dev)"
     rc=$?
-    if [[ -z "$out" ]] && (( rc != 124 )); then
-        # USB/SAS bridges often need a device-type hint (only when the first
-        # attempt was not a timeout).
+    # smartctl always prints a banner, so "empty stdout" never happens — retry
+    # the bridge hint only when the attribute table failed to parse.
+    if [[ -z "$(smart::ata_attr_table "$out")" ]] && (( rc != 124 )); then
         out="$(smart::run "$SMART_TIMEOUT" smartctl -a -d sat /dev/$dev)"
     fi
     [[ -n "$out" ]] || return

@@ -2,6 +2,160 @@
 # TABLE
 # =============================================================================
 
+# Detect the usable terminal width in columns. Falls back to 186 (the full
+# layout) when it cannot be determined (e.g. piped output without COLUMNS).
+table::detect_terminal_width() {
+    local w="${COLUMNS:-}"
+    [[ "$w" =~ ^[0-9]+$ ]] && (( w > 0 )) || w=""
+    if [[ -z "$w" ]]; then
+        if [[ -t 1 ]] && command -v tput &>/dev/null; then
+            w="$(tput cols 2>/dev/null || true)"
+        fi
+        [[ "$w" =~ ^[0-9]+$ ]] && (( w > 0 )) || w=""
+    fi
+    [[ -z "$w" ]] && w=186
+    printf '%s' "$w"
+}
+
+# Detect the terminal height in rows (fallback 24).
+table::detect_terminal_height() {
+    local h="${LINES:-}"
+    [[ "$h" =~ ^[0-9]+$ ]] && (( h > 0 )) || h=""
+    if [[ -z "$h" ]]; then
+        if [[ -t 1 ]] && command -v tput &>/dev/null; then
+            h="$(tput lines 2>/dev/null || true)"
+        fi
+        [[ "$h" =~ ^[0-9]+$ ]] && (( h > 0 )) || h=""
+    fi
+    [[ -z "$h" ]] && h=24
+    printf '%s' "$h"
+}
+
+# Chooses a device-table layout that fits the current terminal width and sets
+# the globals consumed by table::render() and ui::tick_inplace():
+#   UI_TABLE_MAIN_W, UI_TABLE_LABELS, UI_TABLE_WIDTHS, UI_TABLE_FMT,
+#   UI_ETA_COL, UI_ETA_W
+# The table degrades from the full 12-column / 182-char layout down to a
+# 9-column / 76-char layout so an 80-column console still renders on one line.
+# CERT is gone (redundant with CLASS); METHOD drops below wide terminals; the
+# fixed-vocabulary columns (CLASS/STATUS/ETA/...) are sized so they never clip.
+table::compute_layout() {
+    local term_w
+    term_w="$(table::detect_terminal_width)"
+
+    if (( term_w >= 186 )); then
+        UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS METHOD STATUS ETA)
+        UI_TABLE_WIDTHS=(39 32 8 8 8 8 6 8 13 20 12 9)
+    elif (( term_w >= 152 )); then
+        UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS METHOD STATUS ETA)
+        UI_TABLE_WIDTHS=(29 23 7 6 6 6 5 8 10 19 9 9)
+    elif (( term_w >= 118 )); then
+        UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS STATUS ETA)
+        UI_TABLE_WIDTHS=(22 17 7 6 6 5 6 8 9 9 9)
+    elif (( term_w >= 100 )); then
+        UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS STATUS ETA)
+        UI_TABLE_WIDTHS=(14 10 7 6 6 5 6 7 7 9 9)
+    else
+        UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE CLASS DEVICE STATUS ETA)
+        UI_TABLE_WIDTHS=(12 8 7 5 5 7 7 9 8)
+    fi
+
+    local n=${#UI_TABLE_WIDTHS[@]}
+    local i content=0
+    UI_TABLE_FMT=""
+    for ((i=0; i<n; i++)); do
+        local w="${UI_TABLE_WIDTHS[i]}"
+        UI_TABLE_FMT+="%-${w}.${w}s"
+        (( i < n-1 )) && UI_TABLE_FMT+=" "
+        content=$(( content + w ))
+        (( i < n-1 )) && content=$(( content + 1 ))
+    done
+
+    UI_TABLE_MAIN_W=$content
+
+    # Centre the table in the terminal (equal leading/trailing margin) instead
+    # of a fixed left indent. The derived ETA column position uses this indent
+    # so the in-place tick updates stay aligned with the centred table.
+    local indent_pad=$(( (term_w - content) / 2 ))
+    (( indent_pad < 0 )) && indent_pad=0
+    printf -v UI_TABLE_INDENT '%*s' "$indent_pad" ''
+
+    UI_ETA_COL=$(( ${#UI_TABLE_INDENT} + content - ${UI_TABLE_WIDTHS[n-1]} + 1 ))
+    UI_ETA_W=${UI_TABLE_WIDTHS[n-1]}
+}
+
+# Prints one device row using the current layout. Maps each label in
+# UI_TABLE_LABELS to its value so dropped/shrunk columns stay consistent.
+table::print_row() {
+    local dev="$1" now="$2"
+    local eta_col smart_col temp_col label val fg_reset
+    local -a cells
+    local i w cell hot
+
+    eta_col="$(ui::eta_text_for "$dev" "$now")"
+    smart_col="${devrow[$dev.smart]:--}"
+    temp_col="${devrow[$dev.temp]:-}"
+    if [[ -n "$temp_col" ]]; then
+        temp_col="${temp_col}C"
+    else
+        temp_col="-"
+    fi
+
+    # After a red temperature reading, restore the active text colour rather
+    # than the terminal default, so the green finish screen stays black-on-
+    # green (and red stays white-on-red) either side of the hot cell.
+    case "${UI_COMPLETE_THEME:-0}" in
+        1) printf -v fg_reset "\033[30m" ;;   # green finish: black text
+        2) printf -v fg_reset "\033[37m" ;;   # red finish: white text
+        3) printf -v fg_reset "\033[30m" ;;   # amber finish: black text
+        *) printf -v fg_reset "\033[39m" ;;   # normal screen: default fg
+    esac
+
+    cells=()
+    i=0
+    for label in "${UI_TABLE_LABELS[@]}"; do
+        w="${UI_TABLE_WIDTHS[i]}"
+        case "$label" in
+            MODEL)  val="${devrow[$dev.model]}" ;;
+            SERIAL) val="${devrow[$dev.serial]}" ;;
+            SIZE)   val="${devrow[$dev.size]}" ;;
+            BUS)    val="${devrow[$dev.bus]}" ;;
+            TYPE)   val="${devrow[$dev.type]}" ;;
+            SMART)  val="$smart_col" ;;
+            TEMP)   val="$temp_col" ;;
+            DEVICE) val="${devrow[$dev.device]}" ;;
+            CLASS)  val="${devrow[$dev.class]}" ;;
+            METHOD) val="${devrow[$dev.method]}" ;;
+            STATUS) val="${devrow[$dev.status]}" ;;
+            ETA)    val="$eta_col" ;;
+        esac
+
+        # Free-text columns (model/serial) get a "..." suffix when truncated;
+        # the fixed-vocabulary columns are sized so their values never clip.
+        if [[ "$label" == "MODEL" || "$label" == "SERIAL" ]]; then
+            if (( ${#val} > w )); then
+                val="${val:0:$(( w - 3 ))}..."
+            fi
+        fi
+
+        cell="$(printf "%-*s" "$w" "${val:0:$w}")"
+
+        # Drives hotter than 75C show a red temperature reading. Red foreground
+        # only (background untouched), reset back to the active theme colour.
+        if [[ "$label" == "TEMP" && -t 1 && "$val" != "-" ]]; then
+            hot="${val%C}"
+            if [[ "$hot" =~ ^[0-9]+$ ]] && (( hot > 75 )); then
+                printf -v cell "\033[31m%s%s" "$cell" "$fg_reset"
+            fi
+        fi
+
+        cells+=("$cell")
+        i=$(( i + 1 ))
+    done
+
+    printf "%s%s\n" "$TABLE_INDENT" "${cells[*]}"
+}
+
 table::build() {
     local dev cap
 
@@ -9,8 +163,8 @@ table::build() {
         cap="${capability[$dev]}"
 
         devrow["$dev.device"]="$dev"
-        devrow["$dev.model"]="${model[$dev]}"
-        devrow["$dev.serial"]="${serial[$dev]}"
+        devrow["$dev.model"]="${model[$dev]:-N/A}"
+        devrow["$dev.serial"]="${serial[$dev]:-N/A}"
         devrow["$dev.size"]="${size[$dev]}"
         devrow["$dev.bus"]="${bus[$dev]}"
         devrow["$dev.type"]="${type[$dev]}"
@@ -36,6 +190,14 @@ ui::format_runtime() {
     runtime_m=$(( (runtime_s % 3600) / 60 ))
     runtime_sec=$(( runtime_s % 60 ))
     printf "%02d:%02d:%02d" "$runtime_h" "$runtime_m" "$runtime_sec"
+}
+
+# One-frame spinner glyph; advances on UI_SPINNER_FRAME. Appended to the runtime
+# value so the console visibly "ticks" even when a wipe is slow (not stuck).
+ui::spinner() {
+    local frames
+    frames=( '|' '/' '-' '\' )
+    printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
 ui::eta_text_for() {
@@ -86,7 +248,7 @@ ui::eta_text_for() {
             fi
             ;;
         COMPLETED)
-            printf "Done"
+            printf '%s' "--"
             ;;
         FAILED|FROZEN|BLOCKED)
             printf '%s' "--"
@@ -103,21 +265,22 @@ ui::tick_inplace() {
     if [[ "$UI_INPLACE" -ne 1 ]]; then
         return 1
     fi
-    if [[ "$UI_RUNTIME_ROW" -le 0 || "$UI_RUNTIME_COL" -le 0 ]]; then
+    if [[ "$UI_RUNTIME_ROW" -le 0 || "$UI_RUNTIME_COL" -le 0 || "$UI_RUNTIME_VALUE_W" -le 0 ]]; then
         return 1
     fi
 
-    now=$(date +%s)
-    runtime_str="$(ui::format_runtime "$now")"
+    now="$(ts::now)"
+    UI_SPINNER_FRAME=$(( UI_SPINNER_FRAME + 1 ))
+    runtime_str="$(ui::format_runtime "$now") $(ui::spinner)"
 
     printf "\0337"
-    printf "\033[%d;%dH%-69.69s" "$UI_RUNTIME_ROW" "$UI_RUNTIME_COL" "$runtime_str"
+    printf "\033[%d;%dH%-*.*s" "$UI_RUNTIME_ROW" "$UI_RUNTIME_COL" "$UI_RUNTIME_VALUE_W" "$UI_RUNTIME_VALUE_W" "$runtime_str"
 
     for dev in "${devices[@]}"; do
         row="${ui_eta_row[$dev]:-}"
         [[ "$row" =~ ^[0-9]+$ ]] || continue
         eta_col="$(ui::eta_text_for "$dev" "$now")"
-        printf "\033[%d;%dH%-9.9s" "$row" "$UI_ETA_COL" "$eta_col"
+        printf "\033[%d;%dH%-*.*s" "$row" "$UI_ETA_COL" "$UI_ETA_W" "$UI_ETA_W" "$eta_col"
     done
 
     printf "\0338"
@@ -125,14 +288,22 @@ ui::tick_inplace() {
 
 table::render() {
     if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
-        if [[ "$UI_COMPLETE_THEME" -eq 2 ]]; then
-            # Red background: one or more drives failed/blocked.
-            printf "\033[0;41;37m\033[2J\033[H"
-        else
-            # Green background: all drives completed successfully.
-            printf "\033[0;42;30m\033[2J\033[H"
-        fi
-    else
+        case "$UI_COMPLETE_THEME" in
+            2)
+                # Red background: one or more drives failed/blocked.
+                printf "\033[0;41;37m\033[2J\033[H"
+                ;;
+            3)
+                # Amber background: wipe finished but report save/upload failed.
+                # 43 is the closest 16-colour console shade to orange.
+                printf "\033[0;43;30m\033[2J\033[H"
+                ;;
+            *)
+                # Green background: all drives completed successfully.
+                printf "\033[0;42;30m\033[2J\033[H"
+                ;;
+        esac
+    elif [[ -t 1 ]]; then
         clear
         printf "\n"
     fi
@@ -144,16 +315,25 @@ table::render() {
     local cpu_rows gpu_rows row
     local eta_base_row completion_base_row
     local sys_label_w sys_value_w runtime_label_w runtime_value_w
-    now=$(date +%s)
-    runtime_str="$(ui::format_runtime "$now")"
+    now="$(ts::now)"
+    runtime_str="$(ui::format_runtime "$now") $(ui::spinner)"
 
-    main_w=170
+    # Width shared by the two info panels and the device table so their frames
+    # line up. The full layout is 182 columns; on narrower terminals columns
+    # shrink and low-value columns are dropped (METHOD below wide terminals,
+    # SMART/TEMP on 80-column consoles) so the table still fits on one line
+    # without clipping any value. The table is centred in the terminal, and
+    # TABLE_INDENT is re-pointed at that centred indent for this screen.
+    table::compute_layout
+    TABLE_INDENT="$UI_TABLE_INDENT"
+    main_w=$UI_TABLE_MAIN_W
     panel_w=$(( (main_w - 2) / 2 ))
     hline="$(printf "%*s" $((panel_w - 2)) "" | tr ' ' '-')"
     sys_label_w=11
     sys_value_w=$((panel_w - sys_label_w - 5))
     runtime_label_w=10
     runtime_value_w=$((panel_w - runtime_label_w - 5))
+    UI_RUNTIME_VALUE_W=$runtime_value_w
     eta_base_row=16
     completion_base_row=17
     UI_RUNTIME_ROW=5
@@ -192,13 +372,13 @@ table::render() {
         "$runtime_label_w" "COCID:" "$runtime_value_w" "$runtime_value_w" "${COCID:-N/A}"
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "Board SN:" "$sys_value_w" "$sys_value_w" "$SYS_BASEBOARD_SERIAL" \
-        "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
+        "$runtime_label_w" "Licence:" "$runtime_value_w" "$runtime_value_w" "${LICENSE_CUSTOMER:-N/A}"
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "Chassis SN:" "$sys_value_w" "$sys_value_w" "$SYS_CHASSIS_SERIAL" \
-        "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
+        "$runtime_label_w" "Tier:" "$runtime_value_w" "$runtime_value_w" "${LICENSE_TIER:-N/A}"
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "Chassis:" "$sys_value_w" "$sys_value_w" "$SYS_CHASSIS_TYPE" \
-        "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
+        "$runtime_label_w" "Expiry:" "$runtime_value_w" "$runtime_value_w" "${LICENSE_EXPIRY:-N/A}"
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "BIOS:" "$sys_value_w" "$sys_value_w" "$SYS_BIOS_VERSION ($SYS_BIOS_DATE)" \
         "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
@@ -248,44 +428,21 @@ table::render() {
         "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
     printf "%s+%s+  +%s+\n\n" "$TABLE_INDENT" "$hline" "$hline"
 
-    printf "%s%-30s %-25s %-8s %-8s %-8s %-8s %-6s %-8s %-13s %-15s %-20s %-12s %-9s\n" \
-        "$TABLE_INDENT" \
-        "MODEL" "SERIAL" "SIZE" "BUS" "TYPE" "SMART" "TEMP" "DEVICE" "CLASS" "CERT" "METHOD" "STATUS" "ETA"
+    printf "%s$UI_TABLE_FMT\n" "$TABLE_INDENT" "${UI_TABLE_LABELS[@]}"
 
-    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 186 "" | tr ' ' '-')"
+    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
 
     if [[ "$NO_SUPPORTED_DRIVES" -eq 1 ]]; then
-        printf "%s%-186s\n" "$TABLE_INDENT" "[!] $DISCOVERY_NOTICE"
+        printf "%s%-*s\n" "$TABLE_INDENT" "$UI_TABLE_MAIN_W" "[!] $DISCOVERY_NOTICE"
     fi
 
     for dev in "${devices[@]}"; do
-        local eta_col smart_col temp_col
-        eta_col="$(ui::eta_text_for "$dev" "$now")"
-        smart_col="${devrow[$dev.smart]:--}"
-        temp_col="${devrow[$dev.temp]:-}"
-        [[ -n "$temp_col" ]] && temp_col="${temp_col}C" || temp_col="-"
         row=$((eta_base_row + cpu_rows + gpu_rows + ${#ui_eta_row[@]} ))
         ui_eta_row["$dev"]="$row"
-
-        printf "%s%-30s %-25s %-8s %-8s %-8s %-8s %-6s %-8s %-13s %-15s %-20s %-12s %-9s\n" \
-            "$TABLE_INDENT" \
-            "${devrow[$dev.model]}" \
-            "${devrow[$dev.serial]}" \
-            "${devrow[$dev.size]}" \
-            "${devrow[$dev.bus]}" \
-            "${devrow[$dev.type]}" \
-            "$smart_col" \
-            "$temp_col" \
-            "${devrow[$dev.device]}" \
-            "${devrow[$dev.class]}" \
-            "${devrow[$dev.cert]}" \
-            "${devrow[$dev.method]}" \
-            "${devrow[$dev.status]}" \
-            "$eta_col"
-
+        table::print_row "$dev" "$now"
     done
 
-    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 186 "" | tr ' ' '-')"
+    printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
 
     if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
@@ -305,13 +462,16 @@ ui::loop() {
                 if [[ "$_value" == "RUNNING" ]] && \
                    [[ -n "${devrow[$_dev.eta_mins]}" ]] && \
                    [[ -z "${devrow[$_dev.wipe_start]}" ]]; then
-                    devrow["$_dev.wipe_start"]="$(date +%s)"
+                    devrow["$_dev.wipe_start"]="$(ts::now)"
                 fi
                 table::render
+            else
+                # Forward non-STATUS worker messages (LOG) to the log file.
+                printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5
             fi
         elif (( _rc > 128 )); then
             # read timed out — update only time fields to avoid full-screen flicker
-            if ! ui::tick_inplace; then
+            if ! ui::tick_inplace && [[ -t 1 ]]; then
                 table::render
             fi
             # If every drive is already terminal but the pipe read end never
@@ -337,6 +497,12 @@ ui::loop() {
         fi
     done
     exec 4<&-
+    # Close the coprocess read end too, so repeated "Run again" (RERUN) does
+    # not leak one fd per run.
+    # Close the coprocess read end too, so repeated "Run again" (RERUN) does
+    # not leak one fd per run. The stderr suppression is scoped to the group so
+    # it does NOT permanently redirect the shell's stderr.
+    { exec {UI[0]}<&-; } 2>/dev/null || true
 }
 
 # Returns success (0) only when every drive has reached a terminal state.

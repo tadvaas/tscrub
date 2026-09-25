@@ -17,6 +17,10 @@ device::capability_label() {
 
 device::install_sedutil() {
     if ! command -v sedutil-cli &> /dev/null; then
+        if [[ -z "${SEDUTIL_PAYLOAD_B64:-}" ]]; then
+            printf "%s[!] sedutil-cli not found and no embedded payload — SED support unavailable.\n" "$TABLE_INDENT"
+            return
+        fi
         printf "%s[!] sedutil-cli not found. Extracting embedded binary...\n" "$TABLE_INDENT"
 
         if printf '%s' "$SEDUTIL_PAYLOAD_B64" | base64 -d > /usr/bin/sedutil-cli 2>/dev/null; then
@@ -53,7 +57,12 @@ device::discover() {
         [[ "$dev" =~ ^sr[0-9]+$ ]] && continue
 
         # --- NVMe DISCOVERY ---
-        if [[ "$dev" =~ ^nvme[0-9]+n[0-9]+$ ]]; then
+        if [[ "$dev" =~ ^nvme[0-9]+(c[0-9]+)?n[0-9]+$ ]]; then
+            # Exclude USB-attached NVMe (a USB bridge hides the true drive).
+            # Thunderbolt is PCIe-attached and intentionally NOT excluded.
+            if realpath "$block_dir/$dev/device" 2>/dev/null | grep -q '/usb'; then
+                continue
+            fi
             devices+=("$dev")
             bus[$dev]="NVMe"
             type[$dev]="SSD"
@@ -62,8 +71,8 @@ device::discover() {
             local ctrl_dev="/dev/${dev%n*}" 
 
             # Metadata extraction
-            serial[$dev]=$(nvme id-ctrl /dev/$dev 2>&5 | awk -F': *' '/^sn[[:space:]]*:/{print $2}' | xargs)
-            model[$dev]=$(nvme id-ctrl /dev/$dev 2>&5 | awk -F': *' '/^mn[[:space:]]*:/{print $2}' | xargs)
+            serial[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^sn[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
+            model[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^mn[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
             
             # OPAL Lock Check
             if sedutil-cli --query "$ctrl_dev" 2>/dev/null | grep -q "Locked = Y"; then
@@ -73,7 +82,11 @@ device::discover() {
             fi
 
             bytes=$(blockdev --getsize64 /dev/$dev 2>/dev/null)
-            size[$dev]=$(( bytes / 1000000000 ))" GB"
+            if [[ -n "$bytes" && "$bytes" =~ ^[0-9]+$ ]]; then
+                size[$dev]=$(( bytes / 1000000000 ))" GB"
+            else
+                size[$dev]="N/A"
+            fi
 
         # --- SATA/SCSI DISCOVERY ---
         elif [[ "$dev" =~ ^sd[a-z]+$ ]]; then
@@ -102,16 +115,18 @@ device::discover() {
                     link=$(readlink -f "$block_dir/$dev" 2>&5)
                     if [[ "$link" == *ata* ]]; then
                         bus[$dev]="SATA"
-                    elif [[ "$link" == *pci* ]]; then
-                        bus[$dev]="PCI"
+                    elif [[ "$link" == *sas* ]]; then
+                        bus[$dev]="SAS"
                     else
-                        bus[$dev]="N/A"
+                        # PCIe-attached SAS/SCSI target without a transport file:
+                        # report SCSI, not the misleading "PCI".
+                        bus[$dev]="SCSI"
                     fi
                 fi
 
                 # Extract Serial and Model via hdparm
-                serial[$dev]=$(hdparm -I /dev/$dev 2>&5 | awk -F': *' '/^[[:space:]]*Serial Number/ {print $2}' | xargs | tr -d ' ')
-                model[$dev]=$(hdparm -I /dev/$dev 2>&5 | awk -F': *' '/^[[:space:]]*Model Number/ {print $2}' | xargs)
+                serial[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Serial Number/ {print $2}' | xargs | tr -d ' \000-\037\177')
+                model[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Model Number/ {print $2}' | xargs | tr -d '\000-\037\177')
                 
                 # OPAL Lock Check for SATA
                 if sedutil-cli --query "/dev/$dev" 2>/dev/null | grep -q "Locked = Y"; then
@@ -121,7 +136,11 @@ device::discover() {
                 fi
 
                 bytes=$(blockdev --getsize64 /dev/$dev 2>/dev/null)
-                size[$dev]=$(( bytes / 1000000000 ))" GB"
+                if [[ -n "$bytes" && "$bytes" =~ ^[0-9]+$ ]]; then
+                    size[$dev]=$(( bytes / 1000000000 ))" GB"
+                else
+                    size[$dev]="N/A"
+                fi
             else
                 continue
             fi
@@ -179,14 +198,7 @@ device::handle_locks() {
 
                 printf "\n%s[i] Sending PSID Revert command... " "$TABLE_INDENT"
                 
-                # Execute and Log ONLY the sedutil output
-                cmd_result=$(sedutil-cli --yesIreallywanttoERASEALLmydatausingthePSID "$psid" "$ctrl" 2>&1)
-                
-                echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev CMD: PSID_REVERT" >> "$LOG_FILE"
-                echo "$cmd_result" >> "$LOG_FILE"
-                
-                # --- EXECUTION & LOGGING ---
-                # Run the command and append raw output to the log
+                # Execute the PSID revert ONCE and log the result.
                 cmd_result=$(sedutil-cli --yesIreallywanttoERASEALLmydatausingthePSID "$psid" "$ctrl" 2>&1)
                 
                 {
@@ -241,8 +253,8 @@ device::frozen() {
     local i
     local times
 
-    for dev in ${devices[@]}; do
-        if [[ "$dev" == "sd"? ]]; then
+    for dev in "${devices[@]}"; do
+        if [[ "$dev" == sd* ]]; then
             if [[ "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ]]; then
                 continue
             fi
@@ -251,18 +263,26 @@ device::frozen() {
             times=5
             while :; do
                 status="$(hdparm -I /dev/$dev 2>&5)"
-                if [[ $status == *"not"?"frozen"* ]]; then
+                if [[ $status == *"not"?"frozen"* || $status != *"frozen"* ]]; then
+                    # Not frozen (or no security section at all) — nothing to do.
                     echo " $dev not_frozen"
                     break
-                elif [[ $status == *"frozen"* ]]; then
-                    echo " $dev frozen"
-                    echo " $dev unfreezing"
-                    sleep 1 #give some time to CTRL+C if wanted
-                    rtcwake -m mem -s 5 >&5 2>&5
                 fi
+                echo " $dev frozen"
+                echo " $dev unfreezing"
+                sleep 1 #give some time to CTRL+C if wanted
+                rtcwake -m mem -s 5 >&5 2>&5
                 if [[ $i -ge $times ]];then
+                    if [[ "${NON_INTERACTIVE:-0}" -eq 1 ]]; then
+                        echo " $dev unfreeze exhausted; continuing (non-interactive)"
+                        i=0
+                        continue
+                    fi
                     printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"
-                    read -r answer < /dev/tty
+                    if ! read -r answer < /dev/tty 2>/dev/null; then
+                        echo " $dev aborted (no terminal)."
+                        exit 1
+                    fi
                     i=0
                     if [[ "$answer" != "${answer#[Nn]}" ]]; then
                         echo " $dev aborted."
@@ -327,7 +347,7 @@ device::detect() {
                 ata_erase_time[$device]=$(printf '%s\n' "$security_block" | sed -n 's/.*[[:space:]]\([0-9][0-9]*\)min for SECURITY ERASE UNIT.*/\1/p' | head -1)
                 ata_enhanced_time[$device]=$(printf '%s\n' "$security_block" | sed -n 's/.*[[:space:]]\([0-9][0-9]*\)min for ENHANCED SECURITY ERASE UNIT.*/\1/p' | head -1)
 
-                if ! grep -q "supported" <<<"$security_block"; then
+                if ! grep -qE '^[[:space:]]+supported' <<<"$security_block"; then
                     capability[$device]="CAP_NONE"
                     continue
                 fi
@@ -359,10 +379,22 @@ device::classify() {
 
     case "$cap" in
 
-        CAP_NVME_PURGE_*)
+        CAP_NVME_PURGE_CRYPTO)
             devrow["$dev.class"]="PURGE"
             devrow["$dev.cert"]="DESTRUCTION"
-            devrow["$dev.method"]="Secure Erase"
+            devrow["$dev.method"]="NVMe Crypto Purge"
+            ;;
+
+        CAP_NVME_PURGE_BLOCK)
+            devrow["$dev.class"]="PURGE"
+            devrow["$dev.cert"]="DESTRUCTION"
+            devrow["$dev.method"]="NVMe Block Purge"
+            ;;
+
+        CAP_NVME_PURGE_OVERWRITE)
+            devrow["$dev.class"]="PURGE"
+            devrow["$dev.cert"]="DESTRUCTION"
+            devrow["$dev.method"]="NVMe Overwrite Purge"
             ;;
 
         CAP_ATA_PURGE_ENHANCED)
@@ -374,17 +406,11 @@ device::classify() {
             ;;
 
         CAP_ATA_CLEAR)
-            if [[ "${type[$dev]}" == "HDD" ]]; then
-                # HDD = purge
-                devrow["$dev.class"]="PURGE"
-                devrow["$dev.cert"]="DESTRUCTION"
-                devrow["$dev.method"]="HDD Overwrite"
-            else
-                # SSD = clear
-                devrow["$dev.class"]="CLEAR"
-                devrow["$dev.cert"]="SANITISATION"
-                devrow["$dev.method"]="ATA Secure Erase"
-            fi
+            # `hdparm --security-erase` (non-enhanced) is a Clear per NIST 800-88
+            # for both HDD and SSD — the label must match what is actually run.
+            devrow["$dev.class"]="CLEAR"
+            devrow["$dev.cert"]="SANITISATION"
+            devrow["$dev.method"]="ATA Secure Erase"
             local _t="${ata_erase_time[$dev]:-}"
             if [[ "$_t" =~ ^[0-9]+$ ]]; then devrow["$dev.eta_mins"]="$_t"; fi
             ;;

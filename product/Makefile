@@ -1,5 +1,5 @@
 
-.PHONY: build build-enterprise build-customer deploy deploy-check
+.PHONY: build build-slim deploy deploy-check
 
 # Free / community build: embeds the vendor public key so licences verify
 # (tScrub always requires a licence — even the free tier).
@@ -10,26 +10,14 @@ build:
 	@rm -f payload/vendor-public-key.pem
 	@echo "Build complete (licence verification enabled)."
 
-# Team / Enterprise build: same as build (kept for clarity / back-compat).
-build-enterprise:
+# Appliance (slim) build: no sedutil payload — the appliance image provides
+# sedutil-cli via BR2_PACKAGE_SEDUTIL. Used for the bootable ISO only.
+build-slim:
 	@test -f keys/vendor-public-key.pem || { echo "Missing keys/vendor-public-key.pem" >&2; exit 1; }
 	@cp keys/vendor-public-key.pem payload/vendor-public-key.pem
-	@bash scripts/build.sh
+	@SKIP_SEDUTIL_PAYLOAD=1 bash scripts/build.sh
 	@rm -f payload/vendor-public-key.pem
-	@echo "Enterprise build complete (licence verification enabled)."
-
-# Customer build: embeds the vendor public key AND a specific customer licence
-# so no licence needs to be supplied at boot.
-# Usage: make build-customer CUSTOMER="Acme ITAD Ltd" LIC=/path/to/Acme.lic
-build-customer:
-	@test -f keys/vendor-public-key.pem || { echo "Missing keys/vendor-public-key.pem" >&2; exit 1; }
-	@test -n "$(LIC)" || { echo "LIC (path to .lic) required: make build-customer CUSTOMER=\"Acme ITAD Ltd\" LIC=/path/to/Acme.lic" >&2; exit 1; }
-	@test -f "$(LIC)" || { echo "Missing licence file: $(LIC)" >&2; exit 1; }
-	@trap 'rm -f payload/vendor-public-key.pem payload/license.lic' EXIT; \
-	  cp keys/vendor-public-key.pem payload/vendor-public-key.pem; \
-	  cp "$(LIC)" payload/license.lic; \
-	  bash scripts/build.sh
-	@echo "Customer build complete (licence embedded)."
+	@echo "Appliance (slim) build complete (sedutil provided by the image)."
 
 deploy: build
 	bash scripts/deploy.sh

@@ -44,4 +44,11 @@ t::check "smoke: nvme0n1 PURGE" '[[ ${devrow[nvme0n1.class]} == "PURGE" ]]'
 t::check "smoke: sda COMPLETED" '[[ ${devrow[sda.status]} == "COMPLETED" ]]'
 t::check "smoke: sda PURGE" '[[ ${devrow[sda.class]} == "PURGE" ]]'
 
+# --- cocid via CLI flag enables non-interactive (autonuke) mode ---
+COCID=""
+NON_INTERACTIVE=0
+parse_args --cocid 12345
+t::check "cocid: --cocid sets COCID" '[[ "$COCID" == "12345" ]]'
+t::check "cocid: --cocid enables non-interactive" '[[ "$NON_INTERACTIVE" -eq 1 ]]'
+
 t::summary

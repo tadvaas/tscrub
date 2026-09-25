@@ -24,13 +24,11 @@ device::exec_scsi_nwipe() {
     fi
     nwipe_cmd+=("/dev/$dev")
 
+    # nwipe --nogui emits no per-drive percentage lines (the GUI progress
+    # thread is never created), so progress is reflected only by
+    # RUNNING -> COMPLETED/FAILED.
     "${nwipe_cmd[@]}" 2>&1 | while IFS= read -r line; do
         echo "$line" >&5
-        # Parse progress lines like: [sda]  12% complete, ...
-        if [[ "$line" =~ \[$dev\][[:space:]]+([0-9]+)% ]]; then
-            pct="${BASH_REMATCH[1]}%"
-            echo "$dev STATUS $pct" >&3
-        fi
     done
     # Check exit status of nwipe
     if [ "${PIPESTATUS[0]}" -eq 0 ]; then

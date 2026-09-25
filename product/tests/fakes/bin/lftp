@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake lftp for report::upload_net tests. Logs its arguments; exits 0 on
+# success, non-zero when FAKE_LFTP_FAIL is set.
+
+if [[ -n "${FAKE_LFTP_LOG:-}" ]]; then
+    printf '%s\n' "$@" >> "$FAKE_LFTP_LOG"
+fi
+if [[ -n "${FAKE_LFTP_FAIL:-}" ]]; then
+    echo "lftp: connection failed" >&2
+    exit 1
+fi
+exit 0

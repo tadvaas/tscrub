@@ -18,6 +18,9 @@ rm -f "$_tmpkey"
 COCID="48213"
 TABLE_INDENT="    "
 SYS_MANUFACTURER="Dell"; SYS_PRODUCT="PowerEdge"; SYS_SERIAL="SYS123"; SYS_BASEBOARD_SERIAL="BB123"
+SYS_CPU_LIST=$'1. Intel Xeon\n2. Intel Xeon'
+SYS_GPU_LIST='1. NVIDIA T4'
+SYS_RAM_GB='64 GB'
 REPORT_DIR="$(mktemp -d)/"
 REPORT_KEY_DIR="$(mktemp -d)"
 devices=(nvme0n1 sda)
@@ -35,7 +38,17 @@ manifest="${csv%.csv}.json"
 sig="${csv}.sig"
 
 t::check "report CSV exists" '[[ -f "$csv" ]]'
+t::check "CSV header includes machine columns" 'head -n1 "$csv" | grep -q "System,SystemSerial,BaseboardSerial,CPU,GPU,RAM"'
+t::check "CSV row carries machine profile" 'grep -q "Dell PowerEdge" "$csv" && grep -q "1. Intel Xeon; 2. Intel Xeon" "$csv" && grep -q "NVIDIA T4" "$csv" && grep -q "64 GB" "$csv"'
 t::check "manifest JSON exists" '[[ -f "$manifest" ]]'
+
+# The manifest must be strict-JSON-parseable (certify.php json_decode + the
+# harness's python3 json.load both reject the missing-comma bug this guards).
+if command -v python3 >/dev/null 2>&1; then
+    t::check "manifest is valid JSON" 'python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$manifest"'
+else
+    echo "# (python3 not found; skipping manifest JSON validity check)"
+fi
 
 sha="$(report::_sha256 "$csv")"
 recorded="$(sed -n 's/.*"sha256": "\([0-9a-fA-F]\{64\}\)".*/\1/p' "$manifest")"

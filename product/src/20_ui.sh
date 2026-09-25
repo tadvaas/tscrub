@@ -22,13 +22,55 @@ cocid::is_valid() {
     [[ "$1" =~ ^[0-9]{5}$ ]]
 }
 
+# Resolve the Chain of Custody ID. Priority:
+#   1. --cocid (set by parse_args)
+#   2. tscrub_cocid= on the kernel command line (autonuke — no prompt)
+#   3. the interactive prompt
+cocid::detect() {
+    local param
+
+    if [[ -n "${COCID:-}" ]]; then
+        return 0
+    fi
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_cocid=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"
+        param="${param%\"}"
+        COCID="$(printf "%s" "$param" | xargs)"
+        NON_INTERACTIVE=1
+        return 0
+    fi
+
+    ui::coc_prompt
+}
+
 ui::coc_prompt() {
     ui::cursor_show
-    printf "\n"
+
+    local cols rows pad prompt prompt_row
+    cols="$(table::detect_terminal_width)"
+    rows="$(table::detect_terminal_height)"
+    prompt="Enter Chain of Custody ID (exactly 5 digits): "
+    pad=$(( (cols - ${#prompt}) / 2 ))
+    (( pad < 0 )) && pad=0
+    prompt_row=$(( rows / 2 ))
+
+    if [[ -t 1 ]]; then
+        clear
+    else
+        pad=0
+    fi
 
     while :; do
-        printf "%sEnter Chain of Custody ID (exactly 5 digits): " "$TABLE_INDENT"
-        read -r COCID < /dev/tty
+        # Centre the prompt in the middle of the screen; clear the line so a
+        # previous (invalid) attempt doesn't leave residue behind.
+        [[ -t 1 ]] && printf "\033[%d;1H\033[K" "$prompt_row"
+        printf "%*s%s" "$pad" "" "$prompt"
+        if ! read -r COCID < /dev/tty 2>/dev/null; then
+            printf "\n%*s[!] No interactive terminal — cannot prompt for COCID.\n" "$pad" "" >&2
+            exit 1
+        fi
 
         # Trim whitespace before validation
         COCID="$(printf "%s" "$COCID" | xargs)"
@@ -36,14 +78,17 @@ ui::coc_prompt() {
         if cocid::is_valid "$COCID"; then
             export COCID
             ui::cursor_hide
+            printf "\n"
             return
         fi
 
-        printf "%s[!] Invalid COCID. It must be exactly 5 digits (00000-99999), blank is not allowed.\n" "$TABLE_INDENT"
+        [[ -t 1 ]] && printf "\033[%d;1H\033[K" "$((prompt_row + 1))"
+        printf "%*s%s" "$pad" "" "[!] Invalid COCID. It must be exactly 5 digits (00000-99999), blank is not allowed."
     done
 }
 
 ui::show_finish_green() {
+    local msg="${1:-}"
     [[ -t 1 ]] || return 0
     [[ -n "${TERM:-}" ]] || return 0
     [[ "${TERM:-}" != "dumb" ]] || return 0
@@ -56,6 +101,22 @@ ui::show_finish_green() {
     fi
     UI_INPLACE=0
     table::render
+    [[ -n "$msg" ]] && printf "\033[K%s%s\n" "$TABLE_INDENT" "$msg"
+}
+
+# Amber finish: the wipe completed but the report could not be saved to USB
+# and/or uploaded (dashboard/network). Distinct from green (all good) and red
+# (a drive failed or was blocked).
+ui::show_finish_orange() {
+    local msg="${1:-}"
+    [[ -t 1 ]] || return 0
+    [[ -n "${TERM:-}" ]] || return 0
+    [[ "${TERM:-}" != "dumb" ]] || return 0
+
+    UI_COMPLETE_THEME=3
+    UI_INPLACE=0
+    table::render
+    [[ -n "$msg" ]] && printf "\033[K%s%s\n" "$TABLE_INDENT" "$msg"
 }
 
 # Returns success (0) if at least one drive ended in a non-success state
@@ -72,7 +133,7 @@ ui::any_drive_failed() {
 }
 
 # Blocking decision prompt shown after sanitization completes.
-# Holds the terminal so the caller (e.g. ShredOS) does not paint over the
+# Holds the terminal so the caller (e.g. the appliance shell) does not paint over the
 # final report. Offers Reboot / Shutdown / Continue.
 ui::post_run_prompt() {
     local key theme=""
@@ -83,15 +144,15 @@ ui::post_run_prompt() {
     # completion screen (green on success, red if any drive failed). \033[K
     # paints each line's full width with the chosen background.
     if ui::terminal_controls_supported; then
-        if [[ "${UI_COMPLETE_THEME:-1}" -eq 2 ]]; then
-            theme="\033[0;41;37m"
-        else
-            theme="\033[0;42;30m"
-        fi
+        case "${UI_COMPLETE_THEME:-1}" in
+            2) theme="\033[0;41;37m" ;;   # red: a drive failed/blocked
+            3) theme="\033[0;43;30m" ;;   # amber: report save/upload failed
+            *) theme="\033[0;42;30m" ;;   # green: all good
+        esac
     fi
 
     while :; do
-        printf "\n${theme}\033[K%s\033[1m[R]\033[22m Reboot    \033[1m[S]\033[22m Shutdown    \033[1m[C]\033[22m Continue (start nwipe)    \033[1m[A]\033[22m Run tScrub again\n" "$TABLE_INDENT"
+        printf "\n${theme}\033[K%s\033[1m[R]\033[22m Reboot    \033[1m[S]\033[22m Shutdown    \033[1m[C]\033[22m Continue    \033[1m[A]\033[22m Run tScrub again\n" "$TABLE_INDENT"
         printf "${theme}\033[K%sSelect an option: " "$TABLE_INDENT"
 
         read -r -n1 key < /dev/tty
