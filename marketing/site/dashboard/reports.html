@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <title>Reports — tScrub Dashboard</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-white text-slate-800">
+
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
+          <li class="relative">
+            <button id="mega-menu-btn" data-dropdown-toggle="mega-menu" data-dropdown-placement="bottom-start" data-dropdown-offset-distance="8" class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">
+              Product
+              <svg class="h-4 w-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="mega-menu" class="absolute left-0 top-full z-50 hidden w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl sm:w-80">
+              <a href="/how-it-works" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">How it works</span>
+                <span class="block text-xs leading-snug text-slate-500">Erase, verify and report in one boot.</span>
+              </span>
+            </a>
+              <a href="/compliance" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Compliance</span>
+                <span class="block text-xs leading-snug text-slate-500">NIST 800-88, GDPR, HIPAA &amp; ISO 27001.</span>
+              </span>
+            </a>
+              <a href="/compare" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Compare</span>
+                <span class="block text-xs leading-snug text-slate-500">How tScrub stacks up against the rest.</span>
+              </span>
+            </a>
+              <a href="/getting-started" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Getting started</span>
+                <span class="block text-xs leading-snug text-slate-500">Boot and run in minutes.</span>
+              </span>
+            </a>
+              <div class="mt-1 border-t border-slate-100 pt-1">
+                <a href="/pricing" class="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50">
+                  View pricing
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                </a>
+              </div>
+            </div>
+          </li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/download" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Download</a></li>
+          <li><a href="/faq" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">FAQ</a></li>
+          <li><a href="/contact" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Contact</a></li>
+        </ul>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-4">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="mx-auto w-full max-w-5xl px-4 py-10">
+    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900">Dashboard</h1>
+    <div id="dashboard-nav" class="mt-4"></div>
+
+    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-ink-900">Upload reports</h2>
+      <p class="mt-1 text-sm text-slate-600">Add the report files your appliance produced. Reports are stored as evidence — generate certificates from them on the <a href="/dashboard/certificates" class="font-semibold text-brand-700 hover:underline">Certificates page</a>.</p>
+
+      <form id="upload-form" class="mt-5 space-y-4">
+        <div class="flex flex-wrap items-stretch gap-2">
+          <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-lg border border-slate-300 bg-white">
+            <label for="reports" class="inline-flex shrink-0 cursor-pointer items-center border-r border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">Choose files</label>
+            <span id="reports-name" class="flex min-w-0 flex-1 items-center truncate px-3 py-2.5 text-sm text-slate-500">No files chosen</span>
+          </div>
+          <button type="submit" class="inline-flex shrink-0 items-center rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700">Upload reports</button>
+        </div>
+        <input id="reports" name="reports[]" type="file" multiple accept=".csv,.sig,.json" class="sr-only" />
+        <p class="mt-2 text-xs text-slate-500">Select one or more <code class="font-mono">.csv</code> report files. Add the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars to verify integrity and signatures.</p>
+        <p id="upload-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
+      </form>
+    </div>
+
+    <div class="mt-8">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-ink-900">Uploaded reports</h2>
+          <p class="mt-1 text-sm text-slate-600">Erasure and pre/post-wipe SMART data for every report uploaded — manually or from an appliance.</p>
+        </div>
+      </div>
+      <form id="search-form" class="mt-3 flex flex-wrap items-center gap-2">
+        <input id="search-input" type="text" placeholder="Search drive serial, system serial, CoC ID…" autocomplete="off"
+               class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500" />
+        <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Search</button>
+        <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">Clear</button>
+      </form>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+        <div id="report-list"></div>
+        <div id="report-pager" class="mt-3"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-ink-900 text-slate-400">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
+        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
+        <li><a href="/download" class="hover:text-white">Download</a></li>
+        <li><a href="/faq" class="hover:text-white">FAQ</a></li>
+        <li><a href="/docs" class="hover:text-white">Docs</a></li>
+        <li><a href="/resources" class="hover:text-white">Resources</a></li>
+        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="/terms" class="hover:text-white">Terms</a></li>
+        <li><a href="/contact" class="hover:text-white">Contact</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <!-- Full-screen report viewer -->
+  <div id="report-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+    <div id="report-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+      <div class="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <h2 id="report-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900"></h2>
+          <button id="report-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Close
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div id="report-modal-body" class="flex-1 overflow-y-auto bg-slate-50 p-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+  <script>
+    (function () {
+      function el(tag, cls, text) {
+        var n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text != null) n.textContent = text;
+        return n;
+      }
+      function getCsrf() {
+        return fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) { return (d && d.csrf) || ''; });
+      }
+
+      // Auth guard.
+      fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.user) { window.location.href = '/login?next=/dashboard/reports'; return; }
+        loadReports();
+      });
+
+      // File chooser label: single filename, or a count when multiple selected.
+      var fileInput = document.getElementById('reports');
+      fileInput.addEventListener('change', function () {
+        var files = fileInput.files || [];
+        var label = document.getElementById('reports-name');
+        if (files.length === 0) {
+          label.textContent = 'No files chosen';
+        } else if (files.length === 1) {
+          label.textContent = files[0].name;
+        } else {
+          label.textContent = files.length + ' files selected';
+        }
+      });
+
+      // Upload.
+      document.getElementById('upload-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var status = document.getElementById('upload-status');
+        if (!(fileInput.files && fileInput.files.length)) {
+          status.className = 'text-xs font-semibold text-red-600';
+          status.textContent = 'Choose at least one .csv report file.';
+          return;
+        }
+        status.className = 'text-xs font-semibold text-slate-500';
+        status.textContent = 'Uploading…';
+        getCsrf().then(function (csrf) {
+          var fd = new FormData();
+          Array.prototype.forEach.call(fileInput.files, function (f) { fd.append('reports[]', f); });
+          return fetch('/api/reports', { method: 'POST', headers: { 'X-CSRF-Token': csrf }, body: fd });
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+          if (res.ok) {
+            status.className = 'text-xs font-semibold text-brand-700';
+            var up = res.data.uploaded || 0;
+            var sk = res.data.skipped || 0;
+            var msg = 'Uploaded ' + up + ' report' + (up === 1 ? '' : 's');
+            if (sk > 0) msg += ', skipped ' + sk + ' already uploaded';
+            msg += '. Generate certificates from them on the Certificates page.';
+            status.textContent = msg;
+            fileInput.value = '';
+            document.getElementById('reports-name').textContent = 'No files chosen';
+            loadReports();
+          } else {
+            status.className = 'text-xs font-semibold text-red-600';
+            status.textContent = res.data.error || 'Upload failed.';
+          }
+        });
+      });
+
+      function renderPager(d, goTo) {
+        var box = document.getElementById('report-pager');
+        if (!box) return;
+        box.innerHTML = '';
+        var totalPages = Math.max(1, Math.ceil(d.total / d.per));
+        if (totalPages <= 1) return;
+        var wrap = el('div', 'flex items-center justify-between gap-2');
+        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', '← Prev');
+        prev.disabled = d.page <= 1;
+        prev.addEventListener('click', function () { if (d.page > 1) goTo(d.page - 1); });
+        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'Next →');
+        next.disabled = d.page >= totalPages;
+        next.addEventListener('click', function () { if (d.page < totalPages) goTo(d.page + 1); });
+        wrap.appendChild(prev);
+        wrap.appendChild(el('span', 'text-xs text-slate-500', 'Page ' + d.page + ' of ' + totalPages + ' (' + d.total + ' total)'));
+        wrap.appendChild(next);
+        box.appendChild(wrap);
+      }
+
+      var currentQ = '';
+      function loadReports(page, q) {
+        page = page || 1;
+        if (q === undefined) q = currentQ;
+        currentQ = q || '';
+        fetch('/api/reports?page=' + page + (currentQ ? '&q=' + encodeURIComponent(currentQ) : '')).then(function (r) {
+          if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
+          return r.json();
+        }).then(function (d) {
+          if (!d) return;
+          var list = document.getElementById('report-list');
+          list.innerHTML = '';
+          var rows = d.reports || [];
+          if (!rows.length) {
+            list.appendChild(el('p', 'text-sm text-slate-500', currentQ ? 'No reports match "' + currentQ + '".' : 'No reports uploaded yet. Upload them above, or push them from an appliance using your upload token.'));
+            renderPager(d, loadReports);
+            return;
+          }
+          rows.forEach(function (rp) {
+            var row = el('div', 'rounded-xl border border-slate-200 bg-white p-4');
+            var top = el('div', 'flex flex-wrap items-center justify-between gap-2');
+            var left = el('div', 'flex flex-wrap items-center gap-2');
+            left.appendChild(el('span', 'text-sm font-bold text-ink-900', 'CoC ' + rp.cocid));
+            var src = el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + (rp.source === 'api' ? 'bg-slate-200 text-slate-600' : 'bg-brand-100 text-brand-700'), rp.source === 'api' ? 'from appliance' : 'manual upload');
+            left.appendChild(src);
+            left.appendChild(el('span', 'text-xs text-slate-400', (rp.uploaded_at || '').slice(0, 16)));
+            top.appendChild(left);
+            var btn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'View report');
+            btn.addEventListener('click', function () { openReport(rp, btn); });
+            top.appendChild(btn);
+            row.appendChild(top);
+            row.appendChild(el('p', 'mt-2 text-xs text-slate-500',
+              rp.devices + ' drive' + (rp.devices === 1 ? '' : 's') + ' · ' + rp.runs + ' report file' + (rp.runs === 1 ? '' : 's') +
+              ' · SHA ' + (rp.sha_state || '—') + ' · signature ' + (rp.sig_state || '—')));
+            list.appendChild(row);
+          });
+          renderPager(d, loadReports);
+        });
+      }
+
+      document.getElementById('search-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        currentQ = document.getElementById('search-input').value.trim();
+        document.getElementById('search-clear').classList.toggle('hidden', !currentQ);
+        loadReports(1, currentQ);
+      });
+      document.getElementById('search-clear').addEventListener('click', function () {
+        document.getElementById('search-input').value = '';
+        currentQ = '';
+        document.getElementById('search-clear').classList.add('hidden');
+        loadReports(1);
+      });
+
+      var modal = document.getElementById('report-modal');
+      var modalBody = document.getElementById('report-modal-body');
+      var modalTitle = document.getElementById('report-modal-title');
+      var lastTrigger = null;
+
+      function stateBadge(state) {
+        var map = {
+          'verified': ['bg-emerald-100 text-emerald-700', 'Verified'],
+          'attributed': ['bg-emerald-100 text-emerald-700', 'Attributed'],
+          'valid': ['bg-emerald-100 text-emerald-700', 'Valid'],
+          'unverified': ['bg-slate-200 text-slate-600', 'Unverified'],
+          'mismatch': ['bg-red-100 text-red-700', 'Mismatch'],
+          'invalid': ['bg-red-100 text-red-700', 'Invalid'],
+          'none': ['bg-slate-200 text-slate-600', 'None']
+        };
+        var m = map[state] || ['bg-slate-200 text-slate-600', state || '—'];
+        return el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + m[0], m[1]);
+      }
+
+      function fmtTs(ts) {
+        if (!ts) return '';
+        return String(ts).replace('T', ' ').replace(/Z$/, '').slice(0, 16);
+      }
+
+      function closeReport() {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+        if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+      }
+
+      function openReport(rp, trigger) {
+        lastTrigger = trigger;
+        modalTitle.textContent = 'Chain of Custody ' + rp.cocid;
+        modalBody.innerHTML = '';
+
+        // Summary strip.
+        var chips = el('div', 'flex flex-wrap gap-2');
+        [['Devices', String(rp.devices)], ['Report files', String(rp.runs)],
+         ['Uploaded', (rp.uploaded_at || '').slice(0, 16)],
+         ['Source', rp.source === 'api' ? 'Appliance' : 'Manual']].forEach(function (kv) {
+          chips.appendChild(el('span', 'rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700', kv[0] + ': ' + kv[1]));
+        });
+        var shaChip = el('span', 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700');
+        shaChip.appendChild(document.createTextNode('SHA:'));
+        shaChip.appendChild(stateBadge(rp.sha_state));
+        chips.appendChild(shaChip);
+        var sigChip = el('span', 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700');
+        sigChip.appendChild(document.createTextNode('Signature:'));
+        sigChip.appendChild(stateBadge(rp.sig_state));
+        chips.appendChild(sigChip);
+        modalBody.appendChild(chips);
+
+        // Machine profile.
+        var machine = [];
+        if (rp.system) machine.push(['System', rp.system]);
+        if (rp.sysserial) machine.push(['System serial', rp.sysserial]);
+        if (rp.bbserial) machine.push(['Baseboard serial', rp.bbserial]);
+        if (rp.cpu) machine.push(['CPU', rp.cpu]);
+        if (rp.gpu) machine.push(['GPU', rp.gpu]);
+        if (rp.ram) machine.push(['RAM', rp.ram]);
+        if (machine.length) {
+          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500', 'Machine'));
+          var mgrid = el('div', 'mt-2 grid gap-3 sm:grid-cols-2');
+          machine.forEach(function (kv) {
+            var card = el('div', 'rounded-xl border border-slate-200 bg-white p-3');
+            card.appendChild(el('div', 'text-xs font-semibold uppercase tracking-wide text-slate-400', kv[0]));
+            card.appendChild(el('div', 'mt-1 whitespace-pre-wrap break-words text-sm text-slate-800', kv[1]));
+            mgrid.appendChild(card);
+          });
+          modalBody.appendChild(mgrid);
+        }
+
+        // Report files.
+        var files = rp.reports || [];
+        if (files.length) {
+          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500', 'Report files'));
+          var ftable = el('table', 'mt-2 w-full border-collapse overflow-hidden rounded-xl border border-slate-200 bg-white text-xs');
+          var fhr = el('tr', 'bg-slate-100');
+          ['File', 'SHA-256', 'State'].forEach(function (h) {
+            fhr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase text-slate-500', h));
+          });
+          ftable.appendChild(fhr);
+          files.forEach(function (f) {
+            var tr = el('tr');
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 font-medium text-slate-800', f.name || '—'));
+            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 break-all font-mono text-slate-500', f.sha || '—'));
+            var tds = el('td', 'border-b border-slate-100 px-3 py-2');
+            tds.appendChild(stateBadge(f.state));
+            tr.appendChild(tds);
+            ftable.appendChild(tr);
+          });
+          modalBody.appendChild(ftable);
+        }
+
+        // Drives (full data).
+        var drives = rp.drives || [];
+        if (drives.length) {
+          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500', 'Drives'));
+          var dwrap = el('div', 'mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white');
+          var dtable = el('table', 'w-full border-collapse whitespace-nowrap text-xs');
+          var dhr = el('tr', 'bg-slate-100');
+          ['Device','Type','Model','Serial','Size','Bus','Method','Class','Certification','Status','Wiped','SMART','Temp °C','POH','Cycles','Realloc','Used %','Spare','TBW','SMART post','Temp post','POH post','System','System serial','Baseboard serial','CPU','GPU','RAM'].forEach(function (h) {
+            dhr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase text-slate-500', h));
+          });
+          dtable.appendChild(dhr);
+          drives.forEach(function (d) {
+            var tr = el('tr', 'hover:bg-slate-50');
+            [d.device, d.type, d.model, d.serial, d.size, d.bus, d.method, d.cls, d.cert, d.status, fmtTs(d.ts),
+             d.smart, d.tempc, d.poweronhours, d.powercycles, d.reallocsectors, d.pctused, d.availspare, d.tbw_tb,
+             d.smartpost, d.tempcpost, d.poweronhourspost,
+             d.system, d.sysserial, d.bbserial, d.cpu, d.gpu, d.ram].forEach(function (v) {
+              tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-slate-700', v || '—'));
+            });
+            dtable.appendChild(tr);
+          });
+          dwrap.appendChild(dtable);
+          modalBody.appendChild(dwrap);
+        } else {
+          modalBody.appendChild(el('p', 'mt-5 text-sm text-slate-500', 'No per-drive data recorded for this report.'));
+        }
+
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        document.getElementById('report-modal-close').focus();
+      }
+
+      document.getElementById('report-modal-close').addEventListener('click', closeReport);
+      document.getElementById('report-modal-backdrop').addEventListener('click', closeReport);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeReport();
+      });
+    })();
+  </script>
+</body>
+</html>

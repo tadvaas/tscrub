@@ -10,6 +10,14 @@ data reports, and admin.
 - PHP 8 (front controller `server/api.php`, PDO/MySQL) — see `server/`
 - Python helpers: `sendmail.py` (SMTP), `issue_licence.py` (licence issuance)
 
+## Layout
+
+- `site/` — the Vite root: every page (`*.html`, `dashboard/`, `resources/`),
+  the front-end JS/CSS (`site/src/`), and the static SEO files (`site/public/`).
+- `server/` — the PHP/MySQL backend (deployed separately, never bundled).
+- `vite.config.js` / `tailwind.config.js` / `postcss.config.js` / `package.json` — build config.
+- `deploy.sh` / `deploy-server.sh` — rsync deployers.
+
 ## Develop
 
 ```sh
@@ -41,7 +49,7 @@ schema setup, migrations, admin seeding, and nginx `/api/` routing).
 
 - The dashboard (`/dashboard`, `/admin`, `/login`, `/register`) is `noindex`.
 - Auth pages and the static site call the backend directly over `/api/*`.
-- `public/llms.txt`, `public/llms-full.txt`, `robots.txt`, and `sitemap.xml`
+- `site/public/llms.txt`, `site/public/llms-full.txt`, `robots.txt`, and `sitemap.xml`
   ship with the build — keep the LLM context files in sync with page changes.
 - Compliance copy uses "aligns with" language intentionally — tScrub is not
   itself a certification.

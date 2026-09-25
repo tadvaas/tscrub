@@ -1,10 +1,13 @@
 import flowbite from 'flowbite/plugin'
+import typography from '@tailwindcss/typography'
 
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    './*.html',
-    './src/**/*.{html,js}',
+    './site/*.html',
+    './site/dashboard/**/*.html',
+    './site/resources/**/*.html',
+    './site/src/**/*.{html,js}',
     './node_modules/flowbite/**/*.js'
   ],
   theme: {
@@ -30,5 +33,5 @@ export default {
       }
     }
   },
-  plugins: [flowbite]
+  plugins: [flowbite, typography]
 }

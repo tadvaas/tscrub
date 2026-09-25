@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <title>Documentation — tScrub</title>
+  <link rel="canonical" href="https://tscrub.com/docs" />
+  <meta name="description" content="tScrub documentation: building your appliance, running sanitisation, and verifying signed reports." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-white text-slate-800">
+
+        <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
+          <li class="relative">
+            <button id="mega-menu-btn" data-dropdown-toggle="mega-menu" data-dropdown-placement="bottom-start" data-dropdown-offset-distance="8" class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">
+              Product
+              <svg class="h-4 w-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="mega-menu" class="absolute left-0 top-full z-50 hidden w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl sm:w-80">
+              <a href="/how-it-works" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">How it works</span>
+                <span class="block text-xs leading-snug text-slate-500">Erase, verify and report in one boot.</span>
+              </span>
+            </a>
+              <a href="/compliance" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Compliance</span>
+                <span class="block text-xs leading-snug text-slate-500">NIST 800-88, GDPR, HIPAA &amp; ISO 27001.</span>
+              </span>
+            </a>
+              <a href="/compare" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Compare</span>
+                <span class="block text-xs leading-snug text-slate-500">How tScrub stacks up against the rest.</span>
+              </span>
+            </a>
+              <a href="/getting-started" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Getting started</span>
+                <span class="block text-xs leading-snug text-slate-500">Boot and run in minutes.</span>
+              </span>
+            </a>
+              <div class="mt-1 border-t border-slate-100 pt-1">
+                <a href="/pricing" class="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50">
+                  View pricing
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                </a>
+              </div>
+            </div>
+          </li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm font-semibold text-ink-900">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/download" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Download</a></li>
+          <li><a href="/faq" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">FAQ</a></li>
+          <li><a href="/contact" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Contact</a></li>
+        </ul>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-4">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="mx-auto max-w-7xl px-4 py-16">
+    <div class="mx-auto max-w-3xl text-center">
+      <h1 class="text-4xl font-extrabold tracking-tight text-ink-900">Documentation</h1>
+      <p class="mt-3 text-slate-600">Everything you need to run tScrub — from boot to a verifiable report.</p>
+    </div>
+
+    <div class="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-[260px_1fr]">
+      <!-- Sidebar table of contents -->
+      <aside class="hidden lg:block">
+        <nav class="sticky top-24 space-y-7 text-sm" aria-label="Documentation table of contents">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Get started</p>
+            <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
+              <li><a href="#quickstart" class="block text-slate-600 hover:text-ink-900">1. Quick start</a></li>
+              <li><a href="#requirements" class="block text-slate-600 hover:text-ink-900">2. System requirements</a></li>
+            </ul>
+          </div>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Build &amp; run</p>
+            <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
+              <li><a href="#build" class="block text-slate-600 hover:text-ink-900">3. Download the appliance</a></li>
+              <li><a href="#run" class="block text-slate-600 hover:text-ink-900">4. Run a sanitisation job</a></li>
+            </ul>
+          </div>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Deploy</p>
+            <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
+              <li><a href="#boot-usb" class="block text-slate-600 hover:text-ink-900">Boot from USB</a></li>
+              <li><a href="#boot-pxe" class="block text-slate-600 hover:text-ink-900">Boot over the network (PXE)</a></li>
+              <li><a href="#save-targets" class="block text-slate-600 hover:text-ink-900">Report destinations</a></li>
+            </ul>
+          </div>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Reports</p>
+            <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
+              <li><a href="#report" class="block text-slate-600 hover:text-ink-900">5. The report</a></li>
+              <li><a href="#verify" class="block text-slate-600 hover:text-ink-900">6. Verify a report</a></li>
+              <li><a href="#certificate" class="block text-slate-600 hover:text-ink-900">7. Certificate of Destruction</a></li>
+            </ul>
+          </div>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Reference</p>
+            <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
+              <li><a href="#licensing" class="block text-slate-600 hover:text-ink-900">8. Licensing</a></li>
+              <li><a href="#media" class="block text-slate-600 hover:text-ink-900">9. Supported media</a></li>
+              <li><a href="#kernel-params" class="block text-slate-600 hover:text-ink-900">10. Kernel parameters</a></li>
+            </ul>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Content -->
+      <div class="min-w-0 max-w-3xl space-y-14">
+        <!-- Mobile jump nav -->
+        <nav class="flex flex-wrap gap-2 text-sm lg:hidden" aria-label="Table of contents">
+          <a href="#quickstart" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Quick start</a>
+          <a href="#build" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Download</a>
+          <a href="#run" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Run</a>
+          <a href="#boot-usb" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">USB</a>
+          <a href="#boot-pxe" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">PXE</a>
+          <a href="#save-targets" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Save targets</a>
+          <a href="#report" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Report</a>
+          <a href="#verify" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Verify</a>
+          <a href="#certificate" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Certify</a>
+          <a href="#licensing" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Licensing</a>
+          <a href="#media" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Media</a>
+          <a href="#kernel-params" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Params</a>
+          <a href="#requirements" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Requirements</a>
+        </nav>
+
+        <!-- Part 1 -->
+        <section>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 1 · Get started</p>
+          <div class="mt-5 space-y-10">
+            <div id="quickstart">
+              <h2 class="text-xl font-bold text-ink-900">1. Quick start</h2>
+              <p class="mt-2 text-sm text-slate-600">New to tScrub? Start with the <a href="/getting-started" class="font-medium text-brand-600 hover:text-brand-700">Getting started guide</a> — account → licence → boot → report → certificate.</p>
+              <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600">
+                <li>Boot the tScrub appliance image from USB or PXE and run it.</li>
+                <li>Enter a 5-digit Chain of Custody ID (COCID) when prompted.</li>
+                <li>tScrub discovers every drive and maps it to its strongest wipe capability.</li>
+                <li>Watch live progress; each drive ends with a status (COMPLETED, FROZEN, BLOCKED, or FAILED).</li>
+                <li>Collect the report files, which are written to the report directory.</li>
+              </ol>
+            </div>
+            <div id="requirements">
+              <h2 class="text-xl font-bold text-ink-900">2. System requirements</h2>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                <li>x86-64 machine with USB or PXE boot</li>
+                <li>1 GB RAM (erasure runs in parallel)</li>
+                <li>Dependencies are bundled in the appliance image: <code class="font-mono">nvme-cli</code>, <code class="font-mono">hdparm</code>, <code class="font-mono">nwipe</code> (SCSI), <code class="font-mono">smartctl</code> (SMART), <code class="font-mono">lftp</code> (upload), <code class="font-mono">openssl</code> (signing)</li>
+                <li>Drives must not be in use by the host OS</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- Part 2 -->
+        <section>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 2 · Build &amp; run</p>
+          <div class="mt-5 space-y-10">
+            <div id="build">
+              <h2 class="text-xl font-bold text-ink-900">3. Download the appliance</h2>
+              <p class="mt-3 text-sm text-slate-600">tScrub ships ready to boot — there is nothing to compile. Download the appliance from the <a href="/download" class="font-medium text-brand-600 hover:text-brand-700">Download page</a> (no account needed), then sign in and issue your licence from the Licences page:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                <li>The appliance ISO — a hybrid ISO that boots on BIOS and UEFI, with <code class="font-mono">sedutil-cli</code>, <code class="font-mono">curl</code>, <code class="font-mono">lftp</code> and the report tooling built in.</li>
+                <li>A <code class="font-mono">.lic</code> file — every appliance needs one (the free tier is included).</li>
+              </ul>
+              <p class="mt-3 text-sm text-slate-600">tScrub is a single self-contained script embedded in the image (at <code class="font-mono">/usr/bin/tscrub.sh</code>). Security teams can extract it from the ISO to audit it line by line.</p>
+            </div>
+            <div id="run">
+              <h2 class="text-xl font-bold text-ink-900">4. Run a sanitisation job</h2>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub                      # full run (wipes all supported drives)
+tscrub --dry-run            # discover and classify, wipe nothing
+tscrub --output /mnt/usb    # write the report to /mnt/usb
+tscrub --dry-run --simulate-running-eta=10   # simulated run with live progress</pre>
+              <p class="mt-3 text-sm text-slate-600">tScrub prompts for a COCID, then wipes all supported drives in parallel. Frozen, locked, or blocked drives are flagged rather than marked clean.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Part 2b · Deploy -->
+        <section>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 2b · Deploy — USB &amp; PXE</p>
+          <div class="mt-5 space-y-10">
+            <div id="boot-usb">
+              <h2 class="text-xl font-bold text-ink-900">Boot the appliance from USB</h2>
+              <p class="mt-3 text-sm text-slate-600">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~150 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
+              <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><span class="font-semibold">Secure Boot supported:</span> the appliance boots with UEFI Secure Boot on, via a signed shim + MOK chain. On the <strong>first</strong> boot on a machine, shim opens <strong>MokManager</strong> — choose <em>Enroll MOK → Continue → Yes</em>, then reboot. After that it boots normally. (You can also simply disable Secure Boot or enable CSM/Legacy boot.)</p>
+
+              <div class="mt-5" data-ostabs>
+                <div class="border-b border-slate-200">
+                  <ul class="-mb-px flex flex-wrap gap-1 text-sm font-medium" role="tablist">
+                    <li role="presentation"><button type="button" data-ostab data-ostab-target="#boot-usb-win" class="inline-block border-b-2 border-brand-600 px-4 py-2 font-semibold text-brand-700" role="tab" aria-selected="true" aria-controls="boot-usb-win">Windows</button></li>
+                    <li role="presentation"><button type="button" data-ostab data-ostab-target="#boot-usb-mac" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500" role="tab" aria-selected="false" aria-controls="boot-usb-mac">macOS</button></li>
+                    <li role="presentation"><button type="button" data-ostab data-ostab-target="#boot-usb-linux" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500" role="tab" aria-selected="false" aria-controls="boot-usb-linux">Linux / Unix</button></li>
+                  </ul>
+                </div>
+                <div class="grid pt-4">
+                  <div id="boot-usb-win" data-ostab-panel role="tabpanel" aria-labelledby="boot-usb-win" class="col-start-1 row-start-1 visible">
+                    <ol class="list-decimal space-y-2 pl-5 text-sm text-slate-600">
+                      <li>Insert a USB stick (4 GB or larger — its contents will be erased).</li>
+                      <li>Open <a href="https://rufus.ie" class="font-medium text-brand-600 hover:underline">Rufus</a> and select your device.</li>
+                      <li><span class="font-semibold text-ink-900">Boot selection:</span> the downloaded ISO; <span class="font-semibold text-ink-900">Partition scheme:</span> MBR for BIOS/CSM machines, GPT for pure UEFI; <span class="font-semibold text-ink-900">File system:</span> FAT32.</li>
+                      <li>Click <span class="font-semibold">Start</span>. When Rufus asks, choose <span class="font-semibold">Write in DD Image mode</span> — this writes the ISO byte-for-byte (equivalent to <code class="font-mono">dd</code>) so it boots correctly.</li>
+                    </ol>
+                  </div>
+                  <div id="boot-usb-mac" data-ostab-panel role="tabpanel" aria-labelledby="boot-usb-mac" class="col-start-1 row-start-1 invisible">
+                    <p class="text-sm text-slate-600">Either use the <strong>balenaEtcher</strong> GUI (flash the ISO to the stick in three clicks), or the command line:</p>
+                    <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">diskutil list                          # identify your stick, e.g. /dev/disk2
+diskutil unmountDisk /dev/disk2
+sudo dd if=&lt;downloaded-iso&gt; of=/dev/rdisk2 bs=4m && sync</pre>
+                    <p class="mt-2 text-sm text-slate-600">Use the raw device (<code class="font-mono">/dev/rdisk2</code>, not <code class="font-mono">/dev/disk2</code>) — it writes much faster.</p>
+                  </div>
+                  <div id="boot-usb-linux" data-ostab-panel role="tabpanel" aria-labelledby="boot-usb-linux" class="col-start-1 row-start-1 invisible">
+                    <pre class="overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">lsblk                                   # identify the stick, e.g. /dev/sdX
+sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
+# equivalent: sudo cp &lt;downloaded-iso&gt; /dev/sdX && sync</pre>
+                    <p class="mt-2 text-sm text-slate-600">Write to the whole device (<code class="font-mono">/dev/sdX</code>), never a partition (<code class="font-mono">/dev/sdX1</code>).</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="boot-pxe">
+              <h2 class="text-xl font-bold text-ink-900">Boot over the network (PXE)</h2>
+              <p class="mt-3 text-sm text-slate-600">The appliance kernel is <strong>self-contained</strong> (its initramfs is embedded, gzip-compressed, inside <code class="font-mono">bzImage</code>), so PXE needs only the kernel file plus a standard DHCP → TFTP → iPXE chain. This is the same two-stage HTTP-boot pattern used to netboot ShredOS (see the <a href="https://github.com/tadvaas/pxe" class="font-medium text-brand-600 hover:underline">tadvaas/pxe</a> reference setup).</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                <li><strong>DHCP</strong> — set next-server and boot filename: <code class="font-mono">undionly.kpxe</code> (legacy BIOS) or <code class="font-mono">ipxe.efi</code> / <code class="font-mono">snp.efi</code> (UEFI; use <code class="font-mono">snp.efi</code> if an HP or multi-NIC system picks the wrong adapter).</li>
+                <li><strong>TFTP</strong> (<code class="font-mono">tftpd-hpa</code>) — serves the iPXE firmware only.</li>
+                <li><strong>HTTP</strong> (nginx) — serves <code class="font-mono">bzImage</code> (extracted from the ISO).</li>
+              </ul>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">#!ipxe
+:tscrub
+dhcp
+kernel ${base-url}/tscrub/bzImage console=tty3 loglevel=3
+tscrub_upload=https://tscrub.com/api/reports tscrub_api_token=YOUR-64-HEX-TOKEN
+boot</pre>
+              <p class="mt-2 text-sm text-slate-600">There is no <code class="font-mono">initrd</code> line — the initramfs is inside <code class="font-mono">bzImage</code>. Append any tScrub kernel parameters (report destination, licence) directly to the <code class="font-mono">kernel</code> line. The licence can be served over the LAN too: <code class="font-mono">tscrub_license_url=http://pxe-host/tscrub/license.key</code>.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">Getting the kernel (<code class="font-mono">bzImage</code>)</h3>
+              <p class="mt-2 text-sm text-slate-600"><code class="font-mono">bzImage</code> is inside the appliance ISO at <code class="font-mono">/boot/bzImage</code> (shown as <code class="font-mono">/BOOT/BZIMAGE</code> in some listings). Extract it on any OS, then put it on your HTTP server.</p>
+
+              <div class="mt-4" data-ostabs>
+                <div class="border-b border-slate-200">
+                  <ul class="-mb-px flex flex-wrap gap-1 text-sm font-medium" role="tablist">
+                    <li role="presentation"><button type="button" data-ostab data-ostab-target="#get-img-win" class="inline-block border-b-2 border-brand-600 px-4 py-2 font-semibold text-brand-700" role="tab" aria-selected="true" aria-controls="get-img-win">Windows</button></li>
+                    <li role="presentation"><button type="button" data-ostab data-ostab-target="#get-img-mac" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500" role="tab" aria-selected="false" aria-controls="get-img-mac">macOS</button></li>
+                    <li role="presentation"><button type="button" data-ostab data-ostab-target="#get-img-linux" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500" role="tab" aria-selected="false" aria-controls="get-img-linux">Linux / Unix</button></li>
+                  </ul>
+                </div>
+                <div class="grid pt-4">
+                  <div id="get-img-win" data-ostab-panel role="tabpanel" aria-labelledby="get-img-win" class="col-start-1 row-start-1 visible">
+                    <p class="text-sm text-slate-600">Open the ISO with <a href="https://www.7-zip.org" class="font-medium text-brand-600 hover:underline">7-Zip</a> (7-Zip opens ISO files as archives): right-click the downloaded ISO → <span class="font-semibold">7-Zip → Open archive</span>, then drag <code class="font-mono">boot\bzImage</code> out to a folder. Copy it to your HTTP server (e.g. via WinSCP/scp) as <code class="font-mono">bzImage</code>.</p>
+                  </div>
+                  <div id="get-img-mac" data-ostab-panel role="tabpanel" aria-labelledby="get-img-mac" class="col-start-1 row-start-1 invisible">
+                    <pre class="overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200"># mount the ISO, then copy the kernel out
+hdiutil attach &lt;downloaded-iso&gt;
+cp /Volumes/TSCRUB/boot/bzImage ./bzImage
+hdiutil detach /Volumes/TSCRUB
+
+# or extract without mounting (bsdtar ships with macOS)
+bsdtar -xOf &lt;downloaded-iso&gt; boot/bzImage &gt; bzImage</pre>
+                  </div>
+                  <div id="get-img-linux" data-ostab-panel role="tabpanel" aria-labelledby="get-img-linux" class="col-start-1 row-start-1 invisible">
+                    <pre class="overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200"># from the ISO, without mounting (note the ";1" Rock Ridge version suffix)
+isoinfo -x /BOOT/BZIMAGE.;1 -i &lt;downloaded-iso&gt; &gt; bzImage
+
+# or mount it and copy
+mkdir -p /mnt/iso &amp;&amp; mount -o loop,ro &lt;downloaded-iso&gt; /mnt/iso
+cp /mnt/iso/boot/bzImage /srv/pxe/tscrub/bzImage
+umount /mnt/iso</pre>
+                  </div>
+                </div>
+              </div>
+
+              <p class="mt-3 text-sm text-slate-600">Place <code class="font-mono">bzImage</code> on your HTTP server (e.g. nginx <code class="font-mono">/srv/pxe/tscrub/bzImage</code>) and point <code class="font-mono">${base-url}</code> at it in <code class="font-mono">boot.ipxe</code>.</p>
+            </div>
+
+            <div id="save-targets">
+              <h2 class="text-xl font-bold text-ink-900">Report destinations (USB · FTP · dashboard)</h2>
+              <p class="mt-3 text-sm text-slate-600">Where the report lands is chosen at boot time, on the kernel command line (the same place for every boot method). You can combine them — tScrub writes locally first, then uploads.</p>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full min-w-[560px] text-left text-sm">
+                  <thead class="bg-ink-900 text-xs uppercase text-slate-300">
+                    <tr><th class="px-6 py-3 font-semibold">Destination</th><th class="px-6 py-3 font-semibold">Kernel parameter</th><th class="px-6 py-3 font-semibold">Notes</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-3 align-top font-semibold">USB stick (default)</td><td class="px-6 py-3 font-mono text-xs align-top">— (automatic)<br>tscrub_output=/path</td><td class="px-6 py-3 align-top">Writes to the same volume the <code class="font-mono">.lic</code> was found on — the <strong>TSCRUB-USB</strong> partition with <code class="font-mono">dd</code>/Etcher, or the single partition with Rufus ISO mode — under <code class="font-mono">reports/&lt;COCID&gt;/</code>. Override with <code class="font-mono">tscrub_output=</code>.</td></tr>
+                    <tr><td class="px-6 py-3 align-top font-semibold">tScrub dashboard</td><td class="px-6 py-3 font-mono text-xs align-top">tscrub_upload=https://tscrub.com/api/reports<br>tscrub_api_token=&lt;64-hex&gt;</td><td class="px-6 py-3 align-top">Needs <code class="font-mono">curl</code> + a CA bundle — both built into the appliance image. Token is created on the dashboard Licences page.</td></tr>
+                    <tr><td class="px-6 py-3 align-top font-semibold">FTP / SFTP server</td><td class="px-6 py-3 font-mono text-xs align-top">tscrub_output=ftp:host:path:user:pass<br>tscrub_output=sftp:host:path:user:pass</td><td class="px-6 py-3 align-top">Uses <code class="font-mono">lftp</code> (built into the appliance image). Path is relative to the FTP/SFTP user's home. Use a dedicated account; credentials are visible in the boot config.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">Preconfigure with a <code class="font-mono">tscrub.conf</code> file</h3>
+              <p class="mt-2 text-sm text-slate-600">You don't have to edit GRUB or the kernel command line — drop a <code class="font-mono">tscrub.conf</code> on the stick (next to your <code class="font-mono">.lic</code>) and tScrub reads it at boot:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_upload=https://tscrub.com/api/reports
+tscrub_api_token=YOUR-64-HEX-TOKEN
+tscrub_cocid=12345
+tscrub_license_url=http://192.168.1.10/license.key
+tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
+              <p class="mt-3 text-sm text-slate-600">Keys mirror the kernel parameters: <code class="font-mono">tscrub_upload</code> + <code class="font-mono">tscrub_api_token</code> push reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. Command-line flags always take precedence. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
+              <p class="mt-3 text-sm text-slate-600">Full details and examples are in <a href="#report" class="font-medium text-brand-600 hover:underline">section 5, Getting reports off the appliance</a>.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Part 3 -->
+        <section>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 3 · Reports</p>
+          <div class="mt-5 space-y-10">
+            <div id="report">
+              <h2 class="text-xl font-bold text-ink-900">5. The report</h2>
+              <p class="mt-3 text-sm text-slate-600">Each job produces a CSV report plus a JSON manifest; a signature sidecar is written whenever OpenSSL is available (always, on the appliance image):</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tScrub_48213_20260912T103000Z.csv    # human-readable report (one row per drive)
+tScrub_48213_20260912T103000Z.json   # manifest (SHA-256, public key, drive summary)
+tScrub_48213_20260912T103000Z.sig    # base64 Ed25519 signature (vendor key on paid, appliance key on free)</pre>
+              <p class="mt-3 text-sm text-slate-600">The CSV columns are: <code class="font-mono">COCID, Timestamp, Model, Serial, Size, Bus, Type, Device, Class, Certification, Method, FinalStatus, SMART, TempC, PowerOnHours, PowerCycles, ReallocSectors, PctUsed, AvailSpare, TBW_TB, SMARTPOST, TempCPost, PowerOnHoursPost, System, SystemSerial, BaseboardSerial, CPU, GPU, RAM</code> — the machine's make, serials, processors, graphics, and memory are repeated on every drive row.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">Getting reports off the appliance</h3>
+              <p class="mt-2 text-sm text-slate-600">At the end of a run tScrub writes the report files locally, then optionally uploads them. Everything is configured at <strong>boot time</strong> on the kernel command line (PXE, GRUB, or the appliance boot entry) — not inside the script.</p>
+
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Where the report is written</span> — tScrub saves to the <strong>same volume it found your <code class="font-mono">.lic</code> on</strong> (with <code class="font-mono">dd</code>/Etcher that's the <strong>TSCRUB-USB</strong> partition; with Rufus ISO mode it's the single writable partition), then falls back to a FAT/exFAT scan, then RAM. Reports are grouped under <code class="font-mono">reports/&lt;COCID&gt;/</code>, and the partition is synced and unmounted before reboot so nothing is lost on power-off. Override the location with <code class="font-mono">tscrub_output=</code>:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_output=/mnt/usb</pre>
+              <p class="mt-2 text-sm text-slate-600">Layout on the stick:</p>
+              <pre class="mt-2 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">reports/
+└── 11111/
+    ├── tScrub_11111_20260922T161328Z.csv
+    ├── tScrub_11111_20260922T161328Z.json
+    └── tScrub_11111_20260922T161328Z.csv.sig</pre>
+
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Push to the dashboard (network)</span> — send the report straight to your tScrub account. The token comes from the Licences page of your dashboard. The appliance image ships <code class="font-mono">curl</code> and a CA-certificate bundle, so this works out of the box:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_upload=https://tscrub.com/api/reports
+tscrub_api_token=YOUR-64-HEX-TOKEN</pre>
+
+              <p class="mt-3 text-sm text-slate-600"><span class="font-semibold text-ink-900">Upload via FTP or SFTP</span> — upload the report files to an FTP or SFTP server. Both run over <code class="font-mono">lftp</code>, which is built into the appliance image:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_output=ftp:host:path:user:password
+# e.g. tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret
+# SFTP (encrypted):
+tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
+              <p class="mt-3 text-sm text-slate-600"><code class="font-mono">ftp</code> or <code class="font-mono">sftp</code> is the protocol. <code class="font-mono">host</code> is the server, <code class="font-mono">path</code> is the remote directory (relative to the user's home, no leading slash), then the username and password.</p>
+              <p class="mt-3 text-sm text-slate-600">The password must not contain spaces, and credentials are visible in the boot configuration — use a dedicated upload account.</p>
+            </div>
+            <div id="verify">
+              <h2 class="text-xl font-bold text-ink-900">6. Verify a report</h2>
+              <p class="mt-3 text-sm text-slate-600">Anyone can verify that a report is unchanged and, where licensed, attributable:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub verify tScrub_48213_20260912T103000Z.csv
+SHA-256: 4614d837...
+Manifest: OK
+Signature: VALID</pre>
+              <p class="mt-3 text-sm text-slate-600">You can pass a public key explicitly: <code class="font-mono">tscrub verify report.csv public-key.pem</code>. A tampered report fails with <code class="font-mono">MISMATCH</code> or <code class="font-mono">INVALID</code>. A report with no signature (no OpenSSL available) shows <code class="font-mono">Signature: none (checksum only)</code>.</p>
+              <p class="mt-3 text-sm text-slate-600">The official tScrub vendor public key fingerprint (for audit reference):</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</pre>
+            </div>
+            <div id="certificate">
+              <h2 class="text-xl font-bold text-ink-900">7. Certificate of Destruction</h2>
+              <p class="mt-3 text-sm text-slate-600">Turn one or more tScrub reports into a single, printable Certificate of Destruction. Upload the <code class="font-mono">.csv</code> files (and, if you have them, the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars) on the dashboard <a href="/dashboard/reports" class="text-brand-600 hover:underline">Reports page</a>, then select the Chain of Custody ID on the <a href="/dashboard/certificates" class="text-brand-600 hover:underline">Certificates page</a> to generate a consolidated certificate.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">What happens when you upload</h3>
+              <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600">
+                <li>Each <code class="font-mono">.csv</code> is hashed (SHA-256) and, when a manifest is present, checked against its recorded checksum.</li>
+                <li>Where a report is signed, the Ed25519 signature is verified against the key embedded in the manifest.</li>
+                <li>Drives from every report with the same COCID are merged into a single certificate, sorted by wipe time.</li>
+                <li>A tamper-evident PDF is generated with a unique Certificate ID, a device annex (Annex A), a pre/post-wipe SMART annex (Annex B, when the report includes it), and a verification QR code. Signed (paid) certificates also carry a digital signature.</li>
+              </ol>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">Verifying a certificate online</h3>
+              <p class="mt-3 text-sm text-slate-600">Each certificate carries a unique Certificate ID (<code class="font-mono">COD-…</code>). Scanning the QR code — or visiting <code class="font-mono">tscrub.com/verify?cert=COD-…</code> — looks up the issuance record and confirms:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                <li>the Certificate ID, Chain of Custody ID, and sanitisation window;</li>
+                <li>device, method, and run counts;</li>
+                <li>the integrity and signature status recorded at issuance;</li>
+                <li>a SHA-256 hash of the PDF itself, so the document can be checked for alteration since issue.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- Part 4 -->
+        <section>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 4 · Reference</p>
+          <div class="mt-5 space-y-10">
+            <div id="licensing">
+              <h2 class="text-xl font-bold text-ink-900">8. Licensing</h2>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full min-w-[480px] text-left text-sm">
+                  <thead class="bg-ink-900 text-xs uppercase text-slate-300">
+                    <tr><th class="px-6 py-3 font-semibold">Tier</th><th class="px-6 py-3 font-semibold">Report signing</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-4">Free</td><td class="px-6 py-4">Self-signed, appliance-generated key (tamper-evident, not attributable)</td></tr>
+                    <tr><td class="px-6 py-4">Pay-as-you-go / Team / Enterprise</td><td class="px-6 py-4">Vendor-issued key (proves attribution to a customer)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="mt-3 text-sm text-slate-600">Licences are self-serve: sign in at tscrub.com and issue one from the Licences page of your dashboard. You'll receive a <code class="font-mono">.lic</code> JSON file. Free licences carry no report key, so the appliance self-signs reports with its own generated key (tamper-evident, not attributable); paid licences embed a vendor-signed report key, so the appliance signs reports with that key, the licence verifies against the tScrub vendor key, and uploaded reports are matched back to that key so they are attributable.</p>
+              <h3 class="mt-6 text-base font-bold text-ink-900">Attaching a licence</h3>
+              <p class="mt-2 text-sm text-slate-600">The appliance looks for a licence on the <strong>boot USB first</strong> — drop your <code class="font-mono">.lic</code> at the root of the stick (as <code class="font-mono">license.key</code> or any <code class="font-mono">*.lic</code>) and it is picked up automatically. Failing that it falls back to <code class="font-mono">/etc/tscrub/license.key</code>, or you can point at it explicitly with <code class="font-mono">--license</code>:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">mkdir -p /etc/tscrub && cp "Acme-ITAD-Ltd-2027-09-12.lic" /etc/tscrub/license.key
+tscrub --license /path/to/Acme-ITAD-Ltd-2027-09-12.lic</pre>
+              <p class="mt-3 text-sm text-slate-600">For appliance / PXE boots, set the licence path on the kernel command line:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_license=/etc/tscrub/license.key</pre>
+              <p class="mt-3 text-sm text-slate-600">The licence can also be fetched over the local network instead of a filesystem path. Use <code class="font-mono">--license-url</code> when running directly, or the URL form of the kernel parameter for appliance/PXE boots:</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub --license-url http://192.168.1.10/license.key
+tscrub_license_url=http://192.168.1.10/license.key</pre>
+              <p class="mt-3 text-sm text-slate-600">Fetching requires <code class="font-mono">curl</code> or <code class="font-mono">wget</code> on the appliance. Because a <code class="font-mono">.lic</code> contains the <strong>private</strong> report-signing key, host it on an authenticated or isolated LAN endpoint — not a public URL.</p>
+              <p class="mt-3 text-sm text-slate-600">Every appliance requires a valid licence — even the free tier. Without one, tScrub exits with an error.</p>
+              <p class="mt-3 text-sm text-slate-600">Vendor public key (published for audit verification):</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAbBDdsD4wQh7aoBRe890V8LcTOZNe6n6Cvh0AkrBA4B4=
+-----END PUBLIC KEY-----</pre>
+              <p class="mt-3 text-sm text-slate-600">Fingerprint: <code class="font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</code></p>
+              <h3 class="mt-6 text-base font-bold text-ink-900">Release &amp; key history</h3>
+              <p class="mt-2 text-sm text-slate-600">Each release is checksummed and signed; the signing key is recorded so older downloads and licences stay verifiable. Reports themselves verify against their own embedded key, so they never depend on this history.</p>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full min-w-[720px] text-left text-sm">
+                  <thead class="bg-ink-900 text-xs uppercase text-slate-300">
+                    <tr><th class="px-6 py-3 font-semibold">Release</th><th class="px-6 py-3 font-semibold">SHA-256</th><th class="px-6 py-3 font-semibold">Signing key fingerprint</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.37</td><td class="px-6 py-3 font-mono text-xs">c9719d61495bb7c30129e76296df0b8afac3220a183278cf8e360a6526e29c09</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.36</td><td class="px-6 py-3 font-mono text-xs">b1a961bac1d5f0470cf55dd31a0655b45995482aa418d80eb2baf0d2dacb1f4f</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.35</td><td class="px-6 py-3 font-mono text-xs">a2ffa69d360b24ec1a3632f16f7fd183e3bec706372332b76ce6f5cebec56b69</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.34</td><td class="px-6 py-3 font-mono text-xs">88580e54627b69e466e7e5a947241d2aac1025d3f44ad10eac558015e2f7ba18</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.32</td><td class="px-6 py-3 font-mono text-xs">f02a809312e245e44b2b05f1eef149aa8e85e4ee48700aec944e70137cfd9eb7</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.31</td><td class="px-6 py-3 font-mono text-xs">a9ac1c76f1528791fd6070b89bbee2d5448aa68cfc50900d1c53add60c64167c</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.30</td><td class="px-6 py-3 font-mono text-xs">d0348dec5b4388ee5407758b262284838208249eeb7b3018093dc6ad90fc4e20</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.29</td><td class="px-6 py-3 font-mono text-xs">1047ffa11318c3e81d28794bfad7de76a3c206d6f83a5174789909789bc26b93</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.28</td><td class="px-6 py-3 font-mono text-xs">6282c3f19e852f8d1a8e870ac856ad8335be6cbe1f2de8b13a01ec49186ebb79</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.27</td><td class="px-6 py-3 font-mono text-xs">27860ac93c64349182039ddf4b884056a0b16973e3fc28db65d8a0c8a6f9a002</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.26</td><td class="px-6 py-3 font-mono text-xs">6c87fffaf92224cd47a68c59d2e55a74cbad4531395b4bab68279d86def4ac28</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.25</td><td class="px-6 py-3 font-mono text-xs">8c949e36731f1f7351e5c2a1b8ffca5d3d5bc49e807bdb8e4298a77285273871</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.24</td><td class="px-6 py-3 font-mono text-xs">a4e053fc56bd2947aaa4139073247efb5c534901508aae77eb9366296b1d864e</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.23</td><td class="px-6 py-3 font-mono text-xs">bcb9b666f2b4a5de5143259c36ba23b82da8c234b652e98bfea50c14dec11f09</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.22</td><td class="px-6 py-3 font-mono text-xs">ce7093f9c4c16e095a5fc5b04cadc7e9dec7d0bccb90433d13b6b8ce1fb721df</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.21</td><td class="px-6 py-3 font-mono text-xs">f44dfa3382334fdc29842eb8a31e70d0dfe0bddde4f9b7191f8576725886b742</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.20</td><td class="px-6 py-3 font-mono text-xs">6e5735c88ecbf774312fdfde672efbfdffb4a178d02008c3b6d46137449fe910</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.19</td><td class="px-6 py-3 font-mono text-xs">83c6bbdde86be32bdc2f9737884370082589017f2bc9e2db704df8d3da4bf3ad</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.18</td><td class="px-6 py-3 font-mono text-xs">e85fa74dc80d9ed96a309ef3840f6f26d3782e37ba3905756707aa649723c498</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.17</td><td class="px-6 py-3 font-mono text-xs">3f0e76abbdbcfd321896cf4c900cf2a059d70eb4ba174a049dca701a8118c5f5</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.16</td><td class="px-6 py-3 font-mono text-xs">850f875bc42dcae06158db9c6a03cd393af50248d1fe34545a7672b20f9bc77c</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.15</td><td class="px-6 py-3 font-mono text-xs">9960edcfe69cf37527b04b6968c0c24d860cf45f80920844731958b6b0b9ef13</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.14</td><td class="px-6 py-3 font-mono text-xs">9b61bcfedba59ef3f857378c561c1111304c4524ef8832c6934a3439f5914da2</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.13</td><td class="px-6 py-3 font-mono text-xs">03c17cff51850227952a5cdb5b0f3d0cf5f7c2d164521943f1d5da09e120c1dc</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.12</td><td class="px-6 py-3 font-mono text-xs">c88c8776c19380846aca14d7721f364adc63993929a53d5120df10746b8eaff2</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.11</td><td class="px-6 py-3 font-mono text-xs">67e6bcbf5f028fd1932ab4e91b98bbf74734994498ae8e9af1cbf74db03da6ed</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.10</td><td class="px-6 py-3 font-mono text-xs">9e97d6f86e4e0c811840b956908690221ed1f89918cbe9e9e186b6be77214eff</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.9</td><td class="px-6 py-3 font-mono text-xs">e0083118e2f1f4ce8759c6045775d20d2c0049e1d617d5a379add3b57abd2a5a</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.8</td><td class="px-6 py-3 font-mono text-xs">e4d8b49c218ecd99c17ac700b18747bea791e3f3601c7baa3ed1f32d0634d4c9</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.7</td><td class="px-6 py-3 font-mono text-xs">de1e8dad1a358acb383a3ca0e7ab3ad10de82d6a1f076d733bc144998c2a4dcd</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.6</td><td class="px-6 py-3 font-mono text-xs">93f85aaf6d9f742d55638fc6fd577610307d5fdd86c42b619e9ecbd75a88c6b9</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.5</td><td class="px-6 py-3 font-mono text-xs">d868c74e4bb50d25575ff6c33f595e27eaacf9cc929d5001348f4fec817e6a98</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.4</td><td class="px-6 py-3 font-mono text-xs">8b0ea2c6ae6036a63b87014cb8808143523262a92cf57db8cc56e2d796680bc4</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.3</td><td class="px-6 py-3 font-mono text-xs">a9422a8ed5b3db589bb175b0c3b6704e54e6a3e7a91cfe190db54a82d7a8e8b2</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.2</td><td class="px-6 py-3 font-mono text-xs">a8f44ffdd94550445b3d83a4cc7013490998242cc7b3f58d2fdbb5cff996c0df</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4.1</td><td class="px-6 py-3 font-mono text-xs">ef843f04cc51851896727e432ba55586c26e41b3ee9493956c952abcfcb94958</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.4</td><td class="px-6 py-3 font-mono text-xs">36348783dd508dfae90804edc792286958483a1ce337bea33e144d8c6e09ec5d</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.3</td><td class="px-6 py-3 font-mono text-xs">425dce8629ebfa38a671d992e884bbfcfbfecfc558113d0241acac734d21c3b5</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.2</td><td class="px-6 py-3 font-mono text-xs">80182216d58926902627bd4a68365ba446410b88683d9f41dcc028fc963e7df4</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.1</td><td class="px-6 py-3 font-mono text-xs">e87549ead705b5d618c8fd21bd18375e21d4088bb4e3d8205770136432323ee0</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                    <tr><td class="px-6 py-3 whitespace-nowrap">tscrub v1.0</td><td class="px-6 py-3 font-mono text-xs">85e83b2f09dcc020d96787b4d92ce8604e475364c0856d61e8253df9b11b67a0</td><td class="px-6 py-3 font-mono text-xs">be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="mt-2 text-sm text-slate-600">When the vendor key is rotated, the old <strong>public</strong> key is listed here (never deleted) so licences and releases signed by it remain verifiable.</p>
+            </div>
+            <div id="media">
+              <h2 class="text-xl font-bold text-ink-900">9. Supported media</h2>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full min-w-[480px] text-left text-sm">
+                  <thead class="bg-ink-900 text-xs uppercase text-slate-300">
+                    <tr><th class="px-6 py-3 font-semibold">Drive type</th><th class="px-6 py-3 font-semibold">Method</th><th class="px-6 py-3 font-semibold">Outcome</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-4">NVMe</td><td class="px-6 py-4">Crypto / block / overwrite sanitise, or format</td><td class="px-6 py-4">Purge / Clear</td></tr>
+                    <tr><td class="px-6 py-4">SATA / ATA</td><td class="px-6 py-4">Enhanced or standard security erase</td><td class="px-6 py-4">Purge / Clear</td></tr>
+                    <tr><td class="px-6 py-4">SCSI / SAS</td><td class="px-6 py-4">nwipe quick</td><td class="px-6 py-4">Clear</td></tr>
+                    <tr><td class="px-6 py-4">Frozen / locked / unsupported</td><td class="px-6 py-4">—</td><td class="px-6 py-4">Flagged for physical destruction</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div id="kernel-params">
+              <h2 class="text-xl font-bold text-ink-900">10. Kernel parameters &amp; boot configuration</h2>
+              <p class="mt-3 text-sm text-slate-600">Everything tScrub needs at boot is set on the <strong>kernel command line</strong>; these parameters are read from <code class="font-mono">/proc/cmdline</code> at startup.</p>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full min-w-[640px] text-left text-sm">
+                  <thead class="bg-ink-900 text-xs uppercase text-slate-300">
+                    <tr><th class="px-6 py-3 font-semibold">Parameter</th><th class="px-6 py-3 font-semibold">Purpose</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_cocid=12345</td><td class="px-6 py-3">Chain of Custody ID. Setting it skips the prompt and runs non-interactively (autonuke).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_license=/path.lic</td><td class="px-6 py-3">Read the licence from a filesystem path.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_license_url=http://…</td><td class="px-6 py-3">Fetch the licence over the network.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_output=/mnt/usb</td><td class="px-6 py-3">Where to write the report (a filesystem path).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_output=ftp:host:path:user:pass</td><td class="px-6 py-3">Upload the report over FTP.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_output=sftp:host:path:user:pass</td><td class="px-6 py-3">Upload the report over SFTP (encrypted).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_upload=https://tscrub.com/api/reports</td><td class="px-6 py-3">Push the report to your dashboard (pairs with the token below).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_api_token=&lt;64-hex&gt;</td><td class="px-6 py-3">Dashboard API token from the Licences page.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">shredos_output=ftp:host:path:user:pass</td><td class="px-6 py-3"><em>Deprecated</em> — former name for <code class="font-mono">tscrub_output=ftp:…</code>. Still accepted for backwards compatibility.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="mt-3 text-sm text-slate-600">Defaults: the licence is read from the boot USB (a <code class="font-mono">license.key</code> or <code class="font-mono">*.lic</code> at the stick's root), then <code class="font-mono">/etc/tscrub/license.key</code>, unless <code class="font-mono">tscrub_license=</code> / <code class="font-mono">tscrub_license_url=</code> is set; the report is written to the first writable FAT32 partition (the boot stick), then RAM, unless <code class="font-mono">tscrub_output=</code> overrides it.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900">Where to set them</h3>
+              <p class="mt-2 text-sm text-slate-600">The kernel command line is supplied by the bootloader, so how you set it depends on how you boot:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                <li><strong>USB (persistent)</strong> — the boot partition is a writable FAT32 volume, so after writing the image you can edit <code class="font-mono">/boot/grub/grub.cfg</code> (BIOS) or <code class="font-mono">/EFI/BOOT/grub.cfg</code> (UEFI) on the stick, appending your parameters to the <code class="font-mono">linux</code> line.</li>
+                <li><strong>USB (one-off)</strong> — edit the entry at boot instead: highlight it, press <kbd>e</kbd>, append your parameters after <code class="font-mono">console=tty3 loglevel=3</code>, then press <kbd>Ctrl</kbd>+<kbd>X</kbd>. This affects that boot only.</li>
+                <li><strong>PXE (best for fleets)</strong> — put the parameters on the <code class="font-mono">kernel</code> line of your <code class="font-mono">boot.ipxe</code> (see <a href="#boot-pxe" class="font-medium text-brand-600 hover:underline">Boot over the network</a>).</li>
+              </ul>
+              <h3 class="mt-6 text-base font-bold text-ink-900">Command-line flags</h3>
+              <p class="mt-2 text-sm text-slate-600">The same settings can be passed as flags when you run <code class="font-mono">tscrub</code> directly (for example on the appliance console). There is also a <code class="font-mono">verify</code> subcommand for checking reports offline.</p>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full min-w-[560px] text-left text-sm">
+                  <thead class="bg-ink-900 text-xs uppercase text-slate-300">
+                    <tr><th class="px-6 py-3 font-semibold">Flag</th><th class="px-6 py-3 font-semibold">Purpose</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 bg-white">
+                    <tr><td class="px-6 py-3 font-mono text-xs">--cocid 12345</td><td class="px-6 py-3">Chain of Custody ID; runs non-interactively (autonuke).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--license /path.lic</td><td class="px-6 py-3">Read the licence from a path (default: boot USB, then <code class="font-mono">/etc/tscrub/license.key</code>).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--license-url URL</td><td class="px-6 py-3">Fetch the licence from a URL.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--output /mnt/usb</td><td class="px-6 py-3">Write reports to a directory (default: boot USB, then RAM).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--dry-run, -n</td><td class="px-6 py-3">Discover and classify drives without wiping anything.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--simulate-running-eta=MINUTES</td><td class="px-6 py-3">With <code class="font-mono">--dry-run</code>, simulate a running job's live progress.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">verify report.csv [pub.pem]</td><td class="px-6 py-3">Verify a report's SHA-256 and (optional) Ed25519 signature.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--help, -h</td><td class="px-6 py-3">Print usage.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="relative overflow-hidden bg-gradient-to-br from-brand-600 to-brand-700 text-white">
+    <div class="pointer-events-none absolute inset-0 bg-grid-ink"></div>
+    <div class="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-16 text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Ready to try it?</h2>
+      <p class="max-w-xl text-brand-50">Download the appliance image and issue your licence, or see pricing for signed reports and support.</p>
+      <div class="flex flex-wrap justify-center gap-4">
+        <a href="download" class="inline-flex items-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">Download tScrub</a>
+        <a href="download" class="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">View pricing</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-ink-900 text-slate-400">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="compliance" class="hover:text-white">Compliance</a></li>
+        <li><a href="pricing" class="hover:text-white">Pricing</a></li>
+        <li><a href="download" class="hover:text-white">Download</a></li>
+        <li><a href="faq" class="hover:text-white">FAQ</a></li>
+        <li><a href="docs" class="hover:text-white">Docs</a></li>
+        <li><a href="resources" class="hover:text-white">Resources</a></li>
+        <li><a href="privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="terms" class="hover:text-white">Terms</a></li>
+        <li><a href="contact" class="hover:text-white">Contact</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+  <script>
+    // Per-OS tabs (used by the USB and PXE kernel-extraction sections).
+    // Panels are stacked in a single grid cell so each group keeps the height of
+    // its tallest panel and the page doesn't jump when switching OS.
+    (function () {
+      var ACTIVE = ['border-brand-600', 'font-semibold', 'text-brand-700'];
+      var INACTIVE = ['border-transparent', 'text-slate-500'];
+      var SHOW = ['visible'];
+      var HIDE = ['invisible'];
+      function setTab(group, btn) {
+        group.querySelectorAll('[data-ostab]').forEach(function (b) {
+          b.classList.remove.apply(b.classList, ACTIVE);
+          b.classList.add.apply(b.classList, INACTIVE);
+          b.setAttribute('aria-selected', 'false');
+        });
+        group.querySelectorAll('[data-ostab-panel]').forEach(function (p) {
+          p.classList.remove.apply(p.classList, SHOW);
+          p.classList.add.apply(p.classList, HIDE);
+          p.setAttribute('aria-hidden', 'true');
+        });
+        btn.classList.add.apply(btn.classList, ACTIVE);
+        btn.classList.remove.apply(btn.classList, INACTIVE);
+        btn.setAttribute('aria-selected', 'true');
+        var panel = group.querySelector(btn.getAttribute('data-ostab-target'));
+        if (panel) {
+          panel.classList.add.apply(panel.classList, SHOW);
+          panel.classList.remove.apply(panel.classList, HIDE);
+          panel.setAttribute('aria-hidden', 'false');
+        }
+      }
+      document.querySelectorAll('[data-ostabs]').forEach(function (group) {
+        group.querySelectorAll('[data-ostab]').forEach(function (btn) {
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            setTab(group, btn);
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

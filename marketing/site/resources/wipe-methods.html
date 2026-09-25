@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <title>Disk Wipe Methods: Secure Erase, Sanitize &amp; Overwrite — tScrub</title>
+  <link rel="canonical" href="https://tscrub.com/resources/wipe-methods" />
+  <meta name="description" content="Secure Erase vs Enhanced Erase, NVMe sanitise vs format, crypto vs block erase, and software overwrite — explained with NIST 800-88 outcomes." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Disk Wipe Methods: Secure Erase, Sanitize & Overwrite",
+    "description": "Secure Erase vs Enhanced Erase, NVMe sanitise vs format, crypto vs block erase, and software overwrite, with NIST 800-88 outcomes.",
+    "datePublished": "2026-09-22",
+    "dateModified": "2026-09-22",
+    "author": {"@type": "Organization", "name": "tScrub"},
+    "publisher": {"@type": "Organization", "name": "tScrub", "url": "https://tscrub.com"},
+    "mainEntityOfPage": "https://tscrub.com/resources/wipe-methods"
+  }
+  </script>
+</head>
+<body class="bg-white text-slate-800">
+
+  <!-- ============ NAVBAR ============ -->
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
+          <li class="relative">
+            <button id="mega-menu-btn" data-dropdown-toggle="mega-menu" data-dropdown-placement="bottom-start" data-dropdown-offset-distance="8" class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">
+              Product
+              <svg class="h-4 w-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="mega-menu" class="absolute left-0 top-full z-50 hidden w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl sm:w-80">
+              <a href="/how-it-works" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">How it works</span>
+                <span class="block text-xs leading-snug text-slate-500">Erase, verify and report in one boot.</span>
+              </span>
+            </a>
+              <a href="/compliance" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Compliance</span>
+                <span class="block text-xs leading-snug text-slate-500">NIST 800-88, GDPR, HIPAA &amp; ISO 27001.</span>
+              </span>
+            </a>
+              <a href="/compare" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Compare</span>
+                <span class="block text-xs leading-snug text-slate-500">How tScrub stacks up against the rest.</span>
+              </span>
+            </a>
+              <a href="/getting-started" class="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-slate-50">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-ink-900">Getting started</span>
+                <span class="block text-xs leading-snug text-slate-500">Boot and run in minutes.</span>
+              </span>
+            </a>
+              <div class="mt-1 border-t border-slate-100 pt-1">
+                <a href="/pricing" class="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50">
+                  View pricing
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                </a>
+              </div>
+            </div>
+          </li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm font-semibold text-ink-900">Resources</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/download" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Download</a></li>
+          <li><a href="/faq" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">FAQ</a></li>
+          <li><a href="/contact" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Contact</a></li>
+        </ul>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-4">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ BREADCRUMB ============ -->
+  <nav class="mx-auto max-w-3xl px-4 pt-8" aria-label="Breadcrumb">
+    <ol class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+      <li><a href="/" class="hover:text-brand-600">Home</a></li>
+      <li aria-hidden="true">/</li>
+      <li><a href="/resources" class="hover:text-brand-600">Resources</a></li>
+      <li aria-hidden="true">/</li>
+      <li class="text-slate-700">Wipe methods</li>
+    </ol>
+  </nav>
+
+  <!-- ============ ARTICLE ============ -->
+  <article class="mx-auto max-w-3xl px-4 py-10">
+    <h1 class="text-4xl font-extrabold tracking-tight text-ink-900">Disk wipe methods explained: Secure Erase, Sanitize &amp; Overwrite</h1>
+    <p class="mt-3 text-lg leading-relaxed text-slate-600">"Wipe" isn't one operation — it's a family of techniques with very different levels of confidence. Here's how the main ones compare.</p>
+
+    <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+      <span class="inline-flex items-center gap-1.5">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white">t</span>
+        tScrub Team
+      </span>
+      <span aria-hidden="true">·</span>
+      <span>Last updated 22 Sep 2026</span>
+      <span aria-hidden="true">·</span>
+      <span>8 min read</span>
+    </div>
+
+    <div class="prose prose-slate prose-lg max-w-none mt-8 prose-headings:text-ink-900 prose-a:text-brand-600 hover:prose-a:text-brand-700">
+      <p>Every erasure method falls into one of two camps: <strong>firmware erasure</strong>, where the drive's own controller destroys the data, and <strong>software overwrite</strong>, where the host writes patterns over the drive. Firmware erasure is almost always the better choice.</p>
+
+      <p>In this series:</p>
+      <ul>
+        <li><a href="/resources/secure-vs-enhanced-erase">ATA Secure Erase vs Enhanced Secure Erase</a></li>
+        <li><a href="/resources/crypto-vs-block-erase">Crypto erase vs block erase</a></li>
+        <li><a href="/resources/software-overwrite">Software overwrite and its limits</a></li>
+        <li><a href="/resources/degaussing-destruction">Degaussing and physical destruction</a></li>
+      </ul>
+
+      <h2>Firmware erasure vs software overwrite</h2>
+      <p>Firmware methods — Secure Erase, Enhanced Secure Erase, Sanitize, Format NVM — are issued directly to the drive's controller. The controller knows where <em>all</em> its data lives: user sectors, reallocated sectors, and the over-provisioned space SSDs keep in reserve. Software overwrite, by contrast, can only write to sectors the operating system can see.</p>
+      <p>That's why a firmware command is both <strong>more complete</strong> and usually <strong>much faster</strong> — an SSD can cryptographically erase in seconds, while a full overwrite of the same drive might take hours.</p>
+
+      <h2>ATA Secure Erase vs Enhanced Secure Erase</h2>
+      <p>Both are ATA commands that tell the drive to erase itself. The difference:</p>
+      <ul>
+        <li><strong>Secure Erase</strong> — the standard erase. Maps to NIST 800-88 <strong>Clear</strong>.</li>
+        <li><strong>Enhanced Secure Erase</strong> — additionally erases sectors that may have been written to and then reallocated (for example, areas a standard erase might skip). Maps to NIST 800-88 <strong>Purge</strong>.</li>
+      </ul>
+      <p>If a drive supports Enhanced Secure Erase, that's the one to use when data is leaving your control.</p>
+
+      <h2>NVMe Sanitize vs Format</h2>
+      <p>NVMe drives offer two erasure primitives:</p>
+      <ul>
+        <li><strong>Sanitize</strong> — the strongest option. Three modes: <em>crypto erase</em> (destroy the encryption key), <em>block erase</em> (erase every block), and <em>overwrite</em> (overwrite all data). Crypto and block erase map to <strong>Purge</strong>.</li>
+        <li><strong>Format NVM</strong> — clears the namespace. Maps to <strong>Clear</strong>; it's the fallback when Sanitize isn't supported.</li>
+      </ul>
+
+      <h2>Cryptographic erase vs block erase</h2>
+      <p><strong>Cryptographic erase</strong> is elegant: the drive has always stored data encrypted with an internal key. Destroying that key makes every stored byte unreadable, instantly and irreversibly. It's fast and complete — assuming the encryption was implemented correctly in the first place.</p>
+      <p><strong>Block erase</strong> physically erases the flash cells. It's slower than crypto erase but doesn't depend on the drive's encryption implementation, which is why some auditors prefer it.</p>
+
+      <h2>Software overwrite and its limits</h2>
+      <p>Software overwrite — writing zeros or patterns with tools like <code>nwipe</code> or <code>dd</code> — is the fallback when a drive supports no firmware erasure (common on older SAS drives). Its limits:</p>
+      <ul>
+        <li>It can't reach reallocated or hidden sectors.</li>
+        <li>On SSDs it's slower and causes more wear than a single firmware erase.</li>
+        <li>Multiple passes are unnecessary on modern drives — a single pass is sufficient, and the old "7-pass DoD" standard is obsolete.</li>
+      </ul>
+      <p>Overwrite maps to NIST 800-88 <strong>Clear</strong>.</p>
+
+      <h2>Degaussing and physical destruction</h2>
+      <p>When erasure isn't possible — a drive has failed, is frozen, or is under Block SID lockdown — the last resort is destruction. <strong>Degaussing</strong> (a strong magnetic field) works on magnetic media but not SSDs. <strong>Physical destruction</strong> (shredding, disintegration) works on everything but is irreversible, so you lose the option to redeploy or resell the drive. The rule of thumb: <em>erase where you can, destroy where you must.</em></p>
+
+      <h2>Method → NIST 800-88 outcome</h2>
+      <div class="overflow-x-auto">
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Outcome</th><th>Best for</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>NVMe Sanitize (crypto / block)</td><td><strong>Purge</strong></td><td>NVMe SSDs leaving your control</td></tr>
+            <tr><td>ATA Enhanced Secure Erase</td><td><strong>Purge</strong></td><td>SATA SSDs &amp; HDDs leaving your control</td></tr>
+            <tr><td>ATA Secure Erase</td><td><strong>Clear</strong></td><td>Drives being redeployed internally</td></tr>
+            <tr><td>NVMe Format NVM</td><td><strong>Clear</strong></td><td>NVMe drives without Sanitize</td></tr>
+            <tr><td>Software overwrite</td><td><strong>Clear</strong></td><td>SCSI/SAS fallback</td></tr>
+            <tr><td>Degaussing / shredding</td><td><strong>Destroy</strong></td><td>Failed or blocked drives</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>FAQ</h2>
+      <h3>How many overwrite passes do I need?</h3>
+      <p>One. Multiple passes were a precaution for 1990s-era drives; on modern hardware they add time and wear without adding security. Firmware erasure is better still.</p>
+      <h3>Is crypto erase as good as block erase?</h3>
+      <p>It depends on the drive's encryption implementation. Both map to Purge, but if you need to be conservative about a particular drive model, block erase removes any doubt.</p>
+    </div>
+
+    <!-- ============ RELATED ============ -->
+    <div class="mt-12 border-t border-slate-200 pt-8">
+      <h2 class="text-lg font-bold text-ink-900">Keep reading</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+        <a href="/resources/drive-types" class="rounded-xl border border-slate-200 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900">Drive types</span><span class="mt-1 block text-slate-600">The right method for NVMe, SSD, HDD &amp; SAS.</span></a>
+        <a href="/resources/standards" class="rounded-xl border border-slate-200 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900">Data erasure standards</span><span class="mt-1 block text-slate-600">NIST 800-88, GDPR, HIPAA &amp; ISO 27001.</span></a>
+        <a href="/compliance" class="rounded-xl border border-slate-200 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900">Compliance mapping</span><span class="mt-1 block text-slate-600">How tScrub maps methods to outcomes.</span></a>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ CTA ============ -->
+  <section class="relative overflow-hidden bg-gradient-to-br from-brand-600 to-brand-700 text-white">
+    <div class="pointer-events-none absolute inset-0 bg-grid-ink"></div>
+    <div class="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-16 text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Every method, recorded and verifiable</h2>
+      <p class="max-w-xl text-brand-50">tScrub picks the strongest supported method and writes it — with the outcome — into every report.</p>
+      <a href="/download" class="inline-flex items-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">Get tScrub</a>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="bg-ink-900 text-slate-400">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
+        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
+        <li><a href="/download" class="hover:text-white">Download</a></li>
+        <li><a href="/faq" class="hover:text-white">FAQ</a></li>
+        <li><a href="/docs" class="hover:text-white">Docs</a></li>
+        <li><a href="/resources" class="hover:text-white">Resources</a></li>
+        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="/terms" class="hover:text-white">Terms</a></li>
+        <li><a href="/contact" class="hover:text-white">Contact</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
