@@ -23,7 +23,7 @@ TSCRUB_WEB_HOST=user@host TSCRUB_WEB_DEST=/path/to/docroot npm run deploy
 
 Notes:
 - `--delete` removes anything in the docroot that isn't in `dist/`. The form backend lives **outside** the docroot (`~/webs/tscrub-form/`), so it's unaffected.
-- Static SEO/LLM files (`robots.txt`, `sitemap.xml`, `llms*.txt`, `favicon.svg`) live in `marketing/public/` and ship automatically.
+- Static SEO/LLM files (`robots.txt`, `sitemap.xml`, `llms*.txt`, `favicon.svg`) live in `marketing/site/public/` and ship automatically.
 - Auth pages (`login`, `register`, `dashboard`, `admin`) ship automatically and are `noindex` (disallowed in `robots.txt`).
 
 ## 2. Product (`product/`)
@@ -33,15 +33,13 @@ Builds the self-contained script and uploads it via scp.
 ```bash
 cd product
 make build            # free build (embeds vendor key; requires a licence)
-make build-enterprise # Team/Enterprise build (same; kept for clarity)
-make build-customer   # customer build (embeds vendor key + a specific licence)
 make deploy           # build (free) + upload
 make deploy-check     # build + local preflight only (no upload)
 ```
 
 What it does:
 - `scripts/build.sh` assembles `build/tscrub.sh` (concatenates `src/*.sh`, embeds `payload/sedutil-cli`).
-- The vendor public key (`keys/vendor-public-key.pem`) is embedded by **every** build, enabling licence verification and vendor-signed reports. tScrub always requires a licence — even the free tier. `make build-customer CUSTOMER="..." LIC=/path/to/Acme.lic` also bakes that licence into the image so the customer does not need to supply one at boot.
+- The vendor public key (`keys/vendor-public-key.pem`) is embedded by **every** build, enabling licence verification and vendor-signed reports. tScrub always requires a licence — even the free tier.
 - `scripts/deploy.sh` reads `product/.config` for `TSCRUB_DEPLOY_HOST`, `TSCRUB_DEPLOY_USER`, `TSCRUB_DEPLOY_DOCROOT`, `TSCRUB_DOMAIN`, then scp-uploads `build/*` and curl-checks the public URLs.
 
 Notes:
@@ -58,7 +56,7 @@ bash ops/host-download.sh
 
 Served files under `/downloads/`: `tscrub.sh` (free build), `tscrub.sh.sha256` (checksum), `tscrub.sh.sig` (Ed25519 signature), `tscrub.pub` (vendor public key for verification).
 
-**Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a row to the "Release & key history" table in `marketing/docs.html` (version + SHA-256 + signing-key fingerprint).
+**Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a row to the "Release & key history" table in `marketing/site/docs.html` (version + SHA-256 + signing-key fingerprint).
 
 Manual equivalent (upload only, no site redeploy):
 
@@ -82,7 +80,7 @@ cd marketing
 npm run deploy:server
 ```
 
-What it copies (no `--delete`): `api.php auth.php db.php http.php mail.php reports_lib.php migrate.php seed-admin.php schema.sql certify.php submit.php verify.php sendmail.py issue_licence.py config.example.json`.
+What it copies (no `--delete`): `api.php auth.php db.php http.php mail.php reports_lib.php stripe.php migrate.php seed-admin.php schema.sql certify.php submit.php verify.php sendmail.py issue_licence.py config.example.json`.
 
 ### One-time DB setup (already done on this server)
 
@@ -110,9 +108,74 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && php seed-admin.php <admin-email>
 ### Database facts
 
 - Host `127.0.0.1:3306`, database `tScrub`, user `tScrub`. Credentials live only in `config.json` (mode 640, group www-data); `config.example.json` is the template. Never commit the real password.
-- Tables: `users`, `sessions`, `certificates`, `certificate_reports`, `certificate_drives`, `licences`, `api_tokens`, `tokens`, `admin_audit_log`.
+- Tables: `users`, `sessions`, `certificates`, `certificate_reports`, `certificate_drives`, `licences`, `api_tokens`, `tokens`, `admin_audit_log`, `credit_events`, `subscriptions`, `stripe_events`.
+- `licences.pub_key` holds the base64 DER (SPKI) public half of each paid licence's report key, derived at issuance, so uploaded reports can be bound back to the licence (attribution). Free licences leave it empty. On an existing server, add it and backfill with:
+
+```bash
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && mysql --defaults-extra-file=/tmp/.my.cnf -e "ALTER TABLE licences ADD COLUMN pub_key VARCHAR(255) NOT NULL DEFAULT \"\" AFTER licence_json;"'
+# then backfill each paid licence's pub_key from its licence_json.key
+```
 - `/verify` reads MySQL only. The `certificates/` JSON dir is kept on disk for the record but is no longer the source of truth.
 - Backups are handled by Proxmox Backup Server (hypervisor-level, covers MySQL) — no separate `mysqldump` cron needed.
+
+### Stripe payments (device credits)
+
+Prepaid per-device billing: one credit = one device wiped. `stripe.php` talks to
+Stripe with raw cURL (no Composer). Keys + price IDs live in `config.json` under
+a `stripe` block (see `config.example.json` for shape) — never committed.
+
+One-time setup:
+
+1. In the Stripe dashboard create three one-time Prices (Products "Device credit
+   pack 10/50/100") and a webhook endpoint `https://tscrub.com/api/stripe/webhook`
+   subscribed to `checkout.session.completed` (and later subscription events).
+2. Add the `stripe` block to `~/webs/tscrub-form/config.json`:
+   `secret_key`, `webhook_secret`, and `prices.pack10/pack50/pack100`
+   (`price_id` + `units`).
+3. Apply the new tables (idempotent):
+
+```bash
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && mysql --defaults-extra-file=/tmp/.my.cnf -e "
+  CREATE TABLE IF NOT EXISTS credit_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    type ENUM(\"credit\",\"debit\") NOT NULL,
+    units INT UNSIGNED NOT NULL,
+    ref VARCHAR(255) NOT NULL DEFAULT \"\",
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_credit_ref (user_id, ref),
+    KEY idx_credit_user (user_id, created_at),
+    CONSTRAINT fk_credit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \"\",
+    stripe_subscription_id VARCHAR(255) NOT NULL DEFAULT \"\",
+    price_id VARCHAR(255) NOT NULL DEFAULT \"\",
+    status VARCHAR(32) NOT NULL DEFAULT \"\",
+    current_period_end DATETIME NULL DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_subs_user (user_id),
+    KEY idx_subs_stripe (stripe_subscription_id),
+    CONSTRAINT fk_subs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  CREATE TABLE IF NOT EXISTS stripe_events (
+    id VARCHAR(255) NOT NULL,
+    type VARCHAR(64) NOT NULL DEFAULT \"\",
+    handled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"'
+```
+
+Flow: dashboard "Top up" → `POST /api/checkout` → Stripe hosted Checkout →
+`POST /api/stripe/webhook` (signature-verified, idempotent) credits the wallet and
+issues a `payg` licence on first purchase. Report uploads debit 1 credit per newly
+ungested drive (idempotent by CSV SHA) — a shortfall is reported in the JSON
+response, never a block. Test with Stripe test keys + `stripe listen`; the
+webhook endpoint returns 200 to duplicate deliveries.
 
 What NOT to overwrite:
 - `config.json` — live SMTP + DB credentials. Only edit on the server.

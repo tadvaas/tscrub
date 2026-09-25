@@ -11,3 +11,10 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
+
+# Vendored PHP dependency (TCPDF) — sourced from the server, not committed.
+marketing/server/tcpdf/
+
+# Test harness: host config + generated test licence are environment-specific.
+tests/proxmox/config.sh
+tests/proxmox/test.lic

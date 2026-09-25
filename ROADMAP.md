@@ -1,13 +1,23 @@
 # tScrub Roadmap
 
 Future plans for the project, kept here so they survive between sessions. Current
-state as of v1.3 (remote licence fetching + baked-in customer licences).
+state as of v1.4.34 (appliance image shipped; free reports self-signed; dashboard
+upload, certificates, and the customer-as-certifier model all shipped).
 
-## 1. Self-built Buildroot appliance image
+## 1. Self-built Buildroot appliance image — SHIPPED
 
-The biggest remaining UX gap: today the product ships as `tscrub.sh`, and users
-must build/boot Linux themselves. Plan is a **ready-to-boot image built on our own
-Buildroot** (not reselling ShredOS — just matching its drive-operation capabilities).
+**Done (2026-09-19):** a ready-to-boot hybrid ISO (BIOS + UEFI) is built on the
+Buildroot fork (`~/shredos.x86_64` on the project server) and published as a
+versioned download on the Download page. It boots tScrub as the sole
+program (inittab tty1 → `tscrub_launcher`), bundles curl + CA certs for HTTPS
+report upload, and ships `sedutil-cli` built in.
+
+**Shipped since (through v1.4.34):** late-link DHCP re-request, restored Realtek
+and Broadcom NIC firmware, a per-destination report-delivery summary, the amber
+"wiped but not delivered" finish screen, the diagnostics snapshot, a TLS
+clock-skew fallback for uploads, and the customer-as-certifier certificate model.
+Only the physical hardware boot test (NVMe / SATA / SAS / USB) remains.
+The package/kernel analysis below is kept for reference.
 
 ### Package set (what `tscrub.sh` actually calls)
 
@@ -22,17 +32,27 @@ Buildroot** (not reselling ShredOS — just matching its drive-operation capabil
 | `ncurses` (`tput`, `clear`) | terminal UI | yes |
 | `openssl` (with Ed25519) | licence verify + report signing | yes |
 | `sedutil-cli` | OPAL/SED unlock, PSID revert, Block SID detect | yes |
-| `lftp` | optional FTP report upload | optional |
-| `smartmontools` | pre/post-wipe SMART capture for value assessment (`smart::capture_*`) | yes |
+| `lftp` | FTP report upload (legacy `shredos_output=ftp:`) | optional |
+| `curl` (TLS via OpenSSL) | dashboard push (`tscrub_upload=`) over HTTPS | yes (network push) |
+| `ca-certificates` | TLS trust store for HTTPS uploads | yes (with curl) |
+| `smartmontools` | SMART capture (pre/post wipe, `smartctl`) | yes |
 | `sg3_utils` | SAS ops (not called by tScrub) | optional |
 
-sedutil-cli is **also embedded** in `tscrub.sh` as `SEDUTIL_PAYLOAD_B64`
-(extracted by `device::install_sedutil`) so tScrub can unlock drives itself. The
-image should also ship `sedutil-cli` as a shell utility for manual OPAL/SED work
-(unlock, PSID revert, LockingRange inspect). It is **not in upstream Buildroot**,
-so either add a custom `package/sedutil` (build from
-github.com/Drive-Trust-Alliance/sedutil) or extract tScrub's embedded copy to
-`/usr/sbin/sedutil-cli` in the overlay — the latter requires no build at all.
+sedutil **is** in upstream Buildroot (`package/sedutil`, v1.20.0); the image
+enables `BR2_PACKAGE_SEDUTIL=y` so `sedutil-cli` is compiled into the rootfs at
+`/usr/sbin/sedutil-cli` — used by `device::install_sedutil` via PATH and available
+as a shell utility for manual OPAL/SED work. For the image, `tscrub.sh` is built
+**slim** (`make build-slim`, `SKIP_SEDUTIL_PAYLOAD=1`, no embedded payload); the
+Download-page script keeps the embedded `SEDUTIL_PAYLOAD_B64` so bare-Linux users
+can unlock drives without installing sedutil.
+
+**HTTPS upload note:** stock ShredOS ships no TLS-capable `curl` and no CA
+bundle, so the token-authenticated dashboard push (`tscrub_upload=https://…` +
+`tscrub_api_token=…`) **no-ops on stock ShredOS** and falls back to USB/FTP. The
+tScrub appliance image must therefore bundle `curl` (built against OpenSSL) +
+`ca-certificates` (Buildroot `BR2_PACKAGE_CURL` + `BR2_PACKAGE_CA_CERTIFICATES`)
+so reports can be pushed to `https://tscrub.com/api/reports` straight from the
+appliance (shipped — the image bundles `curl` + `ca-certificates`).
 
 ### Kernel config areas (match ShredOS's drive ops)
 
@@ -64,68 +84,40 @@ firmware sanitise/format. Options:
 
 ### Build steps
 
-- [ ] `tscrub_defconfig` (kernel + package selections above)
-- [ ] `board/tscrub/` overlay: `/usr/bin/tscrub.sh` + an `inittab` that boots straight into it
-- [ ] post-build hook to embed `build/tscrub.sh` (community or `make build-customer`)
-- [ ] build + test on NVMe / SATA / SAS / USB hardware
+- [x] `configs/tscrub_defconfig` — copy of `shredos_iso_extra_defconfig` plus
+  `BR2_PACKAGE_OPENSSL`, `BR2_PACKAGE_LIBCURL_CURL`, `BR2_PACKAGE_LIBCURL_OPENSSL`,
+  `BR2_PACKAGE_CA_CERTIFICATES` (curl binary + TLS + CA bundle for HTTPS upload).
+- [x] Overlay: `board/shredos/fsoverlay/usr/bin/tscrub.sh` (embedded `build/tscrub.sh`)
+  + `usr/bin/tscrub_launcher`; inittab tty1 now boots `tscrub_launcher` instead of
+  `nwipe_launcher` (tScrub = sole boot program). nwipe stays bundled (SCSI fallback).
+- [x] `build_tscrub.sh` (`make tscrub_defconfig && make`).
+- [x] Host deps installed; builds run (`build-essential file wget gzip bzip2 perl cpio unzip rsync bc python3 libelf-dev libssl-dev`).
+      NOTE: `libelf-dev` is required by the kernel's `objtool` (`gelf.h`) — the
+      build fails at `linux 6.18` without it. Re-run `make tscrub_defconfig` after
+      any `configs/tscrub_defconfig` edit to regenerate `.config` before `make`.
+- [ ] Build + test on NVMe / SATA / SAS / USB hardware.
+
+Implementation detail: we work directly in the ShredOS **fork** clone at
+`oxwet@192.168.0.6:~/shredos.x86_64` (uncommitted until pushed to a fork repo).
+Base is `shredos_iso_extra_defconfig` — hybrid ISO with an appended writable
+`extra.vfat` (FAT16) partition, which is where reports and the licence live on
+the boot stick. The licence can be dropped on that partition, baked in via
+`make build-customer LIC=…`, or fetched at boot (`tscrub_license_url=`).
 
 ### Licensing notes
 
 - Buildroot is GPL-2.0-or-later; bundle GPL packages as **separate programs**
   (aggregation) so `tscrub.sh` keeps its own licence.
-- `tscrub.sh` currently has **no licence file** — decide one before distributing an image.
+- `tscrub.sh` is GPL-3.0-or-later (see the root `LICENSE` file); bundled
+  components keep their own licences.
 
 ## 2. Related simplification backlog
 
-- [ ] Zero-touch kernel-cmdline config: `tscrub_cocid=` + `tscrub_autoconfirm=` for PXE fleets (`tscrub_upload=` is done)
+- [x] Zero-touch config for PXE fleets (`tscrub_cocid=`, `tscrub_upload=`, and a
+  `tscrub.conf` on the stick) — shipped
 - [ ] Auto-upload reports → auto Certificate of Destruction (machine-facing `/api/certify` ingestion)
-- [ ] Billing (Stripe) + automatic licence issuance on payment webhook *(parked)*
-- [x] Repo-root README — **done** (layout, build, licence, output/upload, tests, deploy).
-- [x] "Boot and wipe in 60 seconds" onboarding — **done** as the `/getting-started` page (full step-by-step journey).
-
-## 3. Self-serve platform (accounts → licence → app → dashboard → certs)
-
-Target user journey:
-
-1. Visitor creates an account on tscrub.com and is issued a licence (even free).
-2. They download the appliance (`tscrub.sh`) plus their `.lic`.
-3. They configure the appliance one of two ways:
-   - **Network** — the appliance uploads the finished report to tScrub (or an FTP drop).
-   - **USB** — the appliance writes the erasure + SMART data to a USB drive.
-4. The licence is required at boot at all times (free or paid). Free licences get
-   **unsigned** reports/certificates and **no QR code**; paid licences get
-   digitally signed reports + a signed certificate + QR code.
-5. Back on the dashboard, uploading the report files stores the full CSV data in
-   MySQL and displays it per drive (including SMART). Certificates are
-   downloadable per licence tier.
-
-### Gaps to close
-
-- [x] Accounts, login, dashboard, admin (MySQL-backed) — **done**.
-- [x] Self-serve licence issuance (free/payg/team/enterprise) — **done**.
-- [x] Licence enforced at boot on every build — **done**.
-- [x] Certificate generation with Annex A (devices) + Annex B (SMART) — **done**.
-- [x] **Tiered licence features** — free licence does NOT sign reports and does
-      NOT emit a QR code; paid licences do. Done:
-      - `product/src/50_report.sh` `license::verify` includes `tier` in the signed
-        message; `license::apply` only sets `REPORT_KEY` when a report key is
-        present (paid tiers). Free licences carry no `key`.
-      - `marketing/server/certify.php` looks up the user's licence tier and gates
-        the PDF digital signature + QR code (and wording) on `tier != free`.
-      - `issue_licence.py` / `issue_license.sh` omit `key` for the free tier.
-- [x] **Machine ingestion endpoint** — token-authenticated `POST /api/reports`
-      (per-user `api_tokens`, managed in the dashboard) stores reports (no PDF)
-      straight to the user's dashboard — **done**.
-- [x] **USB output mode** — `report::detect_output` resolves the write location:
-      `--output` / `tscrub_output=` override, else the first writable removable
-      FAT32/vfat partition (the boot stick), else `/` (RAM) with a warning.
-- [x] **Per-drive persistence** — full CSV rows (device, method, serial, final
-      status, SMART pre/post) are stored in `certificate_drives` — **done**.
-- [x] **Dashboard drill-down** — `/api/certs/{id}` returns per-drive + SMART; the
-      dashboard renders a drill-down table — **done**.
-- [x] **Network-mode config in the product** — `tscrub_upload=https://tscrub.com/api/reports`
-      + `tscrub_api_token=…` pushes reports straight to the dashboard (curl
-      multipart + `X-Api-Token`), alongside the existing FTP `shredos_output=`.
-- [ ] **Billing gate** — payg/team/enterprise licences are currently self-serve
-      with no payment; wire Stripe before relying on tier differences for revenue.
-      *(parked — no ETA; DB backups are covered by Proxmox Backup Server)*
+- [ ] Billing (Stripe) + automatic licence issuance on payment webhook
+- [x] Repo-root README and "boot and wipe in 60 seconds" onboarding (getting-started page) — shipped
+- [ ] Licence-on-USB handling: when multiple `.lic` files are present, prefer the highest tier and/or warn — today the alphabetically-first file wins, so a stray `free.lic` can silently downgrade a paid customer's evidence
+- [ ] Auto-licence-delivery: presigned per-user licence URL (`/api/licence/<secret>`) + a dashboard "download `tscrub.conf`" so the appliance fetches its current licence at boot — removes the manual `.lic` reinstall on upgrade
+- [ ] Show licence info (customer / tier / expiry) in the TUI Runtime panel

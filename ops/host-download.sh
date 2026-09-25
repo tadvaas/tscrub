@@ -17,7 +17,7 @@ echo "==> Building tScrub $VERSION (licence required at boot)"
 SHA="$(shasum -a 256 "$ROOT/product/build/tscrub.sh" | awk '{print $1}')"
 echo "==> SHA-256: $SHA"
 
-if grep -q "tscrub $VERSION" "$ROOT/marketing/docs.html"; then
+if grep -q "tscrub $VERSION" "$ROOT/marketing/site/docs.html"; then
   echo "WARNING: 'tscrub $VERSION' is already in the release history." >&2
   echo "         If the source changed, bump SCRIPT_VERSION in product/src/00_bootstrap.sh." >&2
 fi
@@ -30,10 +30,21 @@ ssh "${SSH_OPTS[@]}" "$HOST" "cd $DEST_DIR && sha256sum tscrub.sh > tscrub.sh.sh
 echo "==> Signing release on server + publishing public key"
 ssh "${SSH_OPTS[@]}" "$HOST" "cd $DEST_DIR && openssl pkeyutl -sign -inkey /home/oxwet/webs/tscrub-form/vendor.key -rawin -in tscrub.sh -out tscrub.sh.sig && cp /home/oxwet/webs/tscrub-form/vendor-public-key.pem tscrub.pub"
 
-echo "==> Updating published checksum in marketing/dashboard/licence.html"
-perl -0pi -e "s/[0-9a-f]{64}  tscrub\\.sh/$SHA  tscrub.sh/" "$ROOT/marketing/dashboard/licence.html"
+echo "==> Updating script version + checksum in download-manifest.json"
+python3 - "$VERSION" "$SHA" <<'PY'
+import json, sys
+version, sha = sys.argv[1], sys.argv[2]
+path = "marketing/server/download-manifest.json"
+m = json.load(open(path))
+m["script"]["version"] = version
+m["script"]["sha256"] = sha
+with open(path, "w") as f:
+    json.dump(m, f, indent=2)
+    f.write("\n")
+PY
 
-echo "==> Redeploying marketing site"
-(cd "$ROOT/marketing" && npm run deploy)
+echo "==> Publishing backend (manifest) + copying to /downloads/"
+(cd "$ROOT/marketing" && npm run deploy:server)
+ssh "${SSH_OPTS[@]}" "$HOST" "cp ~/webs/tscrub-form/download-manifest.json $DEST_DIR/manifest.json"
 
 echo "==> Done: https://tscrub.com/downloads/tscrub.sh ($VERSION, $SHA, signed)"

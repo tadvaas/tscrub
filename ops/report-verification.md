@@ -38,13 +38,29 @@ Failure signals:
 
 ## The official vendor key
 
-Every build requires a licence (even the free tier). Paid licences carry a
-vendor-issued report-signing key, so their reports are signed and verify against
-the published vendor public key. Free licences carry no report key, so free
-reports are unsigned (checksum-only).
+Every build requires a licence (even the free tier). The **licence** verifies
+against the published vendor public key (the vendor signs each licence envelope).
+Paid licences also carry a per-licence **report-signing key**; the appliance
+signs each report with that key, and the server confirms the report's embedded
+public key matches the licence before marking it **attributed**.
 
 - **Fingerprint:** `be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02`
 - **PEM:** published on https://tscrub.com/docs (section 7, Licensing)
+
+## Attribution (server-side)
+
+When a paid user uploads a report, the server:
+
+1. Verifies the CSV SHA-256 against the manifest.
+2. Verifies the Ed25519 signature against the `public_key` in the manifest.
+3. Compares that key to `licences.pub_key` (the public half of the licence's
+   report key, derived at issuance). A match marks the certificate `attributed`
+   ("REPORT SIGNATURE VALID"); a valid-but-unmatched signature is recorded as
+   `valid` ("SIGNATURE UNATTRIBUTED") and cannot be confirmed as attributable.
+
+So a forged report (self-generated key) verifies its own signature but is NOT
+attributed. Free licences carry no report key, so free reports remain
+self-signed and non-attributable.
 
 ## Count drives for billing
 

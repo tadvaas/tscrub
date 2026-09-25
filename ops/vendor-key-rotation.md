@@ -8,7 +8,7 @@ The vendor Ed25519 keypair is the **root of trust** for all licences and signed 
 |---|---|
 | **Private key** | `/home/oxwet/webs/tscrub-form/vendor.key` (mode 640 group www-data, server only) |
 | **Public key (build)** | `product/keys/vendor-public-key.pem` (committed) |
-| **Public key (published)** | https://tscrub.com/docs (Licensing section) + fingerprint on the dashboard Licence page (/dashboard/licence) |
+| **Public key (published)** | https://tscrub.com/docs (Licensing + "Release & key history" sections) |
 | **Fingerprint** | `be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02` |
 
 ## Key facts
@@ -48,14 +48,13 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && \
 scp oxwet@192.168.0.6:~/webs/tscrub-form/vendor-public-key.pem \
   product/keys/vendor-public-key.pem
 
-cd product && make build-enterprise && bash scripts/deploy.sh
+cd product && make build && bash scripts/deploy.sh
 ```
 
 ### 4. Update the published fingerprint + key
 
 Compute the new fingerprint, then update:
-- `marketing/docs.html` — the fingerprint in "6. Verify a report", the PEM + fingerprint in "7. Licensing", and the "Release & key history" table (new key fingerprint; keep the old key listed so old licences/releases stay verifiable).
-- `marketing/dashboard/licence.html` — the fingerprint in "Verify your download".
+- `marketing/site/docs.html` — the fingerprint in "6. Verify a report", the PEM + fingerprint in "7. Licensing", and the "Release & key history" table (new key fingerprint; keep the old key listed so old licences/releases stay verifiable).
 
 Redeploy the marketing site: `cd marketing && npm run deploy`.
 

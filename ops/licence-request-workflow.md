@@ -8,7 +8,7 @@ tScrub **always requires a licence** — even the free tier. Downloads and licen
 issuance are self-serve, backed by MySQL:
 
 ```
-login/register → /download (plan cards) → POST /api/licence {tier} → licences table
+login/register → /dashboard/licences (pick tier) → POST /api/licence {tier} → licences table
                                                                       ↓
                                                          .lic downloaded from the dashboard
 ```
@@ -22,12 +22,13 @@ row in the `licences` table and shows on the user's dashboard and the admin page
 ## 1. Self-serve (default path)
 
 1. Visitor signs up at `/register` (personal or company) and verifies their email.
-2. They sign in, open `/download`, pick a plan, and click **Get licence**.
+2. They sign in and open the dashboard **Licences** page (`/dashboard/licences`),
+   pick a tier, and click **Issue licence**.
 3. The licence is issued to their account (a `licences` row with the tier) and
-   they download the `.lic` from `/dashboard` (or the download page).
-4. They download `tscrub.sh` from the dashboard's Licence page (served at
-   `/downloads/tscrub.sh`) and place the `.lic` alongside it — or serve it via
-   `--license-url` / `shredos_license_url=`.
+   they download the `.lic` from the dashboard Licences page.
+4. They download the bootable appliance ISO from the Download page (`/download`)
+   and put the `.lic` on the boot USB — or serve it via `--license-url` /
+   `tscrub_license_url=`.
 
 No manual step for the free tier.
 
@@ -35,7 +36,7 @@ No manual step for the free tier.
 
 | Tier | Licence `tier` | Notes |
 |---|---|---|
-| Free (£0) | `free` | Full erasure, unsigned (checksum-only) reports. Fully self-serve. |
+| Free (£0) | `free` | Full erasure, self-signed reports (tamper-evident, not attributable). Fully self-serve. |
 | Pay-as-you-go (£0.25/device) | `payg` | Self-serve licence today; billing not wired (below). |
 | Team (£99/mo) | `team` | Self-serve licence today; billing not wired. |
 | Enterprise (custom) | `enterprise` | Contact sales; issue manually (section 3). |
@@ -64,6 +65,12 @@ The CLI writes `licences/<slug>-<expiry>.lic` and emails, but does **not** creat
 a DB row — use the dashboard/admin path for DB-tracked licences; the CLI is for
 ad-hoc/Enterprise issuance.
 
+> **Attribution note:** the server binds uploaded reports to the licence's
+> report key via `licences.pub_key`, which only exists for DB-tracked (web/admin)
+> licences. A licence issued only via the CLI has no DB row, so reports signed
+> with it will be recorded but **not attributable** — issue paid licences through
+> `/admin` (or `POST /api/admin/users/{id}/licence`) to enable attribution.
+
 ## 4. Expiry guidance
 
 - Free: 1 year, renewable.
@@ -91,6 +98,13 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && \
   mysql --defaults-extra-file=/tmp/.my.cnf -e "SELECT id,user_id,tier,customer,expiry,created_at FROM licences ORDER BY id DESC LIMIT 20" && \
   rm -f /tmp/.my.cnf'
 ```
+
+## 6. Revoke & rename
+
+There is no revocation UI by design (licences are verified offline; see
+`licence-revocation.md`). To revoke, suspend the account and revoke its API
+tokens/sessions; to rename, re-issue with a new customer name. Full steps:
+**[`ops/licence-revocation.md`](licence-revocation.md)**.
 
 ---
 

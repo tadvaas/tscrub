@@ -7,11 +7,12 @@ and writes a verifiable chain-of-custody report — which you can turn into a
 printable Certificate of Destruction on the tScrub platform.
 
 - **Inspectable** — one script; your security team can read every line.
-- **Appliance-agnostic** — boot any Linux live environment (ShredOS or your own)
-  from USB or PXE.
-- **Licence required at boot** — even the free tier. Free licences produce
-  unsigned (checksum-only) reports; paid licences add a vendor-issued report key
-  so reports and certificates are digitally signed (plus a QR code).
+- **Appliance-first** — boot our ready-to-boot appliance ISO from USB or PXE on
+  hardware you already own (download it from the Download page).
+- **Licence required at boot** — even the free tier. Free licences self-sign
+  their reports (tamper-evident, not attributable); paid licences add a
+  vendor-issued report key so reports and certificates are digitally signed.
+  Every certificate carries a verification QR code.
 
 Website: <https://tscrub.com> · Docs: <https://tscrub.com/docs>
 
@@ -34,21 +35,23 @@ make build          # assembles build/tscrub.sh, embeds the vendor public key
 ./build/tscrub.sh --dry-run
 ```
 
-`make build` requires `keys/vendor-public-key.pem` (committed). To bake a
-customer licence into the image so nothing is supplied at boot:
+`make build` requires `keys/vendor-public-key.pem` (committed).
 
-```sh
-make build-customer CUSTOMER="Acme ITAD Ltd" LIC=/path/to/Acme.lic
-```
+`make build-slim` builds the script without the embedded sedutil payload — use it
+only for the appliance image, which ships `sedutil-cli` via Buildroot. The
+Download-page build (`make build`) keeps the payload for bare-Linux use.
 
-### Get a licence + the script
+### Get a licence + the appliance
 
 1. Sign up at <https://tscrub.com/register> (personal or company).
-2. On the Download page pick a plan and issue your licence (`.lic`).
-3. Download `tscrub.sh` from the dashboard's Licence page.
+2. Sign in and issue your licence (`.lic`) from the dashboard **Licences** page
+   (`/dashboard/licences`).
+3. Download the bootable appliance ISO from the **Download** page — or, for bare
+   Linux, the standalone script under "Run the script directly".
 
-Place the `.lic` next to `tscrub.sh`, or point to it with `--license`,
-`--license-url`, or the `tscrub_license=` / `tscrub_license_url=` kernel params.
+Put the `.lic` on the boot USB, or supply it via `tscrub_license=` /
+`tscrub_license_url=` on the kernel command line (or `--license` /
+`--license-url` when running the script directly).
 
 ## Appliance output & upload
 
@@ -63,10 +66,11 @@ At the end of a run the report (`.csv` + `.sig` + `.json` manifest) is written:
    tscrub_api_token=YOUR-64-HEX-TOKEN
    ```
 
-3. or uploaded via FTP:
+3. or uploaded via FTP or SFTP:
 
    ```
-   shredos_output=ftp:host:path:user:password
+   tscrub_output=ftp:host:path:user:password
+   tscrub_output=sftp:host:path:user:password
    ```
 
 Full details: <https://tscrub.com/docs> (§5 "The report").
@@ -116,6 +120,27 @@ tScrub maps each wipe method to a NIST 800-88 Clear, Purge, or Destroy outcome,
 and supports GDPR / HIPAA / ISO 27001 reporting programmes. tScrub is a tool —
 it is not itself a certification. Validate final requirements with your
 compliance team. See <https://tscrub.com/compliance>.
+
+## License
+
+SPDX-License-Identifier: `GPL-3.0-or-later`
+
+tScrub is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program (see `LICENSE`). If not, see <https://www.gnu.org/licenses/>.
+
+The appliance image additionally bundles third-party components under their own
+licences (e.g. Buildroot GPL-2.0-or-later, sedutil GPL-3.0-or-later, nwipe
+GPL-2.0). They are distributed as separate programs; `tscrub.sh` itself remains
+GPL-3.0-or-later.
 
 ## Next steps
 
