@@ -147,6 +147,7 @@ ui::post_run_prompt() {
         case "${UI_COMPLETE_THEME:-1}" in
             2) theme="\033[0;41;37m" ;;   # red: a drive failed/blocked
             3) theme="\033[0;43;30m" ;;   # amber: report save/upload failed
+            4) theme="\033[0;44;37m" ;;   # blue: wipe in progress (defensive)
             *) theme="\033[0;42;30m" ;;   # green: all good
         esac
     fi

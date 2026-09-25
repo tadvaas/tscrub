@@ -7,6 +7,35 @@ signed; the full release history (SHA-256 + signing-key fingerprint) lives in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.40] - 2026-09-25
+
+### Changed
+- The report, upload and diagnostic progress messages now go to the log only,
+  so the console shows nothing between the wipe finishing and the outcome
+  screen.
+- The tScrub dashboard URL is now built in: setting `tscrub_api_token` alone
+  pushes the report to the dashboard (`tscrub_upload=` remains an optional
+  override).
+- The finish summary now labels the dashboard destination "Dashboard" and only
+  lists destinations that are configured.
+
+## [v1.4.39] - 2026-09-25
+
+### Fixed
+- The blue "running" screen was painted one line higher than the normal
+  running screen, so the in-place elapsed-time tick overwrote the COCID row and
+  the ETA/device rows rendered one line out of place. The blue screen now keeps
+  the normal layout's leading blank line, and the finish-screen cursor
+  reposition is skipped while running.
+
+## [v1.4.38] - 2026-09-25
+
+### Changed
+- The console now runs the wipe on a blue screen and only switches to the
+  outcome colour (green/red/amber) once the wipe, post-wipe SMART capture and
+  report delivery have all finished — no more flash to green/red before the
+  amber report-delivery-failed screen.
+
 ## [v1.4.37] - 2026-09-25
 
 ### Fixed

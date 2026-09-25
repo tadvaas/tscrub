@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.4.37"
+SCRIPT_VERSION="v1.4.40"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -19,6 +19,8 @@ DRY_RUN=0
 DRY_RUN_SIM_ETA_MINS=0
 START_TS=0
 UI_INPLACE=0
+# Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
+# 3=amber (report delivery failed), 4=blue (wipe in progress).
 UI_COMPLETE_THEME=0
 REPORT_USB_STATUS=""
 REPORT_USB_REASON=""

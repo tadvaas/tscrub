@@ -124,6 +124,9 @@ fn_main() {
             table::render
         fi
     else
+        # Blue background while the wipe is in progress; the outcome colour
+        # (green/red/amber) is painted only once everything has finished.
+        UI_COMPLETE_THEME=4
         for dev in "${devices[@]}"; do
             device::execute "$dev" &
             pids+=($!)
@@ -147,23 +150,6 @@ fn_main() {
         esac
     done
 
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-        ui::show_finish_green "DRY-RUN finished"
-    else
-        local failed_count=0
-        for dev in "${devices[@]}"; do
-            case "${devrow[$dev.status]}" in
-                COMPLETED|DRY-RUN) ;;
-                *) failed_count=$((failed_count + 1)) ;;
-            esac
-        done
-        if (( failed_count > 0 )); then
-            ui::show_finish_green "Sanitization process finished — $failed_count drive(s) did not complete"
-        else
-            ui::show_finish_green "Sanitization process finished"
-        fi
-    fi
-
     smart::capture_all post
 
     report::detect_output
@@ -184,7 +170,7 @@ fn_main() {
         report::parse_output
         # If an upload destination is configured but the boot-time DHCP missed
         # the link-up window, re-request a lease before trying to send.
-        if [[ -n "${TSCRUB_UPLOAD_URL:-}" || -n "${TSCRUB_NET_PROTO:-}" ]]; then
+        if [[ -n "${TSCRUB_API_TOKEN:-}" || -n "${TSCRUB_NET_PROTO:-}" ]]; then
             network::ensure
         fi
         report::upload "$report_file"
@@ -192,15 +178,32 @@ fn_main() {
     debug::save
     report::sync_out
 
-    # If the wipe succeeded but report delivery failed, repaint the finish
-    # screen amber. report::print_summary then lists each destination's outcome.
+    # Track whether any report destination failed; used to pick the finish
+    # colour (red > amber > green). report::print_summary lists each outcome.
     local report_failed=0
     [[ "${REPORT_USB_STATUS:-}" == "fail" ]] && report_failed=1
     [[ "${REPORT_DASH_STATUS:-}" == "fail" ]] && report_failed=1
     [[ "${REPORT_NET_STATUS:-}" == "fail" ]] && report_failed=1
 
-    if [[ "$DRY_RUN" -eq 0 ]] && ! ui::any_drive_failed && [[ "$report_failed" -eq 1 ]]; then
-        ui::show_finish_orange "Sanitization process finished — report delivery failed"
+    # Paint the outcome colour only now that the wipe, SMART capture and report
+    # delivery have all finished — no green/red then amber flash.
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        ui::show_finish_green "DRY-RUN finished"
+    else
+        local failed_count=0
+        for dev in "${devices[@]}"; do
+            case "${devrow[$dev.status]}" in
+                COMPLETED|DRY-RUN) ;;
+                *) failed_count=$((failed_count + 1)) ;;
+            esac
+        done
+        if (( failed_count > 0 )); then
+            ui::show_finish_green "Sanitization process finished — $failed_count drive(s) did not complete"
+        elif [[ "$report_failed" -eq 1 ]]; then
+            ui::show_finish_orange "Sanitization process finished — report delivery failed"
+        else
+            ui::show_finish_green "Sanitization process finished"
+        fi
     fi
 
     report::print_summary

@@ -108,6 +108,7 @@ table::print_row() {
         1) printf -v fg_reset "\033[30m" ;;   # green finish: black text
         2) printf -v fg_reset "\033[37m" ;;   # red finish: white text
         3) printf -v fg_reset "\033[30m" ;;   # amber finish: black text
+        4) printf -v fg_reset "\033[37m" ;;   # blue running: white text
         *) printf -v fg_reset "\033[39m" ;;   # normal screen: default fg
     esac
 
@@ -298,6 +299,13 @@ table::render() {
                 # 43 is the closest 16-colour console shade to orange.
                 printf "\033[0;43;30m\033[2J\033[H"
                 ;;
+            4)
+                # Blue background: wipe in progress. Keep the leading blank
+                # line of the normal running screen so the in-place tick row
+                # coordinates (elapsed/ETA) line up with the painted table.
+                printf "\033[0;44;37m\033[2J\033[H"
+                printf "\n"
+                ;;
             *)
                 # Green background: all drives completed successfully.
                 printf "\033[0;42;30m\033[2J\033[H"
@@ -444,7 +452,7 @@ table::render() {
 
     printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
 
-    if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
+    if [[ "$UI_COMPLETE_THEME" -ne 0 && "$UI_COMPLETE_THEME" -ne 4 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
     fi
 

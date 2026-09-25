@@ -75,7 +75,7 @@ report::csv() {
     } > "$report_file"
 
     if [[ ! -s "$report_file" ]]; then
-        printf "%s[!] FAILED to write report to %s — is the filesystem writable?\n" "$TABLE_INDENT" "$report_file" >&2
+        printf "%s[!] FAILED to write report to %s — is the filesystem writable?\n" "$TABLE_INDENT" "$report_file" >&5
         return 1
     fi
 
@@ -87,7 +87,7 @@ report::csv() {
         [[ -n "$COCID" ]] && rel="$rel/$COCID"
         rel="$rel/$(basename "$report_file")"
     fi
-    printf "%sReport written to %s: %s\n" "$TABLE_INDENT" "$(report::_where)" "$rel" >&2
+    printf "%sReport written to %s: %s\n" "$TABLE_INDENT" "$(report::_where)" "$rel" >&5
 
     echo "$report_file"
 }
@@ -115,7 +115,7 @@ report::_sha256() {
     elif command -v openssl >/dev/null 2>&1; then
         h="$(openssl dgst -sha256 "$1" 2>/dev/null | awk '{print $NF}')"
     fi
-    [[ -n "$h" ]] || printf "%s[!] No SHA-256 tool available — report checksum omitted.\n" "$TABLE_INDENT" >&2
+    [[ -n "$h" ]] || printf "%s[!] No SHA-256 tool available — report checksum omitted.\n" "$TABLE_INDENT" >&5
     printf '%s' "$h"
 }
 
@@ -204,9 +204,9 @@ report::sign() {
     } > "$manifest"
 
     if [[ "$signed" == true ]]; then
-        printf "%sReport signed (Ed25519): %s\n" "$TABLE_INDENT" "$(basename "$csv").sig" >&2
+        printf "%sReport signed (Ed25519): %s\n" "$TABLE_INDENT" "$(basename "$csv").sig" >&5
     else
-        printf "%sReport checksum recorded (signing unavailable): %s\n" "$TABLE_INDENT" "$(basename "$manifest")" >&2
+        printf "%sReport checksum recorded (signing unavailable): %s\n" "$TABLE_INDENT" "$(basename "$manifest")" >&5
     fi
 }
 
@@ -364,8 +364,8 @@ license::detect_usb() {
 # Read a tscrub.conf (KEY=VALUE, one per line) from the root of the boot USB so
 # a customer can preconfigure the dashboard upload, the COCID, or a licence URL
 # without editing GRUB or the kernel command line. Keys mirror the kernel params:
-#   tscrub_upload=https://tscrub.com/api/reports
-#   tscrub_api_token=<64-hex token>
+#   tscrub_upload=<url>          (optional — dashboard URL is built-in)
+#   tscrub_api_token=<64-hex>    (dashboard upload — only this is required)
 #   tscrub_cocid=12345
 #   tscrub_license_url=http://host/license.key
 #   tscrub_output=/path | ftp:host:path:user:pass | sftp:...
@@ -610,14 +610,14 @@ report::detect_output() {
             REPORT_DIR="${dir%/}/"
             return 0
         fi
-        printf "%s[!] Output path '%s' is not writable — falling back.\n" "$TABLE_INDENT" "$dir" >&2
+        printf "%s[!] Output path '%s' is not writable — falling back.\n" "$TABLE_INDENT" "$dir" >&5
     fi
 
     if report::mount_boot_usb; then
         return 0
     fi
 
-    printf "%s[!] No writable USB partition found — report stays in RAM (/).\n" "$TABLE_INDENT" >&2
+    printf "%s[!] No writable USB partition found — report stays in RAM (/).\n" "$TABLE_INDENT" >&5
     REPORT_DIR="/"
     REPORT_USB_STATUS="fail"
     REPORT_USB_REASON="no writable USB partition found (report stays in RAM)"
@@ -704,8 +704,8 @@ report::sync_out() {
 }
 
 # --- Network upload ----------------------------------------------------------
-# Kernel command line: tscrub_upload=https://tscrub.com/api/reports and
-# tscrub_api_token=<64-hex token> (from the dashboard Account page).
+# Kernel command line: tscrub_api_token=<64-hex token> enables the dashboard
+# upload; tscrub_upload=<url> optionally overrides the built-in endpoint.
 report::parse_upload() {
     local param
 
@@ -776,7 +776,7 @@ network::ensure() {
         case "$dev" in lo|sit*) continue ;; esac
         [[ "$(cat "/sys/class/net/$dev/carrier" 2>/dev/null)" == "1" ]] || continue
 
-        printf "%sNetwork: no IPv4 route — requesting DHCP on %s...\n" "$TABLE_INDENT" "$dev"
+        printf "%sNetwork: no IPv4 route — requesting DHCP on %s...\n" "$TABLE_INDENT" "$dev" >&5
         udhcpc -i "$dev" -n -q -t 6 -T 2 -A 3 -O search -O staticroutes >/dev/null 2>&1
         ip route 2>/dev/null | grep -q '^default ' && break
     done
@@ -796,10 +796,10 @@ network::ensure() {
 report::upload_http() {
     local file="$1" manifest sig url token args=() resp count
 
-    [[ -n "${TSCRUB_UPLOAD_URL:-}" && -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
+    [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
     [[ -f "$file" ]] || return 0
     command -v curl >/dev/null 2>&1 || {
-        printf "%sReport upload skipped: curl not available.\n" "$TABLE_INDENT"
+        printf "%sReport upload skipped: curl not available.\n" "$TABLE_INDENT" >&5
         REPORT_DASH_STATUS="fail"
         REPORT_DASH_REASON="curl not available"
         return 1
@@ -807,13 +807,13 @@ report::upload_http() {
 
     manifest="${file%.csv}.json"
     sig="${file}.sig"
-    url="$TSCRUB_UPLOAD_URL"
+    url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
     token="$TSCRUB_API_TOKEN"
 
     args=(-fsS --connect-timeout 10 --max-time 60 -H "X-Api-Token: $token" -F "reports[]=@$file" -F "reports[]=@$manifest")
     [[ -f "$sig" ]] && args+=(-F "reports[]=@$sig")
 
-    printf "%sUploading report to %s...\n" "$TABLE_INDENT" "$url"
+    printf "%sUploading report to %s...\n" "$TABLE_INDENT" "$url" >&5
 
     if ! resp="$(curl "${args[@]}" "$url" 2>&1)"; then
         # A stale/dead RTC clock makes TLS certificate verification fail
@@ -821,15 +821,15 @@ report::upload_http() {
         # machines we erase often can't have their clock set, so retry once
         # without certificate verification as a last resort.
         if [[ "$resp" == *"curl: (60)"* ]]; then
-            printf "%sCertificate verification failed (system clock skew?) — retrying without verification.\n" "$TABLE_INDENT"
+            printf "%sCertificate verification failed (system clock skew?) — retrying without verification.\n" "$TABLE_INDENT" >&5
             if ! resp="$(curl -k "${args[@]}" "$url" 2>&1)"; then
-                printf "%sReport upload FAILED: %s\n" "$TABLE_INDENT" "$resp"
+                printf "%sReport upload FAILED: %s\n" "$TABLE_INDENT" "$resp" >&5
                 REPORT_DASH_STATUS="fail"
                 REPORT_DASH_REASON="$resp"
                 return 1
             fi
         else
-            printf "%sReport upload FAILED: %s\n" "$TABLE_INDENT" "$resp"
+            printf "%sReport upload FAILED: %s\n" "$TABLE_INDENT" "$resp" >&5
             REPORT_DASH_STATUS="fail"
             REPORT_DASH_REASON="$resp"
             return 1
@@ -838,9 +838,9 @@ report::upload_http() {
 
     count="$(printf '%s' "$resp" | sed -n 's/.*"count":\([0-9]*\).*/\1/p' | head -n1)"
     if [[ -n "$count" ]]; then
-        printf "%sSynced to tScrub dashboard — %s report(s) stored.\n" "$TABLE_INDENT" "$count"
+        printf "%sSynced to tScrub dashboard — %s report(s) stored.\n" "$TABLE_INDENT" "$count" >&5
     else
-        printf "%sReport uploaded successfully.\n" "$TABLE_INDENT"
+        printf "%sReport uploaded successfully.\n" "$TABLE_INDENT" >&5
     fi
     REPORT_DASH_STATUS="ok"
     REPORT_DASH_REASON=""
@@ -869,19 +869,19 @@ report::upload_net() {
     [[ -f "$manifest" ]] && uploads="$uploads; put '${manifest}'"
     [[ -f "$sig" ]] && uploads="$uploads; put '${sig}'"
 
-    printf "%sUploading report (CSV + manifest + signature) via %s...\n" "$TABLE_INDENT" "$proto"
+    printf "%sUploading report (CSV + manifest + signature) via %s...\n" "$TABLE_INDENT" "$proto" >&5
 
     url="${proto}://${host}"
     local lftp_out
     if lftp_out="$(lftp -u "$user,$pass" "$url" \
         -e "set net:timeout 15; set net:max-retries 1; set sftp:auto-confirm yes; cd '${path}'; $uploads; bye" 2>&1)"; then
         [[ -n "$lftp_out" ]] && printf '%s\n' "$lftp_out" >>"$LOG_FILE"
-        printf "%sReport uploaded successfully.\n" "$TABLE_INDENT"
+        printf "%sReport uploaded successfully.\n" "$TABLE_INDENT" >&5
         REPORT_NET_STATUS="ok"
         REPORT_NET_REASON=""
     else
         [[ -n "$lftp_out" ]] && printf '%s\n' "$lftp_out" >>"$LOG_FILE"
-        printf "%sReport upload FAILED.\n" "$TABLE_INDENT"
+        printf "%sReport upload FAILED.\n" "$TABLE_INDENT" >&5
         REPORT_NET_STATUS="fail"
         REPORT_NET_REASON="${lftp_out##*$'\n'}"
         [[ -n "$REPORT_NET_REASON" ]] || REPORT_NET_REASON="lftp transfer failed"
@@ -889,7 +889,7 @@ report::upload_net() {
     fi
 }
 
-# Upload dispatcher: dashboard push (tscrub_upload=) takes priority, then a
+# Upload dispatcher: dashboard push (appliance token) takes priority, then a
 # network upload (tscrub_output=ftp:.../sftp:...); otherwise the report stays
 # local. Returns non-zero when a configured destination failed and nothing was
 # delivered (so fn_main can flag the finish screen amber). Returns 0 when
@@ -906,15 +906,11 @@ report::upload() {
 
     [[ -n "${TSCRUB_NET_PROTO:-}" ]] && fallback_hint=" — falling back to ${TSCRUB_NET_PROTO}"
 
-    if [[ -n "${TSCRUB_UPLOAD_URL:-}" && -n "${TSCRUB_API_TOKEN:-}" ]]; then
+    if [[ -n "${TSCRUB_API_TOKEN:-}" ]]; then
         if report::upload_http "$file"; then
             return 0
         fi
-        printf "%sDashboard upload failed%s.\n" "$TABLE_INDENT" "$fallback_hint"
-    elif [[ -n "${TSCRUB_UPLOAD_URL:-}" ]]; then
-        printf "%sDashboard upload configured but no API token%s.\n" "$TABLE_INDENT" "$fallback_hint"
-        REPORT_DASH_STATUS="fail"
-        REPORT_DASH_REASON="no API token"
+        printf "%sDashboard upload failed%s.\n" "$TABLE_INDENT" "$fallback_hint" >&5
     fi
 
     if [[ -n "${TSCRUB_NET_PROTO:-}" ]]; then
@@ -924,7 +920,7 @@ report::upload() {
         return 1
     fi
 
-    if [[ -n "${TSCRUB_UPLOAD_URL:-}" ]]; then
+    if [[ -n "${TSCRUB_API_TOKEN:-}" ]]; then
         return 1
     fi
     return 0
@@ -955,8 +951,12 @@ report::print_summary() {
 
     printf "%sReport delivery:\n" "$TABLE_INDENT"
     printf "%s  %-14s %s\n" "$TABLE_INDENT" "USB:" "$usb"
-    printf "%s  %-14s %s\n" "$TABLE_INDENT" "tscrub.com:" "$dash"
-    printf "%s  %-14s %s\n" "$TABLE_INDENT" "${netlabel}:" "$net"
+    if [[ -n "${TSCRUB_API_TOKEN:-}" ]]; then
+        printf "%s  %-14s %s\n" "$TABLE_INDENT" "Dashboard:" "$dash"
+    fi
+    if [[ -n "${TSCRUB_NET_PROTO:-}" ]]; then
+        printf "%s  %-14s %s\n" "$TABLE_INDENT" "${netlabel}:" "$net"
+    fi
 }
 
 # Write a diagnostics bundle (network state, dmesg, tScrub log, report outcome)
@@ -996,7 +996,7 @@ debug::save() {
         echo
         echo "=== report delivery ==="
         printf 'USB: %s %s\n' "${REPORT_USB_STATUS:-n/a}" "${REPORT_USB_REASON:-}"
-        printf 'tscrub.com: %s %s\n' "${REPORT_DASH_STATUS:-not configured}" "${REPORT_DASH_REASON:-}"
+        printf 'Dashboard: %s %s\n' "${REPORT_DASH_STATUS:-not configured}" "${REPORT_DASH_REASON:-}"
         printf 'Network: %s %s\n' "${REPORT_NET_STATUS:-not configured}" "${REPORT_NET_REASON:-}"
         echo
         echo "=== tscrub.conf (on-USB config) ==="
@@ -1019,7 +1019,7 @@ debug::save() {
     } > "$out" 2>/dev/null
 
     if [[ -s "$out" ]]; then
-        printf "%sDebug snapshot saved to %s\n" "$TABLE_INDENT" "$(basename "$out")" >&2
+        printf "%sDebug snapshot saved to %s\n" "$TABLE_INDENT" "$(basename "$out")" >&5
     fi
 }
 
