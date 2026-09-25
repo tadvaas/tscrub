@@ -8,15 +8,18 @@ DEST="${TSCRUB_FORM_DEST:-~/webs/tscrub-form}"
 
 cd "$(dirname "$0")/server"
 
-# Only sync app code + example config. Deliberately NO --delete: the server
-# also holds runtime-only files (tcpdf/, certificates/, sign.crt, sign.key,
-# vendor.key, config.json) that must never be removed by a deploy.
+# Sync the full app code. Deliberately NO --delete: the server also holds
+# runtime-only files (certificates/, sign.crt, sign.key, vendor.key,
+# config.json) that must never be removed by a deploy, so we exclude them
+# rather than mirroring the directory.
 rsync -avz \
-  certify.php submit.php verify.php \
-  api.php auth.php db.php http.php mail.php reports_lib.php \
-  migrate.php seed-admin.php schema.sql \
-  sendmail.py issue_licence.py \
-  config.example.json \
+  --exclude '__pycache__/' \
+  --exclude 'config.json' \
+  --exclude 'certificates/' \
+  --exclude 'sign.crt' \
+  --exclude 'sign.key' \
+  --exclude 'vendor.key' \
+  ./ \
   -e "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
   "$HOST:$DEST/"
 
