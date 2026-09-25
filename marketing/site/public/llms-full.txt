@@ -40,7 +40,7 @@ See pricing at https://tscrub.com/pricing and download the appliance image at ht
 
 ## Getting started
 
-A step-by-step walkthrough of the whole journey is at https://tscrub.com/getting-started. Download the bootable appliance ISO from the public Download page (https://tscrub.com/download) and issue your licence from your dashboard Account page (account required). Boot the tScrub appliance image from USB or PXE and run it. At the end of a run the appliance writes the report locally (boot USB, or `tscrub_output=`) and can push it to your dashboard (`tscrub_upload=` + `tscrub_api_token=`) or FTP/SFTP (`tscrub_output=ftp:…` / `tscrub_output=sftp:…`). Verify reports with the `tscrub verify` command (documented in the Docs page).
+A step-by-step walkthrough of the whole journey is at https://tscrub.com/getting-started. Download the bootable appliance ISO from the public Download page (https://tscrub.com/download) and issue your licence from your dashboard Account page (account required). Boot the tScrub appliance image from USB or PXE and run it. At the end of a run the appliance writes the report locally (boot USB, or `tscrub_output=`) and can push it to your dashboard (`tscrub_api_token=`) or FTP/SFTP (`tscrub_output=ftp:…` / `tscrub_output=sftp:…`). Verify reports with the `tscrub verify` command (documented in the Docs page).
 
 ## Certificate of Destruction
 
