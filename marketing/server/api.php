@@ -852,7 +852,11 @@ if ($method === 'GET' && $route === '/credits') {
     $u = auth_require();
     $stmt = db()->prepare('SELECT type, units, ref, created_at FROM credit_events WHERE user_id = ? ORDER BY id DESC LIMIT 20');
     $stmt->execute([(int)$u['id']]);
-    json_out(['ok' => true, 'balance' => credit_balance((int)$u['id']), 'events' => $stmt->fetchAll()]);
+    $events = array_map(static function (array $ev): array {
+        $ev['created_at'] = ts_local((string)($ev['created_at'] ?? ''));
+        return $ev;
+    }, $stmt->fetchAll());
+    json_out(['ok' => true, 'balance' => credit_balance((int)$u['id']), 'events' => $events]);
 }
 
 // POST /api/stripe/webhook — Stripe event delivery (signature-verified, idempotent).

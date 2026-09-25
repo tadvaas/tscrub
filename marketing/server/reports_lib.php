@@ -528,7 +528,7 @@ function report_row(array $r, ?array $payload): array {
         'source'      => (string)$r['source'],
         'devices'     => (int)$r['devices'],
         'runs'        => (int)$r['runs'],
-        'uploaded_at' => (string)$r['uploaded_at'],
+        'uploaded_at' => ts_local((string)$r['uploaded_at']),
         'first'       => is_array($payload) ? (string)($payload['first'] ?? '') : '',
         'last'        => is_array($payload) ? (string)($payload['last'] ?? '') : '',
         'system'      => is_array($payload) ? (string)($payload['system'] ?? '') : '',

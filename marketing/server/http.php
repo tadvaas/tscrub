@@ -23,6 +23,22 @@ function json_body(): array {
     return is_array($data) ? $data : [];
 }
 
+// Convert a stored UTC timestamp to Europe/London (British Time) for display.
+// Storage stays UTC; only the API display strings are localised, so a browser
+// in any timezone still shows the customer's local time consistently.
+function ts_local(?string $utc): string {
+    if ($utc === null || $utc === '') {
+        return '';
+    }
+    try {
+        $dt = new DateTime($utc, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone('Europe/London'));
+        return $dt->format('Y-m-d H:i:s');
+    } catch (Throwable $e) {
+        return $utc;
+    }
+}
+
 // JSON endpoints must never leak a raw 500 HTML page or stack trace. Log the
 // exception and return a JSON error body instead.
 set_exception_handler(function (Throwable $e): void {
