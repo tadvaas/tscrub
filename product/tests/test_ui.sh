@@ -86,26 +86,31 @@ t::check "layout 186 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 186 ))'
 t::check "layout 186 ETA fits" '(( UI_ETA_COL - 1 + UI_ETA_W <= 186 ))'
 t::check "layout 186 has 12 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 12 ))'
 t::check "layout 186 keeps CLASS, drops CERT" 'has_label CLASS && ! has_label CERT'
-t::check "layout 186 centred (2-col margin)" '(( ${#UI_TABLE_INDENT} == 2 ))'
+t::check "layout 186 margins + fill" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 182 ))'
 COLUMNS=160; table::compute_layout
 t::check "layout 160 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 160 ))'
 t::check "layout 160 has 12 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 12 ))'
 t::check "layout 160 even (panels align)" '(( UI_TABLE_MAIN_W % 2 == 0 ))'
-t::check "layout 160 centred (6-col margin)" '(( ${#UI_TABLE_INDENT} == 6 ))'
+t::check "layout 160 margins + fill" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 156 ))'
 COLUMNS=120; table::compute_layout
 t::check "layout 120 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 120 ))'
 t::check "layout 120 has 11 cols (METHOD dropped)" '(( ${#UI_TABLE_WIDTHS[@]} == 11 ))'
 t::check "layout 120 keeps CLASS" 'has_label CLASS'
-t::check "layout 120 centred (3-col margin)" '(( ${#UI_TABLE_INDENT} == 3 ))'
+t::check "layout 120 margins + fill" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 116 ))'
 COLUMNS=100; table::compute_layout
 t::check "layout 100 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 100 ))'
 t::check "layout 100 has 11 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 11 ))'
 t::check "layout 100 even (panels align)" '(( UI_TABLE_MAIN_W % 2 == 0 ))'
+t::check "layout 100 margins + fill" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 96 ))'
 COLUMNS=80; table::compute_layout
 t::check "layout 80 fits" '(( ${#UI_TABLE_INDENT} + UI_TABLE_MAIN_W <= 80 ))'
 t::check "layout 80 ETA fits" '(( UI_ETA_COL - 1 + UI_ETA_W <= 80 ))'
 t::check "layout 80 has 9 cols" '(( ${#UI_TABLE_WIDTHS[@]} == 9 ))'
 t::check "layout 80 keeps CLASS" 'has_label CLASS'
-t::check "layout 80 centred (2-col margin)" '(( ${#UI_TABLE_INDENT} == 2 ))'
+t::check "layout 80 margins + fill" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 76 ))'
+COLUMNS=220; table::compute_layout
+t::check "layout 220 margins + fill (12 cols)" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 216 && ${#UI_TABLE_WIDTHS[@]} == 12 ))'
+COLUMNS=199; table::compute_layout
+t::check "layout 199 margin + rounds to even" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 194 && UI_TABLE_MAIN_W <= 199 ))'
 
 t::summary

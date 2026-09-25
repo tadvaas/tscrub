@@ -7,6 +7,30 @@ signed; the full release history (SHA-256 + signing-key fingerprint) lives in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.43] - 2026-09-25
+
+### Added
+- A sticky footer pinned to the bottom of the console showing
+  "tScrub v1.4.43 — tscrub.com".
+
+### Fixed
+- Dashboard reports and billing credit history now show British Time
+  (Europe/London) instead of UTC.
+
+## [v1.4.42] - 2026-09-25
+
+### Changed
+- The full-width table now keeps a small, equal margin on the left and right
+  (and the finish messages/summary align to that margin) instead of running
+  edge-to-edge.
+
+## [v1.4.41] - 2026-09-25
+
+### Changed
+- The device table now fills the full terminal width instead of centring at a
+  fixed 182-column cap; MODEL and SERIAL absorb the extra width. Small
+  terminals are unchanged (the same column-dropping tiers still apply).
+
 ## [v1.4.40] - 2026-09-25
 
 ### Changed

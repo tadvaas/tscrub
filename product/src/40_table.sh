@@ -40,28 +40,51 @@ table::detect_terminal_height() {
 # CERT is gone (redundant with CLASS); METHOD drops below wide terminals; the
 # fixed-vocabulary columns (CLASS/STATUS/ETA/...) are sized so they never clip.
 table::compute_layout() {
-    local term_w
+    local term_w even_w margin=2 avail
     term_w="$(table::detect_terminal_width)"
+    # Small, equal left/right margin; the table fills everything in between.
+    # Round the available width down to an even number so panel_w=(main_w-2)/2
+    # divides exactly (an odd terminal simply leaves one trailing column).
+    avail=$(( term_w - 2 * margin ))
+    (( avail < 20 )) && avail=20
+    even_w=$(( avail - (avail % 2) ))
 
+    # Choose the column set by terminal width (METHOD drops below 118, SMART and
+    # TEMP below 100), then let the two free-text columns (MODEL, SERIAL) absorb
+    # every remaining column so the table fills the full width edge-to-edge.
+    # UI_TABLE_MIN holds the minimum width for every column after MODEL/SERIAL;
+    # these minima match the old fixed tiers at their lower bound, so nothing
+    # clips on a narrower terminal.
     if (( term_w >= 186 )); then
         UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS METHOD STATUS ETA)
-        UI_TABLE_WIDTHS=(39 32 8 8 8 8 6 8 13 20 12 9)
+        UI_TABLE_MIN=(8 8 8 8 6 8 13 20 12 9)
     elif (( term_w >= 152 )); then
         UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS METHOD STATUS ETA)
-        UI_TABLE_WIDTHS=(29 23 7 6 6 6 5 8 10 19 9 9)
+        UI_TABLE_MIN=(7 6 6 6 5 8 10 19 9 9)
     elif (( term_w >= 118 )); then
         UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS STATUS ETA)
-        UI_TABLE_WIDTHS=(22 17 7 6 6 5 6 8 9 9 9)
+        UI_TABLE_MIN=(7 6 6 5 6 8 9 9 9)
     elif (( term_w >= 100 )); then
         UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS STATUS ETA)
-        UI_TABLE_WIDTHS=(14 10 7 6 6 5 6 7 7 9 9)
+        UI_TABLE_MIN=(7 6 6 5 6 7 7 9 9)
     else
         UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE CLASS DEVICE STATUS ETA)
-        UI_TABLE_WIDTHS=(12 8 7 5 5 7 7 9 8)
+        UI_TABLE_MIN=(7 5 5 7 7 9 8)
     fi
 
-    local n=${#UI_TABLE_WIDTHS[@]}
-    local i content=0
+    local n=${#UI_TABLE_LABELS[@]}
+    local i model_min=12 serial_min=8 fixed=0
+    for ((i=0; i<n-2; i++)); do fixed=$(( fixed + UI_TABLE_MIN[i] )); done
+    local base=$(( model_min + serial_min + fixed + (n - 1) ))
+    local extra=$(( even_w - base ))
+    (( extra < 0 )) && extra=0
+
+    # Split the slack ~50/50 between MODEL and SERIAL (odd column to MODEL), so
+    # MODEL stays a touch wider than SERIAL as in the old layouts.
+    local half=$(( extra / 2 ))
+    UI_TABLE_WIDTHS=("$(( model_min + half + (extra % 2) ))" "$(( serial_min + half ))" "${UI_TABLE_MIN[@]}")
+
+    local content=0
     UI_TABLE_FMT=""
     for ((i=0; i<n; i++)); do
         local w="${UI_TABLE_WIDTHS[i]}"
@@ -72,13 +95,8 @@ table::compute_layout() {
     done
 
     UI_TABLE_MAIN_W=$content
-
-    # Centre the table in the terminal (equal leading/trailing margin) instead
-    # of a fixed left indent. The derived ETA column position uses this indent
-    # so the in-place tick updates stay aligned with the centred table.
-    local indent_pad=$(( (term_w - content) / 2 ))
-    (( indent_pad < 0 )) && indent_pad=0
-    printf -v UI_TABLE_INDENT '%*s' "$indent_pad" ''
+    # Equal left/right margin (also used to indent the finish message/summary).
+    printf -v UI_TABLE_INDENT '%*s' "$margin" ''
 
     UI_ETA_COL=$(( ${#UI_TABLE_INDENT} + content - ${UI_TABLE_WIDTHS[n-1]} + 1 ))
     UI_ETA_W=${UI_TABLE_WIDTHS[n-1]}
@@ -201,6 +219,17 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
+# Bottom-of-screen footer: brand + version, centred. Clears the line first so a
+# terminal resize (or an old, longer footer) never leaves stale text behind.
+ui::footer() {
+    local text term_w pad
+    text="${SCRIPT_NAME} ${SCRIPT_VERSION} — tscrub.com"
+    term_w="$(table::detect_terminal_width)"
+    pad=$(( (term_w - ${#text}) / 2 ))
+    (( pad < 0 )) && pad=0
+    printf "\033[K%*s%s" "$pad" "" "$text"
+}
+
 ui::eta_text_for() {
     local dev="$1"
     local now="$2"
@@ -316,7 +345,7 @@ table::render() {
         printf "\n"
     fi
 
-    local now
+    local now rows
     local runtime_s runtime_h runtime_m runtime_sec runtime_str
     local main_w panel_w hline
     local cpu_line cpu_printed gpu_line gpu_printed
@@ -324,6 +353,7 @@ table::render() {
     local eta_base_row completion_base_row
     local sys_label_w sys_value_w runtime_label_w runtime_value_w
     now="$(ts::now)"
+    rows="$(table::detect_terminal_height)"
     runtime_str="$(ui::format_runtime "$now") $(ui::spinner)"
 
     # Width shared by the two info panels and the device table so their frames
@@ -454,6 +484,15 @@ table::render() {
 
     if [[ "$UI_COMPLETE_THEME" -ne 0 && "$UI_COMPLETE_THEME" -ne 4 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
+    fi
+
+    # Sticky footer pinned to the bottom row on every full repaint. Save/restore
+    # the cursor so the caller's position (finish message, in-place tick) is kept.
+    if [[ -t 1 ]]; then
+        printf "\0337"
+        printf "\033[%d;1H" "$rows"
+        ui::footer
+        printf "\0338"
     fi
 
 }
