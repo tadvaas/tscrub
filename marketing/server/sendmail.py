@@ -12,7 +12,7 @@ import smtplib
 import ssl
 import sys
 from email.mime.text import MIMEText
-from email.utils import formataddr
+from email.utils import formataddr, formatdate
 
 BASE = os.path.dirname(os.path.realpath(__file__))
 
@@ -22,6 +22,9 @@ def main():
         payload = json.load(sys.stdin)
     except Exception as e:
         sys.stderr.write(f"payload: {e}\n")
+        sys.exit(2)
+    if not isinstance(payload, dict):
+        sys.stderr.write("payload: expected a JSON object\n")
         sys.exit(2)
 
     try:
@@ -42,10 +45,17 @@ def main():
             to = cfg.get("to_contact", cfg["from"])
     reply_to = payload.get("reply_to")
 
+    # Scrub CR/LF so values cannot inject headers (defense-in-depth).
+    if to is not None:
+        to = str(to).replace("\r", " ").replace("\n", " ")
+    if reply_to is not None:
+        reply_to = str(reply_to).replace("\r", " ").replace("\n", " ")
+
     msg = MIMEText(payload.get("text", ""), "plain", "utf-8")
     msg["Subject"] = payload.get("subject", "tScrub enquiry")
     msg["From"] = formataddr(("tScrub", cfg["from"]))
     msg["To"] = to
+    msg["Date"] = formatdate(localtime=True)
     if reply_to:
         msg["Reply-To"] = reply_to
 

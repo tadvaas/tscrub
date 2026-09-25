@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS users (
   name            VARCHAR(200)    NOT NULL DEFAULT '',
   account_type    ENUM('personal','company') NOT NULL DEFAULT 'personal',
   company_name    VARCHAR(255)    NOT NULL DEFAULT '',
+  company_reg     VARCHAR(64)     NOT NULL DEFAULT '',
+  addr_line1      VARCHAR(255)    NOT NULL DEFAULT '',
+  addr_line2      VARCHAR(255)    NOT NULL DEFAULT '',
+  city            VARCHAR(100)    NOT NULL DEFAULT '',
+  postcode        VARCHAR(20)     NOT NULL DEFAULT '',
+  country         VARCHAR(100)    NOT NULL DEFAULT '',
+  phone           VARCHAR(50)     NOT NULL DEFAULT '',
   role            ENUM('user','admin') NOT NULL DEFAULT 'user',
   email_verified  TINYINT(1)      NOT NULL DEFAULT 0,
   status          ENUM('active','suspended') NOT NULL DEFAULT 'active',
@@ -101,6 +108,26 @@ CREATE TABLE IF NOT EXISTS certificate_drives (
   CONSTRAINT fk_cd_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Uploaded reports (raw evidence) stored independently of certificates.
+-- A certificate is generated from these on demand (POST /api/certs).
+CREATE TABLE IF NOT EXISTS reports (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     BIGINT UNSIGNED NOT NULL,
+  cocid       VARCHAR(64)     NOT NULL,
+  filename    VARCHAR(500)    NOT NULL DEFAULT '',
+  sha_state   VARCHAR(16)     NOT NULL DEFAULT 'unverified',
+  sig_state   VARCHAR(16)     NOT NULL DEFAULT 'none',
+  source      VARCHAR(16)     NOT NULL DEFAULT 'manual',
+  devices     INT UNSIGNED    NOT NULL DEFAULT 0,
+  runs        INT UNSIGNED    NOT NULL DEFAULT 0,
+  payload     JSON            NOT NULL,
+  uploaded_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_reports_user (user_id, uploaded_at),
+  KEY idx_reports_cocid (user_id, cocid),
+  CONSTRAINT fk_reports_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS api_tokens (
   id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id      BIGINT UNSIGNED NOT NULL,
@@ -121,6 +148,7 @@ CREATE TABLE IF NOT EXISTS licences (
   customer     VARCHAR(255)    NOT NULL,
   expiry       DATE            NOT NULL,
   licence_json TEXT            NOT NULL,
+  pub_key      VARCHAR(255)    NOT NULL DEFAULT '',
   created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_licences_user (user_id),
@@ -148,4 +176,45 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
   created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_audit_admin (admin_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Prepaid device-credit wallet (Stripe Phase 1). One credit = one device wiped.
+-- `ref` is the idempotency key: 'stripe:<checkout_session_id>' for credits and
+-- 'report:<csv-sha>' for debits, so a re-delivered webhook or a re-uploaded
+-- report can never double-count.
+CREATE TABLE IF NOT EXISTS credit_events (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  type       ENUM('credit','debit') NOT NULL,
+  units      INT UNSIGNED    NOT NULL,
+  ref        VARCHAR(255)    NOT NULL DEFAULT '',
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_credit_ref (user_id, ref),
+  KEY idx_credit_user (user_id, created_at),
+  CONSTRAINT fk_credit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Stripe subscriptions (Phase 2). Populated later; schema reserved now.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id                     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id                BIGINT UNSIGNED NOT NULL,
+  stripe_customer_id     VARCHAR(255)    NOT NULL DEFAULT '',
+  stripe_subscription_id VARCHAR(255)    NOT NULL DEFAULT '',
+  price_id               VARCHAR(255)    NOT NULL DEFAULT '',
+  status                 VARCHAR(32)     NOT NULL DEFAULT '',
+  current_period_end     DATETIME        NULL DEFAULT NULL,
+  created_at             DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_subs_user (user_id),
+  KEY idx_subs_stripe (stripe_subscription_id),
+  CONSTRAINT fk_subs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Stripe webhook event log for idempotency.
+CREATE TABLE IF NOT EXISTS stripe_events (
+  id         VARCHAR(255) NOT NULL,
+  type       VARCHAR(64)  NOT NULL DEFAULT '',
+  handled_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

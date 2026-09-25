@@ -11,6 +11,7 @@ $cert = strtoupper(trim((string)($_GET['cert'] ?? '')));
 $isValidId = (preg_match('/^COD-[A-Z0-9-]{6,}$/', $cert) === 1);
 
 $record = null;
+$recordTier = 'free';
 $dbError = false;
 if ($isValidId) {
     try {
@@ -34,6 +35,17 @@ if ($isValidId) {
                 'issued'     => (string)$row['issued_at'],
                 'reports'    => $rq->fetchAll(),
             ];
+            // Free-tier licences carry no report key, so their reports are
+            // self-signed by the appliance and cannot be independently confirmed
+            // or attributed. Determine the owner's tier to drive the upsell.
+            if (!empty($row['user_id'])) {
+                $tq = db()->prepare('SELECT tier FROM licences WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1');
+                $tq->execute([(int)$row['user_id']]);
+                $tr = $tq->fetch();
+                if ($tr !== false && !empty($tr['tier'])) {
+                    $recordTier = (string)$tr['tier'];
+                }
+            }
         }
     } catch (Throwable $e) {
         error_log('verify.php db error: ' . $e->getMessage());
@@ -56,7 +68,8 @@ function v_sha_state($s) {
     return 'SHA-256 RECORDED';
 }
 function v_sig_state($s) {
-    if ($s === 'valid') return 'SIGNATURE VALID';
+    if ($s === 'attributed') return 'SIGNATURE VALID';
+    if ($s === 'valid') return 'SIGNATURE UNATTRIBUTED';
     if ($s === 'invalid') return 'SIGNATURE INVALID';
     return 'NOT SIGNED';
 }
@@ -65,12 +78,23 @@ function v_h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 $found = $record !== null;
 
 $window = '';
+$integrityNote = 'This certificate of destruction was issued by tScrub.';
 if ($found) {
     $first = $record['first'] ?? null;
     $last  = $record['last'] ?? null;
     if ($first !== null) {
         $window = v_ts($first);
         if ($last !== null && $first !== $last) { $window .= ' to ' . v_ts($last); }
+    }
+    $verified = ($recordTier !== 'free')
+        && ($record['sha_state'] ?? '') === 'verified'
+        && ($record['sig_state'] ?? '') === 'attributed';
+    $allGood = ($record['sha_state'] === 'verified')
+        && ($record['sig_state'] === 'attributed');
+    if ($allGood) {
+        $integrityNote = 'This certificate of destruction was issued by tScrub and its underlying reports passed integrity checks at the time of issuance.';
+    } else {
+        $integrityNote = 'This certificate of destruction was issued by tScrub. Note: some underlying reports did not pass integrity checks at the time of issuance — see the report list below.';
     }
 }
 ?>
@@ -79,7 +103,7 @@ if ($found) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= $found ? 'Certificate Verified' : 'Certificate Not Found' ?> — tScrub</title>
+<title><?= $found ? ($verified ? 'Certificate Verified' : 'Certificate Record') : 'Certificate Not Found' ?> — tScrub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -92,8 +116,10 @@ if ($found) {
   .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;}
   .status{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;margin-bottom:6px;}
   .dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;}
-  .ok{color:#059669;} .bad{color:#dc2626;}
-  .dot.ok{background:#059669;} .dot.bad{background:#dc2626;}
+  .ok{color:#059669;} .bad{color:#dc2626;} .warn{color:#d97706;}
+  .dot.ok{background:#059669;} .dot.bad{background:#dc2626;} .dot.warn{background:#d97706;}
+  .upsell{margin-top:14px;padding:14px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:13.5px;color:#92400e;}
+  .upsell a{font-weight:700;color:#b45309;}
   .sub{color:#64748b;font-size:14px;margin-bottom:20px;}
   table{width:100%;border-collapse:collapse;font-size:14px;}
   th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #e2e8f0;vertical-align:top;}
@@ -111,8 +137,17 @@ if ($found) {
 <main>
   <div class="card">
 <?php if ($found): ?>
+    <?php if ($recordTier !== 'free' && $verified): ?>
     <div class="status"><span class="dot ok"></span><span class="ok">Certificate Verified</span></div>
-    <div class="sub">This certificate of destruction was issued by tScrub and its underlying reports passed integrity checks at the time of issuance.</div>
+    <div class="sub"><?= v_h($integrityNote) ?></div>
+    <?php elseif ($recordTier !== 'free'): ?>
+    <div class="status"><span class="dot warn"></span><span class="warn">Certificate Record — signature not attributable</span></div>
+    <div class="sub">This certificate's reports are signed, but the signature could not be matched to the account's licence, so it is recorded but not independently confirmed as attributable. <?= v_h($integrityNote) ?></div>
+    <?php else: ?>
+    <div class="status"><span class="dot warn"></span><span class="warn">Free-tier certificate — cannot be confirmed</span></div>
+    <div class="sub">This certificate was generated on the free tier. Free-tier reports are self-signed by the appliance, so their authenticity cannot be independently confirmed or attributed to a verified organisation.</div>
+    <div class="upsell">Upgrade to a commercial plan to enable signed, attributable verification of your certificates of destruction. <a href="/pricing">See plans</a></div>
+    <?php endif; ?>
     <table>
       <tr><th>Certificate ID</th><td><code><?= v_h($record['cert'] ?? $cert) ?></code></td></tr>
       <tr><th>Chain of Custody ID</th><td><?= v_h($record['cocid'] ?? '') ?></td></tr>
@@ -120,7 +155,7 @@ if ($found) {
       <tr><th>Sanitisation window</th><td><?= v_h($window) ?></td></tr>
       <tr><th>Devices / Methods / Runs</th><td><?= (int)($record['devices'] ?? 0) ?> / <?= (int)($record['methods'] ?? 0) ?> / <?= (int)($record['runs'] ?? 0) ?></td></tr>
       <tr><th>Integrity</th><td><?= v_h(v_sha_state($record['sha_state'] ?? 'unverified')) ?></td></tr>
-      <tr><th>Signature</th><td><?= v_h(v_sig_state($record['sig_state'] ?? 'none')) ?></td></tr>
+      <tr><th>Signature</th><td><?= $recordTier === 'free' ? 'Self-signed — not attributable' : v_h(v_sig_state($record['sig_state'] ?? 'none')) ?></td></tr>
       <tr><th>Document hash (SHA-256)</th><td><code><?= v_h($record['pdf_sha256'] ?? '') ?></code></td></tr>
     </table>
     <?php if (!empty($record['reports'])): ?>

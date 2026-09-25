@@ -28,7 +28,7 @@ if (!empty($data['website'])) {
 }
 
 $type = $data['type'] ?? 'contact';
-if (!in_array($type, ['contact', 'download', 'support'], true)) {
+if (!in_array($type, ['contact', 'general', 'sales', 'support', 'compliance', 'download'], true)) {
     $type = 'contact';
 }
 
@@ -58,14 +58,33 @@ $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 $rlDir = __DIR__ . '/rl';
 $rlFile = $rlDir . '/' . md5($ip);
 if (!is_dir($rlDir)) { @mkdir($rlDir, 0770, true); }
-if (file_exists($rlFile) && (time() - (int)@file_get_contents($rlFile)) < 30) {
+$rlFp = @fopen($rlFile, 'c');
+if ($rlFp === false) {
     http_response_code(429);
     echo json_encode(['ok' => false, 'error' => 'Please wait a moment before sending again.']);
     exit;
 }
-@file_put_contents($rlFile, (string)time());
+flock($rlFp, LOCK_EX);
+$rlLast = filesize($rlFile) > 0 ? (int)file_get_contents($rlFile) : 0;
+if ($rlLast > 0 && (time() - $rlLast) < 30) {
+    flock($rlFp, LOCK_UN);
+    fclose($rlFp);
+    http_response_code(429);
+    echo json_encode(['ok' => false, 'error' => 'Please wait a moment before sending again.']);
+    exit;
+}
+ftruncate($rlFp, 0);
+rewind($rlFp);
+fwrite($rlFp, (string)time());
+fflush($rlFp);
+flock($rlFp, LOCK_UN);
+fclose($rlFp);
 
-$subject = $type === 'download' ? 'tScrub download request' : ($type === 'support' ? 'tScrub support request' : 'tScrub enquiry');
+$subject = $type === 'download' ? 'tScrub download request'
+    : ($type === 'support' ? 'tScrub support request'
+    : ($type === 'sales' ? 'tScrub sales enquiry'
+    : ($type === 'compliance' ? 'tScrub compliance enquiry'
+    : 'tScrub enquiry')));
 $text = "Name: {$name}\nEmail: {$email}\nOrganisation: {$org}\n\n{$message}";
 
 $payload = json_encode([

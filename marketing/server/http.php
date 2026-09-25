@@ -22,3 +22,13 @@ function json_body(): array {
     $data = json_decode($raw === false ? '' : $raw, true);
     return is_array($data) ? $data : [];
 }
+
+// JSON endpoints must never leak a raw 500 HTML page or stack trace. Log the
+// exception and return a JSON error body instead.
+set_exception_handler(function (Throwable $e): void {
+    error_log('tscrub uncaught exception: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) {
+        fail(500, 'Internal error.');
+    }
+    exit;
+});

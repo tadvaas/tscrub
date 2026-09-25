@@ -9,7 +9,7 @@
   "to_download": "support@tscrub.com",
   "to_support": "support@tscrub.com",
   "vendor_key": "/home/oxwet/webs/tscrub-form/vendor.key",
-  "download_url": "https://tscrub.com/downloads/tscrub.sh",
+  "download_url": "https://tscrub.com/download",
   "base_url": "https://tscrub.com",
   "db": {
     "host": "127.0.0.1",
@@ -17,5 +17,15 @@
     "name": "tScrub",
     "user": "tScrub",
     "password": "CHANGE_ME"
+  },
+  "stripe": {
+    "secret_key": "sk_test_...",
+    "publishable_key": "pk_test_...",
+    "webhook_secret": "whsec_...",
+    "prices": {
+      "pack10":  { "price_id": "price_...", "units": 10 },
+      "pack50":  { "price_id": "price_...", "units": 50 },
+      "pack100": { "price_id": "price_...", "units": 100 }
+    }
   }
 }

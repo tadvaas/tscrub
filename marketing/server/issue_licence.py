@@ -18,6 +18,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -56,8 +57,16 @@ def main():
     if not customer:
         sys.stderr.write("customer name required\n")
         sys.exit(1)
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", expiry):
-        sys.stderr.write("expiry must be YYYY-MM-DD\n")
+    # The appliance parses the licence with sed and reconstructs
+    # customer|expiry|tier|key for signature verification — reject characters
+    # that would break that parsing (embedded quotes, backslashes, control chars).
+    if any(ch in customer for ch in '"\\') or any(ord(ch) < 32 for ch in customer):
+        sys.stderr.write("customer name must not contain quotes, backslashes, or control characters\n")
+        sys.exit(1)
+    try:
+        datetime.strptime(expiry, "%Y-%m-%d")
+    except ValueError:
+        sys.stderr.write("expiry must be a valid YYYY-MM-DD date\n")
         sys.exit(1)
     if not args.json and "@" not in email:
         sys.stderr.write("invalid email address\n")
@@ -66,12 +75,14 @@ def main():
     cfg = load_config()
     from_addr = cfg.get("from_licence", cfg.get("from"))
     vendor_key = cfg.get("vendor_key", os.path.join(BASE, "vendor.key"))
+    if not os.path.isabs(vendor_key):
+        vendor_key = os.path.join(BASE, vendor_key)
     if not os.path.exists(vendor_key):
         sys.stderr.write(f"vendor key not found: {vendor_key}\n")
         sys.exit(1)
 
     # 1. Report signing key (private, embedded in the licence). Paid tiers only —
-    #    free licences stay unsigned (checksum-only reports).
+    #    free licences self-sign with an appliance-generated key.
     key_b64 = ""
     if tier != "free":
         report_key = run(["openssl", "genpkey", "-algorithm", "ED25519"])
@@ -95,7 +106,7 @@ def main():
     }
     if key_b64:
         licence["key"] = key_b64
-    lic_json = json.dumps(licence, indent=2) + "\n"
+    lic_json = json.dumps(licence, indent=2, ensure_ascii=False) + "\n"
 
     # Machine-facing mode: print the licence and stop (used by the web API).
     if args.json:
@@ -115,8 +126,8 @@ def main():
     download_url = cfg.get("download_url", "https://tscrub.com/download")
     body = (
         f"Hi {customer},\n\n"
-        "Your tScrub licence is attached. Place the .lic file alongside "
-        "tscrub.sh on the appliance\n(or point to it with --license).\n\n"
+        "Your tScrub licence is attached. Put the .lic file on the appliance's "
+        "boot USB,\nor supply it via tscrub_license= / tscrub_license_url= on the kernel command line.\n\n"
         f"Licence file: {filename}\n"
         f"Expires: {expiry}\n\n"
         f"Download the appliance: {download_url}\n\n"

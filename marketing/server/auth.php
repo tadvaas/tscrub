@@ -59,12 +59,19 @@ function auth_start(): void {
         $row = ['id' => $token, 'user_id' => null, 'csrf' => $csrf];
     }
 
+    // Opportunistically reclaim expired sessions (~1% of requests) so the table
+    // can't grow without bound from anonymous (cookie-less) requests.
+    if (random_int(1, 100) === 1) {
+        db()->exec('DELETE FROM sessions WHERE expires_at <= UTC_TIMESTAMP()');
+        db()->exec('DELETE FROM tokens WHERE expires_at <= UTC_TIMESTAMP()');
+    }
+
     $GLOBALS['tscrub_session'] = $row;
     $GLOBALS['tscrub_user'] = null;
 
     if ($row['user_id'] !== null) {
         $stmt = db()->prepare(
-            'SELECT id, email, name, account_type, company_name, role, email_verified, status, created_at, last_login_at
+            'SELECT id, email, name, account_type, company_name, company_reg, addr_line1, addr_line2, city, postcode, country, phone, role, email_verified, status, created_at, last_login_at
              FROM users WHERE id = ?'
         );
         $stmt->execute([$row['user_id']]);
@@ -115,11 +122,13 @@ function auth_require_admin(): array {
 function auth_login(int $userId): void {
     $old = (string)($GLOBALS['tscrub_session']['id'] ?? '');
     $new = auth_token();
-    db()->prepare('UPDATE sessions SET id = ?, user_id = ?, expires_at = ? WHERE id = ?')
-        ->execute([$new, $userId, gmdate('Y-m-d H:i:s', time() + SESSION_LIFETIME), $old]);
+    $newCsrf = auth_token();
+    db()->prepare('UPDATE sessions SET id = ?, user_id = ?, csrf = ?, expires_at = ? WHERE id = ?')
+        ->execute([$new, $userId, $newCsrf, gmdate('Y-m-d H:i:s', time() + SESSION_LIFETIME), $old]);
     setcookie(SESSION_COOKIE, $new, auth_cookie_opts(time() + SESSION_LIFETIME));
     $GLOBALS['tscrub_session']['id'] = $new;
     $GLOBALS['tscrub_session']['user_id'] = $userId;
+    $GLOBALS['tscrub_session']['csrf'] = $newCsrf;
 
     db()->prepare('UPDATE users SET last_login_at = NOW(), failed_attempts = 0, locked_until = NULL WHERE id = ?')
         ->execute([$userId]);
@@ -141,6 +150,13 @@ function user_public(array $u): array {
         'name'           => (string)$u['name'],
         'account_type'   => (string)$u['account_type'],
         'company_name'   => (string)$u['company_name'],
+        'company_reg'    => (string)($u['company_reg'] ?? ''),
+        'addr_line1'     => (string)($u['addr_line1'] ?? ''),
+        'addr_line2'     => (string)($u['addr_line2'] ?? ''),
+        'city'           => (string)($u['city'] ?? ''),
+        'postcode'       => (string)($u['postcode'] ?? ''),
+        'country'        => (string)($u['country'] ?? ''),
+        'phone'          => (string)($u['phone'] ?? ''),
         'role'           => (string)$u['role'],
         'email_verified' => (int)$u['email_verified'] === 1,
         'status'         => (string)$u['status'],
@@ -157,10 +173,26 @@ function rate_limit(string $scope, int $seconds): void {
         @mkdir($dir, 0770, true);
     }
     $file = $dir . '/' . md5($scope . ':' . $ip);
-    if (is_file($file) && (time() - (int)@file_get_contents($file)) < $seconds) {
+    $fp = @fopen($file, 'c');
+    if ($fp === false) {
         fail(429, 'Please wait a moment before trying again.');
     }
-    @file_put_contents($file, (string)time());
+    flock($fp, LOCK_EX);
+    $last = 0;
+    if (filesize($file) > 0) {
+        $last = (int)file_get_contents($file);
+    }
+    if ($last > 0 && (time() - $last) < $seconds) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        fail(429, 'Please wait a moment before trying again.');
+    }
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, (string)time());
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
 }
 
 function audit_log(array $admin, string $action, string $target = ''): void {
