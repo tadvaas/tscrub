@@ -916,7 +916,6 @@ if ($method === 'POST' && $route === '/stripe/webhook') {
 if ($method === 'POST' && $route === '/certs') {
     auth_csrf_verify();
     $u = auth_require();
-    rate_limit('certs', 30);
     $d = json_body();
     $cocid = trim((string)($d['cocid'] ?? ''));
     if ($cocid === '' || mb_strlen($cocid, 'UTF-8') > 64) {
@@ -948,14 +947,14 @@ if ($method === 'POST' && $route === '/certs') {
     // supplied a decision, return the uncompleted drives so the dashboard can
     // ask; otherwise validate the choices and bake them into the certificate.
     $nonCompleted = [];
-    foreach ($g['drives'] as $d) {
-        $st = strtoupper(trim((string)($d['status'] ?? '')));
+    foreach ($g['drives'] as $drv) {
+        $st = strtoupper(trim((string)($drv['status'] ?? '')));
         if ($st === 'COMPLETED' || $st === 'DRY-RUN' || $st === 'DESTROYED') continue;
         $nonCompleted[] = [
-            'serial' => (string)($d['serial'] ?? ''),
-            'model'  => (string)($d['model'] ?? ''),
-            'device' => (string)($d['device'] ?? ''),
-            'status' => (string)($d['status'] ?? ''),
+            'serial' => (string)($drv['serial'] ?? ''),
+            'model'  => (string)($drv['model'] ?? ''),
+            'device' => (string)($drv['device'] ?? ''),
+            'status' => (string)($drv['status'] ?? ''),
         ];
     }
 
@@ -980,6 +979,10 @@ if ($method === 'POST' && $route === '/certs') {
         }
     }
 
+    // Only the actual PDF generation is rate-limited; the decision check above
+    // is cheap and must not consume the slot (it would otherwise block the
+    // follow-up POST that carries the confirmed destruction choices).
+    rate_limit('certs', 30);
     $out = generate_certificate($g, (int)$u['id'], owner_tier((int)$u['id']) !== 'free', $destroyed);
     json_out(['ok' => true, 'cert' => $out], 201);
 }
