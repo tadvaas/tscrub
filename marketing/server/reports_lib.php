@@ -411,23 +411,50 @@ function db_drive_to_group(array $d): array {
 }
 
 /**
+ * Rank a drive's final status so that, when the same physical drive (serial)
+ * appears in multiple reports, the *best* outcome wins. A drive blocked or
+ * failed on one machine and then successfully erased on another must resolve
+ * to COMPLETED, not the earlier failure. COMPLETED > operator-confirmed
+ * DESTROYED > DRY-RUN > anything else (FAILED/BLOCKED/FROZEN/UNKNOWN).
+ */
+function drive_status_rank(?string $status): int {
+    $s = strtoupper(trim((string)$status));
+    if ($s === 'COMPLETED') return 3;
+    if ($s === 'DESTROYED') return 2;
+    if ($s === 'DRY-RUN')   return 1;
+    return 0;
+}
+
+/**
  * Merge a freshly parsed report group into an existing certificate (same COCID),
  * deduping drives by serial and reports by SHA, and keeping the strongest
- * sha/sig states and the widest first/last window.
+ * sha/sig states and the widest first/last window. When the same serial appears
+ * more than once, the drive row with the best outcome wins.
  */
 function merge_group(array $g, array $dbDrives, array $dbReports, array $existingCert): array {
     $drives = [];
-    $seenSerials = [];
+    $bySerial = [];
     foreach ($dbDrives as $d) {
         $gd = db_drive_to_group($d);
+        $s = strtolower(trim((string)($gd['serial'] ?? '')));
+        if ($s !== '' && isset($bySerial[$s])) {
+            if (drive_status_rank($gd['status'] ?? '') > drive_status_rank($drives[$bySerial[$s]]['status'] ?? '')) {
+                $drives[$bySerial[$s]] = $gd;
+            }
+            continue;
+        }
+        if ($s !== '') $bySerial[$s] = count($drives);
         $drives[] = $gd;
-        $s = strtolower((string)($gd['serial'] ?? ''));
-        if ($s !== '') $seenSerials[$s] = true;
     }
     foreach (($g['drives'] ?? []) as $nd) {
-        $s = strtolower((string)($nd['serial'] ?? ''));
-        if ($s !== '' && isset($seenSerials[$s])) continue;
-        if ($s !== '') $seenSerials[$s] = true;
+        $s = strtolower(trim((string)($nd['serial'] ?? '')));
+        if ($s !== '' && isset($bySerial[$s])) {
+            if (drive_status_rank($nd['status'] ?? '') > drive_status_rank($drives[$bySerial[$s]]['status'] ?? '')) {
+                $drives[$bySerial[$s]] = $nd;
+            }
+            continue;
+        }
+        if ($s !== '') $bySerial[$s] = count($drives);
         $drives[] = $nd;
     }
 
