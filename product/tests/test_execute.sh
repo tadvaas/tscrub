@@ -93,5 +93,48 @@ captured="$(cat "$OUT")"
 t::assert_contains "$captured" "sda STATUS FAILED" "SCSI nwipe failure -> FAILED"
 unset FAKE_NWIPE_RC
 
+# normalize_outcome: non-completed drives must not keep optimistic class/cert/method
+devices=(nvme0n1 sda)
+devrow=()
+devrow[nvme0n1.status]="BLOCKED"
+devrow[nvme0n1.class]="PURGE"
+devrow[nvme0n1.cert]="DESTRUCTION"
+devrow[nvme0n1.method]="NVMe Crypto Purge"
+devrow[sda.status]="FAILED"
+devrow[sda.class]="PURGE"
+devrow[sda.cert]="DESTRUCTION"
+devrow[sda.method]="Enhanced Erase"
+device::normalize_outcome
+t::assert_eq "BLOCKED" "${devrow[nvme0n1.class]}" "blocked class -> BLOCKED"
+t::assert_eq "NOT SANITISED" "${devrow[nvme0n1.cert]}" "blocked cert -> NOT SANITISED"
+t::assert_eq "Blocked by firmware (Block SID)" "${devrow[nvme0n1.method]}" "blocked method honest"
+t::assert_eq "FAILED" "${devrow[sda.class]}" "failed class -> FAILED"
+t::assert_eq "NOT SANITISED" "${devrow[sda.cert]}" "failed cert -> NOT SANITISED"
+t::assert_eq "Sanitisation failed" "${devrow[sda.method]}" "failed method honest"
+
+# COMPLETED drives are left untouched
+devices=(nvme0n1)
+devrow=()
+devrow[nvme0n1.status]="COMPLETED"
+devrow[nvme0n1.class]="PURGE"
+devrow[nvme0n1.cert]="DESTRUCTION"
+devrow[nvme0n1.method]="NVMe Crypto Purge"
+device::normalize_outcome
+t::assert_eq "PURGE" "${devrow[nvme0n1.class]}" "completed class kept"
+t::assert_eq "DESTRUCTION" "${devrow[nvme0n1.cert]}" "completed cert kept"
+t::assert_eq "NVMe Crypto Purge" "${devrow[nvme0n1.method]}" "completed method kept"
+
+# FROZEN drives are left untouched (already honest)
+devices=(sda)
+devrow=()
+devrow[sda.status]="FROZEN"
+devrow[sda.class]="FROZEN"
+devrow[sda.cert]="PHYS_DESTR"
+devrow[sda.method]="Frozen Drive"
+device::normalize_outcome
+t::assert_eq "FROZEN" "${devrow[sda.class]}" "frozen class kept"
+t::assert_eq "PHYS_DESTR" "${devrow[sda.cert]}" "frozen cert kept"
+t::assert_eq "Frozen Drive" "${devrow[sda.method]}" "frozen method kept"
+
 rm -f "$OUT"
 t::summary

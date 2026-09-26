@@ -475,3 +475,34 @@ device::execute() {
     esac
 }
 
+# After every worker finishes, rewrite the per-drive outcome fields so the
+# report (CSV + certificate) is honest. A drive that did not complete must not
+# keep the optimistic class/cert/method it was classified for — e.g. a BLOCKED
+# NVMe drive was classified "NVMe Crypto Purge / DESTRUCTION" but nothing was
+# purged or destroyed. FROZEN is already honest (FROZEN / PHYS_DESTR /
+# "Frozen Drive"), so it is left untouched.
+device::normalize_outcome() {
+    local dev
+    for dev in "${devices[@]}"; do
+        case "${devrow[$dev.status]:-}" in
+            COMPLETED|DRY-RUN|FROZEN)
+                ;;
+            BLOCKED)
+                devrow["$dev.class"]="BLOCKED"
+                devrow["$dev.cert"]="NOT SANITISED"
+                devrow["$dev.method"]="Blocked by firmware (Block SID)"
+                ;;
+            UNKNOWN)
+                devrow["$dev.class"]="FAILED"
+                devrow["$dev.cert"]="NOT SANITISED"
+                devrow["$dev.method"]="Sanitisation did not complete"
+                ;;
+            *)
+                devrow["$dev.class"]="FAILED"
+                devrow["$dev.cert"]="NOT SANITISED"
+                devrow["$dev.method"]="Sanitisation failed"
+                ;;
+        esac
+    done
+}
+

@@ -6,6 +6,14 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.51] - 2026-09-26
+
+### Fixed
+- The report CSV is now honest for drives that did not complete. A BLOCKED or
+  FAILED drive no longer keeps the optimistic class/certification/method it was
+  classified for (e.g. "NVMe Crypto Purge" / "DESTRUCTION"); it is recorded as
+  NOT SANITISED with a matching method. FROZEN drives stay as-is.
+
 ## [v1.4.50] - 2026-09-26
 
 ### Changed

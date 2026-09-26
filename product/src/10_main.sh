@@ -150,6 +150,10 @@ fn_main() {
         esac
     done
 
+    # Make the report honest: drives that didn't complete must not carry the
+    # optimistic class/cert/method they were classified for.
+    device::normalize_outcome
+
     smart::capture_all post
 
     report::detect_output
