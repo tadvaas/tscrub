@@ -6,15 +6,12 @@
 
 - [Home](https://tscrub.com/): Overview, value proposition, features, and audiences.
 - [Getting started](https://tscrub.com/getting-started): The full journey — account, licence, download, boot, wipe, report, certificate, verify.
-- [How it works](https://tscrub.com/how-it-works): From boot to certificate — the four-step sanitisation walkthrough.
 - [Compliance](https://tscrub.com/compliance): How each wipe method maps to NIST 800-88 Clear, Purge, and Destroy, with GDPR/HIPAA/ISO 27001 reporting.
-- [Compare](https://tscrub.com/compare): tScrub vs Blancco — same compliance outcome, no vendor lock-in.
 - [Pricing](https://tscrub.com/pricing): Free community build, Pay-as-you-go £3/device, Team £99 (100 credits), Enterprise £399 (500 credits) — free licences are self-serve; paid licences are issued by tScrub.
 - [Download](https://tscrub.com/download): The bootable appliance ISO, with a SHA-256 checksum for verification.
 - [Docs](https://tscrub.com/docs): Building the appliance, booting from USB (Windows/macOS/Linux) or over the network (PXE), choosing a report destination (USB, FTP, or the tScrub dashboard), and verifying signed reports.
 - [Resources](https://tscrub.com/resources): Data erasure guides — standards, drive types, wipe methods, certificates of destruction, and a buyer's guide.
-- [Updates](https://tscrub.com/updates): Product updates and release notes.
-- [FAQ](https://tscrub.com/faq): Certification, build-your-own-appliance, and edge-case drive handling.
+- [FAQ](https://tscrub.com/faq): Certification, running on your own hardware, and edge-case drive handling.
 - [Certificates](https://tscrub.com/dashboard/certificates): Upload reports on the Reports page, then select a Chain of Custody ID to generate one consolidated, printable Certificate of Destruction per job, and manage every certificate on your account.
 - [Reports](https://tscrub.com/dashboard/reports): Upload reports and view erasure and pre/post-wipe SMART data for every report — uploaded manually or pushed from an appliance.
 - [Contact](https://tscrub.com/contact): Sales, support, and compliance enquiries.
@@ -22,6 +19,7 @@
 ## Resources
 
 - [Resources hub](https://tscrub.com/resources): Data erasure guides index.
+- [Compare](https://tscrub.com/compare): tScrub vs Blancco — the full comparison.
 - [Data erasure standards](https://tscrub.com/resources/standards): NIST 800-88, GDPR, HIPAA, ISO 27001.
 - [NIST 800-88](https://tscrub.com/resources/nist-800-88): Clear, Purge & Destroy explained.
 - [GDPR data erasure](https://tscrub.com/resources/gdpr-data-erasure): The right to erasure.
@@ -49,7 +47,6 @@
 - [Open source vs commercial](https://tscrub.com/resources/open-source-vs-commercial)
 - [ITAD & refurbishment](https://tscrub.com/resources/itad-guide)
 - [Data centre decommissioning](https://tscrub.com/resources/data-centre-decommissioning)
-- [Updates](https://tscrub.com/updates): Release notes.
 
 ## Legal
 
@@ -63,4 +60,4 @@
 - Chain-of-custody report (CSV) with COCID, system serials, and per-drive final status.
 - Reports can be signed (SHA-256 + Ed25519) for verifiable proof of destruction.
 - NIST 800-88 alignment, GDPR, HIPAA, ISO 27001.
-- Single self-contained Bash script; inspect every line.
+- Bootable, inspectable appliance image; inspect every line of what runs.

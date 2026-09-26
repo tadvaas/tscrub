@@ -27,8 +27,8 @@ code {
   @apply break-all;
 }
 
-/* The nav CTA swaps between "Sign in" and "Dashboard" once the auth state
-   resolves — reserve a stable width so the nav doesn't jump on every load. */
+/* The nav CTA is always labelled "Dashboard" — reserve a stable width so the
+   nav doesn't jump between a logged-in and logged-out label. */
 #nav-cta {
   min-width: 8rem;
   justify-content: center;

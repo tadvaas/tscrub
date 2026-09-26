@@ -1,4 +1,4 @@
-// Updates the shared nav bar based on auth state (Sign in ↔ Dashboard + admin links).
+// Keeps the shared nav CTA labelled "Dashboard" (and pointing at /dashboard).
 ;(function () {
   const state = { user: null };
 

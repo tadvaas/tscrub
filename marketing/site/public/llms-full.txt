@@ -1,6 +1,6 @@
 # tScrub — Verifiable Disk Sanitisation
 
-tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels, then hands you a chain-of-custody report your auditors can actually read. It is a single self-contained Bash script — your security team can inspect every line of what runs on the appliance. Boot the ready-to-go tScrub appliance image from USB or PXE on hardware you already own. No locked-down vendor box required.
+tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels, then hands you a chain-of-custody report your auditors can actually read. The bootable appliance image is open and inspectable — your security team can inspect every line of what runs. Boot the ready-to-go tScrub appliance image from USB or PXE on hardware you already own. No locked-down vendor box required.
 
 ## What it does
 
@@ -14,7 +14,7 @@ tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe,
 
 ## How it works (four steps)
 
-1. **Boot** — boot the tScrub appliance image (or Linux from USB/PXE) and run the script; tScrub needs zero installation.
+1. **Boot** — boot the tScrub appliance image from USB or PXE and run it; tScrub needs zero installation.
 2. **Discover & classify** — every drive is detected and mapped to its best Purge or Clear capability.
 3. **Sanitise** — live progress across all drives, with frozen and blocked drives flagged.
 4. **Report** — a chain-of-custody CSV with method, certification, final status, and pre/post-wipe SMART per drive.
@@ -27,12 +27,12 @@ tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe,
 
 ## Comparison vs Blancco
 
-tScrub is the open, auditable alternative to Blancco for verifiable disk sanitisation — same compliance outcome, no vendor lock-in. It is inspectable (single script), appliance-agnostic (your own hardware), and produces verifiable, signed reports.
+tScrub is the open, auditable alternative to Blancco for verifiable disk sanitisation — same compliance outcome, no vendor lock-in. It is inspectable, appliance-agnostic (runs on your own hardware), and produces verifiable, signed reports.
 
 ## Pricing & download
 
 - **Free** — community build: full erasure with self-signed reports (tamper-evident, not attributable); a free licence is required.
-- **Pay-as-you-go** — £0.25 per device for attributable reports (signed and licence-verified).
+- **Pay-as-you-go** — £3 per device for attributable reports (signed and licence-verified).
 - **Team** — £99 one-off for 100 credits, attributable reports (signed and licence-verified) and support.
 - **Enterprise** — £399 one-off for 500 credits, for regulated fleets.
 
@@ -40,7 +40,7 @@ See pricing at https://tscrub.com/pricing and download the appliance image at ht
 
 ## Getting started
 
-A step-by-step walkthrough of the whole journey is at https://tscrub.com/getting-started. Download the bootable appliance ISO from the public Download page (https://tscrub.com/download) and issue your licence from your dashboard Account page (account required). Boot the tScrub appliance image from USB or PXE and run it. At the end of a run the appliance writes the report locally (boot USB, or `tscrub_output=`) and can push it to your dashboard (`tscrub_api_token=`) or FTP/SFTP (`tscrub_output=ftp:…` / `tscrub_output=sftp:…`). Verify reports with the `tscrub verify` command (documented in the Docs page).
+A step-by-step walkthrough of the whole journey is at https://tscrub.com/getting-started. Download the bootable appliance ISO from the public Download page (https://tscrub.com/download) and issue your licence from your dashboard Licences page (account required). Boot the tScrub appliance image from USB or PXE and run it. At the end of a run the appliance writes the report locally (boot USB, or `tscrub_output=`) and can push it to your dashboard (`tscrub_api_token=`) or FTP/SFTP (`tscrub_output=ftp:…` / `tscrub_output=sftp:…`). Reports are verified automatically when uploaded to the dashboard, and certificates verify online via their QR code.
 
 ## Certificate of Destruction
 
@@ -79,7 +79,6 @@ Guides at https://tscrub.com/resources:
   - **Open source vs commercial** (https://tscrub.com/resources/open-source-vs-commercial) — transparency vs certification.
   - **ITAD & refurbishment** (https://tscrub.com/resources/itad-guide) — a repeatable, certifiable wipe process.
   - **Data centre decommissioning** (https://tscrub.com/resources/data-centre-decommissioning) — PXE fleet-wipe checklist.
-- **Updates** (https://tscrub.com/updates) — product updates and release notes in plain English.
 
 ## Contact
 

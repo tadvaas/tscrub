@@ -4,7 +4,6 @@ import { fileURLToPath, URL } from 'node:url'
 const pages = {
   main: 'index.html',
   'getting-started': 'getting-started.html',
-  how: 'how-it-works.html',
   compliance: 'compliance.html',
   compare: 'compare.html',
   pricing: 'pricing.html',
@@ -15,7 +14,6 @@ const pages = {
   docs: 'docs.html',
   contact: 'contact.html',
   resources: 'resources.html',
-  updates: 'updates.html',
   'resources-standards': 'resources/standards.html',
   'resources-drive-types': 'resources/drive-types.html',
   'resources-wipe-methods': 'resources/wipe-methods.html',

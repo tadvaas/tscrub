@@ -791,7 +791,7 @@ if ($method === 'GET' && $route === '/reports') {
     $page = max(1, (int)($_GET['page'] ?? 1));
     $cocid = (string)($_GET['cocid'] ?? '');
     $q = trim((string)($_GET['q'] ?? ''));
-    $res = load_user_reports((int)$u['id'], $cocid !== '' ? $cocid : null, $q !== '' ? $q : null, $page, 20);
+    $res = load_user_reports((int)$u['id'], $cocid !== '' ? $cocid : null, $q !== '' ? $q : null, $page, 10);
     json_out(['ok' => true, 'reports' => $res['reports'], 'total' => $res['total'], 'page' => $res['page'], 'per' => $res['per'], 'q' => $q]);
 }
 
@@ -799,6 +799,17 @@ if ($method === 'GET' && $route === '/reports') {
 if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'reports' && $seg[1] === 'cocids') {
     $u = auth_require();
     json_out(['ok' => true, 'cocids' => distinct_cocids((int)$u['id'])]);
+}
+
+// GET /api/signing-key — vendor public key + fingerprint (authenticated only,
+// never published in the static HTML).
+if ($method === 'GET' && $route === '/signing-key') {
+    auth_require();
+    json_out([
+        'ok' => true,
+        'pem' => "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAbBDdsD4wQh7aoBRe890V8LcTOZNe6n6Cvh0AkrBA4B4=\n-----END PUBLIC KEY-----",
+        'fingerprint' => 'be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02',
+    ]);
 }
 
 // POST /api/checkout — create a Stripe PaymentIntent for the on-page Payment

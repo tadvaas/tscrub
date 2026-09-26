@@ -1,12 +1,13 @@
 # tScrub
 
-Open, auditable disk sanitisation for regulated IT. tScrub is a single,
-self-contained Bash script that erases NVMe, SATA/ATA, and SCSI drives to
-NIST 800-88 Clear, Purge, and Destroy levels, captures pre/post-wipe SMART data,
-and writes a verifiable chain-of-custody report — which you can turn into a
-printable Certificate of Destruction on the tScrub platform.
+Open, auditable disk sanitisation for regulated IT. tScrub ships as a
+ready-to-boot appliance image (ISO or bzImage) that erases NVMe, SATA/ATA, and
+SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels, captures
+pre/post-wipe SMART data, and writes a verifiable chain-of-custody report —
+which you can turn into a printable Certificate of Destruction on the tScrub
+platform.
 
-- **Inspectable** — one script; your security team can read every line.
+- **Inspectable** — the source is open; your security team can read every line.
 - **Appliance-first** — boot our ready-to-boot appliance ISO from USB or PXE on
   hardware you already own (download it from the Download page).
 - **Licence required at boot** — even the free tier. Free licences self-sign
@@ -25,33 +26,29 @@ Website: <https://tscrub.com> · Docs: <https://tscrub.com/docs>
 | `ops/` | Deployment and operations runbooks (see `ops/deploy.md`). |
 | `test-fixtures/` | Sample signed/unsigned reports for exercising the certificate backend. |
 | `ROADMAP.md` | Current state and future plans. |
-| `CHANGELOG.md` | Release history (artifact SHA-256s + signing keys live in the docs page). |
+| `CHANGELOG.md` | Release history (artifact SHA-256s). |
 
-## Quick start — build the appliance script
+## Quick start — build the appliance image
 
 ```sh
 cd product
-make build          # assembles build/tscrub.sh, embeds the vendor public key
-./build/tscrub.sh --dry-run
+make build-slim     # assembles build/tscrub.sh for the appliance image
+./build/tscrub.sh --dry-run   # smoke-test the build
 ```
 
-`make build` requires `keys/vendor-public-key.pem` (committed).
-
-`make build-slim` builds the script without the embedded sedutil payload — use it
-only for the appliance image, which ships `sedutil-cli` via Buildroot. The
-Download-page build (`make build`) keeps the payload for bare-Linux use.
+`make build` requires `keys/vendor-public-key.pem` (committed) and embeds the
+sedutil payload; `make build-slim` builds the script without it for the
+appliance image, which ships `sedutil-cli` via Buildroot.
 
 ### Get a licence + the appliance
 
 1. Sign up at <https://tscrub.com/register> (personal or company).
 2. Sign in and issue your licence (`.lic`) from the dashboard **Licences** page
    (`/dashboard/licences`).
-3. Download the bootable appliance ISO from the **Download** page — or, for bare
-   Linux, the standalone script under "Run the script directly".
+3. Download the bootable appliance ISO from the **Download** page.
 
 Put the `.lic` on the boot USB, or supply it via `tscrub_license=` /
-`tscrub_license_url=` on the kernel command line (or `--license` /
-`--license-url` when running the script directly).
+`tscrub_license_url=` on the kernel command line.
 
 ## Appliance output & upload
 
@@ -77,8 +74,11 @@ Full details: <https://tscrub.com/docs> (§5 "The report").
 
 ## Verify a report
 
+Reports are verified automatically when uploaded to the dashboard, and
+certificates verify online via their QR code. On the appliance console:
+
 ```sh
-./build/tscrub.sh verify report.csv [public-key.pem]
+tscrub verify report.csv [public-key.pem]
 # SHA-256: ...
 # Manifest: OK
 # Signature: VALID
