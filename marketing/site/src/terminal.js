@@ -94,6 +94,16 @@ function etaText(d) {
   return '~' + m + 'm' + String(s).padStart(2, '0') + 's'
 }
 
+// Live status cell: while a drive is wiping, show a per-row spinner plus the
+// progress percentage (mirrors the appliance TUI's "STATUS 42%").
+function statusCell(d, idx, spinner) {
+  if (d.status === 'RUNNING') {
+    const pct = Math.min(100, Math.round(100 * (1 - (d.remain || 0) / (d.total || 1))))
+    return SPINNER[(spinner + idx) % SPINNER.length] + ' ' + pct + '%'
+  }
+  return d.status
+}
+
 // Two side-by-side System Info | Runtime panels, as in the appliance header.
 function panels(elapsed, spinner) {
   const pw = 33
@@ -113,16 +123,16 @@ function panels(elapsed, spinner) {
   line(bar + '  ' + bar)
 }
 
-function table(drives) {
+function table(drives, spinner) {
   line(COLS_LABELS.map((l, i) => pad(l, COLS[i])).join(' ').trimEnd())
   line(dash(W))
-  for (const d of drives) {
+  drives.forEach((d, idx) => {
     const cells = [
       ell(d.model, COLS[0]), ell(d.serial, COLS[1]), pad(d.type, COLS[2]), pad(d.device, COLS[3]),
-      pad(d.method, COLS[4]), pad(d.status, COLS[5]), pad(etaText(d), COLS[6])
+      pad(d.method, COLS[4]), pad(statusCell(d, idx, spinner), COLS[5]), pad(etaText(d), COLS[6])
     ]
     line(cells.map((c, i) => pad(c, COLS[i])).join(' ').trimEnd())
-  }
+  })
   line(dash(W))
 }
 
@@ -139,7 +149,7 @@ function paintScreen(drives, elapsed, spinner, phase, finish, dryRun) {
   if (dryRun && phase === 'run') line('*** DRY RUN — no wipe executed ***', 't-warn')
   panels(elapsed, spinner)
   line('')
-  table(drives)
+  table(drives, spinner)
   line('')
   if (finish) {
     line('✓ Complete. Report written to /tScrub_48213_20260919T103000Z.csv')
@@ -161,19 +171,19 @@ async function runDemo(dryRun = false) {
   line('tScrub started at boot', 't-info')
   line(`tScrub ${VERSION} — verifiable disk sanitisation`, 't-muted')
   line('')
-  await sleep(700)
+  await sleep(500)
 
-  const drives = DRIVES.map((d) => ({ ...d, status: dryRun ? 'DRY-RUN' : 'PLANNED' }))
+  const drives = DRIVES.map((d) => ({ ...d, status: dryRun ? 'DRY-RUN' : 'PLANNED', total: d.remain }))
   let elapsed = 0
   let spinner = 0
   const paint = (phase, finish) => paintScreen(drives, elapsed, SPINNER[spinner % 4], phase, finish, dryRun)
 
   paint('run')
   if (dryRun) {
-    await sleep(900)
+    await sleep(750)
   } else {
     for (let i = 0; i < drives.length; i++) {
-      await sleep(650)
+      await sleep(450)
       drives[i].status = 'RUNNING'
       paint('run')
     }
@@ -188,7 +198,7 @@ async function runDemo(dryRun = false) {
         }
         paint('run')
         if (allDone) { stopTimer(); resolve() }
-      }, 600)
+      }, 450)
     })
   }
 
