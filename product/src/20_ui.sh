@@ -104,9 +104,9 @@ ui::show_finish_green() {
     [[ -n "$msg" ]] && printf "\033[K%s%s\n" "$TABLE_INDENT" "$msg"
 }
 
-# Amber finish: the wipe completed but the report could not be saved to USB
-# and/or uploaded (dashboard/network). Distinct from green (all good) and red
-# (a drive failed or was blocked).
+# Amber finish: the wipe completed but no report destination succeeded (USB,
+# dashboard and/or network all failed). Distinct from green (at least one
+# destination delivered, or nothing failed) and red (a drive failed/blocked).
 ui::show_finish_orange() {
     local msg="${1:-}"
     [[ -t 1 ]] || return 0

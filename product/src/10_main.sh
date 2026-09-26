@@ -178,12 +178,17 @@ fn_main() {
     debug::save
     report::sync_out
 
-    # Track whether any report destination failed; used to pick the finish
-    # colour (red > amber > green). report::print_summary lists each outcome.
-    local report_failed=0
-    [[ "${REPORT_USB_STATUS:-}" == "fail" ]] && report_failed=1
+    # Track report-delivery outcome for the finish colour (red > amber > green).
+    # A run counts as delivered if AT LEAST ONE destination succeeded; amber is
+    # reserved for when every configured destination failed. The per-destination
+    # OK/FAILED detail is printed by report::print_summary.
+    local report_ok=0 report_failed=0
+    [[ "${REPORT_USB_STATUS:-}" == "ok" ]]    && report_ok=1
+    [[ "${REPORT_DASH_STATUS:-}" == "ok" ]]   && report_ok=1
+    [[ "${REPORT_NET_STATUS:-}" == "ok" ]]    && report_ok=1
+    [[ "${REPORT_USB_STATUS:-}" == "fail" ]]  && report_failed=1
     [[ "${REPORT_DASH_STATUS:-}" == "fail" ]] && report_failed=1
-    [[ "${REPORT_NET_STATUS:-}" == "fail" ]] && report_failed=1
+    [[ "${REPORT_NET_STATUS:-}" == "fail" ]]  && report_failed=1
 
     # Paint the outcome colour only now that the wipe, SMART capture and report
     # delivery have all finished — no green/red then amber flash.
@@ -199,8 +204,8 @@ fn_main() {
         done
         if (( failed_count > 0 )); then
             ui::show_finish_green "Sanitization process finished — $failed_count drive(s) did not complete"
-        elif [[ "$report_failed" -eq 1 ]]; then
-            ui::show_finish_orange "Sanitization process finished — report delivery failed"
+        elif [[ "$report_ok" -eq 0 && "$report_failed" -eq 1 ]]; then
+            ui::show_finish_orange "Sanitization process finished — no report destination succeeded"
         else
             ui::show_finish_green "Sanitization process finished"
         fi
