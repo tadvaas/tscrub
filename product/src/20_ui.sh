@@ -137,18 +137,22 @@ ui::any_drive_failed() {
 # after the finish screen is painted, so \033[K fills each line with the active
 # background colour.
 ui::print_drive_guidance() {
-    local dev status
+    local dev status blink_on="" blink_off=""
+    if ui::terminal_controls_supported; then
+        blink_on=$'\033[5m'   # ANSI blink (slow)
+        blink_off=$'\033[25m'
+    fi
     for dev in "${devices[@]}"; do
         status="${devrow[$dev.status]:-}"
         case "$status" in
             BLOCKED)
-                printf "\033[K%s%s: blocked by firmware (Block SID / access-rights lockdown) — clear Block SID or hard-disk security in BIOS, or move the drive to another machine, then re-run.\n" "$TABLE_INDENT" "$dev"
+                printf "\033[K%s${blink_on}%s: blocked by firmware (Block SID / access-rights lockdown) — clear Block SID or hard-disk security in BIOS, or move the drive to another machine, then re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"
                 ;;
             FROZEN)
-                printf "\033[K%s%s: frozen by the host BIOS — power-cycle (or suspend/resume) and re-run.\n" "$TABLE_INDENT" "$dev"
+                printf "\033[K%s${blink_on}%s: frozen by the host BIOS — power-cycle (or suspend/resume) and re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"
                 ;;
             FAILED)
-                printf "\033[K%s%s: sanitisation failed — inspect the drive and the log for details.\n" "$TABLE_INDENT" "$dev"
+                printf "\033[K%s${blink_on}%s: sanitisation failed — inspect the drive and the log for details.${blink_off}\n" "$TABLE_INDENT" "$dev"
                 ;;
         esac
     done

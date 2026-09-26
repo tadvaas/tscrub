@@ -6,6 +6,12 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.47] - 2026-09-26
+
+### Changed
+- The finish-screen recovery guidance (one line per non-completed drive) now
+  blinks so a recoverable condition is not overlooked.
+
 ## [v1.4.46] - 2026-09-26
 
 ### Changed
