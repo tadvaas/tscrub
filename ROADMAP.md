@@ -1,7 +1,7 @@
 # tScrub Roadmap
 
 Future plans for the project, kept here so they survive between sessions. Current
-state as of v1.4.34 (appliance image shipped; free reports self-signed; dashboard
+state as of v1.4.45 (appliance image shipped; free reports self-signed; dashboard
 upload, certificates, and the customer-as-certifier model all shipped).
 
 ## 1. Self-built Buildroot appliance image — SHIPPED
@@ -42,9 +42,9 @@ sedutil **is** in upstream Buildroot (`package/sedutil`, v1.20.0); the image
 enables `BR2_PACKAGE_SEDUTIL=y` so `sedutil-cli` is compiled into the rootfs at
 `/usr/sbin/sedutil-cli` — used by `device::install_sedutil` via PATH and available
 as a shell utility for manual OPAL/SED work. For the image, `tscrub.sh` is built
-**slim** (`make build-slim`, `SKIP_SEDUTIL_PAYLOAD=1`, no embedded payload); the
-Download-page script keeps the embedded `SEDUTIL_PAYLOAD_B64` so bare-Linux users
-can unlock drives without installing sedutil.
+**slim** (`make build-slim`, `SKIP_SEDUTIL_PAYLOAD=1`, no embedded payload);
+`sedutil-cli` ships in the rootfs instead. tScrub is now distributed **only** as
+the appliance image (bzImage/ISO) — the standalone script download is retired.
 
 **HTTPS upload note:** stock ShredOS ships no TLS-capable `curl` and no CA
 bundle, so the token-authenticated dashboard push (`tscrub_upload=https://…` +
@@ -121,3 +121,22 @@ the boot stick. The licence can be dropped on that partition, baked in via
 - [ ] Licence-on-USB handling: when multiple `.lic` files are present, prefer the highest tier and/or warn — today the alphabetically-first file wins, so a stray `free.lic` can silently downgrade a paid customer's evidence
 - [ ] Auto-licence-delivery: presigned per-user licence URL (`/api/licence/<secret>`) + a dashboard "download `tscrub.conf`" so the appliance fetches its current licence at boot — removes the manual `.lic` reinstall on upgrade
 - [ ] Show licence info (customer / tier / expiry) in the TUI Runtime panel
+- [ ] Standardise the licence filename to `.lic` — the appliance code still accepts
+  `license.key` (default `/etc/tscrub/license.key`, the USB scan, and the tests that
+  drop `license.key`); make `*.lic` the only accepted name so code and docs agree
+
+## 3. Recently done (2026-09)
+
+- Appliance releases through **v1.4.45** — BOM-tolerant `tscrub.conf`, blue TUI
+  theme, full-width device table, sticky footer with brand/version line, and
+  British-Time dashboard timestamps.
+- **Standalone retirement** — tScrub now ships only inside the appliance image
+  (bzImage/ISO); the "run the script directly" distribution is gone, and the
+  marketing/docs copy no longer teaches manual `tscrub` invocation or `tscrub verify`.
+- **Verification is automatic** — reports verify on dashboard upload; certificates
+  verify via their QR code.
+- Dashboard reports UX: loading spinner, one-line rows, 10-per-page pagination.
+- Privacy: removed the public Updates/release-notes page; signing key moved behind
+  login (`GET /api/signing-key`).
+- Nav: "Compare" moved from the main menu to the Resources hub.
+- Homepage terminal hero rebuilt to mirror the real tScrub TUI.

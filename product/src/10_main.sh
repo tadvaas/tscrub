@@ -206,6 +206,8 @@ fn_main() {
         fi
     fi
 
+    ui::print_drive_guidance
+
     report::print_summary
 
     if [[ "$DRY_RUN" -eq 0 ]]; then

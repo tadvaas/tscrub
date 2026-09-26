@@ -47,6 +47,18 @@ captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "0x4286 -> BLOCKED"
 t::check "0x4286 does NOT emit FAILED" '[[ "$captured" != *"nvme0n1 STATUS FAILED"* ]]'
 
+# NVMe sanitize rejected with 0x4015 ("Operation Denied") -> BLOCKED (not FAILED)
+: > "$OUT"
+export FAKE_NVME_SANITIZE_RC=1
+export FAKE_NVME_SANITIZE_OUT="NVMe status: Operation Denied: The command was denied due to lack of access rights(0x4015)"
+exec 3>"$OUT"
+device::execute nvme0n1
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "0x4015 -> BLOCKED"
+t::check "0x4015 does NOT emit FAILED" '[[ "$captured" != *"nvme0n1 STATUS FAILED"* ]]'
+unset FAKE_NVME_SANITIZE_OUT
+
 # NVMe crypto sanitize success (monitor sees SSTAT=0x1)
 : > "$OUT"
 export FAKE_NVME_SANITIZE_RC=0

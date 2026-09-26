@@ -219,12 +219,15 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
-# Bottom-of-screen footer: brand + version, centred. Clears the line first so a
-# terminal resize (or an old, longer footer) never leaves stale text behind.
+# Bottom-of-screen footer: a separator line, then the centred brand/version
+# line. Called with the cursor on the separator's row; it leaves the cursor on
+# the footer text row (the caller's blank bottom-margin row sits below it).
 ui::footer() {
-    local text term_w pad
+    local text term_w pad sep
     text="${SCRIPT_NAME} ${SCRIPT_VERSION} — tscrub.com"
     term_w="$(table::detect_terminal_width)"
+    sep="$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
+    printf "\033[K%s%s\n" "$UI_TABLE_INDENT" "$sep"
     pad=$(( (term_w - ${#text}) / 2 ))
     (( pad < 0 )) && pad=0
     printf "\033[K%*s%s" "$pad" "" "$text"
@@ -329,17 +332,17 @@ table::render() {
                 printf "\033[0;43;30m\033[2J\033[H"
                 ;;
             4)
-                # Blue background: wipe in progress. Keep the leading blank
-                # line of the normal running screen so the in-place tick row
-                # coordinates (elapsed/ETA) line up with the painted table.
+                # Blue background: wipe in progress.
                 printf "\033[0;44;37m\033[2J\033[H"
-                printf "\n"
                 ;;
             *)
                 # Green background: all drives completed successfully.
                 printf "\033[0;42;30m\033[2J\033[H"
                 ;;
         esac
+        # Leading blank line = top margin on every coloured screen, matching the
+        # normal running screen and keeping the absolute tick rows aligned.
+        printf "\n"
     elif [[ -t 1 ]]; then
         clear
         printf "\n"
@@ -486,11 +489,12 @@ table::render() {
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
     fi
 
-    # Sticky footer pinned to the bottom row on every full repaint. Save/restore
-    # the cursor so the caller's position (finish message, in-place tick) is kept.
-    if [[ -t 1 ]]; then
+    # Sticky footer pinned just above the bottom margin (a blank line matching
+    # the top), with a separator line above it. Save/restore the cursor so the
+    # caller's position (finish message, in-place tick) is kept.
+    if [[ -t 1 ]] && (( rows > 3 )); then
         printf "\0337"
-        printf "\033[%d;1H" "$rows"
+        printf "\033[%d;1H" "$(( rows - 2 ))"
         ui::footer
         printf "\0338"
     fi

@@ -132,6 +132,28 @@ ui::any_drive_failed() {
     return 1
 }
 
+# Prints one actionable line per drive that did not complete, so a recoverable
+# condition (Block SID, frozen) is not mistaken for a hardware fault. Called
+# after the finish screen is painted, so \033[K fills each line with the active
+# background colour.
+ui::print_drive_guidance() {
+    local dev status
+    for dev in "${devices[@]}"; do
+        status="${devrow[$dev.status]:-}"
+        case "$status" in
+            BLOCKED)
+                printf "\033[K%s%s: blocked by firmware (Block SID / access-rights lockdown) — clear Block SID or hard-disk security in BIOS, or move the drive to another machine, then re-run.\n" "$TABLE_INDENT" "$dev"
+                ;;
+            FROZEN)
+                printf "\033[K%s%s: frozen by the host BIOS — power-cycle (or suspend/resume) and re-run.\n" "$TABLE_INDENT" "$dev"
+                ;;
+            FAILED)
+                printf "\033[K%s%s: sanitisation failed — inspect the drive and the log for details.\n" "$TABLE_INDENT" "$dev"
+                ;;
+        esac
+    done
+}
+
 # Blocking decision prompt shown after sanitization completes.
 # Holds the terminal so the caller (e.g. the appliance shell) does not paint over the
 # final report. Offers Reboot / Shutdown / Continue.

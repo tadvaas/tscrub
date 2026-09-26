@@ -1,11 +1,35 @@
 # Changelog
 
 All notable changes to tScrub are documented here. Releases are checksummed and
-signed; the full release history (SHA-256 + signing-key fingerprint) lives in
-`marketing/site/docs.html`.
+signed; the authoritative checksums live in `/downloads/manifest.json`.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
+
+## [v1.4.46] - 2026-09-26
+
+### Changed
+- An NVMe sanitise that is denied with `0x4015` ("Operation Denied: lack of
+  access rights") is now classified `BLOCKED` rather than `FAILED`. `0x4015` is
+  the same BIOS TCG Block SID lockdown family as `0x4286` — the drive itself is
+  fine and the wipe is recoverable.
+
+### Added
+- The finish screen now prints one actionable line per non-completed drive
+  (BLOCKED / FROZEN / FAILED), telling the operator how to recover
+  (clear Block SID / hard-disk security in BIOS, or move the drive, then re-run).
+
+## [v1.4.45] - 2026-09-25
+
+### Fixed
+- The finish screens (green/red/amber) now have the same top blank-line margin
+  as the running screen, so all four sides of the console are framed evenly.
+
+## [v1.4.44] - 2026-09-25
+
+### Changed
+- The footer now has a separator line above it and a blank bottom margin,
+  matching the spacing at the top of the screen.
 
 ## [v1.4.43] - 2026-09-25
 

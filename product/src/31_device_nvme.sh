@@ -3,14 +3,17 @@
 # =============================================================================
 
 # Report a failed NVMe operation, distinguishing a BIOS/firmware access-rights
-# lockdown (NVMe status 0x4286) from a generic controller rejection.
+# lockdown from a generic controller rejection.
 #
-# Status 0x4286 = "Access Denied: access to the namespace and/or LBA range is
-# denied due to lack of access rights". On many BIOS-managed laptops (notably
-# Lenovo) the firmware asserts TCG Block SID at every POST, which gates
-# sanitize/format even on an unlocked, unprovisioned SED. Such a drive is
-# usually recoverable after clearing Block SID / hard-disk security in firmware,
-# so it is flagged BLOCKED rather than failed straight to physical destruction.
+# Two NVMe "command aborted — lack of access rights" statuses are recoverable
+# lockdowns, not hardware faults:
+#   0x4286 "Access Denied: access to the namespace and/or LBA range is denied…"
+#   0x4015 "Operation Denied: the command was denied due to lack of access rights"
+# On many BIOS-managed laptops (notably Lenovo) the firmware asserts TCG Block
+# SID at every POST, which gates sanitize/format even on an unlocked,
+# unprovisioned SED. Such a drive is recoverable after clearing Block SID /
+# hard-disk security in firmware (or moving the drive to another machine), so it
+# is flagged BLOCKED rather than failed straight to physical destruction.
 device::nvme_fail() {
     local dev="$1"
     local op="$2"
@@ -22,9 +25,9 @@ device::nvme_fail() {
         echo "----------------------------------------------------------"
     } >> "$LOG_FILE"
 
-    if grep -qiE '0x4286|Access Denied' <<<"$out"; then
+    if grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$out"; then
         echo "$dev STATUS BLOCKED" >&3
-        echo "$dev LOG ${op} denied (0x4286) — likely BIOS Block SID lockdown; clear Block SID / hard-disk security in firmware and retry" >&3
+        echo "$dev LOG ${op} denied — firmware access-rights lockdown (Block SID); clear Block SID / hard-disk security in BIOS, or move the drive to another machine, then re-run" >&3
     else
         echo "$dev STATUS FAILED" >&3
         echo "$dev LOG Controller rejected ${op} command" >&3
