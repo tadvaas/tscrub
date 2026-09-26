@@ -228,13 +228,8 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
         $seenSerials[$cocid] = $seenSerials[$cocid] ?? [];
         foreach ($rows as $row) {
             $serial = $get($row, 'serial');
-            if ($serial !== '') {
-                $dkey = strtolower($serial);
-                if (isset($seenSerials[$cocid][$dkey])) continue;
-                $seenSerials[$cocid][$dkey] = true;
-            }
             $ts = $get($row, 'timestamp');
-            $g['drives'][] = [
+            $drive = [
                 'ts' => clip_str($ts, 32),
                 'model' => clip_str($get($row, 'model'), 255),
                 'serial' => clip_str($get($row, 'serial'), 255),
@@ -264,6 +259,17 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'tempcpost' => clip_str($get($row, 'tempcpost'), 16),
                 'poweronhourspost' => clip_str($get($row, 'poweronhourspost'), 32),
             ];
+            $dkey = $serial !== '' ? strtolower($serial) : '';
+            if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
+                // Same physical drive seen again in this upload — keep the best outcome.
+                $idx = $seenSerials[$cocid][$dkey];
+                if (drive_status_rank($drive['status']) > drive_status_rank($g['drives'][$idx]['status'] ?? '')) {
+                    $g['drives'][$idx] = $drive;
+                }
+            } else {
+                if ($dkey !== '') $seenSerials[$cocid][$dkey] = count($g['drives']);
+                $g['drives'][] = $drive;
+            }
             if ($g['system'] === '' && isset($map['system'])) {
                 $g['system'] = clip_str($get($row, 'system'), 255);
                 $g['sysSerial'] = clip_str($get($row, 'systemserial'), 255);
