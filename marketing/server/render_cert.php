@@ -39,7 +39,15 @@ function type_label($type, $model) {
     return $type !== '' ? $type : '-';
 }
 
-function method_label($method, $cls) {
+function method_label($method, $cls, $status = '') {
+    // Status-aware: a drive that did not complete must never be labelled
+    // "verified" or imply a wipe/destruction that did not happen.
+    $s = strtoupper(trim((string)$status));
+    if ($s === 'DESTROYED') return 'Physical Destruction (operator-confirmed)';
+    if ($s === 'FAILED')    return 'Not sanitised — erasure failed';
+    if ($s === 'BLOCKED')   return 'Not sanitised — blocked by firmware (Block SID)';
+    if ($s === 'FROZEN')    return 'Frozen — Physical Destruction Required';
+
     $m = strtoupper(trim((string)$method));
     $c = strtoupper(trim((string)$cls));
     $aliases = [
@@ -129,7 +137,7 @@ function tscrub_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $c
             case 'model':     return (string)$d['model'];
             case 'serial':    return (string)$d['serial'];
             case 'cert':      return (string)$d['cert'];
-            case 'method':    return method_label($d['method'], $d['cls']);
+            case 'method':    return method_label($d['method'], $d['cls'], $d['status']);
             case 'status':    return (string)$d['status'];
             case 'ts':        return (strtoupper(trim((string)($d['status'] ?? ''))) === 'COMPLETED') ? fmt_ts($d['ts']) : '';
             case 'system':    return (string)$d['system'];
@@ -433,7 +441,7 @@ function tscrub_render_smart(TCPDF $pdf, float $x, float $W, float $H, string $c
  * Returns the PDF bytes, its SHA-256, the computed counts, and the sorted
  * drive rows (so the caller can persist them in the same order).
  */
-function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = []): array {
+function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = []): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
     usort($drives, function ($a, $b) {
@@ -441,9 +449,34 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         return $c !== 0 ? $c : strcmp($a['device'], $b['device']);
     });
 
+    // Apply the operator's physical-destruction decisions. Drives that already
+    // carry a DESTROYED status (from a previous generation/merge) are kept.
+    $destroyedSet = [];
+    foreach ($destroyed as $s) { $destroyedSet[strtolower(trim((string)$s))] = true; }
+    foreach ($drives as $i => $d) {
+        $st = strtoupper(trim((string)($d['status'] ?? '')));
+        if ($st === 'COMPLETED' || $st === 'DRY-RUN' || $st === 'DESTROYED') continue;
+        $s = strtolower(trim((string)($d['serial'] ?? '')));
+        if ($s !== '' && isset($destroyedSet[$s])) {
+            $drives[$i]['status'] = 'DESTROYED';
+            $drives[$i]['cert']   = 'DESTRUCTION';
+            $drives[$i]['method'] = 'PHYSICAL DESTRUCTION';
+        } else {
+            $drives[$i]['cert'] = ($st === 'FROZEN') ? 'DESTRUCTION REQUIRED' : 'NOT SANITISED';
+        }
+    }
+    $nonCompleted = 0;
+    $destroyedCount = 0;
+    foreach ($drives as $d) {
+        $st = strtoupper(trim((string)($d['status'] ?? '')));
+        if ($st === 'COMPLETED' || $st === 'DRY-RUN') continue;
+        $nonCompleted++;
+        if ($st === 'DESTROYED') $destroyedCount++;
+    }
+
     $methodsUsed = [];
     foreach ($drives as $d) {
-        $methodsUsed[method_label($d['method'], $d['cls'])] = true;
+        $methodsUsed[method_label($d['method'], $d['cls'], $d['status'])] = true;
     }
 
     $devices = count($drives);
@@ -538,7 +571,15 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $integrityCaveat = ($g['shaState'] === 'mismatch' || $g['sigState'] === 'invalid')
         ? 'NOTE: One or more underlying reports failed integrity verification at issuance. '
         : '';
-    $summary = $integrityCaveat
+    $outcomeCaveat = '';
+    if ($nonCompleted > 0) {
+        $outcomeCaveat = 'NOTE: ' . $nonCompleted . ' device(s) listed in Annex A were not sanitised';
+        if ($destroyedCount > 0) {
+            $outcomeCaveat .= '; ' . $destroyedCount . ' were physically destroyed (operator-confirmed)';
+        }
+        $outcomeCaveat .= '. ';
+    }
+    $summary = $integrityCaveat . $outcomeCaveat
         . 'The devices listed in Annex A were processed under controlled chain-of-custody procedures '
         . 'from receipt to final verification. Destruction, or sanitisation where applicable, was completed '
         . 'using approved methods selected for each device type. Each device was logged, reconciled to the '

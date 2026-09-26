@@ -195,7 +195,7 @@ function certifier_details(array $u): array {
  * Merges into the existing certificate when one already exists for that COCID.
  * Returns the certificate row (cert_row shape).
  */
-function generate_certificate(array $g, int $userId, bool $canSign): array {
+function generate_certificate(array $g, int $userId, bool $canSign, array $destroyed = []): array {
     require_once __DIR__ . '/render_cert.php';
     $certifier = certifier_details(fetch_user_by_id($userId) ?? []);
     $pdfDir = __DIR__ . '/certs';
@@ -210,7 +210,7 @@ function generate_certificate(array $g, int $userId, bool $canSign): array {
         // One COCID = one consolidated cert: merge and re-render the same cert.
         $merged = merge_group($g, load_cert_drives((int)$existing['id']), load_cert_reports((int)$existing['id']), $existing);
         $certId = (string)$existing['cert_id'];
-        $rendered = render_certificate_pdf($merged, $certId, $canSign, $certifier);
+        $rendered = render_certificate_pdf($merged, $certId, $canSign, $certifier, $destroyed);
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
@@ -243,7 +243,7 @@ function generate_certificate(array $g, int $userId, bool $canSign): array {
         }
     } else {
         $certId = gen_cert_id();
-        $rendered = render_certificate_pdf($g, $certId, $canSign, $certifier);
+        $rendered = render_certificate_pdf($g, $certId, $canSign, $certifier, $destroyed);
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
@@ -943,7 +943,44 @@ if ($method === 'POST' && $route === '/certs') {
         ]);
     }
 
-    $out = generate_certificate($g, (int)$u['id'], owner_tier((int)$u['id']) !== 'free');
+    // Physical-destruction decision. Drives that didn't complete (FAILED /
+    // BLOCKED / FROZEN) can't be claimed as wiped. When the operator hasn't
+    // supplied a decision, return the uncompleted drives so the dashboard can
+    // ask; otherwise validate the choices and bake them into the certificate.
+    $nonCompleted = [];
+    foreach ($g['drives'] as $d) {
+        $st = strtoupper(trim((string)($d['status'] ?? '')));
+        if ($st === 'COMPLETED' || $st === 'DRY-RUN' || $st === 'DESTROYED') continue;
+        $nonCompleted[] = [
+            'serial' => (string)($d['serial'] ?? ''),
+            'model'  => (string)($d['model'] ?? ''),
+            'device' => (string)($d['device'] ?? ''),
+            'status' => (string)($d['status'] ?? ''),
+        ];
+    }
+
+    $destroyed = [];
+    if (!array_key_exists('destroyed', $d)) {
+        if ($nonCompleted !== []) {
+            json_out(['ok' => true, 'decision_required' => true, 'drives' => $nonCompleted], 200);
+        }
+    } else {
+        if (!is_array($d['destroyed'])) {
+            fail(400, '"destroyed" must be an array of drive serials.');
+        }
+        $allowed = [];
+        foreach ($nonCompleted as $n) { $allowed[strtolower(trim($n['serial']))] = true; }
+        foreach ($d['destroyed'] as $s) {
+            $s = trim((string)$s);
+            if ($s === '') continue;
+            if (!isset($allowed[strtolower($s)])) {
+                fail(400, 'Drive "' . $s . '" is not an uncompleted drive in this Chain of Custody ID.');
+            }
+            $destroyed[] = $s;
+        }
+    }
+
+    $out = generate_certificate($g, (int)$u['id'], owner_tier((int)$u['id']) !== 'free', $destroyed);
     json_out(['ok' => true, 'cert' => $out], 201);
 }
 
