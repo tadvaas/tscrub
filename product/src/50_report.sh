@@ -503,6 +503,13 @@ license::detect() {
     fi
 
     if [[ -n "$LICENSE_URL" ]]; then
+        # On PXE/bare-metal boots the licence is fetched before the boot-time
+        # DHCP has necessarily completed (the UEFI iPXE stack had its own
+        # lease, but the booted Linux kernel re-DHCPs in the background).
+        # Ensure a default route exists first — a no-op when already up.
+        if command -v ip >/dev/null 2>&1; then
+            network::ensure
+        fi
         if license::fetch "$LICENSE_URL"; then
             printf "%sLicence fetched from %s.\n" "$TABLE_INDENT" "$LICENSE_URL"
         else

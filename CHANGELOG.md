@@ -6,6 +6,14 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.48] - 2026-09-26
+
+### Fixed
+- Fetching a licence over the network (`tscrub_license_url=`) on a PXE or
+  bare-metal boot could fail because the licence was fetched before the Linux
+  kernel's DHCP lease had landed (the UEFI/iPXE stack has its own lease). tScrub
+  now ensures a default route exists before fetching the licence.
+
 ## [v1.4.47] - 2026-09-26
 
 ### Changed
