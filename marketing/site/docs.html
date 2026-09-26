@@ -63,25 +63,25 @@
           <div>
             <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Deploy</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
-              <li><a href="#boot-usb" class="block text-slate-600 hover:text-ink-900">Boot from USB</a></li>
-              <li><a href="#boot-pxe" class="block text-slate-600 hover:text-ink-900">Boot over the network (PXE)</a></li>
-              <li><a href="#save-targets" class="block text-slate-600 hover:text-ink-900">Report destinations</a></li>
+              <li><a href="#boot-usb" class="block text-slate-600 hover:text-ink-900">5. Boot from USB</a></li>
+              <li><a href="#boot-pxe" class="block text-slate-600 hover:text-ink-900">6. Boot over the network (PXE)</a></li>
+              <li><a href="#save-targets" class="block text-slate-600 hover:text-ink-900">7. Report destinations</a></li>
             </ul>
           </div>
           <div>
             <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Reports</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
-              <li><a href="#report" class="block text-slate-600 hover:text-ink-900">5. The report</a></li>
-              <li><a href="#verify" class="block text-slate-600 hover:text-ink-900">6. Verify a report</a></li>
-              <li><a href="#certificate" class="block text-slate-600 hover:text-ink-900">7. Certificate of Destruction</a></li>
+              <li><a href="#report" class="block text-slate-600 hover:text-ink-900">8. The report</a></li>
+              <li><a href="#verify" class="block text-slate-600 hover:text-ink-900">9. Verify a report</a></li>
+              <li><a href="#certificate" class="block text-slate-600 hover:text-ink-900">10. Certificate of Destruction</a></li>
             </ul>
           </div>
           <div>
             <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Reference</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 pl-4">
-              <li><a href="#licensing" class="block text-slate-600 hover:text-ink-900">8. Licensing</a></li>
-              <li><a href="#media" class="block text-slate-600 hover:text-ink-900">9. Supported media</a></li>
-              <li><a href="#kernel-params" class="block text-slate-600 hover:text-ink-900">10. Kernel parameters</a></li>
+              <li><a href="#licensing" class="block text-slate-600 hover:text-ink-900">11. Licensing</a></li>
+              <li><a href="#media" class="block text-slate-600 hover:text-ink-900">12. Supported media</a></li>
+              <li><a href="#kernel-params" class="block text-slate-600 hover:text-ink-900">13. Kernel parameters</a></li>
             </ul>
           </div>
         </nav>
@@ -92,6 +92,7 @@
         <!-- Mobile jump nav -->
         <nav class="flex flex-wrap gap-2 text-sm lg:hidden" aria-label="Table of contents">
           <a href="#quickstart" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Quick start</a>
+          <a href="#requirements" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Requirements</a>
           <a href="#download" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Download</a>
           <a href="#run" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Run</a>
           <a href="#boot-usb" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">USB</a>
@@ -103,7 +104,6 @@
           <a href="#licensing" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Licensing</a>
           <a href="#media" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Media</a>
           <a href="#kernel-params" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Params</a>
-          <a href="#requirements" class="rounded-full border border-slate-200 px-3 py-1 text-slate-600 hover:bg-slate-50">Requirements</a>
         </nav>
 
         <!-- Part 1 -->
@@ -149,17 +149,17 @@
             <div id="run">
               <h2 class="text-xl font-bold text-ink-900">4. Run a sanitisation job</h2>
               <p class="mt-3 text-sm text-slate-600">There is nothing to run manually — tScrub starts automatically as the appliance boots (from USB or PXE). It prompts for a Chain of Custody ID, then wipes all supported drives in parallel. Frozen, locked, or blocked drives are flagged rather than marked clean.</p>
-              <p class="mt-3 text-sm text-slate-600">For unattended fleet runs, pre-set <code class="font-mono">tscrub_cocid=</code> on the kernel command line to skip the prompt (see <a href="#kernel-params" class="font-medium text-brand-600 hover:underline">section 10</a>).</p>
+              <p class="mt-3 text-sm text-slate-600">For unattended fleet runs, pre-set <code class="font-mono">tscrub_cocid=</code> on the kernel command line to skip the prompt (see <a href="#kernel-params" class="font-medium text-brand-600 hover:underline">section 13</a>).</p>
             </div>
           </div>
         </section>
 
-        <!-- Part 2b · Deploy -->
+        <!-- Part 3 · Deploy -->
         <section>
-          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 2b · Deploy — USB &amp; PXE</p>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 3 · Deploy — USB &amp; PXE</p>
           <div class="mt-5 space-y-10">
             <div id="boot-usb">
-              <h2 class="text-xl font-bold text-ink-900">Boot the appliance from USB</h2>
+              <h2 class="text-xl font-bold text-ink-900">5. Boot the appliance from USB</h2>
               <p class="mt-3 text-sm text-slate-600">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~150 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
               <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><span class="font-semibold">Secure Boot supported:</span> the appliance boots with UEFI Secure Boot on, via a signed shim + MOK chain. On the <strong>first</strong> boot on a machine, shim opens <strong>MokManager</strong> — choose <em>Enroll MOK → Continue → Yes</em>, then reboot. After that it boots normally. (You can also simply disable Secure Boot or enable CSM/Legacy boot.)</p>
 
@@ -198,7 +198,7 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
             </div>
 
             <div id="boot-pxe">
-              <h2 class="text-xl font-bold text-ink-900">Boot over the network (PXE)</h2>
+              <h2 class="text-xl font-bold text-ink-900">6. Boot over the network (PXE)</h2>
               <p class="mt-3 text-sm text-slate-600">The appliance kernel is <strong>self-contained</strong> (its initramfs is embedded, gzip-compressed, inside <code class="font-mono">bzImage</code>), so PXE needs only the kernel file plus a standard DHCP → TFTP → iPXE chain. This is the same two-stage HTTP-boot pattern used to netboot ShredOS (see the <a href="https://github.com/tadvaas/pxe" class="font-medium text-brand-600 hover:underline">tadvaas/pxe</a> reference setup).</p>
               <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
                 <li><strong>DHCP</strong> — set next-server and boot filename: <code class="font-mono">undionly.kpxe</code> (legacy BIOS) or <code class="font-mono">ipxe.efi</code> / <code class="font-mono">snp.efi</code> (UEFI; use <code class="font-mono">snp.efi</code> if an HP or multi-NIC system picks the wrong adapter).</li>
@@ -253,7 +253,7 @@ umount /mnt/iso</pre>
             </div>
 
             <div id="save-targets">
-              <h2 class="text-xl font-bold text-ink-900">Report destinations (USB · FTP · dashboard)</h2>
+              <h2 class="text-xl font-bold text-ink-900">7. Report destinations (USB · FTP · dashboard)</h2>
               <p class="mt-3 text-sm text-slate-600">Where the report lands is chosen at boot time, on the kernel command line (the same place for every boot method). You can combine them — tScrub writes locally first, then uploads.</p>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[560px] text-left text-sm">
@@ -275,17 +275,17 @@ tscrub_cocid=12345
 tscrub_license_url=http://192.168.1.10/Acme-ITAD-Ltd-2027-09-12.lic
 tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               <p class="mt-3 text-sm text-slate-600">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
-              <p class="mt-3 text-sm text-slate-600">Full details and examples are in <a href="#report" class="font-medium text-brand-600 hover:underline">section 5, Getting reports off the appliance</a>.</p>
+              <p class="mt-3 text-sm text-slate-600">Full details and examples are in <a href="#report" class="font-medium text-brand-600 hover:underline">section 8, The report</a>.</p>
             </div>
           </div>
         </section>
 
         <!-- Part 3 -->
         <section>
-          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 3 · Reports</p>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 4 · Reports</p>
           <div class="mt-5 space-y-10">
             <div id="report">
-              <h2 class="text-xl font-bold text-ink-900">5. The report</h2>
+              <h2 class="text-xl font-bold text-ink-900">8. The report</h2>
               <p class="mt-3 text-sm text-slate-600">Each job produces a CSV report plus a JSON manifest; a signature sidecar is written whenever OpenSSL is available (always, on the appliance image):</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tScrub_48213_20260912T103000Z.csv    # human-readable report (one row per drive)
 tScrub_48213_20260912T103000Z.json   # manifest (SHA-256, public key, drive summary)
@@ -332,12 +332,12 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               <p class="mt-3 text-sm text-slate-600">The password must not contain spaces, and credentials are visible in the boot configuration — use a dedicated upload account.</p>
             </div>
             <div id="verify">
-              <h2 class="text-xl font-bold text-ink-900">6. Verify a report</h2>
+              <h2 class="text-xl font-bold text-ink-900">9. Verify a report</h2>
               <p class="mt-3 text-sm text-slate-600">Verification is automatic — there is nothing to run. When you upload a report to the dashboard, its SHA-256 is checked and any Ed25519 signature is validated; a tampered report is flagged <code class="font-mono">MISMATCH</code> or <code class="font-mono">INVALID</code>. Certificates verify online via their QR code, which confirms the issuance record and the PDF's own hash.</p>
               <p class="mt-3 text-sm text-slate-600">A report with no signature simply records its SHA-256 checksum, so tampering is still detectable.</p>
             </div>
             <div id="certificate">
-              <h2 class="text-xl font-bold text-ink-900">7. Certificate of Destruction</h2>
+              <h2 class="text-xl font-bold text-ink-900">10. Certificate of Destruction</h2>
               <p class="mt-3 text-sm text-slate-600">Turn one or more tScrub reports into a single, printable Certificate of Destruction. Upload the <code class="font-mono">.csv</code> files (and, if you have them, the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars) on the dashboard <a href="/dashboard/reports" class="text-brand-600 hover:underline">Reports page</a>, then select the Chain of Custody ID on the <a href="/dashboard/certificates" class="text-brand-600 hover:underline">Certificates page</a> to generate a consolidated certificate.</p>
 
               <h3 class="mt-6 text-base font-bold text-ink-900">What happens when you upload</h3>
@@ -362,10 +362,10 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
 
         <!-- Part 4 -->
         <section>
-          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 4 · Reference</p>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600">Part 5 · Reference</p>
           <div class="mt-5 space-y-10">
             <div id="licensing">
-              <h2 class="text-xl font-bold text-ink-900">8. Licensing</h2>
+              <h2 class="text-xl font-bold text-ink-900">11. Licensing</h2>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[480px] text-left text-sm">
                   <thead class="bg-ink-900 text-xs uppercase text-slate-300">
@@ -387,7 +387,7 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               <p class="mt-3 text-sm text-slate-600">Every appliance requires a valid licence — even the free tier. Without one, tScrub exits with an error.</p>
             </div>
             <div id="media">
-              <h2 class="text-xl font-bold text-ink-900">9. Supported media</h2>
+              <h2 class="text-xl font-bold text-ink-900">12. Supported media</h2>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[480px] text-left text-sm">
                   <thead class="bg-ink-900 text-xs uppercase text-slate-300">
@@ -403,7 +403,7 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               </div>
             </div>
             <div id="kernel-params">
-              <h2 class="text-xl font-bold text-ink-900">10. Kernel parameters &amp; boot configuration</h2>
+              <h2 class="text-xl font-bold text-ink-900">13. Kernel parameters &amp; boot configuration</h2>
               <p class="mt-3 text-sm text-slate-600">Everything tScrub needs at boot is set on the <strong>kernel command line</strong>; these parameters are read from <code class="font-mono">/proc/cmdline</code> at startup.</p>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[640px] text-left text-sm">
