@@ -99,7 +99,7 @@
       </ul>
 
       <h2>How tScrub handles it</h2>
-      <p>tScrub treats a 0x4286 Access Denied as a <strong>BLOCKED</strong> drive — distinct from a failed or physically damaged drive. It flags the drive for physical destruction rather than silently marking it erased, so the report honestly reflects that the data was never wiped. That's the difference between an audit you pass and one you don't.</p>
+      <p>tScrub treats a 0x4286 (or 0x4015) Access Denied as a <strong>BLOCKED</strong> drive — distinct from a failed or physically damaged drive. It flags the drive as blocked, not clean, and tells you the fix: clear Block SID in the BIOS, or move the drive to another machine, then re-run. The report honestly reflects that the data was never wiped — the difference between an audit you pass and one you don't.</p>
 
       <h2>FAQ</h2>
       <h3>Is a Block SID drive lost?</h3>

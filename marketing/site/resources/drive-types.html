@@ -112,7 +112,7 @@
       <p>Self-encrypting drives hold their own encryption key. Two things come up:</p>
       <ul>
         <li><strong>PSID revert</strong> — resets a locked SED back to factory state using the physical security ID printed on the label. This is the standard unlock for drives you've inherited without a password.</li>
-        <li><strong>Block SID lockdown</strong> — some BIOSes (common on Lenovo) lock the drive against commands like Sanitize and Format. This shows up as an "access denied" status and usually means the drive must be physically destroyed.</li>
+        <li><strong>Block SID lockdown</strong> — some BIOSes (common on Lenovo) lock the drive against commands like Sanitize and Format. This shows up as an "access denied" status (<code>BLOCKED</code>) and is recoverable: disable Block SID in the BIOS, or move the drive to a machine without the lock, then re-run. Physical destruction is only needed when the lock can't be lifted.</li>
       </ul>
 
       <h2>Frozen, blocked, and locked drives</h2>
