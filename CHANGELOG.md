@@ -6,6 +6,12 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.49] - 2026-09-26
+
+### Changed
+- The runtime spinner now advances 4× per second (was once per second), so a
+  long wipe visibly "ticks" instead of appearing stuck.
+
 ## [v1.4.48] - 2026-09-26
 
 ### Fixed

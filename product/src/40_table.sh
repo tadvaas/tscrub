@@ -504,7 +504,9 @@ table::render() {
 ui::loop() {
     local _rc _dev _key _value
     while true; do
-        IFS=' ' read -t 1 -r -u4 _dev _key _value; _rc=$?
+        # 0.25 s timeout → the spinner advances 4×/second (one full rotation
+        # per second). Elapsed time only changes once per second regardless.
+        IFS=' ' read -t 0.25 -r -u4 _dev _key _value; _rc=$?
         if (( _rc == 0 )); then
             [[ -z "${_dev:-}" ]] && continue
             if [[ "$_key" == "STATUS" ]]; then
