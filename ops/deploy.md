@@ -69,6 +69,48 @@ ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/webs/tscrub/downloads && sha256sum 
 
 The marketing deploy excludes `downloads/` (`--exclude downloads/`) so `--delete` never wipes it. `download_url` in `~/webs/tscrub-form/config.json` points at this file (used in licence emails).
 
+### Appliance ISO + PXE kernel (`bzImage`)
+
+The appliance is a Buildroot/ShredOS fork on `oxwet@192.168.0.6:~/shredos.x86_64`. After a `SCRIPT_VERSION` bump and `bash ops/host-download.sh`, stage the slim script into the overlay, commit, and rebuild:
+
+```bash
+# 1. Push the slim build into the overlay and commit on the build host
+scp -o BatchMode=yes product/build/tscrub.sh \
+  oxwet@192.168.0.6:~/shredos.x86_64/board/shredos/fsoverlay/usr/bin/tscrub.sh
+ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
+  chmod 755 board/shredos/fsoverlay/usr/bin/tscrub.sh && \
+  git checkout -- board/shredos/bootx64.efi board/shredos/shimx64.efi board/shredos/mmx64.efi board/shredos/grubx64.efi && \
+  git add -A && git commit -m "tscrub vX.Y.Z"'
+
+# 2. Rebuild under tmux (survives SSH drop); ISO + bzImage land in output/images/
+ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
+  rm -f build_tscrub.log && \
+  tmux new-session -d -s tscrub "make 2>&1 | tee -a build_tscrub.log; echo TSCRUB_BUILD_DONE >> build_tscrub.log"'
+# poll: ssh oxwet@192.168.0.6 'grep -q TSCRUB_BUILD_DONE ~/shredos.x86_64/build_tscrub.log'
+```
+
+The build produces two artifacts in `~/shredos.x86_64/output/images/`:
+- `tscrub-v<VER>_…_<hash>.iso` — the bootable appliance (copy to `~/webs/tscrub/downloads/`, repoint `tscrub-appliance.iso`, update the manifest + download page).
+- `bzImage` — the self-contained kernel (embedded initramfs) used for **PXE** boots; it has no separate `initrd`.
+
+**Publish the PXE kernel** to the PXE host (`oxwet@192.168.0.26`, served at
+`/tScrub/boot/bzImage`). The Mac can SSH to both hosts; the build host has no
+direct key to `.26`, so relay through the Mac:
+
+```bash
+scp -o BatchMode=yes oxwet@192.168.0.6:~/shredos.x86_64/output/images/bzImage /tmp/bzImage
+ssh -o BatchMode=yes oxwet@192.168.0.26 'mkdir -p ~/html/tScrub/boot'
+scp -o BatchMode=yes /tmp/bzImage oxwet@192.168.0.26:~/html/tScrub/boot/bzImage
+ssh -o BatchMode=yes oxwet@192.168.0.26 'ls -l ~/html/tScrub/boot/bzImage && sha256sum ~/html/tScrub/boot/bzImage'
+rm -f /tmp/bzImage
+```
+
+The iPXE `kernel` line fetches it directly — no `initrd` line is needed:
+
+```
+kernel ${base-url}/tScrub/boot/bzImage console=tty3 loglevel=3
+```
+
 ## 3. Backend + database (`~/webs/tscrub-form/` on the server)
 
 Server-side PHP + Python handlers (auth, forms, certificate issuing/verification, licence issuing) backed by **MySQL**.
