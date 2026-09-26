@@ -396,12 +396,17 @@ function db_drive_to_group(array $d): array {
         'size' => (string)($d['size'] ?? ''),
         'bus' => (string)($d['bus'] ?? ''),
         'method' => (string)($d['method'] ?? ''),
-        'cls' => (string)($d['class'] ?? ''),
-        'cert' => (string)($d['certification'] ?? ''),
-        'status' => (string)($d['final_status'] ?? ''),
+        // Accept either shape: group-format arrays (parse_reports payloads,
+        // used when consolidating stored reports in POST /api/certs) or raw
+        // certificate_drives DB rows (used when regenerating an existing
+        // certificate). The group keys win when present, so the conversion is
+        // idempotent for already-grouped drives.
+        'cls' => (string)($d['cls'] ?? $d['class'] ?? ''),
+        'cert' => (string)($d['cert'] ?? $d['certification'] ?? ''),
+        'status' => (string)($d['status'] ?? $d['final_status'] ?? ''),
         'system' => (string)($d['system'] ?? ''),
-        'sysserial' => (string)($d['system_serial'] ?? ''),
-        'bbserial' => (string)($d['baseboard_serial'] ?? ''),
+        'sysserial' => (string)($d['sysserial'] ?? $d['system_serial'] ?? ''),
+        'bbserial' => (string)($d['bbserial'] ?? $d['baseboard_serial'] ?? ''),
         'smart' => (string)($d['smart'] ?? ''),
         'tempc' => (string)($d['tempc'] ?? ''),
         'poweronhours' => (string)($d['poweronhours'] ?? ''),
