@@ -18,3 +18,6 @@ marketing/server/tcpdf/
 # Test harness: host config + generated test licence are environment-specific.
 tests/proxmox/config.sh
 tests/proxmox/test.lic
+
+# Customer debug snapshots — diagnostics, never commit.
+research/
