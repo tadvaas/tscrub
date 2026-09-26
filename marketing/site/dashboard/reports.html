@@ -280,6 +280,43 @@
         return String(ts).replace('T', ' ').replace(/Z$/, '').slice(0, 16);
       }
 
+      // Column colour helpers — make outcomes and SMART health readable at a glance.
+      function statusClass(v) {
+        var s = String(v || '').toUpperCase();
+        if (s === 'COMPLETED') return 'text-emerald-700 font-semibold';
+        if (s === 'FAILED')    return 'text-red-700 font-semibold';
+        if (s === 'BLOCKED')   return 'text-amber-700 font-semibold';
+        if (s === 'FROZEN')    return 'text-sky-700 font-semibold';
+        if (s === 'DRY-RUN')   return 'text-slate-500';
+        return 'text-slate-700';
+      }
+      function smartClass(v) {
+        var s = String(v || '').toUpperCase();
+        if (s === 'PASS')  return 'text-emerald-700 font-semibold';
+        if (s === 'FAIL')  return 'text-red-700 font-semibold';
+        if (s === 'UNSUP') return 'text-slate-400';
+        return 'text-slate-700';
+      }
+      function tempClass(v) {
+        var n = parseInt(v, 10);
+        if (isNaN(n)) return 'text-slate-700';
+        if (n >= 75)  return 'text-red-700 font-semibold';
+        if (n >= 60)  return 'text-amber-700 font-semibold';
+        return 'text-slate-700';
+      }
+      function reallocClass(v) {
+        var n = parseInt(v, 10);
+        if (isNaN(n)) return 'text-slate-700';
+        return n > 0 ? 'text-red-700 font-semibold' : 'text-emerald-700';
+      }
+      function usedClass(v) {
+        var n = parseInt(v, 10);
+        if (isNaN(n)) return 'text-slate-700';
+        if (n >= 90)  return 'text-red-700 font-semibold';
+        if (n >= 70)  return 'text-amber-700 font-semibold';
+        return 'text-slate-700';
+      }
+
       function closeReport() {
         modal.classList.add('hidden');
         document.body.style.overflow = '';
@@ -363,11 +400,28 @@
           dtable.appendChild(dhr);
           drives.forEach(function (d) {
             var tr = el('tr', 'hover:bg-slate-50');
-            [d.device, d.type, d.model, d.serial, d.size, d.bus, d.method, d.cls, d.cert, d.status, fmtTs(d.ts),
-             d.smart, d.tempc, d.poweronhours, d.powercycles, d.reallocsectors, d.pctused, d.availspare, d.tbw_tb,
-             d.smartpost, d.tempcpost, d.poweronhourspost,
-             d.system, d.sysserial, d.bbserial, d.cpu, d.gpu, d.ram].forEach(function (v) {
-              tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 text-slate-700', v || '—'));
+            var cols = [
+              [d.device, 'text-slate-700'], [d.type, 'text-slate-700'], [d.model, 'text-slate-700'], [d.serial, 'text-slate-700'],
+              [d.size, 'text-slate-700'], [d.bus, 'text-slate-700'], [d.method, 'text-slate-700'],
+              [d.cls, 'text-slate-700'], [d.cert, 'text-slate-700'],
+              [d.status, statusClass(d.status)],
+              [fmtTs(d.ts), 'text-slate-700'],
+              [d.smart, smartClass(d.smart)],
+              [d.tempc, tempClass(d.tempc)],
+              [d.poweronhours, 'text-slate-700'],
+              [d.powercycles, 'text-slate-700'],
+              [d.reallocsectors, reallocClass(d.reallocsectors)],
+              [d.pctused, usedClass(d.pctused)],
+              [d.availspare, 'text-slate-700'],
+              [d.tbw_tb, 'text-slate-700'],
+              [d.smartpost, smartClass(d.smartpost)],
+              [d.tempcpost, tempClass(d.tempcpost)],
+              [d.poweronhourspost, 'text-slate-700'],
+              [d.system, 'text-slate-700'], [d.sysserial, 'text-slate-700'], [d.bbserial, 'text-slate-700'],
+              [d.cpu, 'text-slate-700'], [d.gpu, 'text-slate-700'], [d.ram, 'text-slate-700']
+            ];
+            cols.forEach(function (c) {
+              tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 ' + c[1], c[0] || '—'));
             });
             dtable.appendChild(tr);
           });
