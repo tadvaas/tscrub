@@ -47,6 +47,8 @@ function method_label($method, $cls, $status = '') {
     if ($s === 'FAILED')    return 'Not sanitised — erasure failed';
     if ($s === 'BLOCKED')   return 'Not sanitised — blocked by firmware (Block SID)';
     if ($s === 'FROZEN')    return 'Frozen — Physical Destruction Required';
+    if ($s === 'UNKNOWN')   return 'Not sanitised — outcome unknown';
+    if ($s === 'DRY-RUN')   return 'Dry run — no sanitisation performed';
 
     $m = strtoupper(trim((string)$method));
     $c = strtoupper(trim((string)$cls));
@@ -455,7 +457,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     foreach ($destroyed as $s) { $destroyedSet[strtolower(trim((string)$s))] = true; }
     foreach ($drives as $i => $d) {
         $st = strtoupper(trim((string)($d['status'] ?? '')));
-        if ($st === 'COMPLETED' || $st === 'DRY-RUN' || $st === 'DESTROYED') continue;
+        if ($st === 'COMPLETED' || $st === 'DESTROYED') continue;
         $s = strtolower(trim((string)($d['serial'] ?? '')));
         if ($s !== '' && isset($destroyedSet[$s])) {
             $drives[$i]['status'] = 'DESTROYED';
@@ -469,7 +471,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $destroyedCount = 0;
     foreach ($drives as $d) {
         $st = strtoupper(trim((string)($d['status'] ?? '')));
-        if ($st === 'COMPLETED' || $st === 'DRY-RUN') continue;
+        if ($st === 'COMPLETED') continue;
         $nonCompleted++;
         if ($st === 'DESTROYED') $destroyedCount++;
     }

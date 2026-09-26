@@ -943,13 +943,22 @@ if ($method === 'POST' && $route === '/certs') {
     }
 
     // Physical-destruction decision. Drives that didn't complete (FAILED /
-    // BLOCKED / FROZEN) can't be claimed as wiped. When the operator hasn't
-    // supplied a decision, return the uncompleted drives so the dashboard can
-    // ask; otherwise validate the choices and bake them into the certificate.
+    // BLOCKED / FROZEN / UNKNOWN / DRY-RUN) can't be claimed as wiped. When the
+    // operator hasn't supplied a decision, return the uncompleted drives so the
+    // dashboard can ask; otherwise validate the choices and bake them into the
+    // certificate. An existing certificate's drives are folded in first so a
+    // drive already recorded as DESTROYED (or COMPLETED) doesn't reappear here.
+    $decisionDrives = $g['drives'];
+    $stmt = db()->prepare('SELECT * FROM certificates WHERE user_id = ? AND cocid = ? ORDER BY id DESC LIMIT 1');
+    $stmt->execute([(int)$u['id'], $cocid]);
+    $existing = $stmt->fetch();
+    if ($existing !== false) {
+        $decisionDrives = merge_group($g, load_cert_drives((int)$existing['id']), load_cert_reports((int)$existing['id']), $existing)['drives'];
+    }
     $nonCompleted = [];
-    foreach ($g['drives'] as $drv) {
+    foreach ($decisionDrives as $drv) {
         $st = strtoupper(trim((string)($drv['status'] ?? '')));
-        if ($st === 'COMPLETED' || $st === 'DRY-RUN' || $st === 'DESTROYED') continue;
+        if ($st === 'COMPLETED' || $st === 'DESTROYED') continue;
         $nonCompleted[] = [
             'serial' => (string)($drv['serial'] ?? ''),
             'model'  => (string)($drv['model'] ?? ''),
