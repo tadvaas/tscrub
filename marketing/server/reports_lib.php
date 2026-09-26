@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Shared report parsing (used by certify.php and the /api/reports ingestion).
+ * Shared report parsing (used by the /api/reports ingestion).
  * Parses an uploaded `reports[]` multipart (CSV + optional .json manifest +
  * .csv.sig) and consolidates drives by Chain of Custody ID.
  */
@@ -425,14 +425,23 @@ function db_drive_to_group(array $d): array {
  * Rank a drive's final status so that, when the same physical drive (serial)
  * appears in multiple reports, the *best* outcome wins. A drive blocked or
  * failed on one machine and then successfully erased on another must resolve
- * to COMPLETED, not the earlier failure. COMPLETED > operator-confirmed
- * DESTROYED > DRY-RUN > anything else (FAILED/BLOCKED/FROZEN/UNKNOWN).
+ * to COMPLETED, not the earlier failure.
+ *
+ * Tiers: COMPLETED > operator-confirmed DESTROYED > DRY-RUN > any not-sanitised
+ * outcome. Within the not-sanitised outcomes the rank is an ESCALATION order,
+ * so the label shown never depends on upload order: FROZEN (destruction
+ * required) > BLOCKED (firmware blocked) > FAILED (erase failed) > UNKNOWN
+ * (no terminal status).
  */
 function drive_status_rank(?string $status): int {
     $s = strtoupper(trim((string)$status));
-    if ($s === 'COMPLETED') return 3;
-    if ($s === 'DESTROYED') return 2;
-    if ($s === 'DRY-RUN')   return 1;
+    if ($s === 'COMPLETED') return 100;
+    if ($s === 'DESTROYED') return 50;
+    if ($s === 'DRY-RUN')   return 10;
+    if ($s === 'FROZEN')    return 4;
+    if ($s === 'BLOCKED')   return 3;
+    if ($s === 'FAILED')    return 2;
+    if ($s === 'UNKNOWN')   return 1;
     return 0;
 }
 

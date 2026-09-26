@@ -135,7 +135,7 @@ cd marketing
 npm run deploy:server
 ```
 
-What it copies (no `--delete`): `api.php auth.php db.php http.php mail.php reports_lib.php stripe.php migrate.php seed-admin.php schema.sql certify.php submit.php verify.php sendmail.py issue_licence.py config.example.json`.
+What it copies (no `--delete`): `api.php auth.php db.php http.php mail.php reports_lib.php render_cert.php stripe.php migrate.php seed-admin.php schema.sql submit.php verify.php sendmail.py issue_licence.py config.example.json`.
 
 ### One-time DB setup (already done on this server)
 
@@ -249,10 +249,9 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && chmod 640 config.json && chmod 6
 The nginx config lives at `/etc/nginx/sites-available/tscrub.conf` (root-owned; `oxwet` has no sudo). Reference snippets are in `marketing/server/nginx-location.conf`.
 
 Current PHP routes:
-- `location = /api/certify` → `certify.php` (certificate upload — login required)
 - `location = /verify` → `verify.php` (public, MySQL lookup)
 - `location = /submit` → `submit.php` (contact form)
-- `location /api/` → `api.php` (auth, dashboard, admin, licences)
+- `location /api/` → `api.php` (auth, dashboard, admin, licences, report upload, cert generation)
 
 To add/change a route, paste the matching block from `nginx-location.conf` into the `server { server_name tscrub.com; … }` block, then:
 

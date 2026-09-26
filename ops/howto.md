@@ -481,12 +481,14 @@ Upload is dispatched by `report::upload` (priority order):
 
 ### 3.7 Turning a report into a Certificate of Destruction
 
-Two server ingestion paths, both verifying SHA-256 + Ed25519 before rendering:
+Reports are uploaded via `POST /api/reports` (SHA-256 + Ed25519 verified before
+storage); certificates are generated on demand from stored reports via
+`POST /api/certs` (login + CSRF).
 
 | Path | Who | Inputs |
 |---|---|---|
-| `POST /api/certify` | Web user (login required) | `.csv` + `.json` + optional `.csv.sig` |
-| `POST /api/reports` | Appliance (API token) | multipart `reports[]=@…` |
+| `POST /api/reports` | Appliance (API token) or dashboard (login + CSRF) | multipart `reports[]=@…` (`.csv` + `.json` + optional `.csv.sig`) |
+| `POST /api/certs` | Web user (login + CSRF) | JSON `{ cocid, destroyed? }` |
 
 Server-side checks (`reports_lib.php`):
 

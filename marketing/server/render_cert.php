@@ -4,9 +4,9 @@ declare(strict_types=1);
 /**
  * Shared Certificate-of-Destruction PDF renderer.
  *
- * Used by certify.php (web upload) and api.php (machine ingestion) so that
- * every certificate gets its own tamper-evident PDF — one PDF per Chain of
- * Custody ID, never one combined PDF for a multi-COCID upload.
+ * Used by api.php (machine ingestion and dashboard certificate generation) so
+ * that every certificate gets its own tamper-evident PDF — one PDF per Chain
+ * of Custody ID, never one combined PDF for a multi-COCID upload.
  */
 
 require_once __DIR__ . '/tcpdf/tcpdf.php';
