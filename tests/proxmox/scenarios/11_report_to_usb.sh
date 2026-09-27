@@ -17,7 +17,7 @@ mkdir -p "$REPORTS"
 trap 'vm_destroy "$VMID"; rm -f "$USB_IMG"' EXIT
 
 # 64 MB image with a single FAT32 partition carrying boot/version.txt (the
-# writable-boot marker) and license.key (the .lic a customer drops on the stick).
+# writable-boot marker) and a *.lic (the licence a customer drops on the stick).
 dd if=/dev/zero of="$USB_IMG" bs=1M count=64 status=none
 printf 'start=2048, type=c\n' | sfdisk -q "$USB_IMG"
 LOOP="$(losetup -Pf --show "$USB_IMG")"
@@ -27,7 +27,7 @@ mkdir -p /tmp/tscrub-usbmnt
 mount -o rw "${LOOP}p1" /tmp/tscrub-usbmnt
 mkdir -p /tmp/tscrub-usbmnt/boot
 echo "v1.4.18" > /tmp/tscrub-usbmnt/boot/version.txt
-cp "$TEST_LICENCE" /tmp/tscrub-usbmnt/license.key
+cp "$TEST_LICENCE" /tmp/tscrub-usbmnt/license.lic
 umount /tmp/tscrub-usbmnt
 losetup -d "$LOOP"
 

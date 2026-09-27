@@ -24,7 +24,7 @@ mkdir -p /tmp/tscrub-usbmnt
 mount -o rw "${LOOP}p1" /tmp/tscrub-usbmnt
 mkdir -p /tmp/tscrub-usbmnt/boot
 echo "kernel-placeholder" > /tmp/tscrub-usbmnt/boot/bzImage   # boot content, no version.txt
-cp "$TEST_LICENCE" /tmp/tscrub-usbmnt/license.key
+cp "$TEST_LICENCE" /tmp/tscrub-usbmnt/license.lic
 umount /tmp/tscrub-usbmnt
 losetup -d "$LOOP"
 

@@ -5,7 +5,7 @@ set -euo pipefail
 # signing key embedded in the licence is what the appliance uses to sign reports.
 #
 # Usage:
-#   scripts/issue_license.sh "Customer Ltd" 2027-09-12 vendor-private-key.pem license.key [tier]
+#   scripts/issue_license.sh "Customer Ltd" 2027-09-12 vendor-private-key.pem license.lic [tier]
 #
 # Prints the vendor PUBLIC key (base64, single line) to stdout for embedding in
 # the image as LICENSE_VENDOR_PUBLIC_KEY_B64.
@@ -13,7 +13,7 @@ set -euo pipefail
 CUSTOMER="${1:?customer name required}"
 EXPIRY="${2:?expiry (YYYY-MM-DD) required}"
 VENDOR_KEY="${3:?vendor private key path required}"
-OUT="${4:-license.key}"
+OUT="${4:-license.lic}"
 TIER="${5:-free}"
 
 command -v openssl >/dev/null 2>&1 || { echo "openssl required" >&2; exit 1; }

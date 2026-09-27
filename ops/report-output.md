@@ -72,7 +72,7 @@ kernel parameters:
 tscrub_upload=https://tscrub.com/api/reports   # dashboard push
 tscrub_api_token=<64-hex token>
 tscrub_cocid=12345                             # unattended run (no prompt)
-tscrub_license_url=http://host/license.key     # licence over the LAN
+tscrub_license_url=http://host/license.lic     # licence over the LAN
 tscrub_output=/mnt/usb                         # local path
 # or: tscrub_output=ftp:host:path:user:pass
 # or: tscrub_output=sftp:host:path:user:pass   # colon-safe password
@@ -111,4 +111,4 @@ the kernel command line has the same key).
 layout, no marker) boot a QEMU VM with the USB attached as `removable=off`
 (reproducing the fixed-disk behaviour), run `tscrub.sh --dry-run` with no
 `--output`, then re-mount the USB image and assert the `.csv`/`.sig`/`.json` are
-present next to `license.key`.
+present next to `*.lic`.

@@ -36,7 +36,7 @@ UI_ETA_COL=178
 UI_ETA_W=9
 UI_TABLE_MAIN_W=182
 UI_TABLE_INDENT="    "
-LICENSE_FILE="/etc/tscrub/license.key"
+LICENSE_FILE="/etc/tscrub/license.lic"
 LICENSE_URL=""
 LICENSE_SOURCE_SET=0
 LICENSE_VENDOR_PUBLIC_KEY_B64=""
@@ -294,8 +294,8 @@ parse_args() {
                 echo "Modes:"
                 echo "  (default)            Run disk sanitisation."
                 echo "  --dry-run            Simulate without wiping any drive."
-                echo "  --license PATH       Read the licence from PATH (default: boot USB, then /etc/tscrub/license.key)."
-                echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.key)."
+                echo "  --license PATH       Read the licence from PATH (default: boot USB, then /etc/tscrub/license.lic)."
+                echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.lic)."
                 echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
                 echo "  --cocid 12345        Set the Chain of Custody ID and run non-interactively (autonuke)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."

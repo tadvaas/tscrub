@@ -337,7 +337,7 @@ license::detect_usb() {
                 mounted=1
             fi
 
-            for f in "$mnt"/license.key "$mnt"/*.lic; do
+            for f in "$mnt"/*.lic; do
                 [[ -f "$f" ]] || continue
                 count=$((count + 1))
                 # Prefer the strongest tier so a stray free.lic can't silently
@@ -390,7 +390,7 @@ license::detect_usb() {
 #   tscrub_upload=<url>          (optional — dashboard URL is built-in)
 #   tscrub_api_token=<64-hex>    (dashboard upload — only this is required)
 #   tscrub_cocid=12345
-#   tscrub_license_url=http://host/license.key
+#   tscrub_license_url=http://host/license.lic
 #   tscrub_output=/path | ftp:host:path:user:pass | sftp:...
 # CLI flags always win; the file fills in only what isn't already set.
 config::load_usb() {
@@ -500,8 +500,8 @@ config::load_usb() {
 # Resolve the licence location, in priority order:
 #   1. explicit path (--license / tscrub_license=)
 #   2. URL (--license-url / tscrub_license_url=)
-#   3. a licence file at the root of the boot USB (license.key or *.lic)
-#   4. the compiled default path (/etc/tscrub/license.key)
+#   3. a licence file at the root of the boot USB (a *.lic file)
+#   4. the compiled default path (/etc/tscrub/license.lic)
 license::detect() {
     local param url
 

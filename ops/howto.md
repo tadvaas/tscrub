@@ -139,8 +139,8 @@ for the free tier. The licence is JSON (`schema: tscrub-license/1`):
   **attributable** to the customer.
 
 Licence resolution order: `--license` / `--license-url` (CLI wins) → kernel
-cmdline `tscrub_license=` / `tscrub_license_url=` → boot USB (`license.key` or
-`*.lic` at the root of any FAT/ISO9660 volume) → `/etc/tscrub/license.key`.
+cmdline `tscrub_license=` / `tscrub_license_url=` → boot USB (`*.lic` at the
+root of any FAT/ISO9660 volume) → `/etc/tscrub/license.lic`.
 
 #### CLI flags
 
@@ -154,7 +154,7 @@ tscrub.sh verify <report.csv> [public-key.pem]
 |---|---|
 | `--dry-run` | Simulate without wiping; report rows are `DRY-RUN` (never signed) |
 | `--simulate-running-eta=M` | With `--dry-run`, fake an M-minute wipe |
-| `--license PATH` | Licence file (default: boot USB, then `/etc/tscrub/license.key`) |
+| `--license PATH` | Licence file (default: boot USB, then `/etc/tscrub/license.lic`) |
 | `--license-url URL` | Fetch the licence over HTTP(S) |
 | `--output DIR` | Write reports to DIR (default: boot USB, then `/`) |
 | `--cocid 12345` | Set Chain of Custody ID; runs non-interactively (autonuke) |
@@ -345,7 +345,7 @@ firmware handshake.
 - **PXE:** the `bzImage` is self-contained, so iPXE needs no initrd:
 
   ```text
-  kernel http://host/bzImage console=tty3 loglevel=3 tscrub_license_url=http://host/license.key
+  kernel http://host/bzImage console=tty3 loglevel=3 tscrub_license_url=http://host/license.lic
   boot
   ```
 

@@ -128,9 +128,9 @@ the boot stick. The licence can be dropped on that partition, baked in via
 - [ ] Auto-licence-delivery: presigned per-user licence URL (`/api/licence/<secret>`) + a dashboard "download `tscrub.conf`" so the appliance fetches its current licence at boot — removes the manual `.lic` reinstall on upgrade
 - [x] Show licence info (customer / tier / expiry) in the TUI Runtime panel —
   shipped in v1.4.36
-- [ ] Standardise the licence filename to `.lic` — the appliance code still accepts
-  `license.key` (default `/etc/tscrub/license.key`, the USB scan, and the tests that
-  drop `license.key`); make `*.lic` the only accepted name so code and docs agree
+- [x] Standardise the licence filename to `.lic` — only `*.lic` is auto-detected on
+  the USB (and `/etc/tscrub/license.lic` is the compiled default); `license.key` is
+  retired so product code, tests and docs agree
 
 ## 3. Recently done (2026-09)
 

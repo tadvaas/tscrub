@@ -13,7 +13,7 @@ REPORTS="$IMAGE_DIR/e2e-usb-root"
 mkdir -p "$REPORTS"
 trap 'vm_destroy "$VMID"; rm -f "$USB_IMG"' EXIT
 
-# Build a 64 MB image with a single FAT32 partition holding license.key at its
+# Build a 64 MB image with a single FAT32 partition holding a *.lic file at its
 # root (the licence a customer drops onto the boot stick).
 dd if=/dev/zero of="$USB_IMG" bs=1M count=64 status=none
 printf 'start=2048, type=c\n' | sfdisk -q "$USB_IMG"
@@ -22,7 +22,7 @@ trap 'umount /tmp/tscrub-usbmnt 2>/dev/null || true; losetup -d "$LOOP" 2>/dev/n
 mkfs.vfat -F 32 "${LOOP}p1" >/dev/null
 mkdir -p /tmp/tscrub-usbmnt
 mount -o rw "${LOOP}p1" /tmp/tscrub-usbmnt
-cp /var/lib/vz/tscrub-test/e2e-test.lic /tmp/tscrub-usbmnt/license.key
+cp /var/lib/vz/tscrub-test/e2e-test.lic /tmp/tscrub-usbmnt/e2e-test.lic
 umount /tmp/tscrub-usbmnt
 losetup -d "$LOOP"
 
