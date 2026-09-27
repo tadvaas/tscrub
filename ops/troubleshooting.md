@@ -2,7 +2,8 @@
 
 Field notes on the two failure modes that stopped the Lenovo X13 from uploading
 its report to tscrub.com, and the techniques that fixed them. Both are now
-covered by regression-proof code in the appliance and the standalone script.
+covered by regression-proof code in the appliance (and the script's own test
+suite).
 
 ## 1. "No IP after boot" — late link-up vs. hotplug re-DHCP
 

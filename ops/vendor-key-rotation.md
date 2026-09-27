@@ -8,7 +8,7 @@ The vendor Ed25519 keypair is the **root of trust** for all licences and signed 
 |---|---|
 | **Private key** | `/home/oxwet/webs/tscrub-form/vendor.key` (mode 640 group www-data, server only) |
 | **Public key (build)** | `product/keys/vendor-public-key.pem` (committed) |
-| **Public key (published)** | https://tscrub.com/docs (Licensing + "Release & key history" sections) |
+| **Public key (published)** | `/downloads/tscrub.pub` (copied by `host-download.sh`); fingerprint in the download manifest |
 | **Fingerprint** | `be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02` |
 
 ## Key facts
@@ -53,10 +53,10 @@ cd product && make build && bash scripts/deploy.sh
 
 ### 4. Update the published fingerprint + key
 
-Compute the new fingerprint, then update:
-- `marketing/site/docs.html` — the fingerprint in "6. Verify a report", the PEM + fingerprint in "7. Licensing", and the "Release & key history" table (new key fingerprint; keep the old key listed so old licences/releases stay verifiable).
-
-Redeploy the marketing site: `cd marketing && npm run deploy`.
+Compute the new fingerprint, then update `vendor_key_fingerprint` in
+`marketing/server/download-manifest.json`. Running `bash ops/host-download.sh`
+re-publishes `/downloads/tscrub.pub` (the new public key) and the manifest; keep
+the old fingerprint recorded so old releases stay verifiable.
 
 ### 5. Re-issue all active licences
 
@@ -70,7 +70,7 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && python3 issue_licence.py --tier 
 
 ### 6. Archive the old PUBLIC key, delete the old PRIVATE key
 
-Keep the old **public** key published on /docs ("Release & key history") so licences and releases signed by it stay verifiable. Only the old **private** key should be deleted:
+Keep the old **public** key archived alongside the versioned release artifacts it signed (so old releases stay verifiable). Only the old **private** key should be deleted:
 
 ```bash
 ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && rm -f vendor.key.old'

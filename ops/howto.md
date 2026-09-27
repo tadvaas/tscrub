@@ -28,8 +28,8 @@ secure disk sanitisation. It:
 - writes a **chain-of-custody report** — a CSV plus an Ed25519 signature and a
   JSON manifest — which is uploaded to the platform and turned into a printable
   Certificate of Destruction;
-- runs standalone on any Linux live environment, or as the boot program of the
-  tScrub appliance ISO (§2);
+- runs as the boot program of the tScrub appliance ISO (§2); the same script
+  can also be built and run directly (e.g. `--dry-run`) for local testing;
 - **requires a licence** at every run — even the free tier.
 
 The whole thing is one inspectable script: `product/build/tscrub.sh` is produced
@@ -66,7 +66,7 @@ LICENSE_VENDOR_PUBLIC_KEY_B64="…"# base64 of payload/vendor-public-key.pem
 Build targets (in `product/`):
 
 ```sh
-make build          # full build — embeds sedutil-cli; for bare-Linux use
+make build          # full build — embeds sedutil-cli; produces the signed script artifact
 make build-slim     # no sedutil payload; for the appliance (Buildroot ships sedutil)
 ```
 

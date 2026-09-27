@@ -32,8 +32,8 @@ Builds the self-contained script and uploads it via scp.
 
 ```bash
 cd product
-make build            # free build (embeds vendor key; requires a licence)
-make deploy           # build (free) + upload
+make build            # script build (embeds vendor key; requires a licence)
+make deploy           # build + upload
 make deploy-check     # build + local preflight only (no upload)
 ```
 
@@ -46,17 +46,17 @@ Notes:
 - `.config` holds deployment host/user/docroot/domain (not committed; treat as env-specific).
 - Run tests before deploying: `cd product && /opt/homebrew/bin/bash tests/run.sh`.
 
-### Host the download artifact (free build)
+### Host the signed script artifact
 
-The free build is served at `https://tscrub.com/downloads/tscrub.sh`. One command rebuilds, re-hosts, **signs the release** (Ed25519, with the vendor key), updates the published checksum, and redeploys the site:
+The signed script is still built and served at `https://tscrub.com/downloads/tscrub.sh` — it backs the `verify` toolchain and the appliance build, but it is **not** surfaced on the Download page (tScrub ships as the appliance ISO). One command rebuilds, re-hosts, **signs the release** (Ed25519, with the vendor key), updates the published checksum, and redeploys the site:
 
 ```bash
 bash ops/host-download.sh
 ```
 
-Served files under `/downloads/`: `tscrub.sh` (free build), `tscrub.sh.sha256` (checksum), `tscrub.sh.sig` (Ed25519 signature), `tscrub.pub` (vendor public key for verification).
+Served files under `/downloads/`: `tscrub.sh` (the script), `tscrub.sh.sha256` (checksum), `tscrub.sh.sig` (Ed25519 signature), `tscrub.pub` (vendor public key for verification).
 
-**Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a row to the "Release & key history" table in `marketing/site/docs.html` (version + SHA-256 + signing-key fingerprint).
+**Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a `## [vX.Y.Z]` entry to `CHANGELOG.md` (the manifest and Download page are updated by `host-download.sh`).
 
 Manual equivalent (upload only, no site redeploy):
 
