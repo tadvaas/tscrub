@@ -14,7 +14,7 @@ let busy = false
 let pendingConfirm = false
 let paintTimer = null
 
-const VERSION = 'v1.4.45'
+const VERSION = 'v1.4.52'
 const COCID = '48213'
 const SPINNER = ['|', '/', '-', '\\']
 
@@ -142,7 +142,7 @@ function paintScreen(drives, elapsed, spinner, phase, finish, dryRun) {
   table(drives)
   line('')
   if (finish) {
-    line('✓ Complete. Report written to /tScrub_48213_20260919T103000Z.csv')
+    line('✓ Complete. Report written to /tScrub_48213_20260927T103000Z.csv')
     line('  Chain of custody ID: ' + COCID)
     line('')
   }

@@ -31,7 +31,7 @@ tScrub is the open, auditable alternative to Blancco for verifiable disk sanitis
 
 ## Pricing & download
 
-- **Free** — community build: full erasure with self-signed reports (tamper-evident, not attributable); a free licence is required.
+- **Free tier** — full erasure with self-signed reports (tamper-evident, not attributable); a free licence is required.
 - **Pay-as-you-go** — £3 per device for attributable reports (signed and licence-verified).
 - **Team** — £99 one-off for 100 credits, attributable reports (signed and licence-verified) and support.
 - **Enterprise** — £399 one-off for 500 credits, for regulated fleets.
