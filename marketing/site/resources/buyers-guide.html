@@ -93,7 +93,7 @@
       <ul>
         <li><strong>Verifiable reports</strong> — signed reports (SHA-256 + Ed25519) and a certificate of destruction you can generate and independently verify.</li>
         <li><strong>Hardware coverage</strong> — NVMe, SATA, SAS, and self-encrypting drives, with firmware erasure preferred over software overwrite.</li>
-        <li><strong>Honest outcomes</strong> — a tool that flags frozen, blocked, or failed drives for destruction, rather than silently marking them "done."</li>
+        <li><strong>Honest outcomes</strong> — a tool that flags frozen or failed drives for destruction (and blocked drives as recoverable), rather than silently marking them "done."</li>
         <li><strong>Transparent licensing</strong> — you know what you're paying, and the software runs on hardware you own.</li>
         <li><strong>Auditability</strong> — the code is inspectable, so your security team can confirm what actually runs.</li>
       </ul>
@@ -119,7 +119,7 @@
           <tbody>
             <tr><td>Verification</td><td>Are reports signed? Can a third party verify a certificate?</td></tr>
             <tr><td>Coverage</td><td>NVMe, SATA, SAS, SED/OPAL? Firmware erase preferred?</td></tr>
-            <tr><td>Honesty</td><td>Are failed/blocked drives flagged for destruction?</td></tr>
+            <tr><td>Honesty</td><td>Are failed drives flagged, and blocked drives marked recoverable, rather than silently marked clean?</td></tr>
             <tr><td>Licensing</td><td>Per device? Per seat? Any lock-in or mandatory appliance?</td></tr>
             <tr><td>Transparency</td><td>Can your team inspect what actually runs?</td></tr>
             <tr><td>Scale</td><td>Does it support PXE and unattended fleet runs?</td></tr>
