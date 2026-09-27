@@ -6,6 +6,15 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.53] - 2026-09-27
+
+### Changed
+- Licence-on-USB: when multiple `.lic` files are present on the boot USB, tScrub
+  now selects the highest tier (`enterprise` > `team` > `payg` > `free`) instead
+  of the alphabetically-first file. A stray `free.lic` can no longer silently
+  downgrade a paid customer's evidence; when multiple files are found, a warning
+  names the selected file and tier.
+
 ## [v1.4.52] - 2026-09-27
 
 ### Fixed
