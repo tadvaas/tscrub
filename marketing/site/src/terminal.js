@@ -14,7 +14,7 @@ let busy = false
 let pendingConfirm = false
 let paintTimer = null
 
-const VERSION = 'v1.4.53'
+const VERSION = 'v1.4.54'
 const COCID = '48213'
 const SPINNER = ['|', '/', '-', '\\']
 

@@ -6,6 +6,15 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.54] - 2026-09-27
+
+### Changed
+- The licence filename is now standardised to `*.lic`. The appliance auto-detects
+  only `*.lic` on the boot USB, and the compiled default is
+  `/etc/tscrub/license.lic`. **If you still have a `license.key` on your USB,
+  rename it to `*.lic`** (or re-download from the dashboard) — `license.key` is
+  no longer accepted.
+
 ## [v1.4.53] - 2026-09-27
 
 ### Changed
