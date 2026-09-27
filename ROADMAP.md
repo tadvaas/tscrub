@@ -193,3 +193,10 @@ Not scheduled — evaluated when a milestone has room.
       assets in and pull certificates out programmatically.
 - [ ] Broader media coverage — USB/SD/eMMC targets and RAID/FC/iSCSI volumes, the
       long tail of media that still needs a certificate.
+- [ ] Offline / air-gapped verification — make the certificate QR self-contained
+      (embedded signature + key) so a phone verifies it with zero network,
+      removing the cloud objection for defence/classified environments.
+- [ ] Canary self-audit on every wipe — write an unforgeable sentinel pattern to
+      random LBAs before erasing, then verify the sentinels are gone after and
+      record the result in the report, so each certificate proves the tool
+      destroyed its own planted data.
