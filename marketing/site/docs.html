@@ -126,8 +126,8 @@
               <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
                 <li>x86-64 machine with USB or PXE boot</li>
                 <li>1 GB RAM (erasure runs in parallel)</li>
-                <li>Dependencies are bundled in the appliance image: <code class="font-mono">nvme-cli</code>, <code class="font-mono">hdparm</code>, <code class="font-mono">nwipe</code> (SCSI), <code class="font-mono">smartctl</code> (SMART), <code class="font-mono">lftp</code> (upload), <code class="font-mono">openssl</code> (signing)</li>
-                <li>Drives must not be in use by the host OS</li>
+                <li>Dependencies are bundled in the appliance image: <code class="font-mono">nvme-cli</code>, <code class="font-mono">hdparm</code>, <code class="font-mono">nwipe</code> (SCSI), <code class="font-mono">sedutil-cli</code> (SED/OPAL), <code class="font-mono">smartctl</code> (SMART), <code class="font-mono">curl</code> (dashboard upload), <code class="font-mono">lftp</code> (FTP/SFTP), <code class="font-mono">openssl</code> (signing)</li>
+                <li>Directly attached NVMe, SATA, or SCSI drives (USB-attached drives are excluded by design)</li>
               </ul>
             </div>
           </div>
@@ -289,11 +289,11 @@ tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               <p class="mt-3 text-sm text-slate-600">Each job produces a CSV report plus a JSON manifest; a signature sidecar is written whenever OpenSSL is available (always, on the appliance image):</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tScrub_48213_20260912T103000Z.csv    # human-readable report (one row per drive)
 tScrub_48213_20260912T103000Z.json   # manifest (SHA-256, public key, drive summary)
-tScrub_48213_20260912T103000Z.sig    # base64 Ed25519 signature (vendor key on paid, appliance key on free)</pre>
+tScrub_48213_20260912T103000Z.csv.sig  # base64 Ed25519 signature (vendor key on paid, appliance key on free)</pre>
               <p class="mt-3 text-sm text-slate-600">The CSV columns are: <code class="font-mono">COCID, Timestamp, Model, Serial, Size, Bus, Type, Device, Class, Certification, Method, FinalStatus, SMART, TempC, PowerOnHours, PowerCycles, ReallocSectors, PctUsed, AvailSpare, TBW_TB, SMARTPOST, TempCPost, PowerOnHoursPost, System, SystemSerial, BaseboardSerial, CPU, GPU, RAM</code> — the machine's make, serials, processors, graphics, and memory are repeated on every drive row.</p>
 
               <h3 class="mt-6 text-base font-bold text-ink-900">Drive final status</h3>
-              <p class="mt-2 text-sm text-slate-600">Every drive ends a run with one of four statuses, shown live on the console and recorded in the report's <code class="font-mono">FinalStatus</code> column:</p>
+              <p class="mt-2 text-sm text-slate-600">Every drive ends a run with one of the following statuses, shown live on the console and recorded in the report's <code class="font-mono">FinalStatus</code> column:</p>
               <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                 <table class="w-full min-w-[480px] text-left text-sm">
                   <thead class="bg-ink-900 text-xs uppercase text-slate-300">
@@ -304,6 +304,8 @@ tScrub_48213_20260912T103000Z.sig    # base64 Ed25519 signature (vendor key on p
                     <tr><td class="px-6 py-4 font-mono text-xs text-amber-700">BLOCKED</td><td class="px-6 py-4">A firmware access-rights lockdown (TCG Block SID) denied the erase command — NVMe status <code class="font-mono">0x4286</code> or <code class="font-mono">0x4015</code>. The drive itself is fine.</td><td class="px-6 py-4">Clear Block SID / hard-disk security in the BIOS, or move the drive to another machine, then re-run. Destroy only if the lock can't be lifted.</td></tr>
                     <tr><td class="px-6 py-4 font-mono text-xs text-sky-700">FROZEN</td><td class="px-6 py-4">The BIOS issued a security-freeze lock that blocks ATA erase commands until the drive is power-cycled without the freeze.</td><td class="px-6 py-4">Power-cycle (or suspend/resume) the drive and re-run.</td></tr>
                     <tr><td class="px-6 py-4 font-mono text-xs text-red-700">FAILED</td><td class="px-6 py-4">The erase command ran but did not complete — the drive is not clean.</td><td class="px-6 py-4">Inspect the drive and the run log; route to physical destruction.</td></tr>
+                    <tr><td class="px-6 py-4 font-mono text-xs text-slate-700">UNKNOWN</td><td class="px-6 py-4">The wipe worker exited without reporting a final status (e.g. killed or out of memory). The drive's state is unknown — treat it as not clean.</td><td class="px-6 py-4">Check the run log; re-run the wipe or route to destruction.</td></tr>
+                    <tr><td class="px-6 py-4 font-mono text-xs text-slate-500">DRY-RUN</td><td class="px-6 py-4">A diagnostics run (<code class="font-mono">--dry-run</code>) — nothing was wiped.</td><td class="px-6 py-4">None — run a real job to sanitise the drive.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -377,13 +379,13 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                   </tbody>
                 </table>
               </div>
-              <p class="mt-3 text-sm text-slate-600">Licences are self-serve: sign in at tscrub.com and issue one from the Licences page of your dashboard. You'll receive a <code class="font-mono">.lic</code> JSON file. Free licences carry no report key, so the appliance self-signs reports with its own generated key (tamper-evident, not attributable); paid licences embed a vendor-signed report key, so the appliance signs reports with that key, the licence verifies against the tScrub vendor key, and uploaded reports are matched back to that key so they are attributable.</p>
+              <p class="mt-3 text-sm text-slate-600">Free licences are self-serve — sign in at tscrub.com and issue one from the Licences page of your dashboard. Paid licences (pay-as-you-go, Team, Enterprise) are issued by the tScrub team, so <a href="/contact" class="font-medium text-brand-600 hover:text-brand-700">contact us</a>. You'll receive a <code class="font-mono">.lic</code> JSON file. Free licences carry no report key, so the appliance self-signs reports with its own generated key (tamper-evident, not attributable); paid licences embed a vendor-signed report key, so the appliance signs reports with that key, the licence verifies against the tScrub vendor key, and uploaded reports are matched back to that key so they are attributable.</p>
               <h3 class="mt-6 text-base font-bold text-ink-900">Attaching a licence</h3>
               <p class="mt-2 text-sm text-slate-600">The appliance looks for a licence on the <strong>boot USB first</strong> — drop your <code class="font-mono">.lic</code> file at the root of the stick (any <code class="font-mono">*.lic</code> name) and it is picked up automatically. Failing that it falls back to a <code class="font-mono">.lic</code> file in <code class="font-mono">/etc/tscrub/</code>, or you can point at it explicitly with <code class="font-mono">tscrub_license=</code>:</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_license=/etc/tscrub/Acme-ITAD-Ltd-2027-09-12.lic</pre>
               <p class="mt-3 text-sm text-slate-600">The licence can also be fetched over the local network instead of a filesystem path, using the URL form of the kernel parameter:</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_license_url=http://192.168.1.10/Acme-ITAD-Ltd-2027-09-12.lic</pre>
-              <p class="mt-3 text-sm text-slate-600">Fetching requires <code class="font-mono">curl</code> or <code class="font-mono">wget</code> on the appliance. Because a <code class="font-mono">.lic</code> contains the <strong>private</strong> report-signing key, host it on an authenticated or isolated LAN endpoint — not a public URL.</p>
+              <p class="mt-3 text-sm text-slate-600">Fetching uses <code class="font-mono">curl</code>, which is built into the appliance image. Because a <code class="font-mono">.lic</code> contains the <strong>private</strong> report-signing key, host it on an authenticated or isolated LAN endpoint — not a public URL.</p>
               <p class="mt-3 text-sm text-slate-600">Every appliance requires a valid licence — even the free tier. Without one, tScrub exits with an error.</p>
             </div>
             <div id="media">
