@@ -171,3 +171,12 @@ subscriptions, and close the last trust/coverage gaps.
 
 Deliberately out of scope: auto-cert and auto-licence-delivery (rejected —
 dashboard login is intentional).
+
+## 5. Ideas / north-star (speculative)
+
+Not scheduled — evaluated when a milestone has room.
+
+- [ ] Machine-readable certificates for AI/automated auditors — ship each
+      certificate as signed JSON-LD alongside the PDF so compliance platforms,
+      procurement bots, and LLM auditors can ingest and validate it without a
+      human.
