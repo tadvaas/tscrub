@@ -17,7 +17,7 @@ report upload, and ships `sedutil-cli` built in.
 and Broadcom NIC firmware, a per-destination report-delivery summary, the amber
 "wiped but not delivered" finish screen, the diagnostics snapshot, a TLS
 clock-skew fallback for uploads, and the customer-as-certifier certificate model.
-Only the physical hardware boot test (NVMe / SATA / SAS / USB) remains.
+The physical hardware boot test (NVMe / SATA / SAS / USB) is also complete.
 The package/kernel analysis below is kept for reference.
 
 ### Package set (what `tscrub.sh` actually calls)
@@ -64,12 +64,12 @@ appliance (shipped — the image bundles `curl` + `ca-certificates`).
 - sysfs (`/sys/block`) — used by `device::discover`
 - DRM — needed so `rtcwake -m mem` reliably wakes the display for the ATA freeze cycle
 
-### Open decision: nwipe
+### nwipe (resolved: keep)
 
 `product/src/32_device_scsi.sh` uses nwipe for SCSI/SAS drives that don't support
-firmware sanitise/format. Options:
+firmware sanitise/format.
 
-- [ ] Keep nwipe (GPL-2.0, small) as one more bundled package
+- [x] Keep nwipe (GPL-2.0, small) as one more bundled package
 - [ ] Replace `device::exec_scsi_nwipe` with a `dd`/`blkdiscard` zero pass and drop nwipe
 
 ### Build host
@@ -96,7 +96,7 @@ firmware sanitise/format. Options:
       NOTE: `libelf-dev` is required by the kernel's `objtool` (`gelf.h`) — the
       build fails at `linux 6.18` without it. Re-run `make tscrub_defconfig` after
       any `configs/tscrub_defconfig` edit to regenerate `.config` before `make`.
-- [ ] Build + test on NVMe / SATA / SAS / USB hardware.
+- [x] Build + test on NVMe / SATA / SAS / USB hardware.
 
 Implementation detail: we work directly in the ShredOS **fork** clone at
 `oxwet@192.168.0.6:~/shredos.x86_64` (uncommitted until pushed to a fork repo).
