@@ -180,3 +180,16 @@ Not scheduled — evaluated when a milestone has room.
       certificate as signed JSON-LD alongside the PDF so compliance platforms,
       procurement bots, and LLM auditors can ingest and validate it without a
       human.
+- [ ] Fleet Management Console — multi-site dashboard, role-based access, remote
+      licence/job control, full admin audit trail (grows the per-user dashboard
+      into an operations console).
+- [ ] Forensic erasure verification — post-wipe re-read of sampled blocks, recorded
+      in the signed report, proving unrecoverability rather than asserting it.
+- [ ] Diagnostics & refurb grading — collapse the SMART pre/post capture into a
+      drive grade (A/B/C) + resale health report (power-on hours, TBW, reallocated
+      sectors) for ITAD resale.
+- [ ] Integration API + webhooks — a documented public API and events
+      (`certificate.ready`, `report.uploaded`) so ITAD/ERP/ITSM systems can push
+      assets in and pull certificates out programmatically.
+- [ ] Broader media coverage — USB/SD/eMMC targets and RAID/FC/iSCSI volumes, the
+      long tail of media that still needs a certificate.
