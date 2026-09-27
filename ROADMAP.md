@@ -136,7 +136,7 @@ the boot stick. The licence can be dropped on that partition, baked in via
 
 ## 3. Recently done (2026-09)
 
-- Appliance releases through **v1.4.52** — BOM-tolerant `tscrub.conf`, blue TUI
+- Appliance releases through **v1.4.54** — BOM-tolerant `tscrub.conf`, blue TUI
   theme, full-width device table, sticky footer with brand/version line, and
   British-Time dashboard timestamps.
 - **Standalone retirement** — tScrub now ships only inside the appliance image
@@ -149,3 +149,25 @@ the boot stick. The licence can be dropped on that partition, baked in via
   login (`GET /api/signing-key`).
 - Nav: "Compare" moved from the main menu to the Resources hub.
 - Homepage terminal hero rebuilt to mirror the real tScrub TUI.
+
+## 4. Next milestone — "Paid plans for real" (v1.5)
+
+Theme: turn the advertised Team/Enterprise plans into self-serve, multi-user
+subscriptions, and close the last trust/coverage gaps.
+
+- [ ] Stripe key rotation — rotate `sk_live` + webhook secret, update
+      `~/webs/tscrub-form/config.json` (security prerequisite, ~0 product code).
+- [ ] Subscription billing (Team £99/mo · Enterprise £399/mo) — wire the reserved
+      `subscriptions` table to Stripe recurring prices; the webhook credits the
+      monthly 100/500 erasures and sets the `team`/`enterprise` tier automatically
+      (today these plans are "contact us" only).
+- [ ] Organisations & seats — a lightweight workspace layer (email-invite + role,
+      shared certs/COCID history) so a Team licence covers several operators.
+      No SSO/portal.
+- [ ] SAS/SCSI erase-path proof — exercise the `nwipe` SCSI fallback on real SAS
+      hardware and add a Proxmox SCSI scenario (the last untested wipe path).
+- [ ] Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net`
+      for faster VM testing, quiet `sedutil-cli` SG_IO noise on QEMU disks.
+
+Deliberately out of scope: auto-cert and auto-licence-delivery (rejected —
+dashboard login is intentional).
