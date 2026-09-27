@@ -136,5 +136,17 @@ t::assert_eq "FROZEN" "${devrow[sda.class]}" "frozen class kept"
 t::assert_eq "PHYS_DESTR" "${devrow[sda.cert]}" "frozen cert kept"
 t::assert_eq "Frozen Drive" "${devrow[sda.method]}" "frozen method kept"
 
+# DRY-RUN drives are normalised (nothing was wiped)
+devices=(sda)
+devrow=()
+devrow[sda.status]="DRY-RUN"
+devrow[sda.class]="PURGE"
+devrow[sda.cert]="DESTRUCTION"
+devrow[sda.method]="NVMe Crypto Purge"
+device::normalize_outcome
+t::assert_eq "DRY-RUN" "${devrow[sda.class]}" "dry-run class -> DRY-RUN"
+t::assert_eq "NOT SANITISED" "${devrow[sda.cert]}" "dry-run cert -> NOT SANITISED"
+t::assert_eq "Dry run — no sanitisation performed" "${devrow[sda.method]}" "dry-run method honest"
+
 rm -f "$OUT"
 t::summary

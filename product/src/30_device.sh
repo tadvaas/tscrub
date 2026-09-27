@@ -480,12 +480,18 @@ device::execute() {
 # keep the optimistic class/cert/method it was classified for — e.g. a BLOCKED
 # NVMe drive was classified "NVMe Crypto Purge / DESTRUCTION" but nothing was
 # purged or destroyed. FROZEN is already honest (FROZEN / PHYS_DESTR /
-# "Frozen Drive"), so it is left untouched.
+# "Frozen Drive"), so it is left untouched. DRY-RUN wipes nothing, so it is
+# normalised to an explicit "Dry run" outcome too.
 device::normalize_outcome() {
     local dev
     for dev in "${devices[@]}"; do
         case "${devrow[$dev.status]:-}" in
-            COMPLETED|DRY-RUN|FROZEN)
+            COMPLETED|FROZEN)
+                ;;
+            DRY-RUN)
+                devrow["$dev.class"]="DRY-RUN"
+                devrow["$dev.cert"]="NOT SANITISED"
+                devrow["$dev.method"]="Dry run — no sanitisation performed"
                 ;;
             BLOCKED)
                 devrow["$dev.class"]="BLOCKED"

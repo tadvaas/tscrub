@@ -162,8 +162,20 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
         $stats['uploaded']++;
         $stats['debits'][] = ['sha' => $sha, 'drives' => count($rows)];
 
-        if ($cocid === '' && preg_match('/_(\d{5})_/', $csv['name'], $mm)) $cocid = $mm[1];
-        if ($cocid === '') $cocid = 'UNKNOWN';
+        if ($cocid === '') {
+            // No COCID column — recover one from the report filename
+            // (tScrub names files tScrub_<cocid>_<ts>.csv; accept any 4-8
+            // digit run, not just 5, for legacy/third-party files).
+            if (preg_match('/_([0-9]{4,8})_/', $csv['name'], $mm)) {
+                $cocid = $mm[1];
+            }
+        }
+        if ($cocid === '') {
+            // Still nothing: never collapse unrelated files into one shared
+            // bucket. Key off the file's own SHA-256 so each distinct upload
+            // stays separate instead of merging into a single "UNKNOWN" job.
+            $cocid = 'UNKNOWN-' . substr($sha, 0, 12);
+        }
         if (mb_strlen($cocid, 'UTF-8') > 64) $cocid = mb_substr($cocid, 0, 64, 'UTF-8');
 
         // SHA-256 (computed above) + optional Ed25519 signature verification.
