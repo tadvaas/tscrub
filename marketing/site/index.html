@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <title>tScrub — Verifiable Disk Sanitisation</title>
   <link rel="canonical" href="https://tscrub.com/" />
-  <meta name="description" content="Open, auditable data erasure for NVMe, SATA, and SCSI drives. Chain-of-custody reports that align with NIST 800-88 Clear, Purge, and Destroy." />
+  <meta name="description" content="Open, auditable data erasure for NVMe, SATA, and SCSI drives. Chain-of-custody reports that align with NIST 800-88 Clear and Purge, and flag drives for destruction." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -50,7 +50,7 @@
           Verifiable disk sanitisation for regulated IT.
         </h1>
         <p class="mt-4 max-w-xl text-lg text-slate-600">
-          tScrub erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels — then hands you a verifiable, audit-ready chain-of-custody report you can turn into a Certificate of Destruction.
+          tScrub erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear and Purge levels, and flags every drive it couldn't sanitise — then hands you a verifiable, audit-ready chain-of-custody report you can turn into a Certificate of Destruction.
         </p>
         <div class="mt-8 flex flex-wrap gap-4">
           <a href="download" class="inline-flex items-center rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
@@ -263,12 +263,13 @@
                 <tr><td class="px-4 py-3">NVMe</td><td class="px-4 py-3">Crypto / block / overwrite sanitise</td><td class="px-4 py-3">Purge</td></tr>
                 <tr><td class="px-4 py-3">SATA / ATA</td><td class="px-4 py-3">Enhanced or standard secure erase</td><td class="px-4 py-3">Purge / Clear</td></tr>
                 <tr><td class="px-4 py-3">SCSI / SAS</td><td class="px-4 py-3">nwipe quick</td><td class="px-4 py-3">Clear</td></tr>
-                <tr><td class="px-4 py-3">Frozen / locked</td><td class="px-4 py-3">—</td><td class="px-4 py-3">Flagged for destruction</td></tr>
+                <tr><td class="px-4 py-3">Frozen</td><td class="px-4 py-3">—</td><td class="px-4 py-3">Destruction required</td></tr>
+                <tr><td class="px-4 py-3">Block SID locked</td><td class="px-4 py-3">Clear SID, re-run</td><td class="px-4 py-3">Recoverable</td></tr>
               </tbody>
             </table>
           </div>
           <div class="mt-4 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            <span class="font-semibold text-ink-900">Failed drives are recorded, not hidden.</span> Frozen, locked, or unsupported drives get a FROZEN or BLOCKED status and a PHYS_DESTR certification — route them to physical destruction and the chain of custody stays complete.
+            <span class="font-semibold text-ink-900">Failed drives are recorded, not hidden.</span> Frozen drives are flagged FROZEN for physical destruction; Block SID-locked drives get a BLOCKED status (recoverable — clear the SID and re-run); failed or unsupported drives are recorded NOT SANITISED — the chain of custody stays complete.
           </div>
         </div>
       </div>
@@ -281,7 +282,7 @@
       <div>
         <span class="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Compliance</span>
         <h2 class="text-3xl font-extrabold tracking-tight text-ink-900">Mapped to NIST 800-88 outcomes</h2>
-        <p class="mt-3 text-slate-600">Every wipe method maps to a defensible Clear, Purge, or Destroy outcome — so the report survives an audit.</p>
+        <p class="mt-3 text-slate-600">Every wipe method maps to a defensible Clear or Purge outcome — and drives that can't be wiped are flagged for destruction — so the report survives an audit.</p>
         <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 hover:text-brand-700">Explore compliance →</a>
       </div>
       <div class="rounded-xl bg-ink-900 p-6 font-mono text-sm shadow-lg">
@@ -289,7 +290,8 @@
         <p class="mt-2 text-slate-300">NVMe Crypto Purge <span class="text-brand-500">→ Purge</span></p>
         <p class="text-slate-300">ATA Enhanced Erase <span class="text-brand-500">→ Purge</span></p>
         <p class="text-slate-300">ATA Secure Erase <span class="text-brand-500">→ Clear</span></p>
-        <p class="text-slate-300">Frozen / locked <span class="text-red-400">→ Destroy</span></p>
+        <p class="text-slate-300">Frozen <span class="text-red-400">→ Destroy</span></p>
+        <p class="text-slate-300">Block SID locked <span class="text-brand-500">→ Recoverable</span></p>
       </div>
     </div>
   </section>
