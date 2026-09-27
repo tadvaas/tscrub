@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.4.52] - 2026-09-27
+
+### Fixed
+- A `--dry-run` report no longer carries the optimistic class/certification/method
+  of the wipe that never ran. DRY-RUN drives are now recorded as NOT SANITISED
+  with method "Dry run — no sanitisation performed" (previously the CSV kept the
+  classified method, e.g. "NVMe Crypto Purge" / "DESTRUCTION").
+
+### Changed
+- Report ingestion: an upload with no Chain of Custody ID now recovers one from
+  the filename (any 4–8 digit run) and, failing that, keys off the file's own
+  hash, so unrelated COCID-less uploads no longer merge into a single
+  certificate.
+
 ## [v1.4.51] - 2026-09-26
 
 ### Fixed
