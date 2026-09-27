@@ -1,8 +1,9 @@
 # tScrub Roadmap
 
 Future plans for the project, kept here so they survive between sessions. Current
-state as of v1.4.45 (appliance image shipped; free reports self-signed; dashboard
-upload, certificates, and the customer-as-certifier model all shipped).
+state as of v1.4.52 (appliance image shipped; free reports self-signed; dashboard
+upload, certificates, customer-as-certifier, and Stripe billing/PAYG licences all
+shipped).
 
 ## 1. Self-built Buildroot appliance image — SHIPPED
 
@@ -115,9 +116,12 @@ the boot stick. The licence can be dropped on that partition, baked in via
 
 - [x] Zero-touch config for PXE fleets (`tscrub_cocid=`, `tscrub_upload=`, and a
   `tscrub.conf` on the stick) — shipped
-- [ ] Auto-upload reports → auto Certificate of Destruction (machine-facing `/api/certify` ingestion)
-- [ ] Billing (Stripe) + automatic licence issuance on payment webhook
-- [x] Repo-root README and "boot and wipe in 60 seconds" onboarding (getting-started page) — shipped
+- [ ] Auto-upload reports → auto Certificate of Destruction (reports are stored
+  first-class; certificates are generated on demand via `POST /api/certs`)
+- [x] Billing (Stripe) + automatic licence issuance on payment webhook — shipped
+  (webhook credits the wallet and auto-issues a `payg` licence)
+- [x] Repo-root README + onboarding (the `/docs` page now covers the full
+  account → licence → boot → report → certificate journey)
 - [ ] Licence-on-USB handling: when multiple `.lic` files are present, prefer the highest tier and/or warn — today the alphabetically-first file wins, so a stray `free.lic` can silently downgrade a paid customer's evidence
 - [ ] Auto-licence-delivery: presigned per-user licence URL (`/api/licence/<secret>`) + a dashboard "download `tscrub.conf`" so the appliance fetches its current licence at boot — removes the manual `.lic` reinstall on upgrade
 - [ ] Show licence info (customer / tier / expiry) in the TUI Runtime panel
