@@ -84,5 +84,42 @@ t::check "license::fetch downloads licence" '[[ -s "$LICENSE_FILE" && -f "$LICEN
 t::check "fetched licence verifies" 'license::verify "$LICENSE_FILE"'
 rm -f "$LICENSE_FILE"
 
+# --- licence-on-USB: prefer the highest tier --------------------------------
+FAKE_VOL="$tdir/vol"
+lsblk()   { printf 'sdb1 part 1 vfat\n'; }
+findmnt() { return 1; }
+mount()   { local mnt="${@: -1}"; [[ -d "$FAKE_VOL" ]] && cp -a "$FAKE_VOL"/. "$mnt"/ 2>/dev/null; return 0; }
+umount()  { return 0; }
+rmdir()   { rm -rf "$@" 2>/dev/null; return 0; }
+
+lic_tier() { sed -n 's/.*"tier": *"\([^"]*\)".*/\1/p' "$1" 2>/dev/null; }
+
+# Scenario 1: a stray free.lic next to a team.lic must not win.
+mkdir -p "$FAKE_VOL"; rm -f "$FAKE_VOL"/* 2>/dev/null
+cp "$tdir/free.key"    "$FAKE_VOL/free.lic"
+cp "$tdir/license.key" "$FAKE_VOL/team.lic"
+LICENSE_FILE=""; LICENSE_USB_DEV=""
+license::detect_usb
+t::check "USB: stray free.lic must not downgrade a team licence" '[[ -n "$LICENSE_FILE" && "$(lic_tier "$LICENSE_FILE")" == "team" ]]'
+t::check "USB: records the device" '[[ "$LICENSE_USB_DEV" == "/dev/sdb1" ]]'
+
+# Scenario 2: enterprise outranks team.
+bash "$ROOT_DIR/scripts/issue_license.sh" "Ent Co" 2099-12-31 "$tdir/vendor.key" "$FAKE_VOL/enterprise.lic" enterprise >/dev/null 2>&1
+LICENSE_FILE=""
+license::detect_usb
+t::check "USB: enterprise outranks team" '[[ -n "$LICENSE_FILE" && "$(lic_tier "$LICENSE_FILE")" == "enterprise" ]]'
+
+# Scenario 3: a lone free.lic is still selected.
+rm -f "$FAKE_VOL"/* 2>/dev/null
+cp "$tdir/free.key" "$FAKE_VOL/free.lic"
+LICENSE_FILE=""
+license::detect_usb
+t::check "USB: lone free.lic still selected" '[[ -n "$LICENSE_FILE" && "$(lic_tier "$LICENSE_FILE")" == "free" ]]'
+
+# Scenario 4: no licence → detect_usb returns 1.
+rm -f "$FAKE_VOL"/* 2>/dev/null
+LICENSE_FILE=""
+t::check "USB: no licence → detect_usb fails" '! license::detect_usb'
+
 rm -rf "$tdir"
 t::summary

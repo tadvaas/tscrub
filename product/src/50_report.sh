@@ -310,11 +310,13 @@ license::fetch() {
 # ever mount read-only and only look at the root of each volume, so this is safe
 # even though the same machine's internal disks are about to be wiped.
 license::detect_usb() {
-    local name type rm fstype dev mnt cand lic mounted pass
+    local name type rm fstype dev mnt mounted pass
+    local f t r tmp best_tmp best_rank best_tier best_name best_dev count
 
     command -v lsblk >/dev/null 2>&1 || return 1
 
     for pass in 1 2; do
+        best_tmp=""; best_rank=-1; best_tier=""; best_name=""; best_dev=""; count=0
         while read -r name type rm fstype; do
             [[ "$type" == "part" || "$type" == "disk" ]] || continue
             case "$fstype" in
@@ -335,27 +337,48 @@ license::detect_usb() {
                 mounted=1
             fi
 
-            cand=""
             for f in "$mnt"/license.key "$mnt"/*.lic; do
                 [[ -f "$f" ]] || continue
-                cand="$f"
-                break
-            done
-
-            if [[ -n "$cand" ]]; then
-                lic="$(mktemp /tmp/tscrub-lic.XXXXXX)"
-                if cp "$cand" "$lic" 2>/dev/null; then
-                    chmod 600 "$lic" 2>/dev/null || true
-                    LICENSE_FILE="$lic"
-                    LICENSE_USB_DEV="$dev"
-                    if [[ "$mounted" -eq 1 ]]; then umount "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; fi
-                    return 0
+                count=$((count + 1))
+                # Prefer the strongest tier so a stray free.lic can't silently
+                # downgrade a paid customer's evidence. Ties keep the first seen.
+                t="$(sed -n 's/.*"tier": *"\([^"]*\)".*/\1/p' "$f" 2>/dev/null)"
+                t="${t:-free}"
+                case "$t" in
+                    enterprise) r=4 ;;
+                    team)       r=3 ;;
+                    payg)       r=2 ;;
+                    *)          r=1 ;;   # free and unknown tiers
+                esac
+                if [[ "$r" -gt "$best_rank" ]]; then
+                    # Stage a copy now, while the volume is still mounted.
+                    tmp="$(mktemp /tmp/tscrub-lic.XXXXXX)"
+                    if cp "$f" "$tmp" 2>/dev/null; then
+                        chmod 600 "$tmp" 2>/dev/null || true
+                        [[ -n "$best_tmp" ]] && rm -f "$best_tmp"
+                        best_tmp="$tmp"
+                        best_rank="$r"
+                        best_tier="$t"
+                        best_name="$(basename "$f")"
+                        best_dev="$dev"
+                    else
+                        rm -f "$tmp"
+                    fi
                 fi
-                rm -f "$lic"
-            fi
+            done
 
             if [[ "$mounted" -eq 1 ]]; then umount "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; fi
         done < <(lsblk -rno NAME,TYPE,RM,FSTYPE 2>/dev/null)
+
+        if [[ -n "$best_tmp" ]]; then
+            LICENSE_FILE="$best_tmp"
+            LICENSE_USB_DEV="$best_dev"
+            if [[ "$count" -gt 1 ]]; then
+                printf "%s[!] %d licence files found on the USB; selected '%s' (tier %s) — lower-tier files ignored.\n" \
+                    "$TABLE_INDENT" "$count" "$best_name" "$best_tier" >&2
+            fi
+            return 0
+        fi
     done
 
     return 1

@@ -122,7 +122,10 @@ the boot stick. The licence can be dropped on that partition, baked in via
   (webhook credits the wallet and auto-issues a `payg` licence)
 - [x] Repo-root README + onboarding (the `/docs` page now covers the full
   account → licence → boot → report → certificate journey)
-- [ ] Licence-on-USB handling: when multiple `.lic` files are present, prefer the highest tier and/or warn — today the alphabetically-first file wins, so a stray `free.lic` can silently downgrade a paid customer's evidence
+- [ ] Licence-on-USB handling: when multiple `.lic` files are present, prefer the
+  highest tier (`enterprise` > `team` > `payg` > `free`) and warn — today the
+  alphabetically-first file wins, so a stray `free.lic` can silently downgrade a
+  paid customer's evidence
 - [ ] Auto-licence-delivery: presigned per-user licence URL (`/api/licence/<secret>`) + a dashboard "download `tscrub.conf`" so the appliance fetches its current licence at boot — removes the manual `.lic` reinstall on upgrade
 - [x] Show licence info (customer / tier / expiry) in the TUI Runtime panel —
   shipped in v1.4.36
