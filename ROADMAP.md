@@ -70,7 +70,7 @@ appliance (shipped — the image bundles `curl` + `ca-certificates`).
 firmware sanitise/format.
 
 - [x] Keep nwipe (GPL-2.0, small) as one more bundled package
-- [ ] Replace `device::exec_scsi_nwipe` with a `dd`/`blkdiscard` zero pass and drop nwipe
+- [x] ~~Replace `device::exec_scsi_nwipe` with a `dd`/`blkdiscard` zero pass and drop nwipe~~ — not chosen
 
 ### Build host
 
