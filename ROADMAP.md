@@ -116,8 +116,9 @@ the boot stick. The licence can be dropped on that partition, baked in via
 
 - [x] Zero-touch config for PXE fleets (`tscrub_cocid=`, `tscrub_upload=`, and a
   `tscrub.conf` on the stick) — shipped
-- [ ] Auto-upload reports → auto Certificate of Destruction (reports are stored
-  first-class; certificates are generated on demand via `POST /api/certs`)
+- [x] Auto-upload reports → auto Certificate of Destruction — **rejected** (deliberate:
+  keep certificate generation on the dashboard so users log in). Reports stay
+  first-class; certificates are generated on demand via `POST /api/certs`.
 - [x] Billing (Stripe) + automatic licence issuance on payment webhook — shipped
   (webhook credits the wallet and auto-issues a `payg` licence)
 - [x] Repo-root README + onboarding (the `/docs` page now covers the full
@@ -125,7 +126,8 @@ the boot stick. The licence can be dropped on that partition, baked in via
 - [x] Licence-on-USB handling: prefer the highest tier (`enterprise` > `team` >
   `payg` > `free`) and warn when multiple `.lic` files are present — shipped in
   v1.4.53
-- [ ] Auto-licence-delivery: presigned per-user licence URL (`/api/licence/<secret>`) + a dashboard "download `tscrub.conf`" so the appliance fetches its current licence at boot — removes the manual `.lic` reinstall on upgrade
+- [x] Auto-licence-delivery — **rejected** (deliberate: users log in to download
+  their licence; no presigned URL / auto-fetch).
 - [x] Show licence info (customer / tier / expiry) in the TUI Runtime panel —
   shipped in v1.4.36
 - [x] Standardise the licence filename to `.lic` — only `*.lic` is auto-detected on
