@@ -218,3 +218,73 @@ CREATE TABLE IF NOT EXISTS stripe_events (
   handled_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Windows Autopilot MDM check audit log (POST /api/mdm/autopilot).
+-- One row per probe; the verdict is computed live against Graph.
+CREATE TABLE IF NOT EXISTS mdm_log (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  serial     VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid       VARCHAR(64)     NOT NULL DEFAULT '',
+  verdict    VARCHAR(20)     NOT NULL DEFAULT '',
+  source     VARCHAR(10)     NOT NULL DEFAULT 'live',
+  ip         VARCHAR(45)     NOT NULL DEFAULT '',
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_mdm_log_user (user_id, created_at),
+  CONSTRAINT fk_mdm_log_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Windows Autopilot MDM captured hash (POST /api/mdm/hash). Holds the
+-- WinPE-captured authoritative oa3tool hash for a device; one row per
+-- (user, serial, uuid), kept after the check so the device can be re-probed.
+-- A re-capture of the same device (serial + uuid) overwrites the row; the same
+-- serial with a different uuid is a distinct device.
+CREATE TABLE IF NOT EXISTS mdm_staged_hash (
+  id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id             BIGINT UNSIGNED NOT NULL,
+  serial              VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid                VARCHAR(64)     NOT NULL DEFAULT '',
+  model               VARCHAR(255)    NOT NULL DEFAULT '',
+  hardware_identifier TEXT            NOT NULL,
+  created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_mdm_staged_device (user_id, serial, uuid),
+  CONSTRAINT fk_mdm_staged_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Windows Autopilot MDM check queue (processed by mdm-worker.php). One row per
+-- check; status: queued -> checking -> done|failed. The latest done row is the
+-- device's current verdict (shown on the dashboard Devices tab).
+CREATE TABLE IF NOT EXISTS mdm_jobs (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  serial     VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid       VARCHAR(64)     NOT NULL DEFAULT '',
+  status     VARCHAR(16)     NOT NULL DEFAULT 'queued',
+  verdict    VARCHAR(20)     NOT NULL DEFAULT '',
+  source     VARCHAR(10)     NOT NULL DEFAULT '',
+  detail     TEXT            NULL,
+  attempts   INT UNSIGNED    NOT NULL DEFAULT 0,
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_mdm_jobs_status (status, created_at),
+  KEY idx_mdm_jobs_device (user_id, serial, uuid, id),
+  CONSTRAINT fk_mdm_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every WinPE hash-upload attempt (logged before validation) so a failed
+-- upload is diagnosable server-side even after the WinPE screen has rebooted.
+CREATE TABLE IF NOT EXISTS mdm_ingest_log (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  serial     VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid       VARCHAR(64)     NOT NULL DEFAULT '',
+  hash_len   INT UNSIGNED    NOT NULL DEFAULT 0,
+  ip         VARCHAR(45)     NOT NULL DEFAULT '',
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_mdm_ingest_user (user_id, created_at),
+  CONSTRAINT fk_mdm_ingest_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

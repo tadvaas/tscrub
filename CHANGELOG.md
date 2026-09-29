@@ -6,6 +6,308 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.6.1] - 2026-09-29
+
+### Added — BIOS lock detection
+
+The appliance now detects whether the machine's BIOS has a setup / administrator /
+power-on password set, using a vendor-agnostic four-layer cascade (kernel
+`firmware_attributes` sysfs → legacy `hp-wmi`/`thinkpad_acpi` → SMBIOS Type 24
+"Hardware Security" → UNKNOWN). A LOCKED signal from any layer wins; the result
+is surfaced in the Runtime panel (a `BIOS Lock:` row just above MDM) and recorded
+in the report (`BIOSLock` CSV column + `bios_lock`/`bios_lock_method` manifest
+fields) so locked units can be flagged for password removal before wiping.
+
+- `product/src/36_bios.sh` (new) — `bios::detect`, run synchronously after
+  `system::gather_info` (a local read, no worker needed).
+- `product/src/40_table.sh` — `ui::bios_render` + the Runtime-panel row
+  (Locked=red, Unlocked=green, Unknown=amber).
+- `product/src/10_main.sh` — per-run reset + `bios::detect` call.
+- `product/src/50_report.sh` — `BIOSLock` CSV column + manifest fields.
+
+## [v1.6.0] - 2026-09-29
+
+### Changed — Autopilot MDM check: authoritative hash + async queue
+
+The MDM check moved from a synchronous, appliance-generated "base hash" probe to
+a two-stage flow: WinPE captures the device's authoritative 4K hardware hash, the
+server checks it against Microsoft in the background, and the appliance polls for
+the verdict. A generated base hash can never match an enrolled device — only the
+full oa3tool hash can (research: `research/autopilot-report.md` §26).
+
+**Server**
+- `marketing/server/mdm.php` — added the `mdm_jobs` queue (queued → checking →
+  done/failed) with claim/complete/fail/abort lifecycle functions, and
+  `mdm_probe()` now takes a poll timeout (default 300 s). The base hash is no
+  longer generated; "N/A" is returned when no staged hash exists. Devices are
+  keyed by **serial + uuid** (staged hashes and jobs), so two devices sharing a
+  serial stay distinct, and duplicate checks aren't queued while one is
+  in flight.
+- `marketing/server/mdm-worker.php` (new) — cron-driven background worker that
+  claims jobs, runs the Graph probe with the staged hash, and records the
+  verdict; serialised with a MySQL named lock.
+- `marketing/server/api.php` — `POST /api/mdm/hash` now also enqueues a check
+  and requires the UUID; `POST /api/mdm/autopilot` returns the job status
+  instead of blocking; added `GET /api/mdm/status`, `GET /api/mdm/devices`, and
+  `POST /api/mdm/recheck` (all matching by serial + uuid).
+- `marketing/server/schema.sql` — added the `mdm_jobs` table.
+
+**Appliance**
+- `product/src/35_mdm.sh` — `mdm::detect` now posts, then polls
+  `GET /api/mdm/status` (5 s interval, 300 s window) for the background verdict,
+  sending serial + uuid.
+
+**Dashboard**
+- `marketing/site/dashboard/devices.html` (new) — "Devices" tab showing each
+  captured device (serial + UUID) with its status
+  (Queued/Checking/Locked/Unlocked/Invalid hash), a Re-check button, and
+  auto-refresh while checks are in flight.
+
+**Release**
+- Appliance ISO `tscrub-v1.6.0_2025.11_30_x86-64_v0.41_20260929-d77a4e62.iso`
+  (157,622,272 B, sha256 `d5097c6ac79969ff11c0aaa861b047c875676fedc9944fb2a8269a1cc3966d82`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.6.0 sha256 `eaf921df1d47409b702e3ccf293221a9d02a1822693e6ed77914102cf4ae1e88`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `53a167a5ff034fac5c120a00648c94b3d21ed5fb7c296c1988bc4f940c3740fd`).
+
+## [v1.5.3] - 2026-09-29
+
+### Fixed
+- `product/src/10_main.sh` — the runtime **elapsed timer and spinner now keep
+  running until every worker has finished**, not just until the last drive
+  completes: when the Autopilot check outlives the drive workers, the settle
+  wait re-ticks the elapsed/spinner in place.
+- `product/src/10_main.sh` — the MDM cell's `Finalising…` state now uses the
+  same static three-dot ellipsis as `Checking…` (the previous animated-dots
+  version was inconsistent); liveness during the wait comes from the
+  timer/spinner.
+
+## [v1.5.2] - 2026-09-29
+
+### Fixed
+- `product/src/40_table.sh` — the MDM cell's bold "clash" fallback now resets
+  with SGR 22 (normal intensity) as well as the theme text colour. A bare
+  `\033[30m`/`\033[37m` only changes the foreground — it does not clear bold —
+  so bold was leaking past the MDM value onto the closing border and every row
+  below it (reading as a colour/intensity shift on the console).
+- `product/src/10_main.sh` — when the Autopilot check outlives the drive workers
+  the console now ticks a live one-word `Finalising…` status in the MDM cell
+  instead of sitting frozen on `Checking…` for up to several minutes while the
+  verdict settles.
+
+## [v1.5.1] - 2026-09-29
+
+### Fixed
+- `product/src/50_report.sh` — `report::mount_boot_usb()` no longer falls back to
+  a **fixed** disk's FAT partition (e.g. an internal Windows EFI System Partition
+  on a PXE boot); it only uses the licence's own volume or a **removable**
+  FAT/exFAT volume. PXE-booted machines now keep the report in RAM (or the
+  configured network destination) instead of writing it onto the customer's
+  drive.
+- `product/src/40_table.sh` — the MDM status cell now resets to the **theme's**
+  text colour (not the terminal default), fixing the black→white text flip on the
+  finish screens; and a status whose colour matches the finish background (green
+  "Unlocked" on the green screen, red "Locked" on red, amber "Offline" on amber)
+  falls back to the theme's text colour in bold so it stays readable.
+
+## [v1.5.0] - 2026-09-28
+
+### Added — Windows Autopilot MDM check (Phases 1–3)
+
+The Autopilot enrolment-detection feature: a dashboard endpoint that answers
+"is this hardware enrolled in Autopilot?" without the appliance ever holding
+Azure credentials, an appliance-side background worker + Runtime-panel status,
+and report/manifest capture of the verdict (research: `research/autopilot-report.md`
+§25; build plan: `research/autopilot-build-plan.md`).
+
+**Server (Phase 1 + 3)**
+- `marketing/server/mdm.php` (new) — hash builder (base mode, byte-validated vs
+  `research/oa3hash.py`), Graph client (client-credentials token → async import →
+  poll → verdict → delete), and an `mdm_checks` verdict cache (24 h TTL).
+- `marketing/server/api.php` — new route `POST /api/mdm/autopilot`
+  (API-token auth only; per-IP rate limit; input guards; `GET_LOCK` serialisation;
+  `set_time_limit(150)` for the async import).
+- `marketing/server/schema.sql` — new `mdm_checks` table (also self-created
+  idempotently by `mdm_ensure_schema()` on first use).
+- `marketing/server/config.example.json` — new `autopilot` block
+  (`tenant_id`, `client_id`, `client_secret`) — placeholder only; real values go in
+  the server-side `config.json` and are never committed.
+- `marketing/server/reports_lib.php` — report ingestion now captures the CSV
+  `Enrollment` column (manifest `mdm` field as fallback) into the report payload
+  and surfaces it on the reports API (`enrollment`).
+
+**Appliance (Phase 2)**
+- `product/src/00_bootstrap.sh` — new `SYS_UUID` capture (`dmidecode -s
+  system-uuid` / `/sys/class/dmi/id/product_uuid`) with sentinel-UUID
+  normalisation (`03000200-…` / all-zeros → `N/A`).
+- `product/src/35_mdm.sh` (new) — background worker: posts `{serial, uuid,
+  manufacturer, product}` to the dashboard, publishes `mdm STATUS`/`VERDICT` over
+  the worker IPC channel, persists the verdict to `/tmp/tscrub-mdm.verdict`.
+- `product/src/10_main.sh` — launches the MDM worker after licence/COCID
+  resolution, recovers its verdict after `ui::loop`.
+- `product/src/40_table.sh` — Runtime panel `MDM:` row (green Unlocked / red
+  Locked / amber Offline / grey Checking), `ui::loop` handles the `mdm` worker.
+- `product/src/50_report.sh` — `Enrollment` CSV column + `mdm` manifest field.
+- `product/scripts/build.sh`, `product/tests/lib.sh` — include the new module.
+- `product/tests/test_mdm.sh` (new) + fake `curl`/`dmidecode` updates — 25 checks.
+
+**Tests:** `research/test_mdm_php.php` 21/21; `product/tests/run.sh` all green
+(new `test_mdm.sh` 25/25); `make build-slim` concatenates cleanly.
+
+Verdicts returned: `unlocked`, `locked_this`, `locked_other`, `hash_invalid`,
+`unknown`, `offline`, `skipped`.
+
+### Fixed (live-tested against a real tenant)
+
+The Graph import is **async and queue-based**: a busy tenant can leave a new
+import at `deviceImportStatus: unknown` for minutes before it flips to
+`complete`/`error` (this is a Microsoft-side queue, not a network/egress issue —
+confirmed by running the identical flow from two different hosts/egresses).
+
+- `marketing/server/mdm.php` — a poll that closes while the import is still
+  `unknown` now returns verdict `unknown` (pending), not `error`. Poll window
+  120 s → 180 s.
+- `marketing/server/mdm.php` — the unlocked path now also deletes the
+  **registered** device (preferred: `state.deviceRegistrationId`; fallback:
+  match by serial in `windowsAutopilotDeviceIdentities` — `$filter` is
+  unsupported on that collection); previously every successful probe leaked a
+  device into the tenant's Autopilot list. Cleanup also runs on a timed-out
+  (`unknown`) probe, since a queued import can still complete later.
+- `marketing/server/api.php` — `set_time_limit(150)` → `240`; `unknown`
+  verdicts are no longer cached (a busy-queue timeout must be re-probed fresh).
+- `product/src/35_mdm.sh` — `curl --max-time` 160 → 260 (exceeds the server's
+  worst-case response).
+- `research/test_mdm_php.php` — new `unknown` + registration-cleanup checks
+  (27/27).
+
+### Fixed (deep bug-scan, round 2)
+
+- `product/src/35_mdm.sh` — `mdm::is_configured()` required a non-empty
+  `TSCRUB_UPLOAD_URL` **and** token. The upload URL has a built-in default
+  (`https://tscrub.com/api/reports`), so token-only configurations (the common
+  case) would have the MDM check silently skipped. Now only the token is
+  required.
+- `marketing/server/api.php` — cached MDM responses now report
+  `source: "cache"` (previously they echoed the stale stored `"live"` source).
+- `product/src/40_table.sh` — `ui::mdm_render` ended cell colour with `\033[0m`,
+  which on the themed wipe screen also cleared the background mid-line. Now uses
+  `\033[39m` (foreground-only reset).
+- `marketing/server/nginx-location.conf` — added `fastcgi_read_timeout 300s;` to
+  the `/api/` location. nginx's 60 s default would truncate the MDM endpoint's
+  up-to-240 s Graph response. **Applied live 2026-09-28** (root edit + reload;
+  `nginx -t` clean) — verified the directive is in the `/api/` block.
+- `product/tests/test_mdm.sh` — added token-only-configured check (26/26).
+
+### Live endpoint tests (2026-09-28, origin + Cloudflare)
+
+- Hash parity: `research/oa3hash.py` and `mdm_base_hash()` produce byte-identical
+  4000-char hashes for the known-answer vector
+  (`HWIDTEST1234` / `4C4C4544-0036-5710-8032-B5C04F433633` / `DellInc` /
+  `Latitude3410`), both matching `research/hwid-base.expected.b64`. New fixture:
+  `research/test-mdm-live.json`.
+- `POST /api/mdm/autopilot` (origin, `Host: tscrub.com`):
+  bad token → `401`; empty/`N/A` serial → `{verdict: skipped}`; fresh device →
+  `{verdict: unlocked, source: live}` in 23 s (empty queue); repeat → `{verdict:
+  unlocked, source: cache}` in 0.24 s (confirms the cache-source fix).
+  Rapid repeat within the 30 s per-IP cooldown → `429`.
+- **CONFIRMED (blocker, now FIXED):** via the public URL (`https://tscrub.com`,
+  i.e. Cloudflare → nginx) a probe that ran past nginx's default 60 s
+  `fastcgi_read_timeout` returned **`504` at 60.3 s** — the live `tscrub.conf`
+  `/api/` block lacked the directive. nginx error log:
+  `upstream timed out … while reading response header from upstream …
+  POST /api/mdm/autopilot`. After applying `fastcgi_read_timeout 300s;` the 504
+  is gone (re-verified: no 60 s cut).
+- **CONFIRMED (new blocker):** with nginx now allowing 300 s, the public URL
+  hits the NEXT limit — Cloudflare's origin read timeout (~100 s) returns
+  **`524` at ~125 s** on a busy queue. So the public path still cannot serve
+  probes that run 100–240 s. Mitigations: grey-cloud a dedicated API hostname
+  (DNS-only → origin, bypasses Cloudflare; e.g. point the appliance's
+  `tscrub_upload=` at `https://<direct-host>/api/reports` so both reports and
+  MDM go direct), raise the plan (Business = 200 s — still <240 s), or cap the
+  server poll window under 100 s (more `unknown` verdicts on a busy queue, each
+  re-probed fresh).
+- No leftover registrations or import-queue entries after any probe
+  (checked `windowsAutopilotDeviceIdentities` and
+  `importedWindowsAutopilotDeviceIdentities`).
+
+### Fixed (deep bug-scan, round 3)
+
+- `product/src/40_table.sh` — the MDM cell **never rendered its colour**: it
+  checked `[[ -t 1 ]]` but runs inside a `$(...)` command substitution where
+  stdout is a pipe, so the green/red/amber branch was always skipped. The colour
+  decision is now made by `table::render` and passed in (verified via the raw
+  ANSI output and new tests).
+- `product/src/35_mdm.sh` — verdict `unknown` (import still queued when the poll
+  window closed) now maps to a distinct `UNKNOWN` state rendered as
+  **"Pending"** instead of the misleading **"Offline"** (a busy Microsoft queue
+  is not a network failure). CSV/manifest still record the honest `unknown`.
+- `marketing/server/mdm.php` — registration cleanup now **retries** (Graph's
+  registration DELETE is eventually-consistent and returns 400 while the
+  registration is still materialising) and falls back to a serial match with
+  re-fetch when the reported `deviceRegistrationId` delete doesn't take.
+
+### Fixed (connectivity + retries, round 4)
+
+- `marketing/server/mdm.php` — `mdm_http()` now **retries** transient transport
+  failures (DNS/connect/SSL/timeout — e.g. the intermittent `SSL_ERROR_SYSCALL`
+  seen live) and Graph **5xx** responses, with a short backoff. POSTs are not
+  re-issued on 5xx (a retried import could create a duplicate queue entry);
+  2xx/4xx return immediately. Added `CURLOPT_CONNECTTIMEOUT 10`.
+- `product/src/35_mdm.sh` — the dashboard `curl` now uses
+  `--retry 2 --retry-delay 2 --retry-connrefused` so transient network/5xx
+  failures retry automatically (the TLS-skew `-k` retry for curl 60 remains).
+- `research/test_mdm_php.php` — +3 checks for the retry policy (transient
+  transport retry, GET-on-5xx retry, no POST retry). PHP 31/31.
+
+### Changed (opt-in flag + network gate, round 5)
+
+- `product/src/35_mdm.sh` — the Autopilot check is now **opt-in**: enable it
+  with `tscrub_autopilotcheck=true` (tscrub.conf or kernel cmdline) or the CLI
+  flag `--autopilotcheck`. `mdm::is_configured()` now requires the flag **and**
+  the API token — a token-only config no longer triggers the check. Added
+  `mdm::parse_cmdline()` (reads the flag and the cmdline token/upload URL, since
+  the worker forks before `report::parse_upload` runs). The worker now skips the
+  probe when there is no IPv4 route (`network::ensure` fails) instead of burning
+  curl retries against an unreachable dashboard.
+- `product/src/00_bootstrap.sh` — new `--autopilotcheck` / `--autopilotcheck=`
+  CLI flags.
+- `product/src/50_report.sh` — `tscrub.conf` accepts `tscrub_autopilotcheck=true`.
+- `marketing/site/docs.html` — documented the parameter (kernel-params table and
+  the tscrub.conf example). Deployed.
+- `product/tests/` — new fake `ip`; `test_mdm.sh` updated for the flag
+  requirement and the network-down skip (35/35).
+
+### Known residual (reproduced live, not code-fixable in this pass)
+
+- On a congested queue, an "unlocked" probe's registration can still leak: it
+  appears after the cleanup window and the API DELETE keeps returning **400**
+  (eventual consistency). Reproduced live (2 leaked registrations:
+  `7H2XK94`, `MDMTEST-VERIFY-1`) — these need **Intune portal** cleanup. A
+  deferred background re-check job would close this gap; the Cloudflare 100 s
+  ceiling above is the same root cause (the probe script is killed mid-flight).
+
+**Live verification:** `verdict=unlocked` (63 s and 177 s on a congested queue),
+with the probe's registration confirmed removed (no leak) via the
+`deviceRegistrationId` path.
+
+**Deploy note:** after deploying, add the `autopilot` block to the server's
+`config.json` (with a freshly rotated app secret) — the endpoint answers
+`offline` until it is configured. No schema step is required (`mdm_ensure_schema`
+self-heals), but `schema.sql` is the canonical definition.
+
+**Revert:**
+- Server: remove `require_once __DIR__ . '/mdm.php';` and the
+  `POST /api/mdm/autopilot` block from `api.php`, delete `marketing/server/mdm.php`,
+  and (optionally) `DROP TABLE IF EXISTS mdm_checks;`. The `reports_lib.php`
+  `enrollment` fields are additive and harmless to keep.
+- Appliance: remove `"$SRC_DIR/35_mdm.sh"` from `product/scripts/build.sh`, delete
+  `product/src/35_mdm.sh`, drop the MDM launch/recovery block in
+  `product/src/10_main.sh`, and revert the `MDM:` row + `ui::loop` `mdm` case in
+  `product/src/40_table.sh`. `SYS_UUID` in `00_bootstrap.sh` and the CSV/manifest
+  fields in `50_report.sh` are additive and can stay.
+
 ## [v1.4.54] - 2026-09-27
 
 ### Changed

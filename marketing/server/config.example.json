@@ -27,5 +27,10 @@
       "pack50":  { "price_id": "price_...", "units": 50 },
       "pack100": { "price_id": "price_...", "units": 100 }
     }
+  },
+  "autopilot": {
+    "tenant_id": "YOUR_AZURE_TENANT_ID",
+    "client_id": "YOUR_APP_CLIENT_ID",
+    "client_secret": "YOUR_APP_CLIENT_SECRET"
   }
 }

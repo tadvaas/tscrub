@@ -39,9 +39,9 @@ report::csv() {
     sys_gpu="${SYS_GPU_LIST:-N/A}"; sys_gpu="${sys_gpu//$'\n'/; }"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock"
         for dev in "${devices[@]}"; do
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$(report::_csv_field "$COCID")" \
                 "$now" \
                 "$(report::_csv_field "${devrow[$dev.model]}")" \
@@ -70,7 +70,9 @@ report::csv() {
                 "$(report::_csv_field "${SYS_BASEBOARD_SERIAL:-N/A}")" \
                 "$(report::_csv_field "$sys_cpu")" \
                 "$(report::_csv_field "$sys_gpu")" \
-                "$(report::_csv_field "${SYS_RAM_GB:-N/A}")"
+                "$(report::_csv_field "${SYS_RAM_GB:-N/A}")" \
+                "$(report::_csv_field "${MDM_VERDICT:-N/A}")" \
+                "$(report::_csv_field "${BIOS_PASSWORD_STATUS:-N/A}")"
         done
     } > "$report_file"
 
@@ -187,6 +189,9 @@ report::sign() {
             pub_b64="$(openssl pkey -in "$key" -pubout 2>/dev/null | openssl base64 -A)"
             printf '  "public_key": "%s",\n' "$(report::_json_field "$pub_b64")"
         fi
+        printf '  "mdm": "%s",\n' "$(report::_json_field "${MDM_VERDICT:-}")"
+        printf '  "bios_lock": "%s",\n' "$(report::_json_field "${BIOS_PASSWORD_STATUS:-}")"
+        printf '  "bios_lock_method": "%s",\n' "$(report::_json_field "${BIOS_DETECTION_METHOD:-}")"
         printf '  "drives": [\n'
         n=${#devices[@]}
         i=0
@@ -389,6 +394,7 @@ license::detect_usb() {
 # without editing GRUB or the kernel command line. Keys mirror the kernel params:
 #   tscrub_upload=<url>          (optional — dashboard URL is built-in)
 #   tscrub_api_token=<64-hex>    (dashboard upload — only this is required)
+#   tscrub_autopilotcheck=true   (opt-in Windows Autopilot MDM check)
 #   tscrub_cocid=12345
 #   tscrub_license_url=http://host/license.lic
 #   tscrub_output=/path | ftp:host:path:user:pass | sftp:...
@@ -464,6 +470,12 @@ config::load_usb() {
                                 LICENSE_URL="$val"
                                 CONFIG_USB_DEBUG+="  tscrub_license_url: set"$'\n'
                             fi
+                            ;;
+                        tscrub_autopilotcheck)
+                            case "$val" in
+                                true|1|yes|on) TSCRUB_AUTOPILOTCHECK=1 ;;
+                            esac
+                            CONFIG_USB_DEBUG+="  tscrub_autopilotcheck: set"$'\n'
                             ;;
                         tscrub_output)
                             if [[ "$val" == ftp:* || "$val" == sftp:* ]]; then
@@ -658,8 +670,10 @@ report::detect_output() {
 # Prefers the volume the licence was found on (the customer drops their .lic on
 # the stick — with a dd'd hybrid ISO that's the appended TSCRUB-USB partition,
 # with a Rufus-written stick it's the single FAT partition), then falls back to
-# scanning FAT/exFAT volumes like ShredOS (prefer boot/version.txt, then the
-# first writable one). No removable-flag assumption anywhere.
+# scanning REMOVABLE FAT/exFAT volumes (prefer the one carrying the tScrub boot
+# marker boot/version.txt). A fixed disk's FAT partition (e.g. an internal
+# Windows EFI System Partition on a PXE boot) is NEVER used — writing the report
+# onto the customer's own drive would be worse than keeping it in RAM.
 report::mount_boot_usb() {
     local dev mnt fallback list
 
@@ -673,14 +687,13 @@ report::mount_boot_usb() {
         rmdir "$mnt" 2>/dev/null || true
     fi
 
-    command -v fdisk >/dev/null 2>&1 || command -v lsblk >/dev/null 2>&1 || return 1
+    # Removable volumes only (RM=1). lsblk reports the removable flag per
+    # partition, so an internal NVMe/SATA EFI partition (RM=0) is excluded here.
+    command -v lsblk >/dev/null 2>&1 || return 1
 
     list="$(mktemp /tmp/tscrub-fats.XXXXXX)"
-    if command -v fdisk >/dev/null 2>&1; then
-        fdisk -l 2>/dev/null | grep -iE "exfat|fat16|fat32" | awk '{print $1}' > "$list"
-    else
-        lsblk -rno NAME,TYPE,FSTYPE 2>/dev/null | awk '$2=="part" && ($3=="vfat"||$3=="exfat") {print "/dev/"$1}' > "$list"
-    fi
+    lsblk -rno NAME,TYPE,RM,FSTYPE 2>/dev/null \
+        | awk '$2=="part" && $3=="1" && ($4=="vfat"||$4=="exfat") {print "/dev/"$1}' > "$list"
 
     while read -r dev; do
         [[ -n "$dev" ]] || continue
@@ -692,7 +705,7 @@ report::mount_boot_usb() {
         fi
 
         # The writable boot partition carries boot/version.txt (the EFI and
-        # ISO9660 volumes don't) — prefer it over any other FAT volume.
+        # ISO9660 volumes don't) — prefer it over any other removable FAT volume.
         if [[ -f "$mnt/boot/version.txt" ]]; then
             REPORT_DIR="${mnt%/}/"
             REPORT_USB_MNT="${mnt%/}"

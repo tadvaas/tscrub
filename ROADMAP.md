@@ -1,7 +1,7 @@
 # tScrub Roadmap
 
 Future plans for the project, kept here so they survive between sessions. Current
-state as of v1.4.52 (appliance image shipped; free reports self-signed; dashboard
+state as of v1.4.54 (appliance image shipped; free reports self-signed; dashboard
 upload, certificates, customer-as-certifier, and Stripe billing/PAYG licences all
 shipped).
 
@@ -150,7 +150,143 @@ the boot stick. The licence can be dropped on that partition, baked in via
 - Nav: "Compare" moved from the main menu to the Resources hub.
 - Homepage terminal hero rebuilt to mirror the real tScrub TUI.
 
-## 4. Next milestone — "Paid plans for real" (v1.5)
+## 4. Distribution & growth — the runbook applied
+
+The strategic layer. The product is built, and the **capture layer** (llms.txt,
+sitemap, robots, Article/FAQ schema, the Resources content programme, and the
+citation-magnet tools) is largely done — that is the cheap 80%. What is missing is
+the **authority layer** (links, citations, launches), which the Distribution &
+Growth runbook calls the hard 20% that actually produces clicks. This section is
+that runbook mapped to tScrub's specifics, in execution order.
+
+**Money terms** (the queries everything here is optimised for): *data destruction
+certificate, certificate of destruction, disk sanitisation software, NIST 800-88
+erasure, how to securely erase NVMe/SSD, DBAN alternative, ITAD software, data
+erasure software, chain of custody report, GDPR data erasure, HIPAA data
+disposal*.
+
+**Gap types** (Phase 3): **A** = authority (impressions but position > 15) ·
+**B** = snippet/CTR (position ≤ 15) · **C** = coverage (no page exists) ·
+**D** = AI-invisible (absent from LLM answers). The fix differs per gap; the most
+common failure is applying the wrong fix (building more content for an authority
+problem).
+
+Note on positioning: tScrub competes **with** Blancco/BitRaser/KillDisk, so the
+runbook's "partner ecosystem" listings do not apply literally — authority here
+comes from ITAD/erasure associations, software directories, and open-source
+lists, not from joining a competitor's partner programme.
+
+### 4.1 Phase 0 — one-time setup
+
+- [ ] Verify `tscrub.com` in Google Search Console (Domain property).
+- [ ] Add privacy-friendly analytics (Plausible preferred — no cookie banner) to
+      every public page.
+- [ ] Wire conversion events: `signup` (register), `purchase` (Stripe
+      `checkout.session.completed` / `payment_intent.succeeded`), `activation`
+      (first report upload → first certificate). The last two already fire
+      server-side; the job is surfacing them to the analytics tool.
+- [ ] Add the AI-crawler allowlist to `robots.txt` (GPTBot, ClaudeBot,
+      PerplexityBot, Google-Extended, CCBot, anthropic-ai). `robots.txt` already
+      blocks the auth pages and declares the sitemap; `llms.txt`, `llms-full.txt`
+      and `sitemap.xml` are done and maintained.
+- [ ] Save a dated baseline (4.2) before acting.
+
+**Gate:** no 4.3+ work until GSC + analytics + events all fire. This item is
+shared with the v1.5 milestone checklist ("Marketing analytics + Search
+Console").
+
+### 4.2 Phase 2 — baseline & monitoring
+
+- [ ] Pull the last 28 days of GSC queries; bucket money terms into the A/B/C/D
+      gap table.
+- [ ] Run an AI-visibility pass (cited / mentioned / absent per money term).
+- [ ] Record the baseline row: `date | clicks | impressions | avg CTR | # money
+      terms page 1 | # money terms cited by AI | # referring domains`.
+- [ ] Save the trend history (append, never overwrite).
+
+### 4.3 Phase 7.1 — directory & association listings (do first, faceless)
+
+Forms, not relationships — real backlinks from authoritative domains in an
+afternoon.
+
+- [ ] ITAD / erasure associations: ADISA, NAID (i-SIGMA), IASME, BSIA.
+- [ ] Software directories: G2, Capterra, SourceForge, AlternativeTo, Slant.
+- [ ] Open-source lists: awesome-devsecops, awesome data-protection /
+      incident-response lists on GitHub (the repo is already public and GPL-3.0).
+- [ ] Any marketplace/vendor directory that lists erasure tooling.
+
+### 4.4 Phase 5 — tool building (citation magnets)
+
+Already shipped and pitchable: the verifiable **Certificate of Destruction** +
+QR (report-generator pattern), the **NIST 800-88 / wipe-methods / standards**
+reference pages (definitive-answer pattern), **open, inspectable** source, and
+the **signed report manifest**. Build the following to close AI-invisibility (D)
+and earn links:
+
+- [ ] **Compliance checker** — "which erasure standard applies to me?" maps
+      GDPR / HIPAA / ISO 27001 / NIST 800-88 to Clear/Purge/Destroy (decision
+      support → links).
+- [ ] **Erasure cost estimator / carbon calculator** — per-device environmental
+      + labour cost of destruction (numeric output → citable).
+- [ ] **Device value / refurb grader** — SMART-driven resale grade (overlaps the
+      north-star "refurb grading" idea; promote it when scheduled).
+
+Each tool ships at a clean URL, is added to `llms.txt` + `sitemap.xml`, and is
+**pitched** (4.5) — a tool only becomes a citation magnet once someone cites it.
+
+### 4.5 Phase 7.2 / 7.3 — outreach (the loop that must not die)
+
+- [ ] Build a target list (ITAD / data-destruction journalists, data-protection
+      and compliance writers, MSP and ITAD blogs) with a named person + verified
+      email per target.
+- [ ] Automate personalisation — the LLM reads the target's recent coverage and
+      writes the first line; a human approves, then sends from the business
+      email. Never let the human step become "research from scratch".
+- [ ] Track pipeline state: `researched → sent → replied → linked`.
+- [ ] Pitch angle: **open, inspectable, verifiable erasure** — the customer
+      certifies their own destruction, evidenced by tScrub.
+
+### 4.6 Phase 6 — on-page gap closure
+
+Apply the five-layer checklist (crawl/index, entity, on-page, LLM layer,
+internal links) to every gap-closing page. Known quick wins:
+
+- [ ] Add `FAQPage` JSON-LD that mirrors the visible FAQ (not currently present).
+- [ ] Add a 2–3 sentence direct-answer paragraph under each H1 ("What is X?").
+- [ ] Rewrite `<title>` + meta description on top pages to match the exact money
+      query.
+- [ ] Link money pages ↔ decision guides ↔ proof/tool in both directions.
+
+### 4.7 Phase 8 — paid (Google Ads), gated
+
+- [ ] Only after organic + conversion tracking are healthy (events fire
+      end-to-end before any budget is set).
+- [ ] One campaign per audience (consumer vs commercial/ITAD), separate keywords
+      and negative lists.
+- [ ] Review at 6–8 weeks against CPA; CTR-high-but-zero-conversions → fix the
+      landing page and tracking, do not raise budget.
+
+### 4.8 Phase 9 — cadence
+
+- [ ] Weekly (15 min): pull the GSC trend, run the AI-visibility pass, send 1–2
+      pitches from the approved batch, fill one directory/association form.
+- [ ] Monthly (1 h): re-read the gap analysis, build one page or tool for the top
+      cluster, run one data-asset pitch, `build && deploy`.
+- [ ] Quarterly (half day): regenerate any PDF/report asset, review referring
+      domains gained vs target, decide whether authority is sufficient to turn
+      on ads.
+
+### 4.9 Guardrails (never break)
+
+- Verified claims only — no invented clients, stats, case studies, or
+  certifications.
+- No fake reviews/testimonials; schema and copy match reality.
+- Never claim a certification we don't hold (ADISA, R2, NAID, etc.) or on-site
+  destruction when it's off-site.
+- Personalise every outreach email — the LLM drafts, a human sends.
+- Honesty filter: tScrub marks timing/does the job — never over-claim outcomes.
+
+## 5. Next milestone — "Paid plans for real" (v1.5)
 
 Theme: turn the advertised Team/Enterprise plans into self-serve, multi-user
 subscriptions, and close the last trust/coverage gaps.
@@ -168,11 +304,15 @@ subscriptions, and close the last trust/coverage gaps.
       hardware and add a Proxmox SCSI scenario (the last untested wipe path).
 - [ ] Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net`
       for faster VM testing, quiet `sedutil-cli` SG_IO noise on QEMU disks.
+- [ ] Marketing analytics + Search Console — add a privacy-friendly analytics tag
+      (GA4 or Plausible) across the site and verify Google Search Console
+      ownership, so the SEO/Resources content program can be measured (traffic,
+      impressions, indexing, 404s).
 
 Deliberately out of scope: auto-cert and auto-licence-delivery (rejected —
 dashboard login is intentional).
 
-## 5. Ideas / north-star (speculative)
+## 6. Ideas / north-star (speculative)
 
 Not scheduled — evaluated when a milestone has room.
 
@@ -200,3 +340,83 @@ Not scheduled — evaluated when a milestone has room.
       random LBAs before erasing, then verify the sentinels are gone after and
       record the result in the report, so each certificate proves the tool
       destroyed its own planted data.
+- [ ] Richer machine inventory — extend `gather_info` / `report::csv` to collect
+      more hardware so the report doubles as an asset record: full SMBIOS tables
+      (`dmidecode`), PCI device list (`lspci -nn`), USB devices (`lsusb`), network
+      interfaces + MACs, DIMM details, and firmware state (BIOS vendor/version/date
+      already captured; add UEFI Secure Boot status via `mokutil`/`efibootmgr` and
+      a "BIOS lockdown suspected" flag). BIOS-password detection has **no reliable
+      userspace API** — the honest signal is its *effects* (frozen drives, NVMe
+      Block SID `0x4286`/`0x4015`, refusal to write boot entries), so derive the
+      flag from those rather than attempting a direct read. Keep the CSV column
+      set stable (add new columns by name so the server's name-based parser keeps
+      working) and put the full inventory in the report JSON/manifest.
+- [ ] MDM / enrolment-lock detection — flag devices bound to a device-management
+      platform **before** wiping so ITAD can price, reclaim, or release them.
+      **Windows Autopilot is now solved** (validated 2026-09-28): a pure-Linux
+      base hash (UUID + serial) checked through the dashboard's Graph probe — no
+      original OS needed; see §7 for the integration plan. Remaining north-star
+      targets: Apple DEP/Activation Lock (`profiles status -type enrollment` on a
+      booted macOS, or a serial-based activation-lock status lookup), ChromeOS
+      enterprise enrolment (firmware GBB flags + VPD
+      `check_enrollment`/`block_devmode`), and persistent firmware agents such as
+      CompuTrace (DMI OEM strings). Reality check: tScrub boots Linux and erases
+      storage, so only firmware-level signals (ChromeOS GBB/VPD, CompuTrace) and
+      offline hive parses work without the original OS; Apple detection still
+      needs a live OS or a network serial lookup (third-party endpoint,
+      ToS-dependent). Record the result per device as an `mdm_locked` /
+      `enrollment` field in the report JSON/manifest.
+
+## 7. Windows Autopilot MDM check — validated, integrate
+
+**Done (2026-09-28):** the "is this device Autopilot-enrolled?" check is fully
+researched and LIVE-TESTED against a real tenant. A pure-Linux **base hash**
+(UUID + serial + manufacturer + product — NO TPM/ODUID) is accepted by Microsoft
+Graph and yields the correct verdict: `806 ZtdDeviceAlreadyAssigned` = enrolled in
+this tenant, `806 ZtdDeviceAssignedToOtherTenant` = enrolled elsewhere, `complete
+code 0` = unenrolled, `802 InvalidZtdHardwareHash` = malformed hash. The Graph
+import is async (`POST` 201 "unknown" → poll `state` until complete/error).
+Prototype: `research/autopilot/autopilot_status.py` (Graph client) +
+`research/autopilot/oa3hash.py`
+(hash builder; defaults to the safe base fields — `--full` is opt-in and currently
+rejected `802` because types 7/8 disk/MAC are unvalidated). Full detail:
+`research/autopilot/autopilot-report.md` §25. **Detailed, ripple-aware build plan:**
+`research/autopilot/autopilot-build-plan.md` (phases, file-by-file, and 15 gotchas).
+
+**Architecture (decided):** the appliance never holds Azure credentials. It
+collects UUID + serial and posts them to the dashboard; the dashboard holds the
+tenant/app secret server-side and runs the Graph probe, returning the verdict.
+
+- [ ] Server: port the Graph probe to PHP (`POST /api/mdm/autopilot` in
+      `api.php`, creds in `config.json`, reuse the token-auth + reports plumbing)
+      and cache verdicts by (serial, UUID). Returns
+      `{verdict: unlocked|locked_this|locked_other}`.
+- [ ] Appliance: `product/src/35_mdm.sh` — the MDM worker + UI state. Runs as a
+      background job exactly like the per-drive wipe workers, feeding the UI over
+      the existing IPC channel (`fd 3` → `ui::loop`). Lifecycle in `fn_main`:
+      after `system::gather_info` + `config::load_usb`, set `MDM_STATUS=CHECKING`
+      and (only if a dashboard URL + API token are configured) launch
+      `mdm::detect &` so it runs alongside `device::discover`/SMART capture. The
+      worker extracts `SYS_UUID` + `SYS_SERIAL` (add `SYS_UUID` to
+      `system::gather_info` — new `dmidecode -s system-uuid` /
+      `/sys/class/dmi/id/product_uuid` capture), POSTs `{serial, uuid}` to
+      `${DASH_URL}/api/mdm/autopilot` with the token (`curl --max-time`-bounded),
+      maps the JSON verdict, and writes `mdm STATUS <value>` to fd 3. The
+      appliance never holds an Azure secret — it only sends serial+uuid and
+      receives a verdict.
+- [ ] UI: add an `MDM:` row to the Runtime panel (`40_table.sh`, right-hand
+      table next to Elapsed/COCID/Licence/Tier/Expiry). `ui::loop` special-cases
+      `_dev == "mdm"` → updates `MDM_STATUS` and repaints the row in-place (like
+      the elapsed tick). States + colours: `Checking…` (spinner),
+      `Unlocked` (green), `Locked` (red), `Offline` (amber), `Skipped` (grey, no
+      dashboard/identifiers configured). Verdict wording per §24-D2
+      (`Unlocked`/`Locked`).
+- [ ] Report: add `enrollment`/`mdm_locked` to `report::csv` + the JSON manifest
+      (the server parser is name-based, so add columns by name).
+- [ ] Validate `--collect` on one real machine end-to-end (a VM can't exercise a
+      real disk/NIC); run the C1–C5 register/unregister test matrix.
+- [ ] (Optional) full hash: boot the capture ISO on physical hardware to grab
+      reference type 7/8 encodings for byte-exact reporting / re-enrollment.
+
+Out of scope until the above ships: Apple DEP/Activation Lock and ChromeOS
+enrolment (still §6 north-star — different endpoints, ToS review).

@@ -1,7 +1,55 @@
 #!/usr/bin/env bash
-# Fake curl for upload_http tests.
-# Multipart uploads (the -F flag) return a canned JSON response and log their
-# arguments; anything else (e.g. license::fetch GETs) delegates to the real curl.
+# Fake curl for upload_http + mdm tests.
+#   - MDM probes (/api/mdm/autopilot) return a scripted verdict (FAKE_MDM_*).
+#   - Multipart uploads (the -F flag) return a canned JSON response and log
+#     their arguments.
+#   - anything else (e.g. license::fetch GETs) delegates to the real curl.
+
+# ---- MDM probe -------------------------------------------------------------
+for a in "$@"; do
+    if [[ "$a" == *"/api/mdm/autopilot"* ]]; then
+        if [[ -n "${FAKE_MDM_CURL_LOG:-}" ]]; then
+            { printf 'curl'; printf ' %q' "$@"; printf '\n'; } >> "$FAKE_MDM_CURL_LOG"
+        fi
+        if [[ "${FAKE_MDM_FAIL_FIRST:-0}" == "1" ]]; then
+            flag="${FAKE_MDM_FAIL_FLAG:-${TMPDIR:-/tmp}/tscrub-mdm-curl-ran-$$}"
+            if [[ ! -e "$flag" ]]; then
+                touch "$flag"
+                printf 'curl: (60) SSL certificate problem: certificate has expired\n' >&2
+                exit 60
+            fi
+        fi
+        rc="${FAKE_MDM_RC:-0}"
+        if [[ "$rc" != "0" ]]; then
+            printf 'curl: (7) Failed to connect to host\n' >&2
+            exit "$rc"
+        fi
+        # Stage 1: FAKE_MDM_QUEUE (queued|checking) returns an empty verdict so
+        # the appliance polls the status endpoint below.
+        if [[ -n "${FAKE_MDM_QUEUE:-}" ]]; then
+            printf '{"ok":true,"status":"%s","verdict":"","source":"none"}\n' "$FAKE_MDM_QUEUE"
+            exit 0
+        fi
+        case "${FAKE_MDM_VERDICT:-unlocked}" in
+            locked_this)  printf '{"ok":true,"status":"done","verdict":"locked_this","source":"live"}\n' ;;
+            locked_other) printf '{"ok":true,"status":"done","verdict":"locked_other","source":"live"}\n' ;;
+            offline)      printf '{"ok":true,"status":"done","verdict":"offline","source":"error"}\n' ;;
+            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none"}\n' ;;
+            *)            printf '{"ok":true,"status":"done","verdict":"unlocked","source":"live"}\n' ;;
+        esac
+        exit 0
+    fi
+    if [[ "$a" == *"/api/mdm/status"* ]]; then
+        if [[ -n "${FAKE_MDM_CURL_LOG:-}" ]]; then
+            { printf 'curl'; printf ' %q' "$@"; printf '\n'; } >> "$FAKE_MDM_CURL_LOG"
+        fi
+        case "${FAKE_MDM_VERDICT:-unlocked}" in
+            na) printf '{"ok":true,"status":"na","verdict":"na","source":"none","last_checked_at":null}\n' ;;
+            *)  printf '{"ok":true,"status":"done","verdict":"%s","source":"live","last_checked_at":"2026-09-29T14:11:52Z"}\n' "${FAKE_MDM_VERDICT:-unlocked}" ;;
+        esac
+        exit 0
+    fi
+done
 
 upload=0
 for a in "$@"; do

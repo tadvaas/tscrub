@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
+if [[ "$1" == "-t" && "$2" == "24" ]]; then
+    # BIOS lock detector (36_bios.sh) reads SMBIOS Type 24. Content driven by
+    # the FAKE_DMI24 env var (one line per "… Password Status: <value>").
+    printf '%s\n' "${FAKE_DMI24:-}"
+    exit 0
+fi
 if [[ "$1" == "-s" ]]; then
     case "$2" in
         system-manufacturer)   printf 'Fake Inc.\n' ;;
         system-product-name)   printf 'FakeStation\n' ;;
         system-serial-number)  printf 'SYSSN123\n' ;;
+        system-uuid)           printf '4C4C4544-0036-5710-8032-B5C04F433633\n' ;;
         baseboard-serial-number) printf 'BBSN123\n' ;;
         chassis-serial-number) printf 'CHSN123\n' ;;
         chassis-type)          printf 'Tower\n' ;;

@@ -270,11 +270,13 @@ umount /mnt/iso</pre>
 
               <h3 class="mt-6 text-base font-bold text-ink-900">Preconfigure with a <code class="font-mono">tscrub.conf</code> file</h3>
               <p class="mt-2 text-sm text-slate-600">You don't have to edit GRUB or the kernel command line — drop a <code class="font-mono">tscrub.conf</code> on the stick (next to your <code class="font-mono">.lic</code>) and tScrub reads it at boot:</p>
+              <p class="mt-2 text-sm text-slate-600">On the <a href="/dashboard/licences" class="font-medium text-brand-600 hover:underline">Licences</a> page you can download a ready-made <code class="font-mono">tscrub.conf</code> preconfigured with your appliance upload token — just drop it on the stick.</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_api_token=YOUR-64-HEX-TOKEN
+tscrub_autopilotcheck=true
 tscrub_cocid=12345
 tscrub_license_url=http://192.168.1.10/Acme-ITAD-Ltd-2027-09-12.lic
 tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
-              <p class="mt-3 text-sm text-slate-600">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
+              <p class="mt-3 text-sm text-slate-600">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_autopilotcheck=true</code> opts in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
               <p class="mt-3 text-sm text-slate-600">Full details and examples are in <a href="#report" class="font-medium text-brand-600 hover:underline">section 8, The report</a>.</p>
             </div>
           </div>
@@ -421,6 +423,7 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_output=sftp:host:path:user:pass</td><td class="px-6 py-3">Upload the report over SFTP (encrypted).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_upload=&lt;url&gt;</td><td class="px-6 py-3">Optional — overrides the built-in dashboard endpoint (https://tscrub.com/api/reports).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_api_token=&lt;64-hex&gt;</td><td class="px-6 py-3">Appliance token from the Licences page — pushes the report to your dashboard.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_autopilotcheck=true</td><td class="px-6 py-3">Opt in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">shredos_output=ftp:host:path:user:pass</td><td class="px-6 py-3"><em>Deprecated</em> — former name for <code class="font-mono">tscrub_output=ftp:…</code>. Still accepted for backwards compatibility.</td></tr>
                   </tbody>
                 </table>

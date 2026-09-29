@@ -44,6 +44,7 @@ const pages = {
   login: 'login.html',
   register: 'register.html',
   dashboard: 'dashboard.html',
+  'dashboard-devices': 'dashboard/devices.html',
   'dashboard-licence': 'dashboard/licence.html',
   'dashboard-reports': 'dashboard/reports.html',
   'dashboard-certificates': 'dashboard/certificates.html',

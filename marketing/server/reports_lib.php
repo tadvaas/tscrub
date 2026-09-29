@@ -217,7 +217,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'cocid' => $cocid, 'drives' => [], 'reports' => [],
                 'shaState' => 'unverified', 'sigState' => 'none',
                 'system' => '', 'sysSerial' => '', 'bbSerial' => '',
-                'cpu' => '', 'gpu' => '', 'ram' => '',
+                'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '',
                 'first' => null, 'last' => null,
             ];
         }
@@ -241,6 +241,12 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
         foreach ($rows as $row) {
             $serial = $get($row, 'serial');
             $ts = $get($row, 'timestamp');
+            // MDM (Autopilot) verdict: prefer the CSV column, fall back to the
+            // JSON manifest's "mdm" field (older/third-party files have neither).
+            $enrollment = $get($row, 'enrollment');
+            if ($enrollment === '' && $manifestData && !empty($manifestData['mdm'])) {
+                $enrollment = (string)$manifestData['mdm'];
+            }
             $drive = [
                 'ts' => clip_str($ts, 32),
                 'model' => clip_str($get($row, 'model'), 255),
@@ -259,6 +265,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'cpu' => clip_str($get($row, 'cpu'), 255),
                 'gpu' => clip_str($get($row, 'gpu'), 255),
                 'ram' => clip_str($get($row, 'ram'), 64),
+                'enrollment' => clip_str($enrollment, 32),
                 'smart' => clip_str($get($row, 'smart'), 16),
                 'tempc' => clip_str($get($row, 'tempc'), 16),
                 'poweronhours' => clip_str($get($row, 'poweronhours'), 32),
@@ -286,6 +293,9 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 $g['system'] = clip_str($get($row, 'system'), 255);
                 $g['sysSerial'] = clip_str($get($row, 'systemserial'), 255);
                 $g['bbSerial'] = clip_str($get($row, 'baseboardserial'), 255);
+            }
+            if ($g['enrollment'] === '' && $enrollment !== '') {
+                $g['enrollment'] = clip_str($enrollment, 32);
             }
             if ($g['cpu'] === '' && isset($map['cpu'])) {
                 $g['cpu'] = clip_str($get($row, 'cpu'), 255);
@@ -596,6 +606,7 @@ function report_row(array $r, ?array $payload): array {
         'cpu'         => is_array($payload) ? (string)($payload['cpu'] ?? '') : '',
         'gpu'         => is_array($payload) ? (string)($payload['gpu'] ?? '') : '',
         'ram'         => is_array($payload) ? (string)($payload['ram'] ?? '') : '',
+        'enrollment'  => is_array($payload) ? (string)($payload['enrollment'] ?? '') : '',
         'drives'      => is_array($payload) ? ($payload['drives'] ?? []) : [],
         'reports'     => is_array($payload) ? ($payload['reports'] ?? []) : [],
     ];

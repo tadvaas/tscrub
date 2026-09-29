@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake `ip` for the test suite. By default it reports a default route so
+# network::ensure() short-circuits; FAKE_IP_NO_ROUTE=1 simulates no network.
+if [[ "${FAKE_IP_NO_ROUTE:-0}" == "1" ]]; then
+    exit 0
+fi
+if [[ "${1:-}" == "route" ]]; then
+    printf 'default via 192.168.0.1 dev eth0\n'
+fi
+exit 0

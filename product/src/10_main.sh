@@ -36,10 +36,16 @@ fn_main() {
     REPORT_DASH_REASON=""
     REPORT_NET_STATUS=""
     REPORT_NET_REASON=""
+    MDM_STATUS=""
+    MDM_VERDICT=""
+    BIOS_PASSWORD_STATUS=""
+    BIOS_DETECTION_METHOD=""
+    mdm_pid=""
     devrow=()
     ui_eta_row=()
     pids=()
     ipc::open
+    rm -f "$MDM_RESULT_FILE"
 
     if [ -t 1 ]; then
         # Ensure each run starts from default terminal colors.
@@ -58,6 +64,9 @@ fn_main() {
     fi
 
     system::gather_info
+    # BIOS lock check: a synchronous local read (sysfs + dmidecode) that
+    # completes in <1s, so it runs inline before the first render — no worker.
+    bios::detect
     START_TS="$(ts::now)"
 
     # Apply any on-stick tscrub.conf (dashboard upload, COCID, licence URL)
@@ -90,6 +99,14 @@ fn_main() {
         printf "%s[!] Invalid COCID '%s'. Must be exactly 5 digits.\n" "$TABLE_INDENT" "$COCID" >&2
         exit 1
     fi
+    # Kick off the MDM (Autopilot) check in the background — it runs in parallel
+    # with device discovery/SMART capture and publishes its verdict to the UI
+    # over the worker IPC channel (fd 3). Forked before the `exec 3>&-` below so
+    # its late status write still reaches the UI reader. The appliance only sends
+    # serial/uuid; the dashboard holds the Azure credentials.
+    MDM_STATUS="CHECKING"
+    mdm::detect &
+    mdm_pid=$!
     device::install_sedutil
     if ! device::discover; then
         table::build
@@ -140,6 +157,44 @@ fn_main() {
     for pid in "${pids[@]}"; do
         wait "$pid"
     done
+
+    # Settle the MDM verdict before the report is written: wait for the worker
+    # (bounded by its curl --max-time) and recover its verdict from the result
+    # file if the UI loop ended before it published (e.g. an instant dry-run).
+    if [[ -n "${mdm_pid:-}" ]]; then
+        # If the Autopilot worker outlived the drive workers the screen would
+        # otherwise sit frozen — both the elapsed timer and its spinner stop
+        # the moment the last drive completes. Keep ticking the timer/spinner
+        # in place and swap the MDM cell to "Finalising…" (same static ellipsis
+        # as "Checking…") until the worker actually exits.
+        if [[ -t 1 ]] && kill -0 "$mdm_pid" 2>/dev/null; then
+            local mdm_row=$(( UI_RUNTIME_ROW + 6 ))
+            local mdm_stat_line mdm_state
+            printf "\033[%d;%dH%-*.*s" "$mdm_row" "$UI_RUNTIME_COL" \
+                "$UI_RUNTIME_VALUE_W" "$UI_RUNTIME_VALUE_W" "Finalising..."
+            while kill -0 "$mdm_pid" 2>/dev/null; do
+                # A finished-but-unreaped worker is a zombie and kill -0 still
+                # succeeds for it — stop as soon as its /proc state reads "Z".
+                if [[ -r "/proc/$mdm_pid/stat" ]]; then
+                    mdm_stat_line="$(< "/proc/$mdm_pid/stat")"
+                    mdm_state="${mdm_stat_line##*) }"; mdm_state="${mdm_state:0:1}"
+                    [[ "$mdm_state" == "Z" ]] && break
+                fi
+                # Advances the elapsed timer + spinner (and refreshes the ETA
+                # cells, all terminal now) so they keep running until EVERY
+                # worker — including this Autopilot probe — has finished.
+                ui::tick_inplace || true
+                sleep 0.25
+            done
+        fi
+        wait "$mdm_pid" 2>/dev/null || true
+        if [[ -z "${MDM_VERDICT:-}" && -f "$MDM_RESULT_FILE" ]]; then
+            MDM_VERDICT="$(cat "$MDM_RESULT_FILE" 2>/dev/null)"
+        fi
+        if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "CHECKING" ]]; then
+            MDM_STATUS="$(mdm::state_for_verdict "${MDM_VERDICT:-offline}")"
+        fi
+    fi
 
     # A worker that died without reporting a terminal status (OOM/killed) must
     # not leave a drive showing RUNNING on the report.

@@ -39,8 +39,13 @@ sig="${csv}.sig"
 
 t::check "report CSV exists" '[[ -f "$csv" ]]'
 t::check "CSV header includes machine columns" 'head -n1 "$csv" | grep -q "System,SystemSerial,BaseboardSerial,CPU,GPU,RAM"'
+t::check "CSV header includes BIOSLock column" 'head -n1 "$csv" | grep -q ",BIOSLock"'
+hdr_cols="$(head -n1 "$csv" | awk -F, '{print NF}')"
+row_cols="$(sed -n '2p' "$csv" | awk -F, '{print NF}')"
+t::check "CSV data row column count matches header ($hdr_cols)" '[ "$hdr_cols" = "$row_cols" ]'
 t::check "CSV row carries machine profile" 'grep -q "Dell PowerEdge" "$csv" && grep -q "1. Intel Xeon; 2. Intel Xeon" "$csv" && grep -q "NVIDIA T4" "$csv" && grep -q "64 GB" "$csv"'
 t::check "manifest JSON exists" '[[ -f "$manifest" ]]'
+t::check "manifest records bios_lock" 'grep -q "bios_lock" "$manifest"'
 
 # The manifest must be strict-JSON-parseable (certify.php json_decode + the
 # harness's python3 json.load both reject the missing-comma bug this guards).

@@ -18,7 +18,7 @@
 ## Resources
 
 - [Resources hub](https://tscrub.com/resources): Data erasure guides index.
-- [Compare](https://tscrub.com/compare): tScrub vs Blancco — the full comparison.
+- [Compare](https://tscrub.com/compare): tScrub vs Blancco — open & inspectable vs closed, self-serve signed certificates vs a proprietary platform, transparent pricing vs enterprise quote.
 - [Data erasure standards](https://tscrub.com/resources/standards): NIST 800-88, GDPR, HIPAA, ISO 27001.
 - [NIST 800-88](https://tscrub.com/resources/nist-800-88): Clear, Purge & Destroy explained.
 - [GDPR data erasure](https://tscrub.com/resources/gdpr-data-erasure): The right to erasure.
@@ -60,3 +60,6 @@
 - Reports can be signed (SHA-256 + Ed25519) for verifiable proof of destruction.
 - NIST 800-88 alignment, GDPR, HIPAA, ISO 27001.
 - Bootable, inspectable appliance image; inspect every line of what runs.
+- End-to-end loop: erase → signed report → PDF Certificate of Destruction with a verification QR (tscrub.com/verify).
+- The customer (data controller) certifies their own destruction; tScrub supplies the signed, tamper-evident evidence.
+- Open source (GPL-3.0), runs on your own hardware. Contrast: Blancco = closed, platform-only, enterprise quote; nwipe/DBAN = free ad-hoc overwrite, no signed reports or certificates.

@@ -219,6 +219,104 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
+# The Runtime panel's MDM status cell: the plain label padded to the panel's
+# value width, colourised (green Unlocked / red Locked / amber Offline) when
+# $1 is 1. The caller supplies the colour decision because this function runs
+# inside a $(...) command substitution (its stdout is a pipe, so [[ -t 1 ]]
+# would always be false here).
+#
+# Two refinements keep it legible on the coloured screens:
+#   * the colour reset restores the THEME's text colour (black on green/amber,
+#     white on red/blue) — a plain \033[39m would leave the rest of the row the
+#     terminal default (white) instead of the theme colour; and
+#   * when the status colour would vanish into the finish-screen background
+#     (green "Unlocked" on the green success screen, red "Locked" on the red
+#     failure screen, amber "Offline" on the amber delivery-failure screen),
+#     the value falls back to the theme's text colour in BOLD so it stays
+#     readable and subtly distinct.
+ui::mdm_render() {
+    local state="${MDM_STATUS:-}" colour="${1:-0}" label cell w="${UI_RUNTIME_VALUE_W:-20}" esc fg_reset
+    case "$state" in
+        CHECKING) label="Checking..." ;;
+        UNLOCKED) label="Unlocked" ;;
+        LOCKED)   label="Locked" ;;
+        OFFLINE)  label="Offline" ;;
+        SKIPPED)  label="Skipped" ;;
+        UNKNOWN)  label="Pending" ;;
+        NA)       label="N/A" ;;
+        *)        label="-" ;;
+    esac
+    cell="$(printf '%-*.*s' "$w" "$w" "$label")"
+    if [[ "$colour" -eq 1 ]]; then
+        # Theme text colour (same mapping as table::print_row's fg_reset), plus
+        # SGR 22 (normal intensity) so the bold clash fallback below cannot leak
+        # bold onto the closing "|" and every row after the MDM cell.
+        case "${UI_COMPLETE_THEME:-0}" in
+            1|3) printf -v fg_reset '\033[22;30m' ;;   # green/amber finish: black
+            2|4) printf -v fg_reset '\033[22;37m' ;;   # red/blue: white
+            *)   printf -v fg_reset '\033[22;39m' ;;   # normal screen: default fg
+        esac
+        case "$state" in
+            UNLOCKED) esc=$'\033[32m' ;;
+            LOCKED)   esc=$'\033[31m' ;;
+            OFFLINE)  esc=$'\033[33m' ;;
+            *)        esc="" ;;
+        esac
+        # Status colour clashes with the themed background → swap to the theme
+        # text colour in bold (readable, subtle).
+        case "${UI_COMPLETE_THEME:-0}:${state}" in
+            1:UNLOCKED|3:OFFLINE) esc=$'\033[1;30m' ;;   # green/amber bg: bold black
+            2:LOCKED)             esc=$'\033[1;37m' ;;   # red bg: bold white
+        esac
+        if [[ -n "$esc" ]]; then
+            printf '%s%s%s' "$esc" "$cell" "$fg_reset"
+        else
+            printf '%s' "$cell"
+        fi
+    else
+        printf '%s' "$cell"
+    fi
+}
+
+# The Runtime panel's BIOS-lock cell: mirrors ui::mdm_render (same padding,
+# colour and theme-clash rules) for the BIOS password verdict.
+ui::bios_render() {
+    local state="${BIOS_PASSWORD_STATUS:-}" colour="${1:-0}" label cell w="${UI_RUNTIME_VALUE_W:-20}" esc fg_reset
+    case "$state" in
+        LOCKED)   label="Locked" ;;
+        UNLOCKED) label="Unlocked" ;;
+        UNKNOWN)  label="Unknown" ;;
+        *)        label="-" ;;
+    esac
+    cell="$(printf '%-*.*s' "$w" "$w" "$label")"
+    if [[ "$colour" -eq 1 ]]; then
+        case "${UI_COMPLETE_THEME:-0}" in
+            1|3) printf -v fg_reset '\033[22;30m' ;;   # green/amber finish: black
+            2|4) printf -v fg_reset '\033[22;37m' ;;   # red/blue: white
+            *)   printf -v fg_reset '\033[22;39m' ;;   # normal screen: default fg
+        esac
+        case "$state" in
+            UNLOCKED) esc=$'\033[32m' ;;
+            LOCKED)   esc=$'\033[31m' ;;
+            UNKNOWN)  esc=$'\033[33m' ;;
+            *)        esc="" ;;
+        esac
+        # Status colour clashes with the themed background → swap to the theme
+        # text colour in bold (readable, subtle).
+        case "${UI_COMPLETE_THEME:-0}:${state}" in
+            1:UNLOCKED|3:UNKNOWN) esc=$'\033[1;30m' ;;   # green/amber bg: bold black
+            2:LOCKED)             esc=$'\033[1;37m' ;;   # red bg: bold white
+        esac
+        if [[ -n "$esc" ]]; then
+            printf '%s%s%s' "$esc" "$cell" "$fg_reset"
+        else
+            printf '%s' "$cell"
+        fi
+    else
+        printf '%s' "$cell"
+    fi
+}
+
 # Bottom-of-screen footer: a separator line, then the centred brand/version
 # line. Called with the cursor on the separator's row; it leaves the cursor on
 # the footer text row (the caller's blank bottom-margin row sits below it).
@@ -355,7 +453,12 @@ table::render() {
     local cpu_rows gpu_rows row
     local eta_base_row completion_base_row
     local sys_label_w sys_value_w runtime_label_w runtime_value_w
+    local mdm_colour bios_colour bios_method
     now="$(ts::now)"
+    mdm_colour=0; [[ -t 1 ]] && mdm_colour=1
+    bios_colour=0; [[ -t 1 ]] && bios_colour=1
+    bios_method="${BIOS_DETECTION_METHOD:-NONE}"
+    [[ "$bios_method" == "NONE" ]] && bios_method=""
     rows="$(table::detect_terminal_height)"
     runtime_str="$(ui::format_runtime "$now") $(ui::spinner)"
 
@@ -375,8 +478,8 @@ table::render() {
     runtime_label_w=10
     runtime_value_w=$((panel_w - runtime_label_w - 5))
     UI_RUNTIME_VALUE_W=$runtime_value_w
-    eta_base_row=16
-    completion_base_row=17
+    eta_base_row=17
+    completion_base_row=18
     UI_RUNTIME_ROW=5
     UI_RUNTIME_COL=$((1 + ${#TABLE_INDENT} + 2 + 10 + 1 + (panel_w - 15) + 6 + 10 + 1))
 
@@ -420,9 +523,12 @@ table::render() {
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "Chassis:" "$sys_value_w" "$sys_value_w" "$SYS_CHASSIS_TYPE" \
         "$runtime_label_w" "Expiry:" "$runtime_value_w" "$runtime_value_w" "${LICENSE_EXPIRY:-N/A}"
-    printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
+    printf "%s| %-*s %-*.*s |  | %-*s %s |\n" \
+        "$TABLE_INDENT" "$sys_label_w" "BIOS Lock:" "$sys_value_w" "$sys_value_w" "$bios_method" \
+        "$runtime_label_w" "BIOS Lock:" "$(ui::bios_render "$bios_colour")"
+    printf "%s| %-*s %-*.*s |  | %-*s %s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "BIOS:" "$sys_value_w" "$sys_value_w" "$SYS_BIOS_VERSION ($SYS_BIOS_DATE)" \
-        "$runtime_label_w" "" "$runtime_value_w" "$runtime_value_w" ""
+        "$runtime_label_w" "MDM:" "$(ui::mdm_render "$mdm_colour")"
 
     while IFS= read -r cpu_line; do
         [[ -z "$cpu_line" ]] && continue
@@ -509,7 +615,20 @@ ui::loop() {
         IFS=' ' read -t 0.25 -r -u4 _dev _key _value; _rc=$?
         if (( _rc == 0 )); then
             [[ -z "${_dev:-}" ]] && continue
-            if [[ "$_key" == "STATUS" ]]; then
+            if [[ "$_dev" == "mdm" ]]; then
+                case "$_key" in
+                    STATUS)
+                        MDM_STATUS="$_value"
+                        table::render
+                        ;;
+                    VERDICT)
+                        MDM_VERDICT="$_value"
+                        ;;
+                    *)
+                        printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5
+                        ;;
+                esac
+            elif [[ "$_key" == "STATUS" ]]; then
                 devrow["$_dev.status"]="$_value"
                 # Record when an ATA wipe starts (first RUNNING only)
                 if [[ "$_value" == "RUNNING" ]] && \

@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.4.54"
+SCRIPT_VERSION="v1.6.1"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -71,6 +71,7 @@ ts::now() {
 SYS_MANUFACTURER=""
 SYS_PRODUCT=""
 SYS_SERIAL=""
+SYS_UUID=""
 SYS_BASEBOARD_SERIAL=""
 SYS_CHASSIS_SERIAL=""
 SYS_CHASSIS_TYPE=""
@@ -86,6 +87,7 @@ system::gather_info() {
         SYS_MANUFACTURER="$(dmidecode -s system-manufacturer 2>/dev/null | head -n1 || echo N/A)"
         SYS_PRODUCT="$(dmidecode -s system-product-name 2>/dev/null | head -n1 || echo N/A)"
         SYS_SERIAL="$(dmidecode -s system-serial-number 2>/dev/null | head -n1 || echo N/A)"
+        SYS_UUID="$(dmidecode -s system-uuid 2>/dev/null | head -n1 || echo N/A)"
         SYS_BASEBOARD_SERIAL="$(dmidecode -s baseboard-serial-number 2>/dev/null | head -n1 || echo N/A)"
         SYS_CHASSIS_SERIAL="$(dmidecode -s chassis-serial-number 2>/dev/null | head -n1 || echo N/A)"
         SYS_CHASSIS_TYPE="$(dmidecode -s chassis-type 2>/dev/null | head -n1 || echo N/A)"
@@ -96,6 +98,7 @@ system::gather_info() {
         SYS_MANUFACTURER="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || echo N/A)"
         SYS_PRODUCT="$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo N/A)"
         SYS_SERIAL="$(cat /sys/class/dmi/id/product_serial 2>/dev/null || echo N/A)"
+        SYS_UUID="$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo N/A)"
         SYS_BASEBOARD_SERIAL="$(cat /sys/class/dmi/id/board_serial 2>/dev/null || echo N/A)"
         SYS_CHASSIS_SERIAL="$(cat /sys/class/dmi/id/chassis_serial 2>/dev/null || echo N/A)"
         SYS_CHASSIS_TYPE="$(cat /sys/class/dmi/id/chassis_type 2>/dev/null || echo N/A)"
@@ -104,6 +107,7 @@ system::gather_info() {
     fi
 
     [[ -n "${SYS_SERIAL//[[:space:]]/}" ]] || SYS_SERIAL="N/A"
+    [[ -n "${SYS_UUID//[[:space:]]/}" ]] || SYS_UUID="N/A"
     [[ -n "${SYS_BASEBOARD_SERIAL//[[:space:]]/}" ]] || SYS_BASEBOARD_SERIAL="N/A"
     [[ -n "${SYS_CHASSIS_SERIAL//[[:space:]]/}" ]] || SYS_CHASSIS_SERIAL="N/A"
     [[ -n "${SYS_MANUFACTURER//[[:space:]]/}" ]] || SYS_MANUFACTURER="N/A"
@@ -123,6 +127,14 @@ system::gather_info() {
                 printf -v "$_v" "%s" "N/A" ;;
         esac
     done
+
+    # UUID: normalise missing/placeholder/sentinel values to "N/A" so the MDM
+    # check skips (a sentinel UUID is shared by many machines — probing it would
+    # falsely report "already assigned").
+    case "${SYS_UUID,,}" in
+        ""|"n/a"|"none"|"not specified"|"unknown"|"to be filled by o.e.m."|"default string"|"0"|"00000000-0000-0000-0000-000000000000"|"03000200-0400-0500-0006-000700080009")
+            SYS_UUID="N/A" ;;
+    esac
 
     # Processor info (physical CPU sockets only, each displayed individually)
     # Use lscpu if available (more reliable), fall back to /proc/cpuinfo
@@ -236,6 +248,15 @@ parse_args() {
         case "$arg" in
             --dry-run|-n)
                 DRY_RUN=1
+                ;;
+            --autopilotcheck)
+                TSCRUB_AUTOPILOTCHECK=1
+                ;;
+            --autopilotcheck=*)
+                case "${arg#*=}" in
+                    true|1|yes|on) TSCRUB_AUTOPILOTCHECK=1 ;;
+                    *)             TSCRUB_AUTOPILOTCHECK=0 ;;
+                esac
                 ;;
             --simulate-running-eta=*)
                 mins="${arg#*=}"

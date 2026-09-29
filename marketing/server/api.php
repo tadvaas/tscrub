@@ -43,6 +43,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/reports_lib.php';
 require_once __DIR__ . '/stripe.php';
+require_once __DIR__ . '/mdm.php';
 
 auth_start();
 
@@ -784,6 +785,191 @@ if ($method === 'POST' && $route === '/reports') {
     ], 201);
 }
 
+// POST /api/mdm/hash — stage a WinPE-captured authoritative 4K hash for the
+// device, so the appliance's MDM check (POST /api/mdm/autopilot) can use it.
+// API-token auth only, same token as the appliance.
+if ($method === 'POST' && $route === '/mdm/hash') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    rate_limit('mdm', 30);
+
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+    $model  = trim((string)($d['model'] ?? ''));
+    $hash   = trim((string)($d['hardwareIdentifier'] ?? ''));
+
+    // Log the attempt BEFORE validation so a rejected upload is still visible
+    // in mdm_ingest_log (WinPE cannot easily retry, and the screen is gone).
+    mdm_ensure_schema();
+    mdm_log_ingest((int)$owner['id'], $serial, $uuid, strlen($hash), (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial number required.');
+    }
+    if (strlen($serial) > 255 || preg_match('/[\x00-\x1f\x7f]/', $serial) === 1) {
+        fail(400, 'Invalid serial.');
+    }
+    // A missing UUID is allowed (some machines report none) — the device is
+    // still keyed by (serial, uuid) with uuid="" so it dedupes per serial.
+    if (strlen($uuid) > 255 || preg_match('/[\x00-\x1f\x7f]/', $uuid) === 1) {
+        fail(400, 'Invalid uuid.');
+    }
+    if (strlen($model) > 255 || preg_match('/[\x00-\x1f\x7f]/', $model) === 1) {
+        fail(400, 'Invalid model.');
+    }
+    if (strlen($hash) !== 4000 || preg_match('#^[A-Za-z0-9+/]+={0,2}$#', $hash) !== 1) {
+        fail(400, 'Invalid hardware hash.');
+    }
+
+    mdm_stage_hash((int)$owner['id'], $serial, $uuid, $model, $hash);
+    $jobId = mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
+    json_out(['ok' => true, 'staged' => true, 'queued' => $jobId > 0, 'job_id' => $jobId]);
+}
+
+// POST /api/mdm/autopilot — machine MDM check (Autopilot enrolment).
+// API-token auth only (no session). The appliance sends hardware identifiers;
+// the Azure credentials live server-side in config.json (see mdm.php).
+if ($method === 'POST' && $route === '/mdm/autopilot') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+    db()->prepare('UPDATE api_tokens SET last_used_at = NOW() WHERE id = ?')->execute([$tok['id']]);
+
+    rate_limit('mdm', 30);
+
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+
+    // Input guards: length caps + control characters (log-injection defence).
+    foreach (['serial' => $serial, 'uuid' => $uuid] as $name => $field) {
+        if (strlen($field) > 255) {
+            fail(400, 'Field too long: ' . $name . '.');
+        }
+        if (preg_match('/[\x00-\x1f\x7f]/', $field) === 1) {
+            fail(400, 'Invalid characters in request.');
+        }
+    }
+
+    mdm_ensure_schema();
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+
+    // Nothing to check: the appliance marks missing identifiers as "N/A".
+    if ($serial === '' || $uuid === '' || $serial === 'N/A' || $uuid === 'N/A') {
+        mdm_log_probe((int)$owner['id'], $serial, $uuid, 'skipped', 'none', $ip);
+        json_out(['ok' => true, 'verdict' => 'skipped', 'source' => 'none']);
+    }
+
+    // The check now runs in the background (mdm-worker.php): the appliance
+    // enqueues or reads a job instead of blocking on Microsoft's async queue.
+    $staged = mdm_staged_hash((int)$owner['id'], $serial, $uuid);
+    if ($staged === null) {
+        mdm_log_probe((int)$owner['id'], $serial, $uuid, 'na', 'none', $ip);
+        json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na']);
+    }
+
+    $job = mdm_latest_job((int)$owner['id'], $serial, $uuid);
+    $status  = (string)($job['status'] ?? '');
+    $verdict = (string)($job['verdict'] ?? '');
+    if ($status === '' || $status === 'failed') {
+        // No useful result yet — enqueue a fresh check for the worker.
+        mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
+        $status = 'queued';
+        $verdict = '';
+    }
+
+    json_out(['ok' => true, 'status' => $status, 'verdict' => $verdict,
+        'source' => $status === 'done' ? (string)($job['source'] ?? 'live') : 'none']);
+}
+
+// GET /api/mdm/status?serial=… — poll a device's check status (appliance).
+// API-token auth only.
+if ($method === 'GET' && $route === '/mdm/status') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    $uuid   = trim((string)($_GET['uuid'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+
+    $job = mdm_latest_job((int)$owner['id'], $serial, $uuid !== '' ? $uuid : null);
+    json_out([
+        'ok' => true,
+        'serial' => $serial,
+        'uuid' => $uuid,
+        'status' => (string)($job['status'] ?? 'na'),
+        'verdict' => (string)($job['verdict'] ?? ''),
+        'source' => (string)($job['source'] ?? 'none'),
+        'last_checked_at' => $job['updated_at'] ?? null,
+    ]);
+}
+
+// GET /api/mdm/devices — dashboard device list (session auth).
+if ($method === 'GET' && $route === '/mdm/devices') {
+    $u = auth_require();
+    json_out(['ok' => true, 'devices' => mdm_devices((int)$u['id'])]);
+}
+
+// POST /api/mdm/recheck — enqueue a fresh check for a captured device.
+// Session + CSRF (dashboard button).
+if ($method === 'POST' && $route === '/mdm/recheck') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if ($uuid === '' || $uuid === 'N/A') {
+        fail(400, 'UUID required.');
+    }
+    if (mdm_staged_hash((int)$u['id'], $serial, $uuid) === null) {
+        fail(404, 'No captured hash for that device.');
+    }
+    $jobId = mdm_enqueue_job((int)$u['id'], $serial, $uuid);
+    json_out(['ok' => true, 'queued' => $jobId > 0, 'job_id' => $jobId]);
+}
+
 // GET /api/reports — the current user's uploaded reports (raw evidence).
 // Optional `q` searches drive/system serials and other stored data.
 if ($method === 'GET' && $route === '/reports') {
@@ -1032,6 +1218,35 @@ if ($method === 'DELETE' && count($seg) === 2 && $seg[0] === 'tokens') {
     json_out(['ok' => true]);
 }
 
+// GET /api/tscrub-conf — download a preconfigured tscrub.conf for the
+// appliance: the account's appliance upload token. The dashboard URL is built
+// into the appliance, so the token alone is all it needs (tscrub_upload= is
+// only an optional override). Uses the most recent token, creating one if none
+// exists yet.
+if ($method === 'GET' && $route === '/tscrub-conf') {
+    $u = auth_require();
+    $stmt = db()->prepare('SELECT token FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1');
+    $stmt->execute([$u['id']]);
+    $token = $stmt->fetchColumn();
+    if ($token === false || !is_string($token) || $token === '') {
+        $token = auth_token();
+        db()->prepare('INSERT INTO api_tokens (user_id, token, label) VALUES (?, ?, ?)')
+            ->execute([$u['id'], $token, 'Appliance']);
+    }
+    $conf = "# tScrub appliance configuration\n"
+        . "# Drop this file on the boot USB, next to your .lic, and tScrub will push\n"
+        . "# every report to your tScrub dashboard automatically. The dashboard URL\n"
+        . "# is built into the appliance, so only the token is needed. Optional keys:\n"
+        . "#   tscrub_cocid=12345                run unattended with this Chain of Custody ID\n"
+        . "#   tscrub_output=/path/to/reports    local report path (or ftp:/sftp:…)\n"
+        . "tscrub_api_token={$token}\n";
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="tscrub.conf"');
+    header('Content-Length: ' . strlen($conf));
+    echo $conf;
+    exit;
+}
+
 // ---- admin ----------------------------------------------------------------
 
 // GET /api/admin/stats
@@ -1275,6 +1490,34 @@ if ($method === 'GET' && $route === '/admin/audit') {
         'created_at'  => (string)$a['created_at'],
     ], $stmt->fetchAll());
     json_out(['ok' => true, 'audit' => $rows, 'total' => $total, 'page' => $page, 'per' => $per]);
+}
+
+// GET /api/admin/mdm-log — Autopilot MDM probe log (all accounts)
+if ($method === 'GET' && $route === '/admin/mdm-log') {
+    auth_require_admin();
+    mdm_ensure_schema();
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per = 50;
+    $offset = ($page - 1) * $per;
+    $total = (int)db()->query('SELECT COUNT(*) FROM mdm_log')->fetchColumn();
+    $stmt = db()->prepare(
+        'SELECT m.serial, m.uuid, m.verdict, m.source, m.ip, m.created_at, u.email
+         FROM mdm_log m JOIN users u ON u.id = m.user_id
+         ORDER BY m.id DESC LIMIT ? OFFSET ?'
+    );
+    $stmt->bindValue(1, $per, PDO::PARAM_INT);
+    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = array_map(fn($r) => [
+        'email'      => (string)($r['email'] ?? ''),
+        'serial'     => (string)$r['serial'],
+        'uuid'       => (string)$r['uuid'],
+        'verdict'    => (string)$r['verdict'],
+        'source'     => (string)$r['source'],
+        'ip'         => (string)$r['ip'],
+        'created_at' => (string)$r['created_at'],
+    ], $stmt->fetchAll());
+    json_out(['ok' => true, 'log' => $rows, 'total' => $total, 'page' => $page, 'per' => $per]);
 }
 
 fail(404, 'Not found.');

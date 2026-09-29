@@ -25,6 +25,37 @@ REPORT_DIR="/tmp/sentinel/"
 report::detect_output 2>/dev/null
 t::check "no writable USB found -> report dir is /" "[[ \"\$REPORT_DIR\" == \"/\" ]]"
 
+# --- mount_boot_usb: fixed-disk FAT (internal EFI) is ignored, removable used ---
+USBROOT="$(mktemp -d)"
+FAKE_REM="$USBROOT/removable"
+FAKE_FIXED="$USBROOT/fixed"
+mkdir -p "$FAKE_REM/boot" "$FAKE_FIXED"
+printf 'tscrub\n' > "$FAKE_REM/boot/version.txt"
+MOUNT_LOG="$(mktemp)"
+
+lsblk() { printf 'sda1 part 0 vfat\nsdb1 part 1 vfat\n'; }
+mount() {
+    local mnt="${@: -1}" dev=""
+    for a in "$@"; do [[ "$a" == /dev/* ]] && dev="$a"; done
+    echo "$dev" >> "$MOUNT_LOG"
+    case "$dev" in
+        /dev/sdb1) cp -a "$FAKE_REM"/. "$mnt"/ ;;
+        /dev/sda1) cp -a "$FAKE_FIXED"/. "$mnt"/ ;;
+    esac
+    return 0
+}
+umount() { return 0; }
+rmdir()  { return 0; }
+
+LICENSE_USB_DEV=""
+REPORT_DIR="/tmp/sentinel/"
+REPORT_USB_MNT=""
+report::mount_boot_usb
+t::check "mount_boot_usb finds the removable stick" '[[ -n "$REPORT_USB_MNT" && -f "$REPORT_USB_MNT/boot/version.txt" ]]'
+t::check "mount_boot_usb never mounts a fixed disk" '! grep -q "/dev/sda1" "$MOUNT_LOG"'
+unset -f lsblk mount umount rmdir
+rm -rf "$USBROOT" "$MOUNT_LOG"
+
 # --- upload_http: fake curl posts multipart + token, parses count ---
 FAKE_CURL_LOG="$(mktemp)"
 export FAKE_CURL_LOG

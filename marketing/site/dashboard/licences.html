@@ -91,12 +91,15 @@
         </span>
         <div>
           <h2 class="text-base font-bold text-ink-900">Appliance upload token</h2>
-          <p class="mt-0.5 text-sm text-slate-500">Lets a network-mode appliance push reports straight to your dashboard.</p>
+          <p class="mt-0.5 text-sm text-slate-500">Lets a network-mode appliance push reports straight to your dashboard. Download a preconfigured <code class="font-mono">tscrub.conf</code> to drop on the boot USB next to your <code class="font-mono">.lic</code>.</p>
         </div>
       </div>
 
       <div class="px-6 py-6">
-        <button id="token-create" class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">New token</button>
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="token-create" class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">New token</button>
+          <a href="/api/tscrub-conf" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">Download tscrub.conf</a>
+        </div>
         <div id="token-list" class="mt-5 space-y-2">
           <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5">
             <div class="h-3 w-28 rounded bg-slate-200"></div>
