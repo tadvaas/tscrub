@@ -125,6 +125,19 @@ function unlock_report(int $userId, int $id, string $result, string $detail): vo
     }
 }
 
+/** Cancel a still-pending staged command (dashboard). Purges the password. */
+function unlock_cancel(int $userId, int $id): bool {
+    unlock_ensure_schema();
+    try {
+        $stmt = db()->prepare('UPDATE bios_unlock SET status = "cancelled", resolved_at = UTC_TIMESTAMP(), password_enc = "" WHERE id = ? AND user_id = ? AND status = "pending"');
+        $stmt->execute([$id, $userId]);
+        return $stmt->rowCount() > 0;
+    } catch (Throwable $e) {
+        error_log('unlock cancel error: ' . $e->getMessage());
+        return false;
+    }
+}
+
 /** Latest unlock command state for a serial (dashboard). */
 function unlock_latest(int $userId, string $serial): array {
     unlock_ensure_schema();

@@ -420,3 +420,39 @@ tenant/app secret server-side and runs the Graph probe, returning the verdict.
 
 Out of scope until the above ships: Apple DEP/Activation Lock and ChromeOS
 enrolment (still §6 north-star — different endpoints, ToS review).
+
+## 8. Remote BIOS unlock — robustness backlog
+
+Shipped as a first cut (v1.7.0): the dashboard stages a clear → the appliance
+pulls it (`GET /api/bios/unlock/pending`), clears via `firmware_attributes` /
+`hp-wmi`, and reports back. It works end-to-end but has known gaps to close
+before it is production-trustworthy:
+
+- [ ] Appliance JSON parsing corrupts passwords containing `"`, `\`, or control
+      chars — replace the `sed` extraction of `id`/`password` in
+      `product/src/38_bios_unlock.sh` with a real JSON decode (or reject those
+      chars server-side in `POST /api/bios/unlock`).
+- [ ] No retry/requeue on lost results — a `dispatched` command whose result
+      POST fails stays `dispatched` forever (password retained). Add a
+      `dispatched` TTL + requeue, or have the appliance re-report.
+- [ ] Password residue — `unlock_enqueue` marks superseded rows but never purges
+      their `password_enc`; add purge-on-supersede + an unclaimed-command TTL.
+- [ ] Offline staging needs a full tScrub boot — add a lightweight
+      "unlock-only" boot/flag so an operator can rescue a locked BIOS without
+      running a wipe.
+- [ ] Slot selection is a first-match heuristic, not the wipe-time slot — make
+      targeting explicit (prefer setup/`AdminPassword` over
+      power-on/`SystemPassword`) and re-verify after clearing.
+- [ ] Weak error signal — "write failed" can't distinguish a wrong password from
+      a non-writable attribute; re-read the slot to confirm the clear actually
+      took effect.
+- [ ] Serial-only claim — `unlock_claim` matches `user_id` + `serial` only;
+      include `uuid` (fall back to serial-only when uuid is empty).
+- [ ] No TLS clock-skew fallback — add a `curl -k` retry for RTC-skewed
+      appliances (mirror `report::upload_http`).
+- [ ] Result state machine not enforced server-side — `unlock_report` should
+      require the row be `dispatched` before accepting a result.
+- [ ] Coverage reality — writable password attributes exist only on Dell
+      (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most other
+      vendors report `unsupported`, and power-on passwords are usually not
+      clearable via this path.

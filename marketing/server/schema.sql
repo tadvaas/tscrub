@@ -306,7 +306,7 @@ CREATE TABLE IF NOT EXISTS device_presence (
 
 -- Remote BIOS password clear (dashboard stages, appliance executes). Passwords
 -- are encrypted at rest (libsodium; see bios_unlock.php). status:
--- pending -> dispatched -> done|failed|unsupported (or superseded).
+-- pending -> dispatched -> done|failed|unsupported (or superseded/cancelled).
 CREATE TABLE IF NOT EXISTS bios_unlock (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id       BIGINT UNSIGNED NOT NULL,

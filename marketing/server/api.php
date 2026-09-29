@@ -1081,6 +1081,18 @@ if ($method === 'GET' && $route === '/bios/unlock') {
     json_out(['ok' => true, 'unlock' => unlock_latest((int)$u['id'], $serial)]);
 }
 
+// POST /api/bios/unlock/cancel — cancel a still-pending staged command. Session+CSRF.
+if ($method === 'POST' && $route === '/bios/unlock/cancel') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $id = (int)($d['id'] ?? 0);
+    if ($id <= 0) {
+        fail(400, 'Invalid command id.');
+    }
+    json_out(['ok' => true, 'cancelled' => unlock_cancel((int)$u['id'], $id)]);
+}
+
 // POST /api/mdm/recheck — enqueue a fresh check for a captured device.
 // Session + CSRF (dashboard button).
 if ($method === 'POST' && $route === '/mdm/recheck') {
