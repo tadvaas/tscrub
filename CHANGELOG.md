@@ -25,6 +25,15 @@ fields) so locked units can be flagged for password removal before wiping.
 - `product/src/10_main.sh` — per-run reset + `bios::detect` call.
 - `product/src/50_report.sh` — `BIOSLock` CSV column + manifest fields.
 
+**Release**
+- Appliance ISO `tscrub-v1.6.1_2025.11_30_x86-64_v0.41_20260929-6d1af711.iso`
+  (157,622,272 B, sha256 `68f5c14140742153acc7706a33dd8e1690c34a16b4a214225611a7292e0cca5d`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.6.1 sha256 `67587c1f21c86342edc3871f596460b8e00b6ac48ce20fd48e6d2ea8071158cd`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `f87d5e387e774b883df1a3799a7f5fdd6c2e9ddc5c3c0fa1dbd5f3b466f94529`).
+
 ## [v1.6.0] - 2026-09-29
 
 ### Changed — Autopilot MDM check: authoritative hash + async queue
