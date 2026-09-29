@@ -9,7 +9,7 @@ MDM_RESULT_FILE="/tmp/tscrub-mdm.verdict"
 # Graph probe off the request path and polls Graph for up to ~5 min; a
 # locked-other lookup can take ~3.5 min on a busy tenant, so the appliance
 # waits long enough to see that verdict land rather than reporting UNKNOWN.
-MDM_POLL_SECONDS=300
+MDM_POLL_SECONDS=600
 
 mdm::is_configured() {
     # The Autopilot check is opt-in: it runs only when the operator explicitly

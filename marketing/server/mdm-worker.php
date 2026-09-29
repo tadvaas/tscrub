@@ -54,7 +54,7 @@ try {
             continue;
         }
 
-        $res     = mdm_probe($serial, $hash, 300);
+        $res     = mdm_probe($serial, $hash, 600);
         $verdict = (string)$res['verdict'];
         $source  = (string)($res['source'] ?? 'live');
         $detail  = json_encode($res) ?: '';
