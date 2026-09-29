@@ -218,7 +218,7 @@
             (dev.history || []).forEach(function (h) {
               var htr = el('tr', 'border-b border-slate-100');
               htr.appendChild(el('td', 'px-2 py-1.5 font-mono text-slate-700', h.cocid || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.uploaded_at) || '—'));
+              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.ts || h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.biosversion ? h.biosversion + (h.biosdate ? ' (' + h.biosdate + ')' : '') : '—'));
               var htdl = el('td', 'px-2 py-1.5');
               htdl.appendChild(lockBadge(h.bioslock) || document.createTextNode('—'));
@@ -280,7 +280,7 @@
           ['BIOS lock', dev.bioslock], ['BIOS lock method', dev.bioslockmethod],
           ['System UUID', dev.systemuuid], ['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram],
           ['CoC', dev.cocid],
-          ['Wiped', dev.uploaded_at ? fmtTsTime(dev.uploaded_at) : '']
+          ['Wiped', (dev.ts || dev.uploaded_at) ? fmtTsTime(dev.ts || dev.uploaded_at) : '']
         ];
         fields.forEach(function (kv) {
           if (!kv[1]) return;

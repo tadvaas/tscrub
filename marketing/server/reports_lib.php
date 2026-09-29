@@ -768,6 +768,7 @@ function load_devices(int $userId): array {
         $snap = [
             'cocid'          => (string)$r['cocid'],
             'uploaded_at'    => (string)$r['uploaded_at'],
+            'ts'             => (string)($g['first'] ?? ''),
             'system'         => (string)($g['system'] ?? ''),
             'sysserial'      => (string)($g['sysSerial'] ?? ''),
             'bbserial'       => (string)($g['bbSerial'] ?? ''),
