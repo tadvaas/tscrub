@@ -42,6 +42,7 @@ t::source_src() {
         "$ROOT_DIR/src/34_smart.sh" \
         "$ROOT_DIR/src/35_mdm.sh" \
         "$ROOT_DIR/src/36_bios.sh" \
+        "$ROOT_DIR/src/37_presence.sh" \
         "$ROOT_DIR/src/40_table.sh" \
         "$ROOT_DIR/src/50_report.sh"; do
         source "$f" || return 1

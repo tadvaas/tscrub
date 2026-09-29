@@ -288,3 +288,18 @@ CREATE TABLE IF NOT EXISTS mdm_ingest_log (
   KEY idx_mdm_ingest_user (user_id, created_at),
   CONSTRAINT fk_mdm_ingest_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Appliance presence (POST /api/heartbeat). One row per (user, serial, uuid)
+-- recording the last Unix-epoch heartbeat; the dashboard Devices tab marks a
+-- machine "online" when its heartbeat is within the last ~90 seconds.
+CREATE TABLE IF NOT EXISTS device_presence (
+  id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id      BIGINT UNSIGNED NOT NULL,
+  serial       VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid         VARCHAR(64)     NOT NULL DEFAULT '',
+  last_seen_ts INT UNSIGNED    NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_presence_device (user_id, serial, uuid),
+  KEY idx_presence_seen (last_seen_ts),
+  CONSTRAINT fk_presence_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

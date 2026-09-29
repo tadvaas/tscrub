@@ -748,6 +748,73 @@ function load_report_payloads(int $userId, string $cocid): array {
     return $groups;
 }
 
+// ---- device presence (heartbeat) ------------------------------------------
+
+/** Lazily create the device_presence table (idempotent — mirrors schema.sql). */
+function presence_ensure_schema(): void {
+    try {
+        db()->exec(
+            'CREATE TABLE IF NOT EXISTS device_presence (
+               id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+               user_id      BIGINT UNSIGNED NOT NULL,
+               serial       VARCHAR(255)    NOT NULL DEFAULT "",
+               uuid         VARCHAR(64)     NOT NULL DEFAULT "",
+               last_seen_ts INT UNSIGNED    NOT NULL,
+               PRIMARY KEY (id),
+               UNIQUE KEY uq_presence_device (user_id, serial, uuid),
+               KEY idx_presence_seen (last_seen_ts)
+            )'
+        );
+    } catch (Throwable $e) {
+        error_log('presence ensure schema error: ' . $e->getMessage());
+    }
+}
+
+/** Record a heartbeat from a booted appliance (keyed by serial + uuid). */
+function presence_heartbeat(int $userId, string $serial, string $uuid): void {
+    try {
+        db()->prepare(
+            'INSERT INTO device_presence (user_id, serial, uuid, last_seen_ts)
+             VALUES (?, ?, ?, UNIX_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE last_seen_ts = UNIX_TIMESTAMP()'
+        )->execute([$userId, $serial, $uuid]);
+    } catch (Throwable $e) {
+        error_log('presence heartbeat error: ' . $e->getMessage());
+    }
+}
+
+/** Map a user's presence rows to ['serial' => ts, 'uuid' => ts] (lowercased). */
+function presence_map(int $userId): array {
+    $map = ['serial' => [], 'uuid' => []];
+    try {
+        $stmt = db()->prepare('SELECT serial, uuid, last_seen_ts FROM device_presence WHERE user_id = ?');
+        $stmt->execute([$userId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $ts = (int)$r['last_seen_ts'];
+            $s  = strtolower(trim((string)$r['serial']));
+            $u  = strtolower(trim((string)$r['uuid']));
+            if ($s !== '') $map['serial'][$s] = $ts;
+            if ($u !== '') $map['uuid'][$u]  = $ts;
+        }
+    } catch (Throwable $e) {
+        error_log('presence map error: ' . $e->getMessage());
+    }
+    return $map;
+}
+
+/** True when the device has a heartbeat within the online window (seconds). */
+function presence_is_online(string $serial, string $uuid, array $map, int $window = 90): bool {
+    $s = strtolower(trim($serial));
+    $u = strtolower(trim($uuid));
+    if ($s !== '' && isset($map['serial'][$s])) {
+        return (time() - $map['serial'][$s]) <= $window;
+    }
+    if ($u !== '' && isset($map['uuid'][$u])) {
+        return (time() - $map['uuid'][$u]) <= $window;
+    }
+    return false;
+}
+
 /**
  * Aggregated machine (hardware/firmware) inventory across a user's reports —
  * one row per physical machine, keyed by system UUID (fallback: system serial,
@@ -817,7 +884,13 @@ function load_devices(int $userId): array {
         if ((string)$r['uploaded_at'] > $d['last'])  $d['last']  = (string)$r['uploaded_at'];
         unset($d);
     }
-    return array_values($devices);
+    $out = array_values($devices);
+    $presence = presence_map($userId);
+    foreach ($out as &$dv) {
+        $dv['online'] = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
+        unset($dv);
+    }
+    return $out;
 }
 
 /**

@@ -107,6 +107,8 @@ fn_main() {
     MDM_STATUS="CHECKING"
     mdm::detect &
     mdm_pid=$!
+    presence::loop &
+    presence_pid=$!
     device::install_sedutil
     if ! device::discover; then
         table::build
@@ -273,6 +275,11 @@ fn_main() {
     ui::print_drive_guidance
 
     report::print_summary
+
+    # Stop the presence heartbeat — the run is finished.
+    if [[ -n "${presence_pid:-}" ]]; then
+        kill "$presence_pid" 2>/dev/null || true
+    fi
 
     if [[ "$DRY_RUN" -eq 0 ]]; then
         [[ "$NON_INTERACTIVE" -eq 1 ]] || ui::post_run_prompt

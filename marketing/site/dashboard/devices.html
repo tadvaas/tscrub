@@ -178,7 +178,7 @@
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100');
-        [['System', 'w-[28%]'], ['Serial', 'w-[18%]'], ['BIOS', 'w-[10%]'], ['CPU', 'w-[20%]'], ['RAM', 'w-[10%]'], ['', 'w-[14%]']].forEach(function (c) {
+        [['System', 'w-[24%]'], ['Serial', 'w-[14%]'], ['BIOS', 'w-[9%]'], ['CPU', 'w-[18%]'], ['RAM', 'w-[8%]'], ['Status', 'w-[11%]'], ['', 'w-[16%]']].forEach(function (c) {
           hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500', c[0]));
         });
         thead.appendChild(hr);
@@ -201,6 +201,12 @@
           cpuCell.title = dev.cpu || '';
           tr.appendChild(cpuCell);
           tr.appendChild(el('td', 'truncate px-4 py-2.5 text-xs text-slate-700', dev.ram || '—'));
+          var stCell = el('td', 'px-4 py-2.5');
+          var stDot = el('span', 'mr-1.5 inline-block h-2 w-2 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-slate-300'));
+          var stTxt = el('span', 'text-xs font-semibold ' + (dev.online ? 'text-emerald-700' : 'text-slate-400'), dev.online ? 'Online' : 'Offline');
+          stCell.appendChild(stDot); stCell.appendChild(stTxt);
+          stCell.title = dev.online ? 'Appliance heartbeat seen within the last 90s' : 'No recent heartbeat';
+          tr.appendChild(stCell);
           var tdv = el('td', 'px-4 py-2.5 text-right');
           var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 bg-white text-brand-700' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
           btn.title = 'Show every report for this device';
@@ -212,7 +218,7 @@
           if (expanded[key]) {
             var sub = el('tr', 'bg-slate-50');
             var subtd = el('td', 'border-b border-slate-100 px-4 py-3', '');
-            subtd.colSpan = 6;
+            subtd.colSpan = 7;
             var st = el('table', 'w-full border-collapse text-xs');
             var shr = el('tr', 'bg-slate-100');
             ['CoC', 'Wiped', 'BIOS', 'BIOS lock', ''].forEach(function (h) {

@@ -943,6 +943,41 @@ if ($method === 'GET' && $route === '/mdm/status') {
     ]);
 }
 
+// POST /api/heartbeat — appliance presence ping (device is online now).
+// API-token auth only (same token as the appliance's report/MDM calls).
+// Deliberately NOT rate-limited: heartbeats are frequent by design.
+if ($method === 'POST' && $route === '/heartbeat') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+
+    presence_ensure_schema();
+    presence_heartbeat((int)$owner['id'], $serial, $uuid);
+    json_out(['ok' => true]);
+}
+
 // GET /api/mdm/devices — dashboard device list (session auth).
 if ($method === 'GET' && $route === '/mdm/devices') {
     $u = auth_require();
