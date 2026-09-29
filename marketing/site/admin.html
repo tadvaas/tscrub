@@ -168,8 +168,10 @@
 
       function loadUsers(page) {
         page = page || 1;
+        var list = document.getElementById('user-list');
+        list.classList.add('opacity-50');
         fetch('/api/admin/users?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
-          var list = document.getElementById('user-list');
+          list.classList.remove('opacity-50');
           list.innerHTML = '';
           (d.users || []).forEach(function (u) {
             var row = el('button', 'flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left hover:bg-slate-100');
@@ -298,8 +300,10 @@
 
       function loadCerts(page) {
         page = page || 1;
+        var list = document.getElementById('cert-list');
+        list.classList.add('opacity-50');
         fetch('/api/admin/certificates?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
-          var list = document.getElementById('cert-list');
+          list.classList.remove('opacity-50');
           list.innerHTML = '';
           var table = el('table', 'w-full border-collapse text-sm');
           var hr = el('tr');
@@ -327,8 +331,10 @@
 
       function loadLicences(page) {
         page = page || 1;
+        var list = document.getElementById('licence-list');
+        list.classList.add('opacity-50');
         fetch('/api/admin/licences?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
-          var list = document.getElementById('licence-list');
+          list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.licences || []).length) { list.appendChild(el('p', 'text-sm text-slate-500', 'No licences issued yet.')); return; }
           var table = el('table', 'w-full border-collapse text-sm');
@@ -353,8 +359,10 @@
 
       function loadAudit(page) {
         page = page || 1;
+        var list = document.getElementById('audit-list');
+        list.classList.add('opacity-50');
         fetch('/api/admin/audit?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
-          var list = document.getElementById('audit-list');
+          list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.audit || []).length) { list.appendChild(el('p', 'text-sm text-slate-500', 'No admin actions recorded yet.')); return; }
           var table = el('table', 'w-full border-collapse text-sm');
@@ -379,8 +387,10 @@
 
       function loadMdmLog(page) {
         page = page || 1;
+        var list = document.getElementById('mdm-list');
+        list.classList.add('opacity-50');
         fetch('/api/admin/mdm-log?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
-          var list = document.getElementById('mdm-list');
+          list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.log || []).length) { list.appendChild(el('p', 'text-sm text-slate-500', 'No MDM checks recorded yet.')); return; }
           var table = el('table', 'w-full border-collapse text-sm');

@@ -300,12 +300,14 @@
 
       function loadCerts(page) {
         page = page || 1;
+        var list = document.getElementById('cert-list');
+        list.classList.add('opacity-50');
         fetch('/api/certs?page=' + page).then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
           return r.json();
         }).then(function (d) {
           if (!d) return;
-          var list = document.getElementById('cert-list');
+          list.classList.remove('opacity-50');
           list.innerHTML = '';
           var rows = d.certs || [];
           if (!rows.length) {
