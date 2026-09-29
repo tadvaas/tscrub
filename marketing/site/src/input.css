@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Subtle mount animation for expanded report sub-rows (Devices/Drives tabs). */
+@keyframes report-expand {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.report-expand {
+  animation: report-expand 180ms ease-out;
+}
+
 html {
   scroll-behavior: smooth;
 }

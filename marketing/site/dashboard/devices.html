@@ -229,7 +229,9 @@
               htr.appendChild(htdv);
               st.appendChild(htr);
             });
-            subtd.appendChild(st);
+            var inner = el('div', 'report-expand');
+            inner.appendChild(st);
+            subtd.appendChild(inner);
             sub.appendChild(subtd);
             body.appendChild(sub);
           }
