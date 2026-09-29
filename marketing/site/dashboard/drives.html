@@ -228,7 +228,15 @@
             st.appendChild(shr);
             (d.history || []).forEach(function (h) {
               var htr = el('tr', 'border-b border-slate-100');
-              htr.appendChild(el('td', 'px-2 py-1.5 font-mono text-slate-700', h.cocid || '—'));
+              var hcoc = el('td', 'px-2 py-1.5');
+              var cocidLink = el('a', 'font-mono font-semibold text-brand-700 hover:underline', h.cocid || '—');
+              cocidLink.href = '/dashboard/reports?q=' + encodeURIComponent(h.cocid || '');
+              cocidLink.title = 'Open this report on the Reports tab';
+              hcoc.appendChild(cocidLink);
+              if (h.report_devices > 1) {
+                hcoc.appendChild(el('span', 'block text-[10px] text-slate-400', h.report_devices + ' drives in report'));
+              }
+              htr.appendChild(hcoc);
               htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.ts || h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.method || '—'));

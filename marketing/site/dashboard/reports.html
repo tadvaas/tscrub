@@ -126,9 +126,14 @@
       }
 
       // Auth guard.
+      var initQ = new URLSearchParams(window.location.search).get('q') || '';
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/reports'; return; }
-        loadReports();
+        if (initQ) {
+          document.getElementById('search-input').value = initQ;
+          document.getElementById('search-clear').classList.remove('hidden');
+        }
+        loadReports(1, initQ);
       });
 
       // File chooser label: single filename, or a count when multiple selected.

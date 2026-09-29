@@ -828,7 +828,7 @@ function load_devices(int $userId): array {
  * model, then serial.
  */
 function load_drives(int $userId): array {
-    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
+    $stmt = db()->prepare('SELECT cocid, uploaded_at, devices, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
     $stmt->execute([$userId]);
 
     $drives = [];
@@ -843,9 +843,10 @@ function load_drives(int $userId): array {
             if ($key === '') continue;
 
             $entry = $d;
-            $entry['cocid']       = (string)$r['cocid'];
-            $entry['uploaded_at'] = ts_local((string)$r['uploaded_at']);
-            $entry['ts']          = ts_local((string)($d['ts'] ?? ''));
+            $entry['cocid']          = (string)$r['cocid'];
+            $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
+            $entry['ts']             = ts_local((string)($d['ts'] ?? ''));
+            $entry['report_devices'] = (int)$r['devices'];
 
             if (!isset($drives[$key])) {
                 $drives[$key] = $entry;
