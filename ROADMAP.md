@@ -456,3 +456,7 @@ before it is production-trustworthy:
       (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most other
       vendors report `unsupported`, and power-on passwords are usually not
       clearable via this path.
+- [ ] Surface unlock state on the Devices **row** — show a live
+      `Staged`/`Clearing…`/`Cleared` chip in the list (not only inside the
+      Operations modal). The modal currently polls only while it is open, so a
+      row-level indicator needs its own lightweight state fetch/poll.
