@@ -164,11 +164,11 @@
         var start = (page - 1) * per;
         var slice = devices.slice(start, start + per);
 
-        var wrap = el('div', 'overflow-x-auto');
-        var table = el('table', 'w-full border-collapse whitespace-nowrap text-sm');
+        var wrap = el('div', '');
+        var table = el('table', 'w-full border-collapse text-sm');
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100');
-        ['System', 'Serial', 'BIOS', 'BIOS lock', 'CPU', 'RAM', 'Reports', ''].forEach(function (h) {
+        ['System', 'Serial', 'BIOS lock', 'CPU', 'RAM', 'Reports', ''].forEach(function (h) {
           hr.appendChild(el('th', 'border-b border-slate-200 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500', h));
         });
         thead.appendChild(hr);
@@ -179,7 +179,6 @@
           var tr = el('tr', 'border-b border-slate-100 hover:bg-slate-50');
           tr.appendChild(el('td', 'max-w-[16rem] truncate px-4 py-2.5 font-medium text-ink-900', dev.system || dev.sysserial || 'Unknown'));
           tr.appendChild(el('td', 'px-4 py-2.5 font-mono text-xs text-slate-600', dev.sysserial || '—'));
-          tr.appendChild(el('td', 'px-4 py-2.5 text-slate-700', dev.biosversion ? dev.biosversion + (dev.biosdate ? ' (' + dev.biosdate + ')' : '') : '—'));
           var tdl = el('td', 'px-4 py-2.5');
           tdl.appendChild(lockBadge(dev.bioslock) || document.createTextNode('—'));
           tr.appendChild(tdl);

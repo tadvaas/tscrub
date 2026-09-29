@@ -782,7 +782,7 @@ function load_devices(int $userId): array {
  * model, then serial.
  */
 function load_drives(int $userId): array {
-    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at ASC, id ASC');
+    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
     $stmt->execute([$userId]);
 
     $drives = [];
