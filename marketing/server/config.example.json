@@ -11,6 +11,7 @@
   "vendor_key": "/home/oxwet/webs/tscrub-form/vendor.key",
   "download_url": "https://tscrub.com/download",
   "base_url": "https://tscrub.com",
+  "secret_key": "REPLACE_WITH_64_HEX_CHARS",
   "db": {
     "host": "127.0.0.1",
     "port": 3306,

@@ -44,6 +44,7 @@ require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/reports_lib.php';
 require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/mdm.php';
+require_once __DIR__ . '/bios_unlock.php';
 
 auth_start();
 
@@ -982,6 +983,102 @@ if ($method === 'POST' && $route === '/heartbeat') {
 if ($method === 'GET' && $route === '/mdm/devices') {
     $u = auth_require();
     json_out(['ok' => true, 'devices' => mdm_devices((int)$u['id'])]);
+}
+
+// POST /api/bios/unlock — stage a BIOS password clear (dashboard). Session+CSRF.
+if ($method === 'POST' && $route === '/bios/unlock') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $serial   = trim((string)($d['serial'] ?? ''));
+    $uuid     = trim((string)($d['uuid'] ?? ''));
+    $password = (string)($d['password'] ?? '');
+
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+    if ($password === '' || strlen($password) > 255) {
+        fail(400, 'Password required (max 255 chars).');
+    }
+
+    $id = unlock_enqueue((int)$u['id'], $serial, $uuid, $password);
+    json_out(['ok' => true, 'id' => $id, 'staged' => true]);
+}
+
+// GET /api/bios/unlock/pending?serial=&uuid= — appliance pulls a staged command.
+// API-token auth only.
+if ($method === 'GET' && $route === '/bios/unlock/pending') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+
+    $cmd = unlock_claim((int)$owner['id'], $serial);
+    if ($cmd === null) {
+        json_out(['ok' => true, 'pending' => false]);
+    }
+    json_out(['ok' => true, 'pending' => true, 'id' => $cmd['id'],
+        'serial' => $cmd['serial'], 'uuid' => $cmd['uuid'], 'password' => $cmd['password']]);
+}
+
+// POST /api/bios/unlock/result — appliance reports the clear outcome. API token.
+if ($method === 'POST' && $route === '/bios/unlock/result') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $d = json_body();
+    $id     = (int)($d['id'] ?? 0);
+    $result = trim((string)($d['result'] ?? ''));
+    $detail = trim((string)($d['detail'] ?? ''));
+    if ($id <= 0) {
+        fail(400, 'Invalid command id.');
+    }
+    if (!in_array($result, ['cleared', 'failed', 'unsupported'], true)) {
+        fail(400, 'Invalid result.');
+    }
+
+    unlock_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255));
+    json_out(['ok' => true]);
+}
+
+// GET /api/bios/unlock?serial= — latest command state (dashboard). Session auth.
+if ($method === 'GET' && $route === '/bios/unlock') {
+    $u = auth_require();
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '') {
+        fail(400, 'Serial required.');
+    }
+    json_out(['ok' => true, 'unlock' => unlock_latest((int)$u['id'], $serial)]);
 }
 
 // POST /api/mdm/recheck — enqueue a fresh check for a captured device.

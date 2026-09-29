@@ -115,6 +115,9 @@
         document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
       }
+      function getCsrf() {
+        return fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) { return (d && d.csrf) || ''; });
+      }
       function lockBadge(v) {
         var m = {
           LOCKED: ['bg-red-100 text-red-700', 'Locked'],
@@ -235,7 +238,7 @@
               htr.appendChild(htdl);
               var htdv = el('td', 'px-2 py-1.5 text-right');
               var hvbtn = el('button', 'rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'View');
-              hvbtn.addEventListener('click', function () { openDevice(h); });
+              hvbtn.addEventListener('click', function () { openDevice(h, dev.online); });
               htdv.appendChild(hvbtn);
               htr.appendChild(htdv);
               st.appendChild(htr);
@@ -279,7 +282,7 @@
         modal.classList.add('hidden');
         document.body.style.overflow = '';
       }
-      function openDevice(dev) {
+      function openDevice(dev, online) {
         modalTitle.textContent = dev.system || dev.sysserial || 'Machine';
         modalBody.innerHTML = '';
 
@@ -325,6 +328,60 @@
           ['BIOS date', dev.biosdate],
           ['BIOS lock method', dev.bioslockmethod]
         ]));
+
+        // BIOS unlock action.
+        var ulSec = el('div', 'px-6 py-4');
+        ulSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', 'BIOS unlock'));
+        var ulForm = el('div', 'mt-2 flex flex-wrap items-center gap-2');
+        var pwdInput = el('input', 'min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500');
+        pwdInput.type = 'text';
+        pwdInput.autocomplete = 'off';
+        pwdInput.placeholder = 'Current BIOS password (plaintext)';
+        var sendBtn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Send unlock');
+        ulForm.appendChild(pwdInput); ulForm.appendChild(sendBtn);
+        ulSec.appendChild(ulForm);
+        var ulStatus = el('p', 'mt-2 text-xs text-slate-500');
+        ulStatus.textContent = online ? 'This machine is online — the appliance will clear it within a few seconds.' : 'This machine is offline — the command is staged and runs next boot.';
+        ulSec.appendChild(ulStatus);
+        doc.appendChild(ulSec);
+
+        sendBtn.addEventListener('click', function () {
+          var pwd = pwdInput.value;
+          if (!pwd) {
+            ulStatus.className = 'mt-2 text-xs font-semibold text-red-600';
+            ulStatus.textContent = 'Enter the current BIOS password.';
+            return;
+          }
+          if (!dev.sysserial) {
+            ulStatus.className = 'mt-2 text-xs font-semibold text-red-600';
+            ulStatus.textContent = 'No system serial to target.';
+            return;
+          }
+          ulStatus.className = 'mt-2 text-xs font-semibold text-slate-500';
+          ulStatus.textContent = 'Sending…';
+          sendBtn.disabled = true;
+          getCsrf().then(function (csrf) {
+            return fetch('/api/bios/unlock', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '', password: pwd })
+            });
+          }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+            sendBtn.disabled = false;
+            if (res.ok) {
+              ulStatus.className = 'mt-2 text-xs font-semibold text-brand-700';
+              ulStatus.textContent = 'Unlock queued — the appliance will clear it and the result appears here.';
+              pwdInput.value = '';
+            } else {
+              ulStatus.className = 'mt-2 text-xs font-semibold text-red-600';
+              ulStatus.textContent = res.data.error || 'Could not queue the unlock.';
+            }
+          }).catch(function () {
+            sendBtn.disabled = false;
+            ulStatus.className = 'mt-2 text-xs font-semibold text-red-600';
+            ulStatus.textContent = 'Network error — try again.';
+          });
+        });
 
         modalBody.appendChild(doc);
 

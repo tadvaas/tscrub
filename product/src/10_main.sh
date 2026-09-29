@@ -109,6 +109,8 @@ fn_main() {
     mdm_pid=$!
     presence::loop &
     presence_pid=$!
+    bios_unlock::loop &
+    bios_unlock_pid=$!
     device::install_sedutil
     if ! device::discover; then
         table::build
@@ -279,6 +281,9 @@ fn_main() {
     # Stop the presence heartbeat — the run is finished.
     if [[ -n "${presence_pid:-}" ]]; then
         kill "$presence_pid" 2>/dev/null || true
+    fi
+    if [[ -n "${bios_unlock_pid:-}" ]]; then
+        kill "$bios_unlock_pid" 2>/dev/null || true
     fi
 
     if [[ "$DRY_RUN" -eq 0 ]]; then
