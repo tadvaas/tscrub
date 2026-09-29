@@ -197,7 +197,7 @@
           tr.appendChild(cpuCell);
           tr.appendChild(el('td', 'truncate px-4 py-2.5 text-xs text-slate-700', dev.ram || '—'));
           var tdv = el('td', 'px-4 py-2.5 text-right');
-          var btn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
+          var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 bg-white text-brand-700' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
           btn.title = 'Show every report for this device';
           btn.addEventListener('click', function () { expanded[key] = !expanded[key]; render(); });
           tdv.appendChild(btn);

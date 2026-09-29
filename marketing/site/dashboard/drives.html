@@ -208,7 +208,7 @@
           tr.appendChild(el('td', 'px-3 py-2 ' + smartClass(d.smartpost), d.smartpost || '—'));
 
           var tdv = el('td', 'px-3 py-2 text-right');
-          var vbtn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
+          var vbtn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[serial] ? 'border border-brand-600 bg-white text-brand-700' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
           vbtn.title = 'Show every report for this drive';
           vbtn.addEventListener('click', function () { expanded[serial] = !expanded[serial]; render(); });
           tdv.appendChild(vbtn);
