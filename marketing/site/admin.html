@@ -136,10 +136,10 @@
         var totalPages = Math.max(1, Math.ceil(d.total / d.per));
         if (totalPages <= 1) return;
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', '← Prev');
+        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
         prev.disabled = d.page <= 1;
         prev.addEventListener('click', function () { if (d.page > 1) goTo(d.page - 1); });
-        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'Next →');
+        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
         next.disabled = d.page >= totalPages;
         next.addEventListener('click', function () { if (d.page < totalPages) goTo(d.page + 1); });
         wrap.appendChild(prev);
