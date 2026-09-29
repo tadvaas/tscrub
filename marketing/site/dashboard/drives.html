@@ -51,6 +51,7 @@
           <div class="h-3 w-96 rounded bg-slate-200"></div>
         </div>
       </div>
+      <div id="drive-pager" class="border-t border-slate-100 px-4 py-3"></div>
     </div>
   </section>
 
@@ -159,6 +160,7 @@
       });
 
       var drives = [];
+      var page = 1, per = 10;
       var expanded = {};
       var animKey = null;
 
@@ -174,6 +176,7 @@
         }).then(function (d) {
           if (!d) return;
           drives = d.drives || [];
+          page = 1;
           expanded = {};
           render();
         });
@@ -187,22 +190,27 @@
           return;
         }
 
+        var start = (page - 1) * per;
+        var slice = drives.slice(start, start + per);
+
         var wrap = el('div', '');
-        var table = el('table', 'w-full border-collapse text-sm');
+        var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var head = el('thead');
         var hr = el('tr', 'bg-slate-100');
-        ['Model', 'Serial', 'Size', 'Type', 'Status', 'Method', 'SMART', ''].forEach(function (h) {
-          hr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500', h));
+        [['Model', 'w-[18%]'], ['Serial', 'w-[15%]'], ['Size', 'w-[9%]'], ['Type', 'w-[9%]'], ['Status', 'w-[11%]'], ['Method', 'w-[18%]'], ['SMART', 'w-[8%]'], ['', 'w-[12%]']].forEach(function (c) {
+          hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500', c[0]));
         });
         head.appendChild(hr);
         table.appendChild(head);
 
         var body = el('tbody');
-        drives.forEach(function (d) {
+        slice.forEach(function (d) {
           var serial = String(d.serial || '');
           var tr = el('tr', 'border-b border-slate-100 hover:bg-slate-50');
           tr.appendChild(el('td', 'max-w-[12rem] truncate px-3 py-2 font-medium text-ink-900', d.model || '—'));
-          tr.appendChild(el('td', 'px-3 py-2 font-mono text-xs text-slate-600', d.serial || '—'));
+          var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600', d.serial || '—');
+          serCell.title = d.serial || '';
+          tr.appendChild(serCell);
           tr.appendChild(el('td', 'px-3 py-2 text-slate-700', d.size || '—'));
           tr.appendChild(el('td', 'px-3 py-2 text-slate-700', d.type || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + statusClass(d.status), d.status || '—'));
@@ -260,7 +268,25 @@
         table.appendChild(body);
         wrap.appendChild(table);
         box.appendChild(wrap);
+        renderPager();
         animKey = null;
+      }
+
+      function renderPager() {
+        var pbox = document.getElementById('drive-pager');
+        pbox.innerHTML = '';
+        var totalPages = Math.max(1, Math.ceil(drives.length / per));
+        var wrap = el('div', 'flex items-center justify-between gap-2');
+        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
+        prev.disabled = page <= 1;
+        prev.addEventListener('click', function () { if (page > 1) { page--; render(); } });
+        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
+        next.disabled = page >= totalPages;
+        next.addEventListener('click', function () { if (page < totalPages) { page++; render(); } });
+        wrap.appendChild(prev);
+        wrap.appendChild(el('span', 'text-xs text-slate-500', 'Page ' + page + ' of ' + totalPages + ' (' + drives.length + ' total)'));
+        wrap.appendChild(next);
+        pbox.appendChild(wrap);
       }
 
       var modal = document.getElementById('drive-modal');
