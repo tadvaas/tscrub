@@ -3,13 +3,8 @@
 # =============================================================================
 
 MDM_STATUS=""     # CHECKING / UNLOCKED / LOCKED / OFFLINE / SKIPPED / NA
-MDM_VERDICT=""    # unlocked / locked_this / locked_other / offline / skipped / na
+MDM_VERDICT=""    # unlocked / locked_this / locked_other / offline / skipped / na / checking
 MDM_RESULT_FILE="/tmp/tscrub-mdm.verdict"
-# Stage-2 poll window (seconds). The server worker (mdm-worker.php) runs the
-# Graph probe off the request path and polls Graph for up to ~5 min; a
-# locked-other lookup can take ~3.5 min on a busy tenant, so the appliance
-# waits long enough to see that verdict land rather than reporting UNKNOWN.
-MDM_POLL_SECONDS=720
 
 mdm::is_configured() {
     # The Autopilot check is opt-in: it runs only when the operator explicitly
@@ -53,18 +48,10 @@ mdm::state_for_verdict() {
         unlocked)                 printf 'UNLOCKED' ;;
         skipped)                  printf 'SKIPPED' ;;
         unknown)                  printf 'UNKNOWN' ;;   # import still queued when the poll window closed
+        checking)                 printf 'CHECKING' ;;  # server has it queued/checking — verdict pending
         na)                       printf 'NA' ;;        # no staged hash — the WinPE capture step was skipped
         *)                        printf 'OFFLINE' ;;
     esac
-}
-
-# GET the status endpoint URL (stage 2 poll), derived the same way as the
-# probe endpoint so a custom `tscrub_upload=` host is honoured.
-mdm::status_endpoint() {
-    local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
-    url="${url%/}"
-    [[ "$url" == */api/reports ]] && url="${url%/api/reports}"
-    printf '%s/api/mdm/status' "$url"
 }
 
 # Extract a JSON string field from stdin (single-line JSON from the dashboard).
@@ -97,33 +84,6 @@ mdm::http_post() {
     return $rc
 }
 
-# Poll GET /api/mdm/status until a verdict lands, the job fails, or the poll
-# window closes. Prints the verdict ('' if still queued/checking at the end).
-mdm::poll_verdict() {
-    local status_url="$1" serial="$2" uuid="$3" resp rc verdict status
-    local deadline=$(( $(date +%s) + MDM_POLL_SECONDS ))
-    while (( $(date +%s) < deadline )); do
-        resp="$(curl -fsS -G --connect-timeout 10 --max-time 20 \
-            -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-            --data-urlencode "serial=${serial}" \
-            --data-urlencode "uuid=${uuid}" \
-            "$status_url" 2>&1)"
-        rc=$?
-        if [[ $rc -eq 0 ]]; then
-            verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
-            status="$(printf '%s' "$resp" | mdm::json_field status)"
-            [[ -n "$verdict" ]] && { printf '%s' "$verdict"; return 0; }
-            case "$status" in
-                na)     printf 'na';      return 0 ;;
-                failed) printf 'unknown'; return 0 ;;
-            esac
-        fi
-        sleep 5
-    done
-    printf ''
-    return 0
-}
-
 # Background worker: send the machine identifiers to the dashboard (which holds
 # the Azure credentials and runs the Graph probe) and publish the verdict to the
 # UI over the worker -> UI IPC channel (fd 3). Forked BEFORE `exec 3>&-` so its
@@ -131,7 +91,7 @@ mdm::poll_verdict() {
 # MDM_RESULT_FILE so fn_main can recover it even if the UI loop ended first
 # (instant dry-run).
 mdm::detect() {
-    local url body resp rc verdict state man prod
+    local url body resp rc verdict status state man prod
 
     mdm::parse_cmdline
 
@@ -153,23 +113,26 @@ mdm::detect() {
             "$(report::_json_field "$man")" \
             "$(report::_json_field "$prod")")"
         url="$(mdm::endpoint)"
-        status_url="$(mdm::status_endpoint)"
 
-        # Stage 1 — ask the dashboard for the current check state. The Graph
-        # probe runs in the background on the server (mdm-worker.php), so this
-        # returns immediately with {status: queued|checking|done|na, verdict}.
+        # The Graph probe runs in the background on the server (mdm-worker.php),
+        # so POST /api/mdm/autopilot returns immediately with
+        # {status: queued|checking|done|na, verdict}. Display whatever the server
+        # reports right now — the authoritative verdict is picked up later from
+        # the dashboard's MDM tab (the device is registered server-side).
         resp="$(mdm::http_post "$url" "$body")"
         rc=$?
         if [[ $rc -ne 0 ]]; then
             verdict="offline"
         else
             verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
+            status="$(printf '%s' "$resp" | mdm::json_field status)"
             if [[ -z "$verdict" ]]; then
-                # Stage 2 — the job is queued or still checking: poll for the
-                # verdict until it lands or the window closes.
-                verdict="$(mdm::poll_verdict "$status_url" "${SYS_SERIAL}" "${SYS_UUID}")"
+                case "$status" in
+                    na)              verdict="na" ;;
+                    queued|checking) verdict="checking" ;;
+                    *)               verdict="unknown" ;;
+                esac
             fi
-            [[ -n "$verdict" ]] || verdict="unknown"
         fi
     fi
 

@@ -20,6 +20,7 @@ t::assert_eq "SKIPPED"  "$(mdm::state_for_verdict skipped)"      "mdm: skipped �
 t::assert_eq "OFFLINE"  "$(mdm::state_for_verdict offline)"      "mdm: offline → OFFLINE"
 t::assert_eq "OFFLINE"  "$(mdm::state_for_verdict bogus)"        "mdm: bogus → OFFLINE"
 t::assert_eq "UNKNOWN"  "$(mdm::state_for_verdict unknown)"      "mdm: unknown → UNKNOWN"
+t::assert_eq "CHECKING" "$(mdm::state_for_verdict checking)"     "mdm: checking → CHECKING"
 
 t::assert_eq "https://tscrub.com/api/mdm/autopilot" \
     "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' mdm::endpoint)" \
@@ -30,13 +31,6 @@ t::assert_eq "https://host.example/api/mdm/autopilot" \
 t::assert_eq "https://host.example/api/mdm/autopilot" \
     "$(TSCRUB_UPLOAD_URL='https://host.example' mdm::endpoint)" \
     "mdm endpoint: bare host"
-
-t::assert_eq "https://tscrub.com/api/mdm/status" \
-    "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' mdm::status_endpoint)" \
-    "mdm status endpoint: built-in reports URL"
-t::assert_eq "https://host.example/api/mdm/status" \
-    "$(TSCRUB_UPLOAD_URL='https://host.example' mdm::status_endpoint)" \
-    "mdm status endpoint: bare host"
 
 t::assert_eq "locked_other" \
     "$(printf '{"ok":true,"verdict":"locked_other","source":"live"}' | mdm::json_field verdict)" \
@@ -153,18 +147,16 @@ run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT na" "mdm: na verdict on IPC"
 t::assert_contains "$(cat "$ipc_file")" "mdm STATUS NA" "mdm: na status on IPC"
 
-# --- two-stage: POST queues, poll returns the verdict -----------------------
-FAKE_MDM_VERDICT="locked_other"
+# --- queued/checking on the server: display immediately, don't poll ---------
+FAKE_MDM_VERDICT=""
 FAKE_MDM_QUEUE="queued"
 FAKE_MDM_RC=""
 FAKE_MDM_FAIL_FIRST=""
 : > "$FAKE_MDM_CURL_LOG"
 run_detect
-t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT locked_other" "mdm: poll returns locked_other"
-t::assert_contains "$(cat "$ipc_file")" "mdm STATUS LOCKED" "mdm: poll status LOCKED"
-t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "api/mdm/status" "mdm: poll hits status endpoint"
-t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "serial=SYSSN123" "mdm: poll carries serial"
-t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "uuid=4C4C4544-0036-5710-8032-B5C04F433633" "mdm: poll carries uuid"
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT checking" "mdm: queued server state → checking verdict"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS CHECKING" "mdm: queued server state → CHECKING status"
+t::check "mdm: no status poll issued" '! grep -q "api/mdm/status" "$FAKE_MDM_CURL_LOG"'
 FAKE_MDM_QUEUE=""
 
 # --- offline (curl fails) ---------------------------------------------------
