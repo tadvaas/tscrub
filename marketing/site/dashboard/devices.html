@@ -165,11 +165,11 @@
         var slice = devices.slice(start, start + per);
 
         var wrap = el('div', '');
-        var table = el('table', 'w-full border-collapse text-sm');
+        var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100');
-        ['System', 'Serial', 'BIOS', 'CPU', 'RAM', 'Reports', ''].forEach(function (h) {
-          hr.appendChild(el('th', 'border-b border-slate-200 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500', h));
+        [['System', 'w-[26%]'], ['Serial', 'w-[16%]'], ['BIOS', 'w-[10%]'], ['CPU', 'w-[20%]'], ['RAM', 'w-[8%]'], ['Reports', 'w-[12%]'], ['', 'w-[8%]']].forEach(function (c) {
+          hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500', c[0]));
         });
         thead.appendChild(hr);
         table.appendChild(thead);
@@ -177,14 +177,20 @@
         var body = el('tbody');
         slice.forEach(function (dev) {
           var tr = el('tr', 'border-b border-slate-100 hover:bg-slate-50');
-          tr.appendChild(el('td', 'max-w-[16rem] truncate px-4 py-2.5 font-medium text-ink-900', dev.system || dev.sysserial || 'Unknown'));
-          tr.appendChild(el('td', 'px-4 py-2.5 font-mono text-xs text-slate-600', dev.sysserial || '—'));
+          var sysCell = el('td', 'truncate px-4 py-2.5 font-medium text-ink-900', dev.system || dev.sysserial || 'Unknown');
+          sysCell.title = dev.system || '';
+          tr.appendChild(sysCell);
+          var serCell = el('td', 'truncate px-4 py-2.5 font-mono text-xs text-slate-600', dev.sysserial || '—');
+          serCell.title = dev.sysserial || '';
+          tr.appendChild(serCell);
           var tdl = el('td', 'px-4 py-2.5');
           tdl.appendChild(lockBadge(dev.bioslock) || document.createTextNode('—'));
           tr.appendChild(tdl);
-          tr.appendChild(el('td', 'max-w-[16rem] truncate px-4 py-2.5 text-xs text-slate-700', short(dev.cpu, 32) || '—'));
-          tr.appendChild(el('td', 'px-4 py-2.5 text-xs text-slate-700', dev.ram || '—'));
-          tr.appendChild(el('td', 'px-4 py-2.5 text-xs text-slate-500', dev.reports + (dev.reports === 1 ? ' report' : ' reports')));
+          var cpuCell = el('td', 'truncate px-4 py-2.5 text-xs text-slate-700', dev.cpu || '—');
+          cpuCell.title = dev.cpu || '';
+          tr.appendChild(cpuCell);
+          tr.appendChild(el('td', 'truncate px-4 py-2.5 text-xs text-slate-700', dev.ram || '—'));
+          tr.appendChild(el('td', 'truncate px-4 py-2.5 text-xs text-slate-500', dev.reports + (dev.reports === 1 ? ' report' : ' reports')));
           var tdv = el('td', 'px-4 py-2.5 text-right');
           var btn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'View');
           btn.addEventListener('click', function () { openDevice(dev); });
