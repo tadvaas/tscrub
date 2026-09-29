@@ -832,6 +832,7 @@ function load_drives(int $userId): array {
     $stmt->execute([$userId]);
 
     $drives = [];
+    $lastUpload = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $g = json_decode((string)$r['payload'], true);
         if (!is_array($g) || empty($g['drives'])) continue;
@@ -849,6 +850,7 @@ function load_drives(int $userId): array {
             if (!isset($drives[$key])) {
                 $drives[$key] = $entry;
                 $drives[$key]['history'] = [$entry];
+                $lastUpload[$key] = (string)$r['uploaded_at'];
             } else {
                 $cur = &$drives[$key];
                 $cur['history'][] = $entry;
@@ -870,8 +872,13 @@ function load_drives(int $userId): array {
         $dv['multiple'] = $dv['reports'] > 1;
         unset($dv);
     }
-    // Sort by model, then serial (case-insensitive).
-    usort($out, function ($a, $b) {
+    // Sort by most recent report upload, newest first (model/serial as a
+    // stable tiebreaker). Reports are read newest-first, so first-seen wins.
+    usort($out, function ($a, $b) use ($lastUpload) {
+        $ka = strtolower((string)($a['serial'] ?? ''));
+        $kb = strtolower((string)($b['serial'] ?? ''));
+        $c = strcmp((string)($lastUpload[$kb] ?? ''), (string)($lastUpload[$ka] ?? ''));
+        if ($c !== 0) return $c;
         $m = strcasecmp((string)($a['model'] ?? ''), (string)($b['model'] ?? ''));
         if ($m !== 0) return $m;
         return strcasecmp((string)($a['serial'] ?? ''), (string)($b['serial'] ?? ''));
