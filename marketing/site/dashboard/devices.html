@@ -44,16 +44,29 @@
       <p class="mt-1 text-sm text-slate-600">Machines processed by tScrub — hardware and firmware as recorded at wipe time, consolidated from your reports.</p>
     </div>
 
-    <div class="mt-6">
-      <div id="device-list" class="grid gap-4 sm:grid-cols-2">
-        <div class="flex animate-pulse flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <div class="h-4 w-40 rounded bg-slate-200"></div>
-          <div class="h-3 w-64 rounded bg-slate-200"></div>
-          <div class="h-3 w-52 rounded bg-slate-200"></div>
+    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div id="device-list" class="min-h-[200px]">
+        <div class="flex animate-pulse flex-col gap-2 p-6">
+          <div class="h-4 w-64 rounded bg-slate-200"></div>
+          <div class="h-3 w-96 rounded bg-slate-200"></div>
         </div>
       </div>
+      <div id="device-pager" class="border-t border-slate-100 px-4 py-3"></div>
     </div>
   </section>
+
+  <div id="device-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="device-modal-title">
+    <div id="device-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+      <div class="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <h2 id="device-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900"></h2>
+          <button id="device-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+        </div>
+        <div id="device-modal-body" class="flex-1 overflow-y-auto bg-slate-50 p-5"></div>
+      </div>
+    </div>
+  </div>
 
   <footer class="bg-ink-900 text-slate-400">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
@@ -115,67 +128,141 @@
         loadDevices();
       });
 
+      function short(v, n) {
+        v = String(v == null ? '' : v);
+        return v.length > n ? v.slice(0, n) + '…' : v;
+      }
+
+      var devices = [];
+      var page = 1, per = 10;
+
+      fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
+        loadDevices();
+      });
+
       function loadDevices() {
         fetch('/api/devices').then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
           return r.json();
         }).then(function (d) {
           if (!d) return;
-          var list = document.getElementById('device-list');
-          list.innerHTML = '';
-          var rows = d.devices || [];
-          if (!rows.length) {
-            list.appendChild(el('p', 'col-span-full rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500', 'No devices yet. Upload a report (or boot an appliance) to record the first machine.'));
-            return;
-          }
-          rows.forEach(function (dev) {
-            var card = el('div', 'flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm');
-            var head = el('div', 'flex items-start justify-between gap-2');
-            var title = el('div', 'min-w-0');
-            title.appendChild(el('div', 'truncate text-base font-bold text-ink-900', dev.system || dev.sysserial || 'Unknown machine'));
-            if (dev.sysserial) title.appendChild(el('div', 'mt-0.5 font-mono text-xs text-slate-500', dev.sysserial));
-            head.appendChild(title);
-            if (dev.bioslock) head.appendChild(lockBadge(dev.bioslock));
-            card.appendChild(head);
-
-            var grid = el('div', 'mt-3 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2');
-            var fields = [
-              ['System serial', dev.sysserial],
-              ['Baseboard serial', dev.bbserial],
-              ['Chassis serial', dev.chassisserial],
-              ['Chassis', dev.chassistype],
-              ['BIOS', dev.biosversion + (dev.biosdate ? ' (' + dev.biosdate + ')' : '')],
-              ['BIOS lock method', dev.bioslockmethod],
-              ['System UUID', dev.systemuuid],
-              ['CPU', dev.cpu],
-              ['GPU', dev.gpu],
-              ['RAM', dev.ram]
-            ];
-            fields.forEach(function (kv) {
-              if (!kv[1]) return;
-              var cell = el('div', '');
-              cell.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', kv[0]));
-              cell.appendChild(el('div', 'mt-0.5 break-words text-slate-700', kv[1]));
-              grid.appendChild(cell);
-            });
-            card.appendChild(grid);
-
-            var foot = el('div', 'mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3');
-            var meta = el('div', 'text-xs text-slate-400',
-              dev.reports + ' report' + (dev.reports === 1 ? '' : 's') +
-              (dev.first ? ' · ' + fmtTs(dev.first) + (dev.last && dev.last !== dev.first ? ' → ' + fmtTs(dev.last) : '') : ''));
-            foot.appendChild(meta);
-            var btn = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'Download report');
-            btn.addEventListener('click', function () {
-              download('device-' + (dev.sysserial || 'report') + '.json', JSON.stringify(dev, null, 2));
-            });
-            foot.appendChild(btn);
-            card.appendChild(foot);
-
-            list.appendChild(card);
-          });
+          devices = d.devices || [];
+          page = 1;
+          render();
         });
       }
+
+      function render() {
+        var list = document.getElementById('device-list');
+        list.innerHTML = '';
+        if (!devices.length) {
+          list.appendChild(el('p', 'p-6 text-sm text-slate-500', 'No devices yet. Upload a report (or boot an appliance) to record the first machine.'));
+          renderPager();
+          return;
+        }
+        var start = (page - 1) * per;
+        var slice = devices.slice(start, start + per);
+
+        var wrap = el('div', 'overflow-x-auto');
+        var table = el('table', 'w-full border-collapse whitespace-nowrap text-sm');
+        var thead = el('thead');
+        var hr = el('tr', 'bg-slate-100');
+        ['System', 'Serial', 'BIOS', 'BIOS lock', 'CPU', 'RAM', 'Reports', ''].forEach(function (h) {
+          hr.appendChild(el('th', 'border-b border-slate-200 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500', h));
+        });
+        thead.appendChild(hr);
+        table.appendChild(thead);
+
+        var body = el('tbody');
+        slice.forEach(function (dev) {
+          var tr = el('tr', 'border-b border-slate-100 hover:bg-slate-50');
+          tr.appendChild(el('td', 'max-w-[16rem] truncate px-4 py-2.5 font-medium text-ink-900', dev.system || dev.sysserial || 'Unknown'));
+          tr.appendChild(el('td', 'px-4 py-2.5 font-mono text-xs text-slate-600', dev.sysserial || '—'));
+          tr.appendChild(el('td', 'px-4 py-2.5 text-slate-700', dev.biosversion ? dev.biosversion + (dev.biosdate ? ' (' + dev.biosdate + ')' : '') : '—'));
+          var tdl = el('td', 'px-4 py-2.5');
+          tdl.appendChild(lockBadge(dev.bioslock) || document.createTextNode('—'));
+          tr.appendChild(tdl);
+          tr.appendChild(el('td', 'max-w-[16rem] truncate px-4 py-2.5 text-xs text-slate-700', short(dev.cpu, 32) || '—'));
+          tr.appendChild(el('td', 'px-4 py-2.5 text-xs text-slate-700', dev.ram || '—'));
+          tr.appendChild(el('td', 'px-4 py-2.5 text-xs text-slate-500', dev.reports + (dev.reports === 1 ? ' report' : ' reports')));
+          var tdv = el('td', 'px-4 py-2.5 text-right');
+          var btn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'View');
+          btn.addEventListener('click', function () { openDevice(dev); });
+          tdv.appendChild(btn);
+          tr.appendChild(tdv);
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        wrap.appendChild(table);
+        list.appendChild(wrap);
+        renderPager();
+      }
+
+      function renderPager() {
+        var box = document.getElementById('device-pager');
+        box.innerHTML = '';
+        var totalPages = Math.max(1, Math.ceil(devices.length / per));
+        var wrap = el('div', 'flex items-center justify-between gap-2');
+        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', '← Prev');
+        prev.disabled = page <= 1;
+        prev.addEventListener('click', function () { if (page > 1) { page--; render(); } });
+        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'Next →');
+        next.disabled = page >= totalPages;
+        next.addEventListener('click', function () { if (page < totalPages) { page++; render(); } });
+        wrap.appendChild(prev);
+        wrap.appendChild(el('span', 'text-xs text-slate-500', 'Page ' + page + ' of ' + totalPages + ' (' + devices.length + ' total)'));
+        wrap.appendChild(next);
+        box.appendChild(wrap);
+      }
+
+      var modal = document.getElementById('device-modal');
+      var modalTitle = document.getElementById('device-modal-title');
+      var modalBody = document.getElementById('device-modal-body');
+
+      function closeDevice() {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+      function openDevice(dev) {
+        modalTitle.textContent = dev.system || dev.sysserial || 'Machine';
+        modalBody.innerHTML = '';
+        var grid = el('div', 'mt-2 grid gap-3 sm:grid-cols-2');
+        var fields = [
+          ['System', dev.system], ['System serial', dev.sysserial], ['Baseboard serial', dev.bbserial],
+          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype],
+          ['BIOS', dev.biosversion + (dev.biosdate ? ' (' + dev.biosdate + ')' : '')],
+          ['BIOS lock', dev.bioslock], ['BIOS lock method', dev.bioslockmethod],
+          ['System UUID', dev.systemuuid], ['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram],
+          ['Reports', dev.reports + (dev.reports === 1 ? ' report' : ' reports')],
+          ['CoC IDs', (dev.cocids || []).join(', ')],
+          ['Window', dev.first ? fmtTs(dev.first) + (dev.last && dev.last !== dev.first ? ' → ' + fmtTs(dev.last) : '') : '']
+        ];
+        fields.forEach(function (kv) {
+          if (!kv[1]) return;
+          var cell = el('div', 'rounded-xl border border-slate-200 bg-white p-3');
+          cell.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', kv[0]));
+          cell.appendChild(el('div', 'mt-1 whitespace-pre-wrap break-words text-sm text-slate-800', kv[1]));
+          grid.appendChild(cell);
+        });
+        modalBody.appendChild(grid);
+
+        var foot = el('div', 'mt-4 flex justify-end border-t border-slate-200 pt-3');
+        var dl = el('button', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download report');
+        dl.addEventListener('click', function () { download('device-' + (dev.sysserial || 'report') + '.json', JSON.stringify(dev, null, 2)); });
+        foot.appendChild(dl);
+        modalBody.appendChild(foot);
+
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        document.getElementById('device-modal-close').focus();
+      }
+
+      document.getElementById('device-modal-close').addEventListener('click', closeDevice);
+      document.getElementById('device-modal-backdrop').addEventListener('click', closeDevice);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeDevice();
+      });
     })();
   </script>
 </body>

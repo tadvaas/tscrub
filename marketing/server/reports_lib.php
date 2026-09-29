@@ -776,12 +776,13 @@ function load_devices(int $userId): array {
 
 /**
  * Aggregated storage-device inventory across a user's reports — one row per
- * physical drive (keyed by serial). The best erasure outcome wins; the rest of
- * the row carries that outcome's SMART snapshot. Feeds the dashboard "Drives"
- * tab (erasure outcomes + SMART, with per-drive exports).
+ * physical drive (keyed by serial). The best erasure outcome wins for the
+ * summary columns; every report that touched the drive is kept in `history`
+ * (the Drives tab expands it when a drive has multiple reports). Sorted by
+ * model, then serial.
  */
 function load_drives(int $userId): array {
-    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
+    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at ASC, id ASC');
     $stmt->execute([$userId]);
 
     $drives = [];
@@ -794,22 +795,39 @@ function load_drives(int $userId): array {
             $key = $serial !== '' ? strtolower($serial) : '';
             if ($key === '') continue;
 
+            $entry = $d;
+            $entry['cocid']    = (string)$r['cocid'];
+            $entry['wiped_at'] = (string)$r['uploaded_at'];
+
             if (!isset($drives[$key])) {
-                $drives[$key] = $d;
-                $drives[$key]['cocid']    = (string)$r['cocid'];
-                $drives[$key]['wiped_at'] = (string)$r['uploaded_at'];
-                $drives[$key]['reports']  = 1;
+                $drives[$key] = $entry;
+                $drives[$key]['history'] = [$entry];
             } else {
                 $cur = &$drives[$key];
+                $cur['history'][] = $entry;
+                // Summary shows the best erasure outcome; the per-report
+                // history stays in `history` for the expander.
                 if (drive_status_rank((string)($d['status'] ?? '')) > drive_status_rank((string)($cur['status'] ?? ''))) {
-                    $cur = $d;
-                    $cur['cocid']    = (string)$r['cocid'];
-                    $cur['wiped_at'] = (string)$r['uploaded_at'];
+                    foreach ($entry as $k => $v) {
+                        if ($k !== 'history') $cur[$k] = $v;
+                    }
                 }
-                $cur['reports'] = (int)($cur['reports'] ?? 1) + 1;
                 unset($cur);
             }
         }
     }
-    return array_values($drives);
+
+    $out = array_values($drives);
+    foreach ($out as &$dv) {
+        $dv['reports']  = count($dv['history']);
+        $dv['multiple'] = $dv['reports'] > 1;
+        unset($dv);
+    }
+    // Sort by model, then serial (case-insensitive).
+    usort($out, function ($a, $b) {
+        $m = strcasecmp((string)($a['model'] ?? ''), (string)($b['model'] ?? ''));
+        if ($m !== 0) return $m;
+        return strcasecmp((string)($a['serial'] ?? ''), (string)($b['serial'] ?? ''));
+    });
+    return $out;
 }
