@@ -140,6 +140,7 @@
       var devices = [];
       var page = 1, per = 10;
       var expanded = {};
+      var animKey = null;
 
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
@@ -199,7 +200,7 @@
           var tdv = el('td', 'px-4 py-2.5 text-right');
           var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 bg-white text-brand-700' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
           btn.title = 'Show every report for this device';
-          btn.addEventListener('click', function () { expanded[key] = !expanded[key]; render(); });
+          btn.addEventListener('click', function () { expanded[key] = !expanded[key]; animKey = key; render(); });
           tdv.appendChild(btn);
           tr.appendChild(tdv);
           body.appendChild(tr);
@@ -229,7 +230,7 @@
               htr.appendChild(htdv);
               st.appendChild(htr);
             });
-            var inner = el('div', 'report-expand');
+            var inner = el('div', key === animKey ? 'report-expand' : '');
             inner.appendChild(st);
             subtd.appendChild(inner);
             sub.appendChild(subtd);
@@ -240,6 +241,7 @@
         wrap.appendChild(table);
         list.appendChild(wrap);
         renderPager();
+        animKey = null;
       }
 
       function renderPager() {
