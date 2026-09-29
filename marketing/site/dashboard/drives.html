@@ -189,7 +189,7 @@
         var table = el('table', 'w-full border-collapse text-sm');
         var head = el('thead');
         var hr = el('tr', 'bg-slate-100');
-        ['Model', 'Serial', 'Size', 'Type', 'Status', 'Method', 'SMART', 'Reports', ''].forEach(function (h) {
+        ['Model', 'Serial', 'Size', 'Type', 'Status', 'Method', 'SMART', ''].forEach(function (h) {
           hr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500', h));
         });
         head.appendChild(hr);
@@ -207,21 +207,10 @@
           tr.appendChild(el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700', d.method || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + smartClass(d.smartpost), d.smartpost || '—'));
 
-          var tdr = el('td', 'px-3 py-2');
-          if (d.multiple) {
-            var rep = el('button', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + (expanded[serial] ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'),
-              d.reports + ' reports' + (expanded[serial] ? ' ▴' : ' ▾'));
-            rep.title = 'Show every report for this drive';
-            rep.addEventListener('click', function () { expanded[serial] = !expanded[serial]; render(); });
-            tdr.appendChild(rep);
-          } else {
-            tdr.appendChild(el('span', 'text-xs text-slate-400', '1 report'));
-          }
-          tr.appendChild(tdr);
-
           var tdv = el('td', 'px-3 py-2 text-right');
-          var vbtn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'View');
-          vbtn.addEventListener('click', function () { openDrive(d); });
+          var vbtn = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
+          vbtn.title = 'Show every report for this drive';
+          vbtn.addEventListener('click', function () { expanded[serial] = !expanded[serial]; render(); });
           tdv.appendChild(vbtn);
           tr.appendChild(tdv);
           body.appendChild(tr);
@@ -229,23 +218,26 @@
           if (expanded[serial]) {
             var sub = el('tr', 'bg-slate-50');
             var subtd = el('td', 'border-b border-slate-100 px-4 py-3', '');
-            subtd.colSpan = 9;
+            subtd.colSpan = 8;
             var st = el('table', 'w-full border-collapse text-xs');
             var shr = el('tr', 'bg-slate-100');
-            ['CoC', 'Wiped', 'Status', 'Method', 'Class', 'SMART (post)'].forEach(function (h) {
+            ['CoC', 'Wiped', 'Status', 'Method', 'Class', 'SMART (post)', ''].forEach(function (h) {
               shr.appendChild(el('th', 'border-b border-slate-200 px-2 py-1.5 text-left font-semibold uppercase text-slate-500', h));
             });
             st.appendChild(shr);
             (d.history || []).forEach(function (h) {
-              var htr = el('tr', 'cursor-pointer border-b border-slate-100 hover:bg-slate-100');
+              var htr = el('tr', 'border-b border-slate-100');
               htr.appendChild(el('td', 'px-2 py-1.5 font-mono text-slate-700', h.cocid || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.ts || h.wiped_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.method || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.cls || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + smartClass(h.smartpost), h.smartpost || '—'));
-              htr.title = 'Show all details for this drive';
-              htr.addEventListener('click', function () { openDrive(d); });
+              var htdv = el('td', 'px-2 py-1.5 text-right');
+              var hvbtn = el('button', 'rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'View');
+              hvbtn.addEventListener('click', function () { openDrive(h); });
+              htdv.appendChild(hvbtn);
+              htr.appendChild(htdv);
               st.appendChild(htr);
             });
             subtd.appendChild(st);
@@ -273,6 +265,7 @@
         var fields = [
           ['Model', d.model], ['Serial', d.serial], ['Size', d.size], ['Bus', d.bus], ['Type', d.type],
           ['Erasure status', d.status], ['Class', d.cls], ['Method', d.method], ['Certification', d.cert],
+          ['CoC', d.cocid],
           ['Wiped', fmtTsTime(d.ts || d.wiped_at)],
           ['SMART (pre-wipe)', d.smart], ['Temperature °C (pre)', d.tempc], ['Power-on hours (pre)', d.poweronhours],
           ['Power cycles', d.powercycles], ['Reallocated sectors', d.reallocsectors], ['Used %', d.pctused],
