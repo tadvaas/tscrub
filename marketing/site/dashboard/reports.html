@@ -210,14 +210,14 @@
         if (q === undefined) q = currentQ;
         currentQ = q || '';
         var list = document.getElementById('report-list');
-        list.innerHTML = '';
-        list.appendChild(spinnerEl());
+        list.classList.add('opacity-50');
         fetch('/api/reports?page=' + page + (currentQ ? '&q=' + encodeURIComponent(currentQ) : '')).then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
           return r.json();
         }).then(function (d) {
           if (!d) return;
           list.innerHTML = '';
+          list.classList.remove('opacity-50');
           var rows = d.reports || [];
           if (!rows.length) {
             list.appendChild(el('p', 'text-sm text-slate-500', currentQ ? 'No reports match "' + currentQ + '".' : 'No reports uploaded yet. Upload them above, or push them from an appliance using your upload token.'));
