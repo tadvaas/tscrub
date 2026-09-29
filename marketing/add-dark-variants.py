@@ -64,7 +64,7 @@ PATTERN = re.compile(
     r'(?<![A-Za-z0-9_-])'
     r'(?P<pre>(?:[A-Za-z0-9_-]+:)*)'
     r'(?P<tok>' + TOKEN_ALTS + r')'
-    r'(?![A-Za-z0-9_-])'
+    r'(?![A-Za-z0-9_/-])'
     r'(?!\s+dark:)'
 )
 
