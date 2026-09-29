@@ -63,6 +63,7 @@
           <button id="drive-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Close</button>
         </div>
         <div id="drive-modal-body" class="flex-1 overflow-y-auto bg-slate-50 p-5"></div>
+        <div id="drive-modal-footer" class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3"></div>
       </div>
     </div>
   </div>
@@ -346,11 +347,11 @@
         modalBody.appendChild(doc);
 
         // Footer actions.
-        var foot = el('div', 'mt-4 flex justify-end');
+        var foot = document.getElementById('drive-modal-footer');
+        foot.innerHTML = '';
         var dl = el('button', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download SMART CSV');
         dl.addEventListener('click', function () { download('smart-' + (d.serial || 'drive') + '.csv', smartCsv(d)); });
         foot.appendChild(dl);
-        modalBody.appendChild(foot);
 
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
