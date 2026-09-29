@@ -229,6 +229,7 @@ function mdm_poll(string $token, string $identityId, int $timeout = 120, int $in
          . rawurlencode($identityId) . '?$select=id,state';
     $deadline = time() + $timeout;
     $last = [];
+    $sawOk = false;
     while (time() < $deadline) {
         $r = mdm_http([
             'method'  => 'GET',
@@ -237,6 +238,7 @@ function mdm_poll(string $token, string $identityId, int $timeout = 120, int $in
             'timeout' => 30,
         ]);
         if ($r['ok'] && $r['status'] === 200) {
+            $sawOk = true;
             $d = json_decode($r['body'], true);
             if (is_array($d)) {
                 $last = is_array($d['state'] ?? null) ? $d['state'] : [];
@@ -247,6 +249,11 @@ function mdm_poll(string $token, string $identityId, int $timeout = 120, int $in
             }
         }
         sleep($interval);
+    }
+    // Never got a single successful poll GET → the transport to Graph is down,
+    // NOT a pending import. Signal it distinctly so it maps to 'offline'.
+    if (!$sawOk) {
+        return ['deviceImportStatus' => '__transport__'];
     }
     return $last; // timed out — caller reports last-known state
 }
@@ -274,6 +281,9 @@ function mdm_verdict_from_state(array $state): array {
     $code = (int)($state['deviceErrorCode'] ?? 0);
     $name = strtolower((string)($state['deviceErrorName'] ?? ''));
 
+    if ($st === '__transport__') {
+        return ['verdict' => 'offline'];
+    }
     if (strpos($name, 'ztddeviceassignedtoothertenant') !== false || strpos($name, 'assigned to other') !== false) {
         return ['verdict' => 'locked_other'];
     }
@@ -467,7 +477,12 @@ function mdm_enqueue_job(int $userId, string $serial, string $uuid): int {
 function mdm_claim_job(): ?array {
     try {
         db()->beginTransaction();
-        $stmt = db()->query('SELECT id FROM mdm_jobs WHERE status = "queued" ORDER BY id ASC LIMIT 1 FOR UPDATE');
+        // Claim queued jobs, or "checking" jobs whose worker died mid-probe
+        // (a live probe never legitimately runs longer than ~10 minutes).
+        $stmt = db()->query('SELECT id FROM mdm_jobs
+            WHERE status = "queued"
+               OR (status = "checking" AND updated_at < UTC_TIMESTAMP() - INTERVAL 20 MINUTE)
+            ORDER BY id ASC LIMIT 1 FOR UPDATE');
         $row = $stmt->fetch();
         if ($row === false) {
             db()->commit();

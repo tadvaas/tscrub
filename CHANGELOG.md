@@ -6,6 +6,42 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.7.0] - 2026-09-29
+
+### Added
+
+- **Presence heartbeat** — the appliance pings the platform every 30 s
+  (`POST /api/heartbeat`); the dashboard **Devices** tab shows each machine as
+  **Online** or **Offline** from its last-seen time.
+- **Remote BIOS unlock** — operators queue a BIOS-password clear from the
+  Devices tab (plaintext entry, never stored in plaintext). The appliance polls
+  `GET /api/bios/unlock/pending`, clears the password via the kernel
+  `firmware_attributes` interface (hp-wmi fallback), and reports the outcome
+  back. Queued passwords are encrypted at rest with libsodium secretbox.
+
+### Changed
+
+- **MDM check is non-blocking** — the appliance now shows the server's
+  immediate status in a single POST (no client-side polling or verdict
+  timeouts); the worker still resolves the final verdict server-side.
+- **Reports** — removed the vestigial `drives` array from the report manifest;
+  `BIOSLock` now defaults to `UNKNOWN` (was `N/A`) and the detection method is
+  reported separately (`BIOSLockMethod`).
+- **Dashboard** — pagination with disabled states; fixed-width, non-scrolling
+  tables; dim-while-loading on all tabs; report-style detail modals on Devices
+  and Drives; per-report expander and drive sort (most recent report first) on
+  the Drives tab.
+
+### Release
+
+- Appliance ISO `tscrub-v1.7.0_2025.11_30_x86-64_v0.41_20260929-1754b6c2.iso`
+  (157,622,272 B, sha256 `e41f1c49e507afa846c601cd6b53ee33c4f81344ba96666e6d6624d0951810c4`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.7.0 sha256 `56255e4b8dc440742b5c4ca1c48e3c192aaee07911da7ef8d2e9224ef295b250`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `9d77c891cbdeed18339f50ab627daca41f62e2a0a9d0ed1755d3271965434577`).
+
 ## [v1.6.3] - 2026-09-29
 
 ### Changed — dashboard untangled into focused tabs

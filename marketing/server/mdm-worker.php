@@ -61,7 +61,7 @@ try {
 
         mdm_log_probe($userId, $serial, $uuid, $verdict, $source, 'worker');
 
-        if (in_array($verdict, ['locked_other', 'locked_this', 'unlocked', 'hash_invalid'], true)) {
+        if (in_array($verdict, ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'unknown'], true)) {
             mdm_complete_job($jobId, $verdict, $source, $detail);
             echo 'job ' . $jobId . ' (' . $serial . '): ' . $verdict . "\n";
         } elseif ((int)($job['attempts'] ?? 0) + 1 >= MAX_ATTEMPTS) {
