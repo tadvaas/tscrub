@@ -89,6 +89,13 @@ BIOS_DMIDECODE_CMD="dmidecode"
 export FAKE_DMI24="Administrator Password Status: Enabled"
 check_verdict "LOCKED" "SMBIOS Type 24" "smbios: Enabled -> LOCKED"
 
+# Regression: dmidecode indents Type 24 lines with a TAB — the method label
+# must be trimmed so the TUI doesn't get a stray tab ("extra spacing").
+reset_env
+BIOS_DMIDECODE_CMD="dmidecode"
+export FAKE_DMI24=$'\tAdministrator Password Status: Enabled'
+check_verdict "LOCKED" "SMBIOS Type 24 (Administrator Password Status)" "smbios: tab-indented label is trimmed"
+
 reset_env
 BIOS_DMIDECODE_CMD="dmidecode"
 export FAKE_DMI24="Power-On Password Status: Disabled"

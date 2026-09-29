@@ -162,7 +162,7 @@ bios::probe_legacy() {
 # Any "… Password Status: Enabled" => LOCKED. All Disabled / Not Implemented /
 # Cleared with no Enabled => UNLOCKED evidence. "Unknown" contributes nothing.
 bios::probe_smbios() {
-    local out line val evidence=0
+    local out line val label evidence=0
     command -v "$BIOS_DMIDECODE_CMD" >/dev/null 2>&1 || return 0
     out="$("$BIOS_DMIDECODE_CMD" -t 24 2>/dev/null)" || return 0
     [[ -n "$out" ]] || return 0
@@ -170,10 +170,13 @@ bios::probe_smbios() {
     while IFS= read -r line; do
         [[ "$line" == *"Password Status"* ]] || continue
         val="$(printf '%s' "$line" | sed -E 's/^[[:space:]]*[^:]+:[[:space:]]*//' | tr '[:upper:]' '[:lower:]')"
+        # dmidecode indents Type 24 lines with a TAB — strip it (and any other
+        # surrounding whitespace) from the label or it breaks the TUI alignment.
+        label="$(printf '%s' "${line%%:*}" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
         case "$val" in
             enabled)
                 BIOS_PASSWORD_STATUS="LOCKED"
-                BIOS_DETECTION_METHOD="SMBIOS Type 24 (${line%%:*})"
+                BIOS_DETECTION_METHOD="SMBIOS Type 24 ($label)"
                 return 1 ;;
             disabled|cleared|"not implemented"|"not supported"|"not set"|unset)
                 evidence=1 ;;

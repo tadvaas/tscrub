@@ -350,6 +350,12 @@
         if (rp.system) machine.push(['System', rp.system]);
         if (rp.sysserial) machine.push(['System serial', rp.sysserial]);
         if (rp.bbserial) machine.push(['Baseboard serial', rp.bbserial]);
+        if (rp.chassisserial) machine.push(['Chassis serial', rp.chassisserial]);
+        if (rp.chassistype) machine.push(['Chassis', rp.chassistype]);
+        if (rp.biosversion) machine.push(['BIOS', rp.biosversion + (rp.biosdate ? ' (' + rp.biosdate + ')' : '')]);
+        if (rp.systemuuid) machine.push(['System UUID', rp.systemuuid]);
+        if (rp.bioslock) machine.push(['BIOS lock', rp.bioslock]);
+        if (rp.bioslockmethod) machine.push(['BIOS lock method', rp.bioslockmethod]);
         if (rp.cpu) machine.push(['CPU', rp.cpu]);
         if (rp.gpu) machine.push(['GPU', rp.gpu]);
         if (rp.ram) machine.push(['RAM', rp.ram]);

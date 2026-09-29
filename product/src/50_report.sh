@@ -39,9 +39,9 @@ report::csv() {
     sys_gpu="${SYS_GPU_LIST:-N/A}"; sys_gpu="${sys_gpu//$'\n'/; }"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod"
         for dev in "${devices[@]}"; do
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$(report::_csv_field "$COCID")" \
                 "$now" \
                 "$(report::_csv_field "${devrow[$dev.model]}")" \
@@ -72,7 +72,13 @@ report::csv() {
                 "$(report::_csv_field "$sys_gpu")" \
                 "$(report::_csv_field "${SYS_RAM_GB:-N/A}")" \
                 "$(report::_csv_field "${MDM_VERDICT:-N/A}")" \
-                "$(report::_csv_field "${BIOS_PASSWORD_STATUS:-N/A}")"
+                "$(report::_csv_field "${BIOS_PASSWORD_STATUS:-N/A}")" \
+                "$(report::_csv_field "${SYS_CHASSIS_SERIAL:-N/A}")" \
+                "$(report::_csv_field "${SYS_CHASSIS_TYPE:-N/A}")" \
+                "$(report::_csv_field "${SYS_BIOS_VERSION:-N/A}")" \
+                "$(report::_csv_field "${SYS_BIOS_DATE:-N/A}")" \
+                "$(report::_csv_field "${SYS_UUID:-N/A}")" \
+                "$(report::_csv_field "${BIOS_DETECTION_METHOD:-N/A}")"
         done
     } > "$report_file"
 
@@ -192,6 +198,11 @@ report::sign() {
         printf '  "mdm": "%s",\n' "$(report::_json_field "${MDM_VERDICT:-}")"
         printf '  "bios_lock": "%s",\n' "$(report::_json_field "${BIOS_PASSWORD_STATUS:-}")"
         printf '  "bios_lock_method": "%s",\n' "$(report::_json_field "${BIOS_DETECTION_METHOD:-}")"
+        printf '  "chassis_serial": "%s",\n' "$(report::_json_field "${SYS_CHASSIS_SERIAL:-}")"
+        printf '  "chassis_type": "%s",\n' "$(report::_json_field "${SYS_CHASSIS_TYPE:-}")"
+        printf '  "bios_version": "%s",\n' "$(report::_json_field "${SYS_BIOS_VERSION:-}")"
+        printf '  "bios_date": "%s",\n' "$(report::_json_field "${SYS_BIOS_DATE:-}")"
+        printf '  "system_uuid": "%s",\n' "$(report::_json_field "${SYS_UUID:-}")"
         printf '  "drives": [\n'
         n=${#devices[@]}
         i=0

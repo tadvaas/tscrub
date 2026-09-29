@@ -18,9 +18,12 @@ rm -f "$_tmpkey"
 COCID="48213"
 TABLE_INDENT="    "
 SYS_MANUFACTURER="Dell"; SYS_PRODUCT="PowerEdge"; SYS_SERIAL="SYS123"; SYS_BASEBOARD_SERIAL="BB123"
+SYS_CHASSIS_SERIAL="CH123"; SYS_CHASSIS_TYPE="Tower"; SYS_BIOS_VERSION="2.5"; SYS_BIOS_DATE="01/01/2024"
+SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
 SYS_CPU_LIST=$'1. Intel Xeon\n2. Intel Xeon'
 SYS_GPU_LIST='1. NVIDIA T4'
 SYS_RAM_GB='64 GB'
+BIOS_PASSWORD_STATUS="LOCKED"; BIOS_DETECTION_METHOD="SMBIOS Type 24 (Administrator Password Status)"
 REPORT_DIR="$(mktemp -d)/"
 REPORT_KEY_DIR="$(mktemp -d)"
 devices=(nvme0n1 sda)
@@ -40,12 +43,14 @@ sig="${csv}.sig"
 t::check "report CSV exists" '[[ -f "$csv" ]]'
 t::check "CSV header includes machine columns" 'head -n1 "$csv" | grep -q "System,SystemSerial,BaseboardSerial,CPU,GPU,RAM"'
 t::check "CSV header includes BIOSLock column" 'head -n1 "$csv" | grep -q ",BIOSLock"'
+t::check "CSV header includes extended machine columns" 'head -n1 "$csv" | grep -q "ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod"'
 hdr_cols="$(head -n1 "$csv" | awk -F, '{print NF}')"
 row_cols="$(sed -n '2p' "$csv" | awk -F, '{print NF}')"
 t::check "CSV data row column count matches header ($hdr_cols)" '[ "$hdr_cols" = "$row_cols" ]'
-t::check "CSV row carries machine profile" 'grep -q "Dell PowerEdge" "$csv" && grep -q "1. Intel Xeon; 2. Intel Xeon" "$csv" && grep -q "NVIDIA T4" "$csv" && grep -q "64 GB" "$csv"'
+t::check "CSV row carries machine profile" 'grep -q "Dell PowerEdge" "$csv" && grep -q "1. Intel Xeon; 2. Intel Xeon" "$csv" && grep -q "NVIDIA T4" "$csv" && grep -q "64 GB" "$csv" && grep -q "CH123" "$csv" && grep -q "4C4C4544-0036-5710-8032-B5C04F433633" "$csv" && grep -q "Administrator Password Status" "$csv"'
 t::check "manifest JSON exists" '[[ -f "$manifest" ]]'
 t::check "manifest records bios_lock" 'grep -q "bios_lock" "$manifest"'
+t::check "manifest records extended profile" 'grep -q "system_uuid" "$manifest" && grep -q "bios_version" "$manifest" && grep -q "chassis_serial" "$manifest"'
 
 # The manifest must be strict-JSON-parseable (certify.php json_decode + the
 # harness's python3 json.load both reject the missing-comma bug this guards).

@@ -6,6 +6,38 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.6.2] - 2026-09-29
+
+### Fixed — BIOS-lock label carried a stray tab (broken display)
+
+When the BIOS is locked, the SMBIOS Type 24 probe read `Administrator Password
+Status` from `dmidecode -t 24` without trimming the leading tab, so the
+Runtime-panel method cell rendered as `SMBIOS Type 24 (⇥Administrator Password
+Status)` — the embedded tab broke the column alignment (extra spacing before the
+label) and leaked into the report manifest JSON. The label is now whitespace-
+trimmed.
+
+### Added — richer device profile + pre-wipe BIOS-lock flag
+
+- Report CSV + manifest now also carry **chassis serial/type, BIOS version/date,
+  system UUID, and the BIOS-lock detection method** (alongside the existing
+  `BIOSLock` status), and the dashboard Reports detail renders them.
+- The **MDM (Autopilot) submission** now includes the BIOS-lock status + method,
+  so a locked unit is flagged on the dashboard **Devices** tab before wiping.
+- `marketing/server` — `reports_lib.php` parses the new report columns;
+  `mdm.php` stores/returns the BIOS-lock state on `mdm_staged_hash`
+  (idempotent `bios_lock`/`bios_lock_method` columns); `api.php` accepts them
+  on `POST /api/mdm/autopilot`.
+
+**Release**
+- Appliance ISO `tscrub-v1.6.2_2025.11_30_x86-64_v0.41_20260929-4890279e.iso`
+  (157,622,272 B, sha256 `e01e1fb25dc115409484525634db7e524048ee4c5780da97109cdf964c398966`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.6.2 sha256 `a7c7259cd83f14b822e8a9b0b0fcfc81d55aed2082b0525fd1cbb683913ec0e5`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `ef24316757f99284cc6fc3f43258e15afd7a4d1df7c10ca49ae0df18d950eeaf`).
+
 ## [v1.6.1] - 2026-09-29
 
 ### Added — BIOS lock detection

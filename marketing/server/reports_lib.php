@@ -218,6 +218,8 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'shaState' => 'unverified', 'sigState' => 'none',
                 'system' => '', 'sysSerial' => '', 'bbSerial' => '',
                 'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '',
+                'chassisserial' => '', 'chassistype' => '', 'biosversion' => '',
+                'biosdate' => '', 'systemuuid' => '', 'bioslock' => '', 'bioslockmethod' => '',
                 'first' => null, 'last' => null,
             ];
         }
@@ -301,6 +303,15 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 $g['cpu'] = clip_str($get($row, 'cpu'), 255);
                 $g['gpu'] = clip_str($get($row, 'gpu'), 255);
                 $g['ram'] = clip_str($get($row, 'ram'), 64);
+            }
+            if ($g['systemuuid'] === '' && isset($map['systemuuid'])) {
+                $g['systemuuid'] = clip_str($get($row, 'systemuuid'), 64);
+                $g['chassisserial'] = clip_str($get($row, 'chassisserial'), 255);
+                $g['chassistype'] = clip_str($get($row, 'chassistype'), 64);
+                $g['biosversion'] = clip_str($get($row, 'biosversion'), 64);
+                $g['biosdate'] = clip_str($get($row, 'biosdate'), 32);
+                $g['bioslock'] = clip_str($get($row, 'bioslock'), 20);
+                $g['bioslockmethod'] = clip_str($get($row, 'bioslockmethod'), 255);
             }
             if ($ts !== '') {
                 $tsEpoch = strtotime($ts) ?: null;
@@ -607,6 +618,13 @@ function report_row(array $r, ?array $payload): array {
         'gpu'         => is_array($payload) ? (string)($payload['gpu'] ?? '') : '',
         'ram'         => is_array($payload) ? (string)($payload['ram'] ?? '') : '',
         'enrollment'  => is_array($payload) ? (string)($payload['enrollment'] ?? '') : '',
+        'chassisserial' => is_array($payload) ? (string)($payload['chassisserial'] ?? '') : '',
+        'chassistype'   => is_array($payload) ? (string)($payload['chassistype'] ?? '') : '',
+        'biosversion'   => is_array($payload) ? (string)($payload['biosversion'] ?? '') : '',
+        'biosdate'      => is_array($payload) ? (string)($payload['biosdate'] ?? '') : '',
+        'systemuuid'    => is_array($payload) ? (string)($payload['systemuuid'] ?? '') : '',
+        'bioslock'      => is_array($payload) ? (string)($payload['bioslock'] ?? '') : '',
+        'bioslockmethod'=> is_array($payload) ? (string)($payload['bioslockmethod'] ?? '') : '',
         'drives'      => is_array($payload) ? ($payload['drives'] ?? []) : [],
         'reports'     => is_array($payload) ? ($payload['reports'] ?? []) : [],
     ];

@@ -129,6 +129,19 @@
         return el('span', 'rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-200 text-slate-600', 'N/A');
       }
 
+      function biosBadge(d) {
+        var m = {
+          LOCKED: ['bg-red-100 text-red-700', 'BIOS locked'],
+          UNLOCKED: ['bg-emerald-100 text-emerald-700', 'BIOS unlocked'],
+          UNKNOWN: ['bg-amber-100 text-amber-700', 'BIOS unknown']
+        };
+        var v = m[d.bios_lock] || null;
+        if (!v) return null;
+        var s = el('span', 'rounded-full px-2.5 py-0.5 text-xs font-semibold ' + v[0], v[1]);
+        if (d.bios_lock_method) s.title = d.bios_lock_method;
+        return s;
+      }
+
       function loadDevices() {
         fetch('/api/mdm/devices').then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
@@ -151,6 +164,7 @@
             left.appendChild(head);
             var meta = el('div', 'mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500');
             if (dev.uuid) meta.appendChild(el('span', 'font-mono text-slate-400', dev.uuid));
+            if (dev.bios_lock) meta.appendChild(biosBadge(dev));
             meta.appendChild(el('span', 'Captured ' + fmtTs(dev.captured_at)));
             if (dev.last_checked_at) meta.appendChild(el('span', 'Checked ' + fmtTs(dev.last_checked_at)));
             left.appendChild(meta);
