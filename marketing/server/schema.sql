@@ -246,8 +246,6 @@ CREATE TABLE IF NOT EXISTS mdm_staged_hash (
   serial              VARCHAR(255)    NOT NULL DEFAULT '',
   uuid                VARCHAR(64)     NOT NULL DEFAULT '',
   model               VARCHAR(255)    NOT NULL DEFAULT '',
-  bios_lock           VARCHAR(20)     NOT NULL DEFAULT '',
-  bios_lock_method    VARCHAR(255)    NOT NULL DEFAULT '',
   hardware_identifier TEXT            NOT NULL,
   created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

@@ -439,23 +439,6 @@ function mdm_unstage_hash(int $userId, string $serial, string $uuid): void {
     }
 }
 
-/** Record the BIOS-lock state the appliance detected (pre-wipe triage flag for
- *  the Devices tab). Updates the staged row; a no-op when the device has no
- *  staged hash yet (the erasure report still carries it post-wipe), or when the
- *  caller sent no signal (an older appliance that predates the bios_lock field
- *  must not wipe a value stored by a newer one). */
-function mdm_set_device_bios(int $userId, string $serial, string $uuid, string $biosLock, string $biosLockMethod): void {
-    if ($biosLock === '') {
-        return;
-    }
-    try {
-        db()->prepare('UPDATE mdm_staged_hash SET bios_lock = ?, bios_lock_method = ? WHERE user_id = ? AND serial = ? AND uuid = ?')
-            ->execute([$biosLock, $biosLockMethod, $userId, $serial, $uuid]);
-    } catch (Throwable $e) {
-        error_log('mdm set device bios error: ' . $e->getMessage());
-    }
-}
-
 // ---- MDM check queue (mdm_jobs) -------------------------------------------
 // The check runs in the background (mdm-worker.php) so neither the WinPE
 // upload nor the web request waits on Microsoft's async import queue. Jobs
@@ -557,7 +540,7 @@ function mdm_latest_job(int $userId, string $serial, ?string $uuid = null): ?arr
 /** Dashboard device list: staged serials + their latest job state. */
 function mdm_devices(int $userId): array {
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, model, bios_lock, bios_lock_method, created_at AS captured_at FROM mdm_staged_hash WHERE user_id = ? ORDER BY created_at DESC');
+        $stmt = db()->prepare('SELECT serial, uuid, model, created_at AS captured_at FROM mdm_staged_hash WHERE user_id = ? ORDER BY created_at DESC');
         $stmt->execute([$userId]);
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $h) {
@@ -566,8 +549,6 @@ function mdm_devices(int $userId): array {
                 'serial' => (string)$h['serial'],
                 'uuid' => (string)$h['uuid'],
                 'model' => (string)$h['model'],
-                'bios_lock' => (string)($h['bios_lock'] ?? ''),
-                'bios_lock_method' => (string)($h['bios_lock_method'] ?? ''),
                 'captured_at' => (string)$h['captured_at'],
                 'status' => $j['status'] ?? 'na',
                 'verdict' => $j['verdict'] ?? '',
@@ -667,19 +648,6 @@ function mdm_ensure_schema(): void {
                CONSTRAINT fk_mdm_staged_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
-        // Columns added after v1.6.0 — idempotently ALTER any pre-existing
-        // table (CREATE TABLE IF NOT EXISTS will not add columns).
-        try {
-            $cols = db()->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'")->fetchAll(PDO::FETCH_COLUMN);
-            if (!in_array('bios_lock', $cols, true)) {
-                db()->exec("ALTER TABLE mdm_staged_hash ADD COLUMN bios_lock VARCHAR(20) NOT NULL DEFAULT '' AFTER model");
-            }
-            if (!in_array('bios_lock_method', $cols, true)) {
-                db()->exec("ALTER TABLE mdm_staged_hash ADD COLUMN bios_lock_method VARCHAR(255) NOT NULL DEFAULT '' AFTER bios_lock");
-            }
-        } catch (Throwable $e) {
-            error_log('mdm schema alter error: ' . $e->getMessage());
-        }
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_jobs (
                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

@@ -147,13 +147,11 @@ mdm::detect() {
         man="${SYS_MANUFACTURER:-N/A}"; [[ "$man" == "N/A" ]] && man=""
         prod="${SYS_PRODUCT:-N/A}";   [[ "$prod" == "N/A" ]] && prod=""
 
-        body="$(printf '{"serial":"%s","uuid":"%s","manufacturer":"%s","product":"%s","bios_lock":"%s","bios_lock_method":"%s"}' \
+        body="$(printf '{"serial":"%s","uuid":"%s","manufacturer":"%s","product":"%s"}' \
             "$(report::_json_field "${SYS_SERIAL}")" \
             "$(report::_json_field "${SYS_UUID}")" \
             "$(report::_json_field "$man")" \
-            "$(report::_json_field "$prod")" \
-            "$(report::_json_field "${BIOS_PASSWORD_STATUS:-}")" \
-            "$(report::_json_field "${BIOS_DETECTION_METHOD:-}")")"
+            "$(report::_json_field "$prod")")"
         url="$(mdm::endpoint)"
         status_url="$(mdm::status_endpoint)"
 

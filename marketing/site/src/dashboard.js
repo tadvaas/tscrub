@@ -4,9 +4,11 @@
   if (!root) return;
 
   const links = [
-    { href: '/dashboard/devices', label: 'Devices', side: 'left' },
-    { href: '/dashboard/certificates', label: 'Certificates', side: 'left' },
     { href: '/dashboard/reports', label: 'Reports', side: 'left' },
+    { href: '/dashboard/devices', label: 'Devices', side: 'left' },
+    { href: '/dashboard/drives', label: 'Drives', side: 'left' },
+    { href: '/dashboard/mdm', label: 'MDM', side: 'left' },
+    { href: '/dashboard/certificates', label: 'Certificates', side: 'left' },
     { href: '/dashboard/licences', label: 'Licences', side: 'left' },
     { href: '/dashboard/billing', label: 'Billing', side: 'right' },
     { href: '/dashboard/account', label: 'Account', side: 'right' }

@@ -6,6 +6,39 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.6.3] - 2026-09-29
+
+### Changed — dashboard untangled into focused tabs
+
+Each dashboard tab now answers a single question:
+
+- **Reports** — raw evidence only: Chain of Custody ID, source, ingest time,
+  drive/report-file counts, SHA + signature state, and the per-file SHA table.
+  The hardware and per-drive drill-down moved out.
+- **Devices** (new) — machines processed by tScrub: hardware + firmware profile
+  (serials, chassis, BIOS version/date + lock, system UUID, CPU/GPU/RAM),
+  consolidated across reports, with a per-device JSON download.
+- **Drives** (new) — storage devices: erasure outcome + SMART (pre/post), with a
+  per-drive SMART CSV download.
+- **MDM** (renamed from "Devices") — the Windows Autopilot enrolment registry
+  only. The BIOS-lock badge was removed: BIOS-lock is a point-in-time machine
+  attribute and is now reported on the **Devices** tab.
+
+**Backend**
+- `GET /api/devices` + `GET /api/drives` aggregate stored report payloads into
+  per-machine and per-drive inventories (`load_devices` / `load_drives`).
+- Reverted the BIOS-lock state from the MDM path (payload → `mdm_staged_hash`):
+  the MDM registry tracks enrolment only; BIOS-lock belongs to the report.
+
+**Release**
+- Appliance ISO `tscrub-v1.6.3_2025.11_30_x86-64_v0.41_20260929-c80aa933.iso`
+  (157,622,272 B, sha256 `6b57681ef9d0e8ac4118bceace56f6c2c1640dfbf1583e1d324a2a9c66e8b46f`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.6.3 sha256 `35b42d85dde7c0c61210f1008b8730cde8bed34a188d4234b68c05668a19f9f4`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `185559d58b9f9c37a8f5a46a47fb7262e26589f317a030d9c4351b97d121055c`).
+
 ## [v1.6.2] - 2026-09-29
 
 ### Fixed — BIOS-lock label carried a stray tab (broken display)

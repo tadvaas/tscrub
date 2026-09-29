@@ -865,11 +865,9 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     $d = json_body();
     $serial = trim((string)($d['serial'] ?? ''));
     $uuid   = trim((string)($d['uuid'] ?? ''));
-    $biosLock = trim((string)($d['bios_lock'] ?? ''));
-    $biosLockMethod = trim((string)($d['bios_lock_method'] ?? ''));
 
     // Input guards: length caps + control characters (log-injection defence).
-    foreach (['serial' => $serial, 'uuid' => $uuid, 'bios_lock' => $biosLock, 'bios_lock_method' => $biosLockMethod] as $name => $field) {
+    foreach (['serial' => $serial, 'uuid' => $uuid] as $name => $field) {
         if (strlen($field) > 255) {
             fail(400, 'Field too long: ' . $name . '.');
         }
@@ -894,11 +892,6 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
         mdm_log_probe((int)$owner['id'], $serial, $uuid, 'na', 'none', $ip);
         json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na']);
     }
-
-    // Record the BIOS-lock state the appliance detected (pre-wipe triage flag
-    // for the Devices tab). No-op when there's no staged hash row yet — the
-    // erasure report still carries it post-wipe.
-    mdm_set_device_bios((int)$owner['id'], $serial, $uuid, $biosLock, $biosLockMethod);
 
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid);
     $status  = (string)($job['status'] ?? '');
@@ -992,6 +985,18 @@ if ($method === 'GET' && $route === '/reports') {
 if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'reports' && $seg[1] === 'cocids') {
     $u = auth_require();
     json_out(['ok' => true, 'cocids' => distinct_cocids((int)$u['id'])]);
+}
+
+// GET /api/devices — aggregated machine (hardware/firmware) inventory.
+if ($method === 'GET' && $route === '/devices') {
+    $u = auth_require();
+    json_out(['ok' => true, 'devices' => load_devices((int)$u['id'])]);
+}
+
+// GET /api/drives — aggregated storage-device inventory (erasure + SMART).
+if ($method === 'GET' && $route === '/drives') {
+    $u = auth_require();
+    json_out(['ok' => true, 'drives' => load_drives((int)$u['id'])]);
 }
 
 // GET /api/signing-key — vendor public key + fingerprint (authenticated only,

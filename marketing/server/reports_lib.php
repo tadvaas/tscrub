@@ -721,3 +721,95 @@ function load_report_payloads(int $userId, string $cocid): array {
     }
     return $groups;
 }
+
+/**
+ * Aggregated machine (hardware/firmware) inventory across a user's reports —
+ * one row per physical machine, keyed by system UUID (fallback: system serial,
+ * then COCID). The most recent report's profile wins; report counts and the
+ * wiped window are accumulated. This feeds the dashboard "Devices" tab.
+ */
+function load_devices(int $userId): array {
+    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
+    $stmt->execute([$userId]);
+
+    $devices = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $g = json_decode((string)$r['payload'], true);
+        if (!is_array($g)) continue;
+
+        $key = '';
+        foreach (['systemuuid', 'sysSerial', 'bbSerial'] as $k) {
+            if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
+        }
+        if ($key === '') $key = 'cocid:' . strtolower((string)$r['cocid']);
+
+        if (!isset($devices[$key])) {
+            $devices[$key] = [
+                'system'        => (string)($g['system'] ?? ''),
+                'sysserial'     => (string)($g['sysSerial'] ?? ''),
+                'bbserial'      => (string)($g['bbSerial'] ?? ''),
+                'chassisserial' => (string)($g['chassisserial'] ?? ''),
+                'chassistype'   => (string)($g['chassistype'] ?? ''),
+                'biosversion'   => (string)($g['biosversion'] ?? ''),
+                'biosdate'      => (string)($g['biosdate'] ?? ''),
+                'systemuuid'    => (string)($g['systemuuid'] ?? ''),
+                'bioslock'      => (string)($g['bioslock'] ?? ''),
+                'bioslockmethod'=> (string)($g['bioslockmethod'] ?? ''),
+                'cpu'           => (string)($g['cpu'] ?? ''),
+                'gpu'           => (string)($g['gpu'] ?? ''),
+                'ram'           => (string)($g['ram'] ?? ''),
+                'reports'       => 0,
+                'cocids'        => [],
+                'first'         => (string)$r['uploaded_at'],
+                'last'          => (string)$r['uploaded_at'],
+            ];
+        }
+        $d = &$devices[$key];
+        $d['reports']++;
+        if (!in_array((string)$r['cocid'], $d['cocids'], true)) $d['cocids'][] = (string)$r['cocid'];
+        if ((string)$r['uploaded_at'] < $d['first']) $d['first'] = (string)$r['uploaded_at'];
+        if ((string)$r['uploaded_at'] > $d['last'])  $d['last']  = (string)$r['uploaded_at'];
+        unset($d);
+    }
+    return array_values($devices);
+}
+
+/**
+ * Aggregated storage-device inventory across a user's reports — one row per
+ * physical drive (keyed by serial). The best erasure outcome wins; the rest of
+ * the row carries that outcome's SMART snapshot. Feeds the dashboard "Drives"
+ * tab (erasure outcomes + SMART, with per-drive exports).
+ */
+function load_drives(int $userId): array {
+    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
+    $stmt->execute([$userId]);
+
+    $drives = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $g = json_decode((string)$r['payload'], true);
+        if (!is_array($g) || empty($g['drives'])) continue;
+        foreach ($g['drives'] as $d) {
+            if (!is_array($d)) continue;
+            $serial = trim((string)($d['serial'] ?? ''));
+            $key = $serial !== '' ? strtolower($serial) : '';
+            if ($key === '') continue;
+
+            if (!isset($drives[$key])) {
+                $drives[$key] = $d;
+                $drives[$key]['cocid']    = (string)$r['cocid'];
+                $drives[$key]['wiped_at'] = (string)$r['uploaded_at'];
+                $drives[$key]['reports']  = 1;
+            } else {
+                $cur = &$drives[$key];
+                if (drive_status_rank((string)($d['status'] ?? '')) > drive_status_rank((string)($cur['status'] ?? ''))) {
+                    $cur = $d;
+                    $cur['cocid']    = (string)$r['cocid'];
+                    $cur['wiped_at'] = (string)$r['uploaded_at'];
+                }
+                $cur['reports'] = (int)($cur['reports'] ?? 1) + 1;
+                unset($cur);
+            }
+        }
+    }
+    return array_values($drives);
+}

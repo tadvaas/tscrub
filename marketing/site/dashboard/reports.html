@@ -345,31 +345,16 @@
         chips.appendChild(sigChip);
         modalBody.appendChild(chips);
 
-        // Machine profile.
-        var machine = [];
-        if (rp.system) machine.push(['System', rp.system]);
-        if (rp.sysserial) machine.push(['System serial', rp.sysserial]);
-        if (rp.bbserial) machine.push(['Baseboard serial', rp.bbserial]);
-        if (rp.chassisserial) machine.push(['Chassis serial', rp.chassisserial]);
-        if (rp.chassistype) machine.push(['Chassis', rp.chassistype]);
-        if (rp.biosversion) machine.push(['BIOS', rp.biosversion + (rp.biosdate ? ' (' + rp.biosdate + ')' : '')]);
-        if (rp.systemuuid) machine.push(['System UUID', rp.systemuuid]);
-        if (rp.bioslock) machine.push(['BIOS lock', rp.bioslock]);
-        if (rp.bioslockmethod) machine.push(['BIOS lock method', rp.bioslockmethod]);
-        if (rp.cpu) machine.push(['CPU', rp.cpu]);
-        if (rp.gpu) machine.push(['GPU', rp.gpu]);
-        if (rp.ram) machine.push(['RAM', rp.ram]);
-        if (machine.length) {
-          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500', 'Machine'));
-          var mgrid = el('div', 'mt-2 grid gap-3 sm:grid-cols-2');
-          machine.forEach(function (kv) {
-            var card = el('div', 'rounded-xl border border-slate-200 bg-white p-3');
-            card.appendChild(el('div', 'text-xs font-semibold uppercase tracking-wide text-slate-400', kv[0]));
-            card.appendChild(el('div', 'mt-1 whitespace-pre-wrap break-words text-sm text-slate-800', kv[1]));
-            mgrid.appendChild(card);
-          });
-          modalBody.appendChild(mgrid);
-        }
+        // Hardware profile and per-drive data live on the dedicated tabs.
+        var links = el('p', 'mt-5 text-sm text-slate-500', 'Hardware & firmware → ');
+        var dl = el('a', 'font-semibold text-brand-700 hover:underline', 'Devices');
+        dl.href = '/dashboard/devices';
+        links.appendChild(dl);
+        links.appendChild(document.createTextNode(' · Erasure & SMART → '));
+        var dr = el('a', 'font-semibold text-brand-700 hover:underline', 'Drives');
+        dr.href = '/dashboard/drives';
+        links.appendChild(dr);
+        modalBody.appendChild(links);
 
         // Report files.
         var files = rp.reports || [];
@@ -391,50 +376,6 @@
             ftable.appendChild(tr);
           });
           modalBody.appendChild(ftable);
-        }
-
-        // Drives (full data).
-        var drives = rp.drives || [];
-        if (drives.length) {
-          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500', 'Drives'));
-          var dwrap = el('div', 'mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white');
-          var dtable = el('table', 'w-full border-collapse whitespace-nowrap text-xs');
-          var dhr = el('tr', 'bg-slate-100');
-          ['Device','Type','Model','Serial','Size','Bus','Method','Class','Certification','Status','Wiped','SMART','Temp °C','POH','Cycles','Realloc','Used %','Spare','TBW','SMART post','Temp post','POH post','System','System serial','Baseboard serial','CPU','GPU','RAM'].forEach(function (h) {
-            dhr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase text-slate-500', h));
-          });
-          dtable.appendChild(dhr);
-          drives.forEach(function (d) {
-            var tr = el('tr', 'hover:bg-slate-50');
-            var cols = [
-              [d.device, 'text-slate-700'], [d.type, 'text-slate-700'], [d.model, 'text-slate-700'], [d.serial, 'text-slate-700'],
-              [d.size, 'text-slate-700'], [d.bus, 'text-slate-700'], [d.method, 'text-slate-700'],
-              [d.cls, 'text-slate-700'], [d.cert, 'text-slate-700'],
-              [d.status, statusClass(d.status)],
-              [fmtTs(d.ts), 'text-slate-700'],
-              [d.smart, smartClass(d.smart)],
-              [d.tempc, tempClass(d.tempc)],
-              [d.poweronhours, 'text-slate-700'],
-              [d.powercycles, 'text-slate-700'],
-              [d.reallocsectors, reallocClass(d.reallocsectors)],
-              [d.pctused, usedClass(d.pctused)],
-              [d.availspare, 'text-slate-700'],
-              [d.tbw_tb, 'text-slate-700'],
-              [d.smartpost, smartClass(d.smartpost)],
-              [d.tempcpost, tempClass(d.tempcpost)],
-              [d.poweronhourspost, 'text-slate-700'],
-              [d.system, 'text-slate-700'], [d.sysserial, 'text-slate-700'], [d.bbserial, 'text-slate-700'],
-              [d.cpu, 'text-slate-700'], [d.gpu, 'text-slate-700'], [d.ram, 'text-slate-700']
-            ];
-            cols.forEach(function (c) {
-              tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 ' + c[1], c[0] || '—'));
-            });
-            dtable.appendChild(tr);
-          });
-          dwrap.appendChild(dtable);
-          modalBody.appendChild(dwrap);
-        } else {
-          modalBody.appendChild(el('p', 'mt-5 text-sm text-slate-500', 'No per-drive data recorded for this report.'));
         }
 
         modal.classList.remove('hidden');
