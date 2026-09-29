@@ -229,7 +229,7 @@
             (d.history || []).forEach(function (h) {
               var htr = el('tr', 'border-b border-slate-100');
               htr.appendChild(el('td', 'px-2 py-1.5 font-mono text-slate-700', h.cocid || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.ts || h.wiped_at) || '—'));
+              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.ts || h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.method || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.cls || '—'));
@@ -270,7 +270,7 @@
           ['Model', d.model], ['Serial', d.serial], ['Size', d.size], ['Bus', d.bus], ['Type', d.type],
           ['Erasure status', d.status], ['Class', d.cls], ['Method', d.method], ['Certification', d.cert],
           ['CoC', d.cocid],
-          ['Wiped', fmtTsTime(d.ts || d.wiped_at)],
+          ['Wiped', fmtTsTime(d.ts || d.uploaded_at)],
           ['SMART (pre-wipe)', d.smart], ['Temperature °C (pre)', d.tempc], ['Power-on hours (pre)', d.poweronhours],
           ['Power cycles', d.powercycles], ['Reallocated sectors', d.reallocsectors], ['Used %', d.pctused],
           ['Available spare', d.availspare], ['TBW (TB)', d.tbw_tb],
@@ -293,7 +293,7 @@
             var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs');
             var left = el('div', 'flex flex-wrap items-center gap-x-3 gap-y-1');
             left.appendChild(el('span', 'font-mono font-semibold text-slate-800', h.cocid || '—'));
-            left.appendChild(el('span', 'text-slate-400', fmtTsTime(h.ts || h.wiped_at) || '—'));
+            left.appendChild(el('span', 'text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
             left.appendChild(el('span', statusClass(h.status), h.status || '—'));
             left.appendChild(el('span', 'text-slate-600', h.method || '—'));
             row.appendChild(left);

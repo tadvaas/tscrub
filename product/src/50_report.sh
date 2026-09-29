@@ -72,7 +72,7 @@ report::csv() {
                 "$(report::_csv_field "$sys_gpu")" \
                 "$(report::_csv_field "${SYS_RAM_GB:-N/A}")" \
                 "$(report::_csv_field "${MDM_VERDICT:-N/A}")" \
-                "$(report::_csv_field "${BIOS_PASSWORD_STATUS:-N/A}")" \
+                "$(report::_csv_field "${BIOS_PASSWORD_STATUS:-UNKNOWN}")" \
                 "$(report::_csv_field "${SYS_CHASSIS_SERIAL:-N/A}")" \
                 "$(report::_csv_field "${SYS_CHASSIS_TYPE:-N/A}")" \
                 "$(report::_csv_field "${SYS_BIOS_VERSION:-N/A}")" \
@@ -196,26 +196,13 @@ report::sign() {
             printf '  "public_key": "%s",\n' "$(report::_json_field "$pub_b64")"
         fi
         printf '  "mdm": "%s",\n' "$(report::_json_field "${MDM_VERDICT:-}")"
-        printf '  "bios_lock": "%s",\n' "$(report::_json_field "${BIOS_PASSWORD_STATUS:-}")"
+        printf '  "bios_lock": "%s",\n' "$(report::_json_field "${BIOS_PASSWORD_STATUS:-UNKNOWN}")"
         printf '  "bios_lock_method": "%s",\n' "$(report::_json_field "${BIOS_DETECTION_METHOD:-}")"
         printf '  "chassis_serial": "%s",\n' "$(report::_json_field "${SYS_CHASSIS_SERIAL:-}")"
         printf '  "chassis_type": "%s",\n' "$(report::_json_field "${SYS_CHASSIS_TYPE:-}")"
         printf '  "bios_version": "%s",\n' "$(report::_json_field "${SYS_BIOS_VERSION:-}")"
         printf '  "bios_date": "%s",\n' "$(report::_json_field "${SYS_BIOS_DATE:-}")"
-        printf '  "system_uuid": "%s",\n' "$(report::_json_field "${SYS_UUID:-}")"
-        printf '  "drives": [\n'
-        n=${#devices[@]}
-        i=0
-        for dev in "${devices[@]}"; do
-            i=$((i+1))
-            printf '    {"device":"%s","status":"%s","method":"%s","cert":"%s"}%s\n' \
-                "$(report::_json_field "$dev")" \
-                "$(report::_json_field "${devrow[$dev.status]}")" \
-                "$(report::_json_field "${devrow[$dev.method]}")" \
-                "$(report::_json_field "${devrow[$dev.cert]}")" \
-                "$([[ $i -lt $n ]] && printf ',')"
-        done
-        printf '  ]\n'
+        printf '  "system_uuid": "%s"\n' "$(report::_json_field "${SYS_UUID:-}")"
         printf '}\n'
     } > "$manifest"
 

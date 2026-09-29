@@ -67,7 +67,7 @@ function licence_pub_keys(int $userId): array {
  * @param array $licencePubKeys Base64-encoded DER public keys of the owner's
  *                              paid licences (see licence_pub_keys).
  * @return array $groups[COCID] = [cocid, drives[], reports[], shaState, sigState,
- *                                 system, sysSerial, bbSerial, first, last]
+ *                                 system, sysserial, bbserial, first, last]
  */
 function parse_reports(array $files, array $licencePubKeys = [], array $ingestedShas = [], ?array &$stats = null): array {
     // 1) Bucket uploads by stem.
@@ -216,7 +216,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
             $groups[$cocid] = [
                 'cocid' => $cocid, 'drives' => [], 'reports' => [],
                 'shaState' => 'unverified', 'sigState' => 'none',
-                'system' => '', 'sysSerial' => '', 'bbSerial' => '',
+                'system' => '', 'sysserial' => '', 'bbserial' => '',
                 'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '',
                 'chassisserial' => '', 'chassistype' => '', 'biosversion' => '',
                 'biosdate' => '', 'systemuuid' => '', 'bioslock' => '', 'bioslockmethod' => '',
@@ -293,8 +293,8 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
             }
             if ($g['system'] === '' && isset($map['system'])) {
                 $g['system'] = clip_str($get($row, 'system'), 255);
-                $g['sysSerial'] = clip_str($get($row, 'systemserial'), 255);
-                $g['bbSerial'] = clip_str($get($row, 'baseboardserial'), 255);
+                $g['sysserial'] = clip_str($get($row, 'systemserial'), 255);
+                $g['bbserial'] = clip_str($get($row, 'baseboardserial'), 255);
             }
             if ($g['enrollment'] === '' && $enrollment !== '') {
                 $g['enrollment'] = clip_str($enrollment, 32);
@@ -321,6 +321,32 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                     if ($firstEpoch === false || $tsEpoch < $firstEpoch) $g['first'] = $ts;
                     if ($lastEpoch === false || $tsEpoch > $lastEpoch) $g['last'] = $ts;
                 }
+            }
+        }
+
+        // Fall back to the JSON manifest for machine attributes the CSV lacks
+        // (older/third-party files may carry them only in the manifest).
+        if ($manifestData) {
+            if ($g['systemuuid'] === '' && !empty($manifestData['system_uuid'])) {
+                $g['systemuuid'] = clip_str((string)$manifestData['system_uuid'], 64);
+            }
+            if ($g['chassisserial'] === '' && !empty($manifestData['chassis_serial'])) {
+                $g['chassisserial'] = clip_str((string)$manifestData['chassis_serial'], 255);
+            }
+            if ($g['chassistype'] === '' && !empty($manifestData['chassis_type'])) {
+                $g['chassistype'] = clip_str((string)$manifestData['chassis_type'], 64);
+            }
+            if ($g['biosversion'] === '' && !empty($manifestData['bios_version'])) {
+                $g['biosversion'] = clip_str((string)$manifestData['bios_version'], 64);
+            }
+            if ($g['biosdate'] === '' && !empty($manifestData['bios_date'])) {
+                $g['biosdate'] = clip_str((string)$manifestData['bios_date'], 32);
+            }
+            if ($g['bioslock'] === '' && !empty($manifestData['bios_lock'])) {
+                $g['bioslock'] = clip_str((string)$manifestData['bios_lock'], 20);
+            }
+            if ($g['bioslockmethod'] === '' && !empty($manifestData['bios_lock_method'])) {
+                $g['bioslockmethod'] = clip_str((string)$manifestData['bios_lock_method'], 255);
             }
         }
         unset($g);
@@ -609,11 +635,11 @@ function report_row(array $r, ?array $payload): array {
         'devices'     => (int)$r['devices'],
         'runs'        => (int)$r['runs'],
         'uploaded_at' => ts_local((string)$r['uploaded_at']),
-        'first'       => is_array($payload) ? (string)($payload['first'] ?? '') : '',
-        'last'        => is_array($payload) ? (string)($payload['last'] ?? '') : '',
+        'first'       => is_array($payload) ? ts_local((string)($payload['first'] ?? '')) : '',
+        'last'        => is_array($payload) ? ts_local((string)($payload['last'] ?? '')) : '',
         'system'      => is_array($payload) ? (string)($payload['system'] ?? '') : '',
-        'sysserial'   => is_array($payload) ? (string)($payload['sysSerial'] ?? '') : '',
-        'bbserial'    => is_array($payload) ? (string)($payload['bbSerial'] ?? '') : '',
+        'sysserial'   => is_array($payload) ? (string)($payload['sysserial'] ?? $payload['sysSerial'] ?? '') : '',
+        'bbserial'    => is_array($payload) ? (string)($payload['bbserial'] ?? $payload['bbSerial'] ?? '') : '',
         'cpu'         => is_array($payload) ? (string)($payload['cpu'] ?? '') : '',
         'gpu'         => is_array($payload) ? (string)($payload['gpu'] ?? '') : '',
         'ram'         => is_array($payload) ? (string)($payload['ram'] ?? '') : '',
@@ -738,7 +764,7 @@ function load_devices(int $userId): array {
         if (!is_array($g)) continue;
 
         $key = '';
-        foreach (['systemuuid', 'sysSerial', 'bbSerial'] as $k) {
+        foreach (['systemuuid', 'sysserial', 'sysSerial', 'bbserial', 'bbSerial'] as $k) {
             if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
         }
         if ($key === '') $key = 'cocid:' . strtolower((string)$r['cocid']);
@@ -746,8 +772,8 @@ function load_devices(int $userId): array {
         if (!isset($devices[$key])) {
             $devices[$key] = [
                 'system'        => (string)($g['system'] ?? ''),
-                'sysserial'     => (string)($g['sysSerial'] ?? ''),
-                'bbserial'      => (string)($g['bbSerial'] ?? ''),
+                'sysserial'     => (string)($g['sysserial'] ?? $g['sysSerial'] ?? ''),
+                'bbserial'      => (string)($g['bbserial'] ?? $g['bbSerial'] ?? ''),
                 'chassisserial' => (string)($g['chassisserial'] ?? ''),
                 'chassistype'   => (string)($g['chassistype'] ?? ''),
                 'biosversion'   => (string)($g['biosversion'] ?? ''),
@@ -767,11 +793,11 @@ function load_devices(int $userId): array {
         }
         $snap = [
             'cocid'          => (string)$r['cocid'],
-            'uploaded_at'    => (string)$r['uploaded_at'],
-            'ts'             => (string)($g['first'] ?? ''),
+            'uploaded_at'    => ts_local((string)$r['uploaded_at']),
+            'ts'             => ts_local((string)($g['first'] ?? '')),
             'system'         => (string)($g['system'] ?? ''),
-            'sysserial'      => (string)($g['sysSerial'] ?? ''),
-            'bbserial'       => (string)($g['bbSerial'] ?? ''),
+            'sysserial'      => (string)($g['sysserial'] ?? $g['sysSerial'] ?? ''),
+            'bbserial'       => (string)($g['bbserial'] ?? $g['bbSerial'] ?? ''),
             'chassisserial'  => (string)($g['chassisserial'] ?? ''),
             'chassistype'    => (string)($g['chassistype'] ?? ''),
             'biosversion'    => (string)($g['biosversion'] ?? ''),
@@ -816,8 +842,9 @@ function load_drives(int $userId): array {
             if ($key === '') continue;
 
             $entry = $d;
-            $entry['cocid']    = (string)$r['cocid'];
-            $entry['wiped_at'] = (string)$r['uploaded_at'];
+            $entry['cocid']       = (string)$r['cocid'];
+            $entry['uploaded_at'] = ts_local((string)$r['uploaded_at']);
+            $entry['ts']          = ts_local((string)($d['ts'] ?? ''));
 
             if (!isset($drives[$key])) {
                 $drives[$key] = $entry;

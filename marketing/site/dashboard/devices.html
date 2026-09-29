@@ -117,14 +117,17 @@
       function lockBadge(v) {
         var m = {
           LOCKED: ['bg-red-100 text-red-700', 'Locked'],
-          UNLOCKED: ['bg-emerald-100 text-emerald-700', 'Unlocked'],
-          UNKNOWN: ['bg-amber-100 text-amber-700', 'Unknown']
+          UNLOCKED: ['bg-emerald-100 text-emerald-700', 'Unlocked']
         };
-        var b = m[v] || null;
-        if (!b) return null;
-        var s = el('span', 'whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ' + b[0], b[1]);
-        if (v === 'UNKNOWN') s.title = 'No BIOS-lock signal captured';
-        return s;
+        var s = String(v == null ? '' : v).trim().toUpperCase();
+        var b = m[s];
+        if (!b) {
+          if (s === '') return null;           // no value at all → caller shows '—'
+          b = ['bg-amber-100 text-amber-700', 'Unknown'];  // N/A, NONE, UNKNOWN, …
+        }
+        var span = el('span', 'whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ' + b[0], b[1]);
+        if (s !== 'LOCKED' && s !== 'UNLOCKED') span.title = 'No BIOS-lock signal captured';
+        return span;
       }
 
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
@@ -182,7 +185,7 @@
 
         var body = el('tbody');
         slice.forEach(function (dev, idx) {
-          var key = String(dev.systemuuid || dev.sysserial || dev.bbserial || dev.cocid || ('d' + idx));
+          var key = String(dev.systemuuid || dev.sysserial || dev.bbserial || ('d' + idx));
           var tr = el('tr', 'border-b border-slate-100 hover:bg-slate-50');
           var sysCell = el('td', 'truncate px-4 py-2.5 font-medium text-ink-900', dev.system || dev.sysserial || 'Unknown');
           sysCell.title = dev.system || '';
