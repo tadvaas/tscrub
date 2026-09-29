@@ -11,45 +11,45 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
   <!-- ============ NAVBAR ============ -->
-        <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+        <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
   </nav>
 
   <!-- ============ HERO ============ -->
-  <section class="relative overflow-hidden border-b border-slate-200 bg-grad-brand">
+  <section class="relative overflow-hidden border-b border-slate-200 dark:border-ink-700 bg-grad-brand">
     <div class="pointer-events-none absolute inset-0 bg-grid-slate"></div>
     <div class="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 md:grid-cols-2 md:items-center md:py-24">
       <div>
-        <span class="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+        <span class="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400">
           <span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
           Open &amp; auditable data erasure
         </span>
-        <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 sm:text-5xl">
+        <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-5xl">
           Verifiable disk sanitisation for regulated IT.
         </h1>
-        <p class="mt-4 max-w-xl text-lg text-slate-600">
+        <p class="mt-4 max-w-xl text-lg text-slate-600 dark:text-slate-400">
           tScrub erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear and Purge levels, and flags every drive it couldn't sanitise — then hands you a verifiable, audit-ready chain-of-custody report you can turn into a Certificate of Destruction.
         </p>
         <div class="mt-8 flex flex-wrap gap-4">
@@ -57,15 +57,15 @@
             Get tScrub
             <svg class="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
           </a>
-          <a href="compliance" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <a href="compliance" class="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">
             See the report
           </a>
         </div>
-        <ul class="mt-8 space-y-2 text-sm text-slate-600">
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600">✓</span> Open, inspectable code — read exactly what tScrub does</li>
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600">✓</span> Boot our ready-to-go ISO from USB or PXE</li>
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600">✓</span> Chain of custody with per-drive final status &amp; certification</li>
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600">✓</span> Erase to reuse — reclaim drives for redeployment, resale, or recycling</li>
+        <ul class="mt-8 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Open, inspectable code — read exactly what tScrub does</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Boot our ready-to-go ISO from USB or PXE</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Chain of custody with per-drive final status &amp; certification</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Erase to reuse — reclaim drives for redeployment, resale, or recycling</li>
         </ul>
       </div>
 
@@ -77,8 +77,8 @@
             <span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
             <span class="h-2.5 w-2.5 rounded-full bg-brand-500"></span>
           </div>
-          <span id="term-title" class="font-mono text-xs text-slate-400">tscrub — sanitise session</span>
-          <button id="term-rerun" type="button" class="font-mono text-xs text-slate-400 hover:text-white">↻ run again</button>
+          <span id="term-title" class="font-mono text-xs text-slate-400 dark:text-slate-500">tscrub — sanitise session</span>
+          <button id="term-rerun" type="button" class="font-mono text-xs text-slate-400 dark:text-slate-500 hover:text-white">↻ run again</button>
         </div>
         <div id="term" class="cursor-text p-4 font-mono text-[13px] leading-relaxed text-slate-200">
           <div id="term-output" class="h-[360px] overflow-hidden"></div>
@@ -92,8 +92,8 @@
   </section>
 
   <!-- ============ TRUST STRIP ============ -->
-  <section class="border-b border-slate-200 bg-white">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-4 py-10 text-sm font-semibold text-slate-500">
+  <section class="border-b border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-4 py-10 text-sm font-semibold text-slate-500 dark:text-slate-400">
       <span>Aligns with</span>
       <span class="uppercase tracking-widest">NIST 800-88</span>
       <span class="uppercase tracking-widest">GDPR</span>
@@ -107,75 +107,75 @@
     <div class="grid gap-12 lg:grid-cols-12">
       <div class="lg:col-span-4">
         <div class="lg:sticky lg:top-24">
-          <span class="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Capabilities</span>
-          <h2 class="text-3xl font-extrabold tracking-tight text-ink-900">Built for the drives your auditors ask about</h2>
-          <p class="mt-3 text-slate-600">Every capability maps to a defensible Clear, Purge, or Destroy outcome — with a report to prove it.</p>
-          <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 hover:text-brand-700">See compliance mapping →</a>
+          <span class="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400">Capabilities</span>
+          <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Built for the drives your auditors ask about</h2>
+          <p class="mt-3 text-slate-600 dark:text-slate-400">Every capability maps to a defensible Clear, Purge, or Destroy outcome — with a report to prove it.</p>
+          <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">See compliance mapping →</a>
         </div>
       </div>
       <div class="lg:col-span-8">
-        <div class="divide-y divide-slate-100">
+        <div class="divide-y divide-slate-100 dark:divide-ink-800">
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">NVMe sanitise</h3>
-              <p class="mt-1 text-sm text-slate-600">Crypto, block, and overwrite sanitise, plus format fallback — with live SSTAT progress monitoring.</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">NVMe sanitise</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Crypto, block, and overwrite sanitise, plus format fallback — with live SSTAT progress monitoring.</p>
             </div>
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">ATA secure erase</h3>
-              <p class="mt-1 text-sm text-slate-600">Enhanced and standard security erase for SATA/ATA drives, with frozen-drive handling.</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">ATA secure erase</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Enhanced and standard security erase for SATA/ATA drives, with frozen-drive handling.</p>
             </div>
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">SED / OPAL unlock</h3>
-              <p class="mt-1 text-sm text-slate-600">PSID revert for locked self-encrypting drives, plus detection of BIOS Block SID lockdown (0x4286).</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">SED / OPAL unlock</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">PSID revert for locked self-encrypting drives, plus detection of BIOS Block SID lockdown (0x4286).</p>
             </div>
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">Chain of custody</h3>
-              <p class="mt-1 text-sm text-slate-600">COCID, drive serials, and per-drive final status — a verifiable CSV report, plus a Certificate of Destruction you can generate in seconds.</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">Chain of custody</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">COCID, drive serials, and per-drive final status — a verifiable CSV report, plus a Certificate of Destruction you can generate in seconds.</p>
             </div>
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">SMART capture</h3>
-              <p class="mt-1 text-sm text-slate-600">Pre- and post-wipe SMART health — status, temperature, power-on hours, and wear — recorded for every drive.</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">SMART capture</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Pre- and post-wipe SMART health — status, temperature, power-on hours, and wear — recorded for every drive.</p>
             </div>
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">Open &amp; auditable</h3>
-              <p class="mt-1 text-sm text-slate-600">The appliance image is open and inspectable — your security team can read exactly what tScrub does.</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">Open &amp; auditable</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">The appliance image is open and inspectable — your security team can read exactly what tScrub does.</p>
             </div>
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
             </div>
             <div>
-              <h3 class="font-bold text-ink-900">Runs on your own hardware</h3>
-              <p class="mt-1 text-sm text-slate-600">Boot from USB or PXE on hardware you already own. No locked-down vendor box required.</p>
+              <h3 class="font-bold text-ink-900 dark:text-white">Runs on your own hardware</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Boot from USB or PXE on hardware you already own. No locked-down vendor box required.</p>
             </div>
           </div>
         </div>
@@ -184,7 +184,7 @@
   </section>
 
 <!-- ============ AUDIENCE ============ -->
-  <section class="relative overflow-hidden border-y border-slate-200 bg-ink-900 text-white">
+  <section class="relative overflow-hidden border-y border-slate-200 dark:border-ink-700 bg-ink-900 text-white">
     <div class="pointer-events-none absolute inset-0 bg-grid-ink"></div>
     <div class="relative mx-auto max-w-7xl px-4 py-20">
       <div class="mx-auto max-w-2xl text-center">
@@ -192,56 +192,56 @@
         <p class="mt-3 text-slate-300">From regulated enterprises to IT asset disposal, tScrub gives you a defensible record of every drive.</p>
       </div>
       <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Financial services</h3><p class="mt-2 text-sm text-slate-400">Evidence for decommissioned systems subject to FCA, PRA, and contractual data-handling rules.</p></div>
-        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Healthcare</h3><p class="mt-2 text-sm text-slate-400">A verifiable trail for media holding patient data, supporting UK GDPR and NHS requirements.</p></div>
-        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">ITAD &amp; refurbishers</h3><p class="mt-2 text-sm text-slate-400">A repeatable, branded wipe process you can show to your own clients.</p></div>
-        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Data centres</h3><p class="mt-2 text-sm text-slate-400">PXE-boot tScrub across fleets and keep a per-machine record on decommission.</p></div>
+        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Financial services</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">Evidence for decommissioned systems subject to FCA, PRA, and contractual data-handling rules.</p></div>
+        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Healthcare</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">A verifiable trail for media holding patient data, supporting UK GDPR and NHS requirements.</p></div>
+        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">ITAD &amp; refurbishers</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">A repeatable, branded wipe process you can show to your own clients.</p></div>
+        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Data centres</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">PXE-boot tScrub across fleets and keep a per-machine record on decommission.</p></div>
       </div>
     </div>
   </section>
 
 <!-- ============ HOW IT WORKS ============ -->
-  <section id="how" class="border-y border-slate-200 bg-slate-50">
+  <section id="how" class="border-y border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800">
     <div class="mx-auto max-w-7xl px-4 py-20">
       <div class="mx-auto max-w-2xl text-center">
-        <h2 class="text-3xl font-extrabold tracking-tight text-ink-900">From boot to certificate in four steps</h2>
-        <p class="mt-3 text-slate-600">No installation. No vendor hardware. Boot, wipe, and keep the proof.</p>
+        <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">From boot to certificate in four steps</h2>
+        <p class="mt-3 text-slate-600 dark:text-slate-400">No installation. No vendor hardware. Boot, wipe, and keep the proof.</p>
       </div>
       <div class="relative mt-14">
-        <div class="absolute inset-x-16 top-6 hidden h-px bg-slate-300 md:block"></div>
+        <div class="absolute inset-x-16 top-6 hidden h-px bg-slate-300 dark:bg-ink-700 md:block"></div>
         <ol class="relative grid gap-10 md:grid-cols-4">
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">1</div>
-            <h3 class="mt-4 font-bold text-ink-900">Boot</h3>
-            <p class="mt-2 text-sm text-slate-600">Boot the tScrub appliance image from USB or PXE, place your licence alongside it, and run it. Zero installation.</p>
+            <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Boot</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Boot the tScrub appliance image from USB or PXE, place your licence alongside it, and run it. Zero installation.</p>
           </li>
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">2</div>
-            <h3 class="mt-4 font-bold text-ink-900">Discover &amp; classify</h3>
-            <p class="mt-2 text-sm text-slate-600">Every drive is detected across NVMe, SATA, and SCSI — each mapped to its strongest Purge or Clear capability.</p>
+            <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Discover &amp; classify</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Every drive is detected across NVMe, SATA, and SCSI — each mapped to its strongest Purge or Clear capability.</p>
           </li>
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">3</div>
-            <h3 class="mt-4 font-bold text-ink-900">Sanitise</h3>
-            <p class="mt-2 text-sm text-slate-600">All drives wiped in parallel with live progress. Frozen, locked, or blocked drives are flagged — never marked clean.</p>
+            <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Sanitise</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">All drives wiped in parallel with live progress. Frozen, locked, or blocked drives are flagged — never marked clean.</p>
           </li>
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">4</div>
-            <h3 class="mt-4 font-bold text-ink-900">Report</h3>
-            <p class="mt-2 text-sm text-slate-600">A chain-of-custody report tied to one COCID — upload it to generate a Certificate of Destruction.</p>
+            <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Report</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">A chain-of-custody report tied to one COCID — upload it to generate a Certificate of Destruction.</p>
           </li>
         </ol>
       </div>
 
       <div class="mt-16 grid gap-8 lg:grid-cols-2">
         <div>
-          <h3 class="text-lg font-bold text-ink-900">What the report captures</h3>
-          <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+          <h3 class="text-lg font-bold text-ink-900 dark:text-white">What the report captures</h3>
+          <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-ink-700 shadow-sm">
             <table class="w-full min-w-[360px] text-left text-sm">
               <thead class="bg-ink-900 text-xs uppercase text-slate-300">
                 <tr><th class="px-6 py-3 font-semibold">Field</th><th class="px-6 py-3 font-semibold">Example</th></tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 bg-white">
+              <tbody class="divide-y divide-slate-100 dark:divide-ink-800 bg-white dark:bg-ink-900">
                 <tr><td class="px-4 py-3">Chain of Custody ID</td><td class="px-4 py-3 font-mono text-xs">48213</td></tr>
                 <tr><td class="px-4 py-3">Drive model / serial</td><td class="px-4 py-3 font-mono text-xs">SAMSUNG MZQL23T8HCLS-00A07</td></tr>
                 <tr><td class="px-4 py-3">Method</td><td class="px-4 py-3 font-mono text-xs">NVMe Crypto Purge</td></tr>
@@ -253,13 +253,13 @@
           </div>
         </div>
         <div>
-          <h3 class="text-lg font-bold text-ink-900">Sanitisation methods at a glance</h3>
-          <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+          <h3 class="text-lg font-bold text-ink-900 dark:text-white">Sanitisation methods at a glance</h3>
+          <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-ink-700 shadow-sm">
             <table class="w-full min-w-[360px] text-left text-sm">
               <thead class="bg-ink-900 text-xs uppercase text-slate-300">
                 <tr><th class="px-6 py-3 font-semibold">Drive type</th><th class="px-6 py-3 font-semibold">Method</th><th class="px-6 py-3 font-semibold">Outcome</th></tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 bg-white">
+              <tbody class="divide-y divide-slate-100 dark:divide-ink-800 bg-white dark:bg-ink-900">
                 <tr><td class="px-4 py-3">NVMe</td><td class="px-4 py-3">Crypto / block / overwrite sanitise</td><td class="px-4 py-3">Purge</td></tr>
                 <tr><td class="px-4 py-3">SATA / ATA</td><td class="px-4 py-3">Enhanced or standard secure erase</td><td class="px-4 py-3">Purge / Clear</td></tr>
                 <tr><td class="px-4 py-3">SCSI / SAS</td><td class="px-4 py-3">nwipe quick</td><td class="px-4 py-3">Clear</td></tr>
@@ -268,8 +268,8 @@
               </tbody>
             </table>
           </div>
-          <div class="mt-4 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            <span class="font-semibold text-ink-900">Failed drives are recorded, not hidden.</span> Frozen drives are flagged FROZEN for physical destruction; Block SID-locked drives get a BLOCKED status (recoverable — clear the SID and re-run); failed or unsupported drives are recorded NOT SANITISED — the chain of custody stays complete.
+          <div class="mt-4 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 text-sm text-slate-600 dark:text-slate-400">
+            <span class="font-semibold text-ink-900 dark:text-white">Failed drives are recorded, not hidden.</span> Frozen drives are flagged FROZEN for physical destruction; Block SID-locked drives get a BLOCKED status (recoverable — clear the SID and re-run); failed or unsupported drives are recorded NOT SANITISED — the chain of custody stays complete.
           </div>
         </div>
       </div>
@@ -280,13 +280,13 @@
   <section class="mx-auto max-w-7xl px-4 py-20">
     <div class="grid gap-12 md:grid-cols-2 md:items-center">
       <div>
-        <span class="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Compliance</span>
-        <h2 class="text-3xl font-extrabold tracking-tight text-ink-900">Mapped to NIST 800-88 outcomes</h2>
-        <p class="mt-3 text-slate-600">Every wipe method maps to a defensible Clear or Purge outcome — and drives that can't be wiped are flagged for destruction — so the report survives an audit.</p>
-        <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 hover:text-brand-700">Explore compliance →</a>
+        <span class="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400">Compliance</span>
+        <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Mapped to NIST 800-88 outcomes</h2>
+        <p class="mt-3 text-slate-600 dark:text-slate-400">Every wipe method maps to a defensible Clear or Purge outcome — and drives that can't be wiped are flagged for destruction — so the report survives an audit.</p>
+        <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">Explore compliance →</a>
       </div>
       <div class="rounded-xl bg-ink-900 p-6 font-mono text-sm shadow-lg">
-        <p class="text-slate-500"># method → NIST 800-88</p>
+        <p class="text-slate-500 dark:text-slate-400"># method → NIST 800-88</p>
         <p class="mt-2 text-slate-300">NVMe Crypto Purge <span class="text-brand-500">→ Purge</span></p>
         <p class="text-slate-300">ATA Enhanced Erase <span class="text-brand-500">→ Purge</span></p>
         <p class="text-slate-300">ATA Secure Erase <span class="text-brand-500">→ Clear</span></p>
@@ -297,19 +297,19 @@
   </section>
 
   <!-- ============ COMPARE TEASER ============ -->
-  <section class="border-y border-slate-200 bg-slate-50">
+  <section class="border-y border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800">
     <div class="mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-16 text-center">
-      <h2 class="text-3xl font-extrabold tracking-tight text-ink-900">The open alternative to Blancco</h2>
-      <p class="max-w-xl text-slate-600">Same compliance outcome, without the lock-in. Open source, run on your own hardware, transparent pricing.</p>
+      <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">The open alternative to Blancco</h2>
+      <p class="max-w-xl text-slate-600 dark:text-slate-400">Same compliance outcome, without the lock-in. Open source, run on your own hardware, transparent pricing.</p>
       <a href="compare" class="inline-flex items-center rounded-lg bg-ink-900 px-5 py-3 text-sm font-semibold text-white hover:bg-ink-800">See the comparison</a>
     </div>
   </section>
 
   <!-- ============ FAQ TEASER ============ -->
   <section class="mx-auto max-w-3xl px-4 py-16 text-center">
-    <h2 class="text-3xl font-extrabold tracking-tight text-ink-900">Questions?</h2>
-    <p class="mt-3 text-slate-600">Find answers on certification, running tScrub on your own hardware, and edge cases.</p>
-    <a href="faq" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 hover:text-brand-700">Read the FAQ →</a>
+    <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Questions?</h2>
+    <p class="mt-3 text-slate-600 dark:text-slate-400">Find answers on certification, running tScrub on your own hardware, and edge cases.</p>
+    <a href="faq" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">Read the FAQ →</a>
   </section>
 
   <!-- ============ CTA ============ -->
@@ -319,14 +319,14 @@
       <h2 class="text-3xl font-extrabold tracking-tight">Ready to wipe with a verifiable trail?</h2>
       <p class="max-w-xl text-brand-50">Download the bootable appliance image, or see pricing for signed reports and support.</p>
       <div class="flex flex-wrap justify-center gap-4">
-        <a href="download" class="inline-flex items-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">Download tScrub</a>
-        <a href="pricing" class="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">View pricing</a>
+        <a href="download" class="inline-flex items-center rounded-lg bg-white dark:bg-ink-900 px-5 py-3 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30">Download tScrub</a>
+        <a href="pricing" class="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white dark:hover:bg-ink-900/10">View pricing</a>
       </div>
     </div>
   </section>
 
   <!-- ============ FOOTER ============ -->
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>

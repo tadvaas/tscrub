@@ -10,52 +10,52 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
   </nav>
 
   <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900">Dashboard</h1>
+    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
     <div id="dashboard-nav" class="mt-4"></div>
 
     <!-- Balance + top-up -->
-    <div class="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div class="flex items-start gap-3 border-b border-slate-200 px-6 py-4">
-        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+    <div class="mt-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
+      <div class="flex items-start gap-3 border-b border-slate-200 dark:border-ink-700 px-6 py-4">
+        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </span>
         <div>
-          <h2 class="text-base font-bold text-ink-900">Device credits</h2>
-          <p class="mt-0.5 text-sm text-slate-500">Pay per device — each wiped drive uses one credit.</p>
+          <h2 class="text-base font-bold text-ink-900 dark:text-white">Device credits</h2>
+          <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Pay per device — each wiped drive uses one credit.</p>
         </div>
       </div>
       <div class="px-6 py-6">
         <div class="flex items-baseline gap-2">
-          <p id="credit-balance" class="text-3xl font-extrabold text-ink-900">…</p>
-          <span class="text-sm text-slate-500">credits remaining</span>
+          <p id="credit-balance" class="text-3xl font-extrabold text-ink-900 dark:text-white">…</p>
+          <span class="text-sm text-slate-500 dark:text-slate-400">credits remaining</span>
         </div>
-        <p class="mt-1 text-xs text-slate-500">1 credit = 1 device sanitised. Buy a pack below.</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">1 credit = 1 device sanitised. Buy a pack below.</p>
         <div class="mt-4 flex flex-wrap gap-2">
           <button data-pack="pack10" class="topup rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">10 devices · £27</button>
           <button data-pack="pack50" class="topup rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">50 devices · £112.50</button>
@@ -66,48 +66,48 @@
     </div>
 
     <!-- Credit history -->
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div class="flex items-start gap-3 border-b border-slate-200 px-6 py-4">
-        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
+      <div class="flex items-start gap-3 border-b border-slate-200 dark:border-ink-700 px-6 py-4">
+        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </span>
         <div>
-          <h2 class="text-base font-bold text-ink-900">Credit history</h2>
-          <p class="mt-0.5 text-sm text-slate-500">Purchases and per-device usage on this account.</p>
+          <h2 class="text-base font-bold text-ink-900 dark:text-white">Credit history</h2>
+          <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Purchases and per-device usage on this account.</p>
         </div>
       </div>
       <div class="px-6 py-6">
         <div id="credit-history" class="space-y-2">
-          <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div class="h-3 w-28 rounded bg-slate-200"></div>
-            <div class="h-3 w-16 rounded bg-slate-200"></div>
+          <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-3">
+            <div class="h-3 w-28 rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-3 w-16 rounded bg-slate-200 dark:bg-ink-700"></div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Volume plans -->
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div class="flex items-start gap-3 border-b border-slate-200 px-6 py-4">
-        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
+      <div class="flex items-start gap-3 border-b border-slate-200 dark:border-ink-700 px-6 py-4">
+        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"/></svg>
         </span>
         <div>
-          <h2 class="text-base font-bold text-ink-900">Volume plans</h2>
-          <p class="mt-0.5 text-sm text-slate-500">Bulk credit packs that bundle erasures below the pay-as-you-go rate.</p>
+          <h2 class="text-base font-bold text-ink-900 dark:text-white">Volume plans</h2>
+          <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Bulk credit packs that bundle erasures below the pay-as-you-go rate.</p>
         </div>
       </div>
       <div class="px-6 py-6">
         <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p class="text-sm font-bold text-ink-900">Team</p>
-            <p class="mt-1 text-2xl font-extrabold text-ink-900">£99</p>
-            <p class="mt-1 text-sm text-slate-600">100 credits (~£0.99 each)</p>
+          <div class="rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-4">
+            <p class="text-sm font-bold text-ink-900 dark:text-white">Team</p>
+            <p class="mt-1 text-2xl font-extrabold text-ink-900 dark:text-white">£99</p>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">100 credits (~£0.99 each)</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p class="text-sm font-bold text-ink-900">Enterprise</p>
-            <p class="mt-1 text-2xl font-extrabold text-ink-900">£399</p>
-            <p class="mt-1 text-sm text-slate-600">500 credits (~£0.80 each)</p>
+          <div class="rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-4">
+            <p class="text-sm font-bold text-ink-900 dark:text-white">Enterprise</p>
+            <p class="mt-1 text-2xl font-extrabold text-ink-900 dark:text-white">£399</p>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">500 credits (~£0.80 each)</p>
           </div>
         </div>
         <a href="/contact" class="mt-4 inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">Contact us to set up a volume plan</a>
@@ -115,7 +115,7 @@
     </div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
@@ -135,13 +135,13 @@
 
   <!-- Payment modal (Stripe Payment Element — card form themed to match the site) -->
   <div id="pay-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-ink-900/50 p-4">
-    <div class="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-xl">
-      <h3 class="text-lg font-bold text-ink-900">Pay for device credits</h3>
-      <p id="pay-pack-label" class="mt-1 text-sm text-slate-500"></p>
+    <div class="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white dark:bg-ink-900 p-6 shadow-xl">
+      <h3 class="text-lg font-bold text-ink-900 dark:text-white">Pay for device credits</h3>
+      <p id="pay-pack-label" class="mt-1 text-sm text-slate-500 dark:text-slate-400"></p>
       <div id="payment-element" class="mt-4"></div>
-      <p id="pay-error" class="mt-2 hidden text-xs font-semibold text-red-600"></p>
+      <p id="pay-error" class="mt-2 hidden text-xs font-semibold text-red-600 dark:text-red-400"></p>
       <div class="mt-4 flex items-center justify-between">
-        <button id="pay-cancel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+        <button id="pay-cancel" class="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Cancel</button>
         <button id="pay-submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">Pay</button>
       </div>
     </div>
@@ -183,28 +183,28 @@
           list.innerHTML = '';
           var rows = d.events || [];
           if (!rows.length) {
-            list.appendChild(el('p', 'text-sm text-slate-500', 'No credit activity yet.'));
+            list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No credit activity yet.'));
           }
           rows.forEach(function (ev) {
-            var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5');
+            var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-2.5');
             var left = el('div');
             var label = ev.type === 'credit' ? '+' + ev.units + ' credits' : '−' + ev.units + ' credits';
-            left.appendChild(el('span', 'text-sm font-semibold ' + (ev.type === 'credit' ? 'text-brand-700' : 'text-slate-700'), label));
-            left.appendChild(el('span', 'ml-2 text-xs text-slate-400', fmtDate(ev.created_at)));
+            left.appendChild(el('span', 'text-sm font-semibold ' + (ev.type === 'credit' ? 'text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300'), label));
+            left.appendChild(el('span', 'ml-2 text-xs text-slate-400 dark:text-slate-500', fmtDate(ev.created_at)));
             row.appendChild(left);
-            row.appendChild(el('span', 'font-mono text-xs text-slate-400', ev.ref));
+            row.appendChild(el('span', 'font-mono text-xs text-slate-400 dark:text-slate-500', ev.ref));
             list.appendChild(row);
           });
 
           var sp = new URLSearchParams(window.location.search);
           if (sp.get('redirect_status') === 'failed') {
             var s = document.getElementById('credit-status');
-            s.className = 'mt-3 text-sm font-semibold text-red-600';
+            s.className = 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400';
             s.textContent = 'Payment failed or was cancelled.';
             window.history.replaceState({}, '', '/dashboard/billing');
           } else if (sp.get('redirect_status') === 'succeeded' || sp.get('checkout') === 'success') {
             var s = document.getElementById('credit-status');
-            s.className = 'mt-3 text-sm font-semibold text-brand-700';
+            s.className = 'mt-3 text-sm font-semibold text-brand-700 dark:text-brand-400';
             s.textContent = 'Payment received — credits added.';
             window.history.replaceState({}, '', '/dashboard/billing');
           }
@@ -293,10 +293,10 @@
       function openPayModal(pack, label) {
         var token = ++payOpenToken;
         var status = document.getElementById('credit-status');
-        status.className = 'mt-3 text-sm font-semibold text-slate-500';
+        status.className = 'mt-3 text-sm font-semibold text-slate-500 dark:text-slate-400';
         status.textContent = 'Preparing payment…';
         if (!StripeCtor) {
-          status.className = 'mt-3 text-sm font-semibold text-red-600';
+          status.className = 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400';
           status.textContent = 'Payments are not fully configured yet.';
           return;
         }
@@ -311,7 +311,7 @@
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
           if (token !== payOpenToken) { return; } // dismissed or superseded
           if (!res.ok || !res.data.client_secret) {
-            status.className = 'mt-3 text-sm font-semibold text-red-600';
+            status.className = 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400';
             status.textContent = (res.data && res.data.error) || 'Could not start payment.';
             return;
           }
@@ -332,7 +332,7 @@
           }).mount('#payment-element');
         }).catch(function (err) {
           if (token !== payOpenToken) { return; }
-          status.className = 'mt-3 text-sm font-semibold text-red-600';
+          status.className = 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400';
           status.textContent = (err && err.message) ? err.message : 'Could not start payment. Please try again.';
           if (window.console && console.error) { console.error('checkout failed:', err); }
         });
@@ -364,7 +364,7 @@
             closePayModal();
             loadBilling();
             var s = document.getElementById('credit-status');
-            s.className = 'mt-3 text-sm font-semibold text-brand-700';
+            s.className = 'mt-3 text-sm font-semibold text-brand-700 dark:text-brand-400';
             s.textContent = 'Payment received — credits added.';
           }
         });

@@ -10,58 +10,58 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
-    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+    <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
   </nav>
 
   <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900">Dashboard</h1>
+    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
     <div id="dashboard-nav" class="mt-4"></div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-      <h2 class="text-xl font-bold text-ink-900">Generate a Certificate of Destruction</h2>
-      <p class="mt-1 text-sm text-slate-600">Certificates are generated from reports you've already uploaded. Search or select a Chain of Custody ID, then generate one consolidated certificate for every drive in that job.</p>
+    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-ink-900 dark:text-white">Generate a Certificate of Destruction</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Certificates are generated from reports you've already uploaded. Search or select a Chain of Custody ID, then generate one consolidated certificate for every drive in that job.</p>
 
       <div class="mt-5 space-y-3">
         <div>
-          <label for="cocid-search" class="mb-1 block text-sm font-semibold text-slate-700">Chain of Custody ID</label>
+          <label for="cocid-search" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Chain of Custody ID</label>
           <input id="cocid-search" list="cocid-options" type="text" placeholder="Type to search, or pick from the list…" autocomplete="off"
-                 class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500" />
+                 class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
           <datalist id="cocid-options"></datalist>
-          <p id="cocid-hint" class="mt-2 text-xs text-slate-500">Loading Chain of Custody IDs from your uploaded reports…</p>
+          <p id="cocid-hint" class="mt-2 text-xs text-slate-500 dark:text-slate-400">Loading Chain of Custody IDs from your uploaded reports…</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button id="generate" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Generate certificate</button>
-          <a href="/dashboard/reports" class="text-sm font-semibold text-brand-700 hover:underline">Upload reports first →</a>
+          <a href="/dashboard/reports" class="text-sm font-semibold text-brand-700 dark:text-brand-400 hover:underline">Upload reports first →</a>
         </div>
         <p id="generate-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
       </div>
     </div>
 
     <div class="mt-8">
-      <h2 class="text-lg font-bold text-ink-900">Certificates of destruction</h2>
-      <p class="mt-1 text-sm text-slate-600">Every certificate on your account — one consolidated certificate per Chain of Custody ID.</p>
-      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+      <h2 class="text-lg font-bold text-ink-900 dark:text-white">Certificates of destruction</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Every certificate on your account — one consolidated certificate per Chain of Custody ID.</p>
+      <div class="mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
         <div id="cert-list"></div>
         <div id="cert-pager" class="mt-3"></div>
       </div>
@@ -70,7 +70,7 @@
     <div id="signing-key" class="mt-8"></div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
@@ -92,20 +92,20 @@
   <div id="destroy-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="destroy-modal-title">
     <div id="destroy-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
-        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 id="destroy-modal-title" class="text-lg font-bold text-ink-900">Confirm physical destruction</h2>
-          <button id="destroy-modal-close" type="button" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+      <div class="flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 dark:border-ink-700 px-5 py-4">
+          <h2 id="destroy-modal-title" class="text-lg font-bold text-ink-900 dark:text-white">Confirm physical destruction</h2>
+          <button id="destroy-modal-close" type="button" class="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Cancel</button>
         </div>
         <div class="flex-1 overflow-y-auto px-5 py-4">
-          <p id="destroy-modal-intro" class="text-sm text-slate-600"></p>
+          <p id="destroy-modal-intro" class="text-sm text-slate-600 dark:text-slate-400"></p>
           <div id="destroy-modal-drives" class="mt-3 space-y-2"></div>
-          <label class="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            <input id="destroy-confirm" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-amber-400 text-brand-600 focus:ring-brand-500" />
+          <label class="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:text-amber-300">
+            <input id="destroy-confirm" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-amber-400 text-brand-600 dark:text-brand-400 focus:ring-brand-500" />
             <span>I confirm the selected device(s) have been physically destroyed. This attestation is recorded on the certificate.</span>
           </label>
         </div>
-        <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
+        <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-4">
           <button id="destroy-modal-generate" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Generate certificate</button>
         </div>
       </div>
@@ -167,16 +167,16 @@
           if (!d) return;
           var box = document.getElementById('signing-key');
           box.innerHTML = '';
-          var card = el('div', 'rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm');
-          card.appendChild(el('h2', 'text-xl font-bold text-ink-900', 'Signing key'));
-          card.appendChild(el('p', 'mt-1 text-sm text-slate-600', 'The tScrub vendor public key used to verify signed reports, licences, and release signatures.'));
+          var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm');
+          card.appendChild(el('h2', 'text-xl font-bold text-ink-900 dark:text-white', 'Signing key'));
+          card.appendChild(el('p', 'mt-1 text-sm text-slate-600 dark:text-slate-400', 'The tScrub vendor public key used to verify signed reports, licences, and release signatures.'));
           var pre = el('pre', 'mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200');
           pre.textContent = d.pem;
           card.appendChild(pre);
-          var fp = el('p', 'mt-3 text-sm text-slate-600', 'Fingerprint: ');
+          var fp = el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-400', 'Fingerprint: ');
           fp.appendChild(el('code', 'font-mono text-xs', d.fingerprint));
           card.appendChild(fp);
-          card.appendChild(el('p', 'mt-2 text-xs text-slate-500', 'When the vendor key is rotated, the old public key remains listed on your account so licences and releases signed by it stay verifiable.'));
+          card.appendChild(el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400', 'When the vendor key is rotated, the old public key remains listed on your account so licences and releases signed by it stay verifiable.'));
           box.appendChild(card);
         });
       }
@@ -205,17 +205,17 @@
         var box = document.getElementById('destroy-modal-drives');
         box.innerHTML = '';
         drives.forEach(function (d) {
-          var row = el('label', 'flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2.5 text-sm cursor-pointer');
-          var cb = el('input', 'h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500');
+          var row = el('label', 'flex items-center gap-3 rounded-lg border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-2.5 text-sm cursor-pointer');
+          var cb = el('input', 'h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-400 focus:ring-brand-500');
           cb.type = 'checkbox';
           cb.dataset.serial = d.serial || '';
           cb.addEventListener('change', syncDestroyModal);
           row.appendChild(cb);
           var txt = el('span', 'min-w-0 flex-1');
-          txt.appendChild(el('span', 'font-semibold text-ink-900', d.model || d.device || 'Drive'));
-          txt.appendChild(el('span', 'block text-xs text-slate-500', 'S/N ' + (d.serial || '—') + ' · ' + (d.device || '')));
+          txt.appendChild(el('span', 'font-semibold text-ink-900 dark:text-white', d.model || d.device || 'Drive'));
+          txt.appendChild(el('span', 'block text-xs text-slate-500 dark:text-slate-400', 'S/N ' + (d.serial || '—') + ' · ' + (d.device || '')));
           row.appendChild(txt);
-          var badge = d.status === 'FROZEN' ? 'bg-sky-100 text-sky-700' : d.status === 'BLOCKED' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+          var badge = d.status === 'FROZEN' ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400' : d.status === 'BLOCKED' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400';
           row.appendChild(el('span', 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ' + badge, d.status));
           box.appendChild(row);
         });
@@ -236,7 +236,7 @@
 
       function generateCert(cocid, destroyed) {
         var status = document.getElementById('generate-status');
-        status.className = 'text-xs font-semibold text-slate-500';
+        status.className = 'text-xs font-semibold text-slate-500 dark:text-slate-400';
         status.textContent = 'Generating certificate for ' + cocid + '…';
         var body = destroyed === undefined ? { cocid: cocid } : { cocid: cocid, destroyed: destroyed };
         getCsrf().then(function (csrf) {
@@ -252,7 +252,7 @@
           }
           if (res.ok) {
             var c = res.data.cert;
-            status.className = 'text-xs font-semibold text-brand-700';
+            status.className = 'text-xs font-semibold text-brand-700 dark:text-brand-400';
             status.innerHTML = '';
             status.appendChild(document.createTextNode('Consolidated certificate ' + c.cert + ' (' + c.devices + ' devices, ' + c.runs + ' runs). '));
             var dl = el('a', 'font-semibold underline', 'Download PDF');
@@ -261,7 +261,7 @@
             loadCerts();
             loadCocids();
           } else {
-            status.className = 'text-xs font-semibold text-red-600';
+            status.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
             status.textContent = res.data.error || 'Could not generate the certificate.';
           }
         });
@@ -286,14 +286,14 @@
         var totalPages = Math.max(1, Math.ceil(d.total / d.per));
         if (totalPages <= 1) return;
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
+        var prev = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
         prev.disabled = d.page <= 1;
         prev.addEventListener('click', function () { if (d.page > 1) goTo(d.page - 1); });
-        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
+        var next = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
         next.disabled = d.page >= totalPages;
         next.addEventListener('click', function () { if (d.page < totalPages) goTo(d.page + 1); });
         wrap.appendChild(prev);
-        wrap.appendChild(el('span', 'text-xs text-slate-500', 'Page ' + d.page + ' of ' + totalPages + ' (' + d.total + ' total)'));
+        wrap.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Page ' + d.page + ' of ' + totalPages + ' (' + d.total + ' total)'));
         wrap.appendChild(next);
         box.appendChild(wrap);
       }
@@ -311,30 +311,30 @@
           list.innerHTML = '';
           var rows = d.certs || [];
           if (!rows.length) {
-            list.appendChild(el('p', 'text-sm text-slate-500', 'No certificates yet. Upload reports, then generate your first consolidated certificate above.'));
+            list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No certificates yet. Upload reports, then generate your first consolidated certificate above.'));
             renderPager(d, loadCerts);
             return;
           }
           var table = el('table', 'w-full border-collapse text-sm');
           var hr = el('tr');
           ['Certificate ID', 'Chain of custody', 'Devices', 'Runs', 'Issued', 'PDF'].forEach(function (h) {
-            hr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500', h));
+            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
           });
           table.appendChild(hr);
           rows.forEach(function (c) {
             var tr = el('tr');
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 font-mono text-xs font-semibold text-ink-900', c.cert));
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2', c.cocid));
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2', String(c.devices)));
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2', String(c.runs)));
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2', (c.issued || '').slice(0, 10)));
-            var pdfTd = el('td', 'border-b border-slate-100 px-3 py-2');
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 font-mono text-xs font-semibold text-ink-900 dark:text-white', c.cert));
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', c.cocid));
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.devices)));
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.runs)));
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', (c.issued || '').slice(0, 10)));
+            var pdfTd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2');
             if (c.has_pdf) {
-              var dl = el('a', 'text-xs font-semibold text-brand-700 hover:underline', 'Download');
+              var dl = el('a', 'text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline', 'Download');
               dl.href = '/api/certs/' + encodeURIComponent(c.cert) + '/download';
               pdfTd.appendChild(dl);
             } else {
-              pdfTd.appendChild(el('span', 'text-xs text-slate-400', '—'));
+              pdfTd.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
             }
             tr.appendChild(pdfTd);
             table.appendChild(tr);

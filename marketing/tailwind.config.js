@@ -3,6 +3,7 @@ import typography from '@tailwindcss/typography'
 
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'media',
   content: [
     './site/*.html',
     './site/dashboard/**/*.html',

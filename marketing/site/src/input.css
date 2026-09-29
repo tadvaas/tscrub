@@ -16,7 +16,7 @@ html {
 }
 
 body {
-  @apply flex min-h-screen flex-col bg-white text-slate-800 antialiased;
+  @apply flex min-h-screen flex-col bg-white text-slate-800 antialiased dark:bg-ink-900 dark:text-slate-200;
 }
 
 /* Flex children must behave like blocks (full width) and be allowed to shrink
@@ -88,6 +88,23 @@ code {
 .lift:hover {
   transform: translateY(-3px);
   box-shadow: 0 16px 32px -18px rgb(11 18 32 / 0.28);
+}
+
+/* ---- Dark theme (follows the device's prefers-color-scheme) ---- */
+@media (prefers-color-scheme: dark) {
+  .bg-grid-slate {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  }
+
+  .bg-grad-brand {
+    background-image: linear-gradient(180deg, #052e21 0%, #0b1220 70%);
+  }
+
+  .lift:hover {
+    box-shadow: 0 16px 32px -18px rgb(0 0 0 / 0.6);
+  }
 }
 
 /* Terminal hero text colors */

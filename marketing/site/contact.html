@@ -11,26 +11,26 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-        <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+        <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
@@ -38,34 +38,34 @@
 
   <section class="mx-auto max-w-7xl px-4 py-16">
     <div class="mx-auto max-w-3xl text-center">
-      <h1 class="text-4xl font-extrabold tracking-tight text-ink-900">Contact tScrub</h1>
-      <p class="mt-3 text-slate-600">Questions about sanitisation, compliance mapping, or deploying the appliance on your own hardware — we're a small UK team and we reply personally.</p>
+      <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">Contact tScrub</h1>
+      <p class="mt-3 text-slate-600 dark:text-slate-400">Questions about sanitisation, compliance mapping, or deploying the appliance on your own hardware — we're a small UK team and we reply personally.</p>
     </div>
 
     <!-- Contact form -->
     <div class="mx-auto mt-12 max-w-3xl">
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-        <h2 class="text-lg font-bold text-ink-900">Send us a message</h2>
-        <p class="mt-1 text-sm text-slate-500">We reply within one UK business day — priority support is included on Team and Enterprise plans.</p>
+      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+        <h2 class="text-lg font-bold text-ink-900 dark:text-white">Send us a message</h2>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">We reply within one UK business day — priority support is included on Team and Enterprise plans.</p>
         <form id="contact-form" class="mt-6 space-y-5">
           <div class="grid gap-5 sm:grid-cols-2">
             <div>
-              <label for="c-name" class="mb-1 block text-sm font-semibold text-slate-700">Name</label>
-              <input id="c-name" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="Jane Doe" />
+              <label for="c-name" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Name</label>
+              <input id="c-name" type="text" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="Jane Doe" />
             </div>
             <div>
-              <label for="c-email" class="mb-1 block text-sm font-semibold text-slate-700">Work email</label>
-              <input id="c-email" type="email" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="jane@company.com" />
+              <label for="c-email" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Work email</label>
+              <input id="c-email" type="email" required class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="jane@company.com" />
             </div>
           </div>
           <div class="grid gap-5 sm:grid-cols-2">
             <div>
-              <label for="c-org" class="mb-1 block text-sm font-semibold text-slate-700">Organisation</label>
-              <input id="c-org" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="Acme Ltd" />
+              <label for="c-org" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Organisation</label>
+              <input id="c-org" type="text" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="Acme Ltd" />
             </div>
             <div>
-              <label for="c-type" class="mb-1 block text-sm font-semibold text-slate-700">Enquiry type</label>
-              <select id="c-type" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500">
+              <label for="c-type" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Enquiry type</label>
+              <select id="c-type" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500">
                 <option value="general">General</option>
                 <option value="sales">Sales</option>
                 <option value="support">Support</option>
@@ -74,8 +74,8 @@
             </div>
           </div>
           <div>
-            <label for="c-msg" class="mb-1 block text-sm font-semibold text-slate-700">Message</label>
-            <textarea id="c-msg" rows="5" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="Tell us about your fleet, your compliance requirements, or the question you have."></textarea>
+            <label for="c-msg" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Message</label>
+            <textarea id="c-msg" rows="5" required class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="Tell us about your fleet, your compliance requirements, or the question you have."></textarea>
           </div>
           <button type="submit" class="inline-flex items-center rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
             Send message
@@ -83,50 +83,50 @@
           </button>
           <p id="contact-form-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
         </form>
-        <p class="mt-4 text-xs text-slate-400">Prefer email? <a href="mailto:hello@tscrub.com" class="font-medium text-brand-600 hover:text-brand-700">hello@tscrub.com</a></p>
+        <p class="mt-4 text-xs text-slate-400 dark:text-slate-500">Prefer email? <a href="mailto:hello@tscrub.com" class="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">hello@tscrub.com</a></p>
       </div>
     </div>
 
     <!-- What happens next -->
     <div class="mx-auto mt-16 max-w-4xl">
-      <h2 class="text-center text-2xl font-extrabold tracking-tight text-ink-900">What happens next</h2>
+      <h2 class="text-center text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">What happens next</h2>
       <div class="mt-8 grid gap-6 sm:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 p-6 shadow-sm">
-          <span class="text-sm font-bold text-brand-600">01</span>
-          <h3 class="mt-2 font-bold text-ink-900">You email us</h3>
-          <p class="mt-2 text-sm text-slate-600">Tell us about your fleet or your question — no forms, no phone trees.</p>
+        <div class="rounded-xl border border-slate-200 dark:border-ink-700 p-6 shadow-sm">
+          <span class="text-sm font-bold text-brand-600 dark:text-brand-400">01</span>
+          <h3 class="mt-2 font-bold text-ink-900 dark:text-white">You email us</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Tell us about your fleet or your question — no forms, no phone trees.</p>
         </div>
-        <div class="rounded-xl border border-slate-200 p-6 shadow-sm">
-          <span class="text-sm font-bold text-brand-600">02</span>
-          <h3 class="mt-2 font-bold text-ink-900">We reply in a day</h3>
-          <p class="mt-2 text-sm text-slate-600">A real person responds within one UK business day.</p>
+        <div class="rounded-xl border border-slate-200 dark:border-ink-700 p-6 shadow-sm">
+          <span class="text-sm font-bold text-brand-600 dark:text-brand-400">02</span>
+          <h3 class="mt-2 font-bold text-ink-900 dark:text-white">We reply in a day</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">A real person responds within one UK business day.</p>
         </div>
-        <div class="rounded-xl border border-slate-200 p-6 shadow-sm">
-          <span class="text-sm font-bold text-brand-600">03</span>
-          <h3 class="mt-2 font-bold text-ink-900">We point you right</h3>
-          <p class="mt-2 text-sm text-slate-600">Compliance mapping, an enterprise quote, or a support fix — we'll take it from there.</p>
+        <div class="rounded-xl border border-slate-200 dark:border-ink-700 p-6 shadow-sm">
+          <span class="text-sm font-bold text-brand-600 dark:text-brand-400">03</span>
+          <h3 class="mt-2 font-bold text-ink-900 dark:text-white">We point you right</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Compliance mapping, an enterprise quote, or a support fix — we'll take it from there.</p>
         </div>
       </div>
     </div>
 
     <!-- Hours & quick links -->
     <div class="mx-auto mt-16 grid max-w-4xl gap-6 sm:grid-cols-2">
-      <div class="rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 class="font-bold text-ink-900">Hours</h2>
-        <p class="mt-1 text-sm text-slate-600">Monday–Friday, 9:00–17:00 GMT. We're a UK-based team — pricing is in GBP and documentation references UK GDPR and ICO guidance.</p>
+      <div class="rounded-xl border border-slate-200 dark:border-ink-700 p-6 shadow-sm">
+        <h2 class="font-bold text-ink-900 dark:text-white">Hours</h2>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Monday–Friday, 9:00–17:00 GMT. We're a UK-based team — pricing is in GBP and documentation references UK GDPR and ICO guidance.</p>
       </div>
-      <div class="rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 class="font-bold text-ink-900">Prefer to find it yourself?</h2>
-        <p class="mt-1 text-sm text-slate-600">Many answers are already covered in the documentation and FAQ.</p>
+      <div class="rounded-xl border border-slate-200 dark:border-ink-700 p-6 shadow-sm">
+        <h2 class="font-bold text-ink-900 dark:text-white">Prefer to find it yourself?</h2>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Many answers are already covered in the documentation and FAQ.</p>
         <div class="mt-4 flex flex-wrap gap-3">
-          <a href="docs" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Read the docs</a>
-          <a href="faq" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">View FAQ</a>
+          <a href="docs" class="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Read the docs</a>
+          <a href="faq" class="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">View FAQ</a>
         </div>
       </div>
     </div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
@@ -167,7 +167,7 @@
         var btn = form.querySelector('button[type="submit"]');
         btn.disabled = true;
         btn.textContent = 'Sending…';
-        setStatus('Sending your message…', 'text-slate-500');
+        setStatus('Sending your message…', 'text-slate-500 dark:text-slate-400');
         fetch('/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -177,18 +177,18 @@
             if (d && d.ok) {
               btn.disabled = false;
               btn.textContent = 'Message sent';
-              setStatus('Thanks — we\u2019ll reply within one UK business day.', 'text-brand-700');
+              setStatus('Thanks — we\u2019ll reply within one UK business day.', 'text-brand-700 dark:text-brand-400');
               form.reset();
             } else {
               btn.disabled = false;
               btn.textContent = 'Send message';
-              setStatus((d && d.error) || 'Something went wrong. Email hello@tscrub.com.', 'text-red-600');
+              setStatus((d && d.error) || 'Something went wrong. Email hello@tscrub.com.', 'text-red-600 dark:text-red-400');
             }
           })
           .catch(function () {
             btn.disabled = false;
             btn.textContent = 'Send message';
-            setStatus('Could not send. Email hello@tscrub.com directly.', 'text-red-600');
+            setStatus('Could not send. Email hello@tscrub.com directly.', 'text-red-600 dark:text-red-400');
           });
       });
     })();

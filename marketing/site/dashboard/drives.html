@@ -10,66 +10,66 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
   </nav>
 
   <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900">Dashboard</h1>
+    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
     <div id="dashboard-nav" class="mt-4"></div>
 
     <div class="mt-10">
-      <h2 class="text-2xl font-extrabold tracking-tight text-ink-900">Drives</h2>
-      <p class="mt-1 text-sm text-slate-600">Storage devices processed by tScrub — erasure outcomes and SMART data, consolidated from your reports.</p>
+      <h2 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Drives</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Storage devices processed by tScrub — erasure outcomes and SMART data, consolidated from your reports.</p>
     </div>
 
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
       <div id="drive-list" class="min-h-[200px]">
         <div class="flex animate-pulse flex-col gap-2 p-6">
-          <div class="h-4 w-64 rounded bg-slate-200"></div>
-          <div class="h-3 w-96 rounded bg-slate-200"></div>
+          <div class="h-4 w-64 rounded bg-slate-200 dark:bg-ink-700"></div>
+          <div class="h-3 w-96 rounded bg-slate-200 dark:bg-ink-700"></div>
         </div>
       </div>
-      <div id="drive-pager" class="border-t border-slate-100 px-4 py-3"></div>
+      <div id="drive-pager" class="border-t border-slate-100 dark:border-ink-800 px-4 py-3"></div>
     </div>
   </section>
 
   <div id="drive-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="drive-modal-title">
     <div id="drive-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
-      <div class="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
-        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <h2 id="drive-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900"></h2>
-          <button id="drive-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+      <div class="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
+          <h2 id="drive-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900 dark:text-white"></h2>
+          <button id="drive-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
         </div>
-        <div id="drive-modal-body" class="flex-1 overflow-y-auto bg-slate-50 p-5"></div>
-        <div id="drive-modal-footer" class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3"></div>
+        <div id="drive-modal-body" class="flex-1 overflow-y-auto bg-slate-50 dark:bg-ink-800 p-5"></div>
+        <div id="drive-modal-footer" class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-5 py-3"></div>
       </div>
     </div>
   </div>
 
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
@@ -117,25 +117,25 @@
       }
       function statusClass(v) {
         var s = String(v || '').toUpperCase();
-        if (s === 'COMPLETED') return 'text-emerald-700 font-semibold';
-        if (s === 'FAILED')    return 'text-red-700 font-semibold';
-        if (s === 'BLOCKED')   return 'text-amber-700 font-semibold';
-        if (s === 'FROZEN')    return 'text-sky-700 font-semibold';
-        return 'text-slate-700';
+        if (s === 'COMPLETED') return 'text-emerald-700 dark:text-emerald-400 font-semibold';
+        if (s === 'FAILED')    return 'text-red-700 dark:text-red-400 font-semibold';
+        if (s === 'BLOCKED')   return 'text-amber-700 dark:text-amber-400 font-semibold';
+        if (s === 'FROZEN')    return 'text-sky-700 dark:text-sky-400 font-semibold';
+        return 'text-slate-700 dark:text-slate-300';
       }
       function smartClass(v) {
         var s = String(v || '').toUpperCase();
-        if (s === 'PASS')  return 'text-emerald-700 font-semibold';
-        if (s === 'FAIL')  return 'text-red-700 font-semibold';
-        if (s === 'UNSUP') return 'text-slate-400';
-        return 'text-slate-700';
+        if (s === 'PASS')  return 'text-emerald-700 dark:text-emerald-400 font-semibold';
+        if (s === 'FAIL')  return 'text-red-700 dark:text-red-400 font-semibold';
+        if (s === 'UNSUP') return 'text-slate-400 dark:text-slate-500';
+        return 'text-slate-700 dark:text-slate-300';
       }
       function tempClass(v) {
         var n = parseInt(v, 10);
-        if (isNaN(n)) return 'text-slate-700';
-        if (n >= 75)  return 'text-red-700 font-semibold';
-        if (n >= 60)  return 'text-amber-700 font-semibold';
-        return 'text-slate-700';
+        if (isNaN(n)) return 'text-slate-700 dark:text-slate-300';
+        if (n >= 75)  return 'text-red-700 dark:text-red-400 font-semibold';
+        if (n >= 60)  return 'text-amber-700 dark:text-amber-400 font-semibold';
+        return 'text-slate-700 dark:text-slate-300';
       }
       function csvCell(v) {
         var s = String(v == null ? '' : v);
@@ -186,7 +186,7 @@
         var box = document.getElementById('drive-list');
         box.innerHTML = '';
         if (!drives.length) {
-          box.appendChild(el('p', 'p-6 text-sm text-slate-500', 'No drives yet. Upload a report (or boot an appliance) to record the first drive.'));
+          box.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', 'No drives yet. Upload a report (or boot an appliance) to record the first drive.'));
           return;
         }
 
@@ -196,9 +196,9 @@
         var wrap = el('div', '');
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var head = el('thead');
-        var hr = el('tr', 'bg-slate-100');
+        var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
         [['Model', 'w-[18%]'], ['Serial', 'w-[15%]'], ['Size', 'w-[9%]'], ['Type', 'w-[9%]'], ['Status', 'w-[11%]'], ['Method', 'w-[18%]'], ['SMART', 'w-[8%]'], ['', 'w-[12%]']].forEach(function (c) {
-          hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500', c[0]));
+          hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', c[0]));
         });
         head.appendChild(hr);
         table.appendChild(head);
@@ -206,19 +206,19 @@
         var body = el('tbody');
         slice.forEach(function (d) {
           var serial = String(d.serial || '');
-          var tr = el('tr', 'border-b border-slate-100 hover:bg-slate-50');
-          tr.appendChild(el('td', 'max-w-[12rem] truncate px-3 py-2 font-medium text-ink-900', d.model || '—'));
-          var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600', d.serial || '—');
+          var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800 hover:bg-slate-50 dark:hover:bg-ink-800');
+          tr.appendChild(el('td', 'max-w-[12rem] truncate px-3 py-2 font-medium text-ink-900 dark:text-white', d.model || '—'));
+          var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
           serCell.title = d.serial || '';
           tr.appendChild(serCell);
-          tr.appendChild(el('td', 'px-3 py-2 text-slate-700', d.size || '—'));
-          tr.appendChild(el('td', 'px-3 py-2 text-slate-700', d.type || '—'));
+          tr.appendChild(el('td', 'px-3 py-2 text-slate-700 dark:text-slate-300', d.size || '—'));
+          tr.appendChild(el('td', 'px-3 py-2 text-slate-700 dark:text-slate-300', d.type || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + statusClass(d.status), d.status || '—'));
-          tr.appendChild(el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700', d.method || '—'));
+          tr.appendChild(el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + smartClass(d.smartpost), d.smartpost || '—'));
 
           var tdv = el('td', 'px-3 py-2 text-right');
-          var vbtn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[serial] ? 'border border-brand-600 bg-white text-brand-700' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
+          var vbtn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[serial] ? 'border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 text-brand-700 dark:text-brand-400' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
           vbtn.title = 'Show every report for this drive';
           vbtn.addEventListener('click', function () { expanded[serial] = !expanded[serial]; animKey = serial; render(); });
           tdv.appendChild(vbtn);
@@ -226,33 +226,33 @@
           body.appendChild(tr);
 
           if (expanded[serial]) {
-            var sub = el('tr', 'bg-slate-50');
-            var subtd = el('td', 'border-b border-slate-100 px-4 py-3', '');
+            var sub = el('tr', 'bg-slate-50 dark:bg-ink-800');
+            var subtd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
             subtd.colSpan = 8;
             var st = el('table', 'w-full border-collapse text-xs');
-            var shr = el('tr', 'bg-slate-100');
+            var shr = el('tr', 'bg-slate-100 dark:bg-ink-800');
             ['CoC', 'Wiped', 'Status', 'Method', 'Class', 'SMART (post)', ''].forEach(function (h) {
-              shr.appendChild(el('th', 'border-b border-slate-200 px-2 py-1.5 text-left font-semibold uppercase text-slate-500', h));
+              shr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
             });
             st.appendChild(shr);
             (d.history || []).forEach(function (h) {
-              var htr = el('tr', 'border-b border-slate-100');
+              var htr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
               var hcoc = el('td', 'px-2 py-1.5');
-              var cocidLink = el('a', 'font-mono font-semibold text-brand-700 hover:underline', h.cocid || '—');
+              var cocidLink = el('a', 'font-mono font-semibold text-brand-700 dark:text-brand-400 hover:underline', h.cocid || '—');
               cocidLink.href = '/dashboard/reports?q=' + encodeURIComponent(h.cocid || '');
               cocidLink.title = 'Open this report on the Reports tab';
               hcoc.appendChild(cocidLink);
               if (h.report_devices > 1) {
-                hcoc.appendChild(el('span', 'block text-[10px] text-slate-400', h.report_devices + ' drives in report'));
+                hcoc.appendChild(el('span', 'block text-[10px] text-slate-400 dark:text-slate-500', h.report_devices + ' drives in report'));
               }
               htr.appendChild(hcoc);
-              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500', fmtTsTime(h.ts || h.uploaded_at) || '—'));
+              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.method || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700', h.cls || '—'));
+              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.method || '—'));
+              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.cls || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + smartClass(h.smartpost), h.smartpost || '—'));
               var htdv = el('td', 'px-2 py-1.5 text-right');
-              var hvbtn = el('button', 'rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100', 'View');
+              var hvbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
               hvbtn.addEventListener('click', function () { openDrive(h); });
               htdv.appendChild(hvbtn);
               htr.appendChild(htdv);
@@ -277,14 +277,14 @@
         pbox.innerHTML = '';
         var totalPages = Math.max(1, Math.ceil(drives.length / per));
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
+        var prev = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
         prev.disabled = page <= 1;
         prev.addEventListener('click', function () { if (page > 1) { page--; render(); } });
-        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
+        var next = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
         next.disabled = page >= totalPages;
         next.addEventListener('click', function () { if (page < totalPages) { page++; render(); } });
         wrap.appendChild(prev);
-        wrap.appendChild(el('span', 'text-xs text-slate-500', 'Page ' + page + ' of ' + totalPages + ' (' + drives.length + ' total)'));
+        wrap.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Page ' + page + ' of ' + totalPages + ' (' + drives.length + ' total)'));
         wrap.appendChild(next);
         pbox.appendChild(wrap);
       }
@@ -301,37 +301,37 @@
         modalTitle.textContent = d.model || d.serial || 'Drive';
         modalBody.innerHTML = '';
 
-        var doc = el('div', 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm');
+        var doc = el('div', 'overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm');
 
         // Document header: CoC + wiped timestamp.
-        var head = el('div', 'border-b border-slate-200 bg-slate-50 px-6 py-5');
-        head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700', 'tScrub erasure report'));
-        var meta = el('div', 'mt-2 text-sm text-slate-600');
-        meta.appendChild(el('span', 'font-semibold text-slate-800', 'Chain of Custody ' + (d.cocid || '—')));
+        var head = el('div', 'border-b border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-6 py-5');
+        head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400', 'tScrub erasure report'));
+        var meta = el('div', 'mt-2 text-sm text-slate-600 dark:text-slate-400');
+        meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Chain of Custody ' + (d.cocid || '—')));
         meta.appendChild(document.createTextNode(' · wiped ' + (fmtTsTime(d.ts || d.uploaded_at) || '—')));
         head.appendChild(meta);
         doc.appendChild(head);
 
         // Outcome strip.
-        var strip = el('div', 'flex flex-wrap gap-2 border-b border-slate-200 px-6 py-3');
+        var strip = el('div', 'flex flex-wrap gap-2 border-b border-slate-200 dark:border-ink-700 px-6 py-3');
         [['Status', d.status, statusClass(d.status)], ['Method', d.method, ''], ['Class', d.cls, ''], ['Certification', d.cert, ''], ['SMART (post)', d.smartpost, smartClass(d.smartpost)]].forEach(function (c) {
           if (!c[1]) return;
-          var chip = el('div', 'rounded-lg bg-slate-50 px-3 py-1.5');
-          chip.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400', c[0]));
-          chip.appendChild(el('div', 'text-sm ' + (c[2] || 'text-slate-800'), c[1]));
+          var chip = el('div', 'rounded-lg bg-slate-50 dark:bg-ink-800 px-3 py-1.5');
+          chip.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', c[0]));
+          chip.appendChild(el('div', 'text-sm ' + (c[2] || 'text-slate-800 dark:text-slate-200'), c[1]));
           strip.appendChild(chip);
         });
         doc.appendChild(strip);
 
         // Device details.
-        var devSection = el('div', 'border-b border-slate-200 px-6 py-4');
-        devSection.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', 'Device'));
+        var devSection = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
+        devSection.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Device'));
         var devGrid = el('div', 'mt-2 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3');
         [['Model', d.model], ['Serial', d.serial], ['Size', d.size], ['Bus', d.bus], ['Type', d.type], ['System', d.system], ['System serial', d.sysserial]].forEach(function (kv) {
           if (!kv[1]) return;
           var cell = el('div', 'min-w-0');
-          cell.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400', kv[0]));
-          cell.appendChild(el('div', 'break-words text-sm text-slate-800', kv[1]));
+          cell.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', kv[0]));
+          cell.appendChild(el('div', 'break-words text-sm text-slate-800 dark:text-slate-200', kv[1]));
           devGrid.appendChild(cell);
         });
         devSection.appendChild(devGrid);
@@ -339,12 +339,12 @@
 
         // SMART health (before / after).
         var smartSection = el('div', 'px-6 py-4');
-        smartSection.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', 'SMART health'));
+        smartSection.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'SMART health'));
         var st = el('table', 'mt-2 w-full border-collapse text-sm');
         var thead = el('thead');
-        var hr = el('tr', 'bg-slate-50');
+        var hr = el('tr', 'bg-slate-50 dark:bg-ink-800');
         ['Metric', 'Before wipe', 'After wipe'].forEach(function (h) {
-          hr.appendChild(el('th', 'border border-slate-200 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500', h));
+          hr.appendChild(el('th', 'border border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
         });
         thead.appendChild(hr);
         st.appendChild(thead);
@@ -361,9 +361,9 @@
         ].forEach(function (r) {
           if (!r[1] && !r[2]) return;
           var tr = el('tr', '');
-          tr.appendChild(el('td', 'border border-slate-200 px-3 py-1.5 font-medium text-slate-600', r[0]));
-          tr.appendChild(el('td', 'border border-slate-200 px-3 py-1.5 ' + (r[3] ? r[3](r[1] || '') : 'text-slate-800'), r[1] || '—'));
-          tr.appendChild(el('td', 'border border-slate-200 px-3 py-1.5 ' + (r[3] ? r[3](r[2] || '') : 'text-slate-400'), r[2] || '—'));
+          tr.appendChild(el('td', 'border border-slate-200 dark:border-ink-700 px-3 py-1.5 font-medium text-slate-600 dark:text-slate-400', r[0]));
+          tr.appendChild(el('td', 'border border-slate-200 dark:border-ink-700 px-3 py-1.5 ' + (r[3] ? r[3](r[1] || '') : 'text-slate-800 dark:text-slate-200'), r[1] || '—'));
+          tr.appendChild(el('td', 'border border-slate-200 dark:border-ink-700 px-3 py-1.5 ' + (r[3] ? r[3](r[2] || '') : 'text-slate-400 dark:text-slate-500'), r[2] || '—'));
           sbody.appendChild(tr);
         });
         st.appendChild(sbody);

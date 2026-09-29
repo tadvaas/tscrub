@@ -156,6 +156,10 @@ function mdm_http_once(array $req): array {
         CURLOPT_RETURNTRANSFER   => true,
         CURLOPT_CONNECTTIMEOUT   => 10,
         CURLOPT_TIMEOUT          => (int)($req['timeout'] ?? 60),
+        // This host has a broken IPv6 default route (curl -6 to Graph hangs);
+        // the intermittent SSL_ERROR_SYSCALL failures were IPv6 connection
+        // attempts. Force IPv4 so probes never traverse the dead path.
+        CURLOPT_IPRESOLVE        => CURL_IPRESOLVE_V4,
     ];
     if ($method === 'POST') {
         $opts[CURLOPT_POST]       = true;
@@ -174,6 +178,18 @@ function mdm_http_once(array $req): array {
         return ['ok' => false, 'status' => 0, 'body' => ''];
     }
     return ['ok' => true, 'status' => $status, 'body' => (string)$body];
+}
+
+/** Quick reachability pre-flight for the Graph endpoint (IPv4, short timeout).
+ *  Any HTTP response — even 401 unauth — proves DNS + TLS + route are up. */
+function mdm_graph_reachable(): bool {
+    $r = mdm_http_once([
+        'method'  => 'GET',
+        'url'     => mdm_graph() . '/v1.0/organization',
+        'headers' => [],
+        'timeout' => 8,
+    ]);
+    return $r['ok'];
 }
 
 // ---- Graph client ---------------------------------------------------------

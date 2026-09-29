@@ -10,49 +10,49 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
   </nav>
 
   <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900">Dashboard</h1>
+    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
     <div id="dashboard-nav" class="mt-4"></div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-      <h2 class="text-xl font-bold text-ink-900">Upload reports</h2>
-      <p class="mt-1 text-sm text-slate-600">Add the report files your appliance produced. Reports are stored as evidence — generate certificates from them on the <a href="/dashboard/certificates" class="font-semibold text-brand-700 hover:underline">Certificates page</a>.</p>
+    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-ink-900 dark:text-white">Upload reports</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Add the report files your appliance produced. Reports are stored as evidence — generate certificates from them on the <a href="/dashboard/certificates" class="font-semibold text-brand-700 dark:text-brand-400 hover:underline">Certificates page</a>.</p>
 
       <form id="upload-form" class="mt-5 space-y-4">
         <div class="flex flex-wrap items-stretch gap-2">
-          <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-lg border border-slate-300 bg-white">
-            <label for="reports" class="inline-flex shrink-0 cursor-pointer items-center border-r border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">Choose files</label>
-            <span id="reports-name" class="flex min-w-0 flex-1 items-center truncate px-3 py-2.5 text-sm text-slate-500">No files chosen</span>
+          <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900">
+            <label for="reports" class="inline-flex shrink-0 cursor-pointer items-center border-r border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-100 dark:hover:bg-ink-800">Choose files</label>
+            <span id="reports-name" class="flex min-w-0 flex-1 items-center truncate px-3 py-2.5 text-sm text-slate-500 dark:text-slate-400">No files chosen</span>
           </div>
           <button type="submit" class="inline-flex shrink-0 items-center rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700">Upload reports</button>
         </div>
         <input id="reports" name="reports[]" type="file" multiple accept=".csv,.sig,.json" class="sr-only" />
-        <p class="mt-2 text-xs text-slate-500">Select one or more <code class="font-mono">.csv</code> report files. Add the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars to verify integrity and signatures.</p>
+        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Select one or more <code class="font-mono">.csv</code> report files. Add the matching <code class="font-mono">.json</code> and <code class="font-mono">.csv.sig</code> sidecars to verify integrity and signatures.</p>
         <p id="upload-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
       </form>
     </div>
@@ -60,24 +60,24 @@
     <div class="mt-8">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-bold text-ink-900">Uploaded reports</h2>
-          <p class="mt-1 text-sm text-slate-600">Erasure and pre/post-wipe SMART data for every report uploaded — manually or from an appliance.</p>
+          <h2 class="text-lg font-bold text-ink-900 dark:text-white">Uploaded reports</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Erasure and pre/post-wipe SMART data for every report uploaded — manually or from an appliance.</p>
         </div>
       </div>
       <form id="search-form" class="mt-3 flex flex-wrap items-center gap-2">
         <input id="search-input" type="text" placeholder="Search drive serial, system serial, CoC ID…" autocomplete="off"
-               class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500" />
+               class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
         <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Search</button>
-        <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">Clear</button>
+        <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
       </form>
-      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+      <div class="mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
         <div id="report-list" class="min-h-[220px] [overflow-anchor:none]"></div>
         <div id="report-pager" class="mt-3"></div>
       </div>
     </div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
@@ -99,15 +99,15 @@
   <div id="report-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
     <div id="report-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
-      <div class="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
-        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <h2 id="report-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900"></h2>
-          <button id="report-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+      <div class="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
+          <h2 id="report-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900 dark:text-white"></h2>
+          <button id="report-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">
             Close
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div id="report-modal-body" class="flex-1 overflow-y-auto bg-slate-50 p-5"></div>
+        <div id="report-modal-body" class="flex-1 overflow-y-auto bg-slate-50 dark:bg-ink-800 p-5"></div>
       </div>
     </div>
   </div>
@@ -155,11 +155,11 @@
         e.preventDefault();
         var status = document.getElementById('upload-status');
         if (!(fileInput.files && fileInput.files.length)) {
-          status.className = 'text-xs font-semibold text-red-600';
+          status.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
           status.textContent = 'Choose at least one .csv report file.';
           return;
         }
-        status.className = 'text-xs font-semibold text-slate-500';
+        status.className = 'text-xs font-semibold text-slate-500 dark:text-slate-400';
         status.textContent = 'Uploading…';
         getCsrf().then(function (csrf) {
           var fd = new FormData();
@@ -167,7 +167,7 @@
           return fetch('/api/reports', { method: 'POST', headers: { 'X-CSRF-Token': csrf }, body: fd });
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
           if (res.ok) {
-            status.className = 'text-xs font-semibold text-brand-700';
+            status.className = 'text-xs font-semibold text-brand-700 dark:text-brand-400';
             var up = res.data.uploaded || 0;
             var sk = res.data.skipped || 0;
             var msg = 'Uploaded ' + up + ' report' + (up === 1 ? '' : 's');
@@ -178,7 +178,7 @@
             document.getElementById('reports-name').textContent = 'No files chosen';
             loadReports();
           } else {
-            status.className = 'text-xs font-semibold text-red-600';
+            status.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
             status.textContent = res.data.error || 'Upload failed.';
           }
         });
@@ -191,21 +191,21 @@
         var totalPages = Math.max(1, Math.ceil(d.total / d.per));
         if (totalPages <= 1) return;
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var prev = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
+        var prev = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
         prev.disabled = d.page <= 1;
         prev.addEventListener('click', function () { if (d.page > 1) goTo(d.page - 1); });
-        var next = el('button', 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
+        var next = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
         next.disabled = d.page >= totalPages;
         next.addEventListener('click', function () { if (d.page < totalPages) goTo(d.page + 1); });
         wrap.appendChild(prev);
-        wrap.appendChild(el('span', 'text-xs text-slate-500', 'Page ' + d.page + ' of ' + totalPages + ' (' + d.total + ' total)'));
+        wrap.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Page ' + d.page + ' of ' + totalPages + ' (' + d.total + ' total)'));
         wrap.appendChild(next);
         box.appendChild(wrap);
       }
 
       var currentQ = '';
       function spinnerEl() {
-        var w = el('div', 'flex min-h-[220px] items-center justify-center gap-3 text-slate-400');
+        var w = el('div', 'flex min-h-[220px] items-center justify-center gap-3 text-slate-400 dark:text-slate-500');
         w.innerHTML = '<svg class="h-6 w-6 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg><span class="text-sm">Loading reports…</span>';
         return w;
       }
@@ -225,16 +225,16 @@
           list.classList.remove('opacity-50');
           var rows = d.reports || [];
           if (!rows.length) {
-            list.appendChild(el('p', 'text-sm text-slate-500', currentQ ? 'No reports match "' + currentQ + '".' : 'No reports uploaded yet. Upload them above, or push them from an appliance using your upload token.'));
+            list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', currentQ ? 'No reports match "' + currentQ + '".' : 'No reports uploaded yet. Upload them above, or push them from an appliance using your upload token.'));
             renderPager(d, loadReports);
             return;
           }
           rows.forEach(function (rp) {
-            var row = el('div', 'flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3');
-            var left = el('div', 'flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500');
-            left.appendChild(el('span', 'text-sm font-bold text-ink-900', 'CoC ' + rp.cocid));
-            left.appendChild(el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + (rp.source === 'api' ? 'bg-slate-200 text-slate-600' : 'bg-brand-100 text-brand-700'), rp.source === 'api' ? 'from appliance' : 'manual upload'));
-            left.appendChild(el('span', 'whitespace-nowrap text-slate-400', (rp.uploaded_at || '').slice(0, 16)));
+            var row = el('div', 'flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-3');
+            var left = el('div', 'flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400');
+            left.appendChild(el('span', 'text-sm font-bold text-ink-900 dark:text-white', 'CoC ' + rp.cocid));
+            left.appendChild(el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + (rp.source === 'api' ? 'bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400' : 'bg-brand-100 text-brand-700 dark:text-brand-400'), rp.source === 'api' ? 'from appliance' : 'manual upload'));
+            left.appendChild(el('span', 'whitespace-nowrap text-slate-400 dark:text-slate-500', (rp.uploaded_at || '').slice(0, 16)));
             left.appendChild(el('span', 'whitespace-nowrap',
               rp.devices + ' drive' + (rp.devices === 1 ? '' : 's') + ' · ' + rp.runs + ' report file' + (rp.runs === 1 ? '' : 's') +
               ' · SHA ' + (rp.sha_state || '—') + ' · signature ' + (rp.sig_state || '—')));
@@ -268,15 +268,15 @@
 
       function stateBadge(state) {
         var map = {
-          'verified': ['bg-emerald-100 text-emerald-700', 'Verified'],
-          'attributed': ['bg-emerald-100 text-emerald-700', 'Attributed'],
-          'valid': ['bg-emerald-100 text-emerald-700', 'Valid'],
-          'unverified': ['bg-slate-200 text-slate-600', 'Unverified'],
-          'mismatch': ['bg-red-100 text-red-700', 'Mismatch'],
-          'invalid': ['bg-red-100 text-red-700', 'Invalid'],
-          'none': ['bg-slate-200 text-slate-600', 'None']
+          'verified': ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Verified'],
+          'attributed': ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Attributed'],
+          'valid': ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Valid'],
+          'unverified': ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Unverified'],
+          'mismatch': ['bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Mismatch'],
+          'invalid': ['bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Invalid'],
+          'none': ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'None']
         };
-        var m = map[state] || ['bg-slate-200 text-slate-600', state || '—'];
+        var m = map[state] || ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', state || '—'];
         return el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + m[0], m[1]);
       }
 
@@ -288,38 +288,38 @@
       // Column colour helpers — make outcomes and SMART health readable at a glance.
       function statusClass(v) {
         var s = String(v || '').toUpperCase();
-        if (s === 'COMPLETED') return 'text-emerald-700 font-semibold';
-        if (s === 'FAILED')    return 'text-red-700 font-semibold';
-        if (s === 'BLOCKED')   return 'text-amber-700 font-semibold';
-        if (s === 'FROZEN')    return 'text-sky-700 font-semibold';
-        if (s === 'DRY-RUN')   return 'text-slate-500';
-        return 'text-slate-700';
+        if (s === 'COMPLETED') return 'text-emerald-700 dark:text-emerald-400 font-semibold';
+        if (s === 'FAILED')    return 'text-red-700 dark:text-red-400 font-semibold';
+        if (s === 'BLOCKED')   return 'text-amber-700 dark:text-amber-400 font-semibold';
+        if (s === 'FROZEN')    return 'text-sky-700 dark:text-sky-400 font-semibold';
+        if (s === 'DRY-RUN')   return 'text-slate-500 dark:text-slate-400';
+        return 'text-slate-700 dark:text-slate-300';
       }
       function smartClass(v) {
         var s = String(v || '').toUpperCase();
-        if (s === 'PASS')  return 'text-emerald-700 font-semibold';
-        if (s === 'FAIL')  return 'text-red-700 font-semibold';
-        if (s === 'UNSUP') return 'text-slate-400';
-        return 'text-slate-700';
+        if (s === 'PASS')  return 'text-emerald-700 dark:text-emerald-400 font-semibold';
+        if (s === 'FAIL')  return 'text-red-700 dark:text-red-400 font-semibold';
+        if (s === 'UNSUP') return 'text-slate-400 dark:text-slate-500';
+        return 'text-slate-700 dark:text-slate-300';
       }
       function tempClass(v) {
         var n = parseInt(v, 10);
-        if (isNaN(n)) return 'text-slate-700';
-        if (n >= 75)  return 'text-red-700 font-semibold';
-        if (n >= 60)  return 'text-amber-700 font-semibold';
-        return 'text-slate-700';
+        if (isNaN(n)) return 'text-slate-700 dark:text-slate-300';
+        if (n >= 75)  return 'text-red-700 dark:text-red-400 font-semibold';
+        if (n >= 60)  return 'text-amber-700 dark:text-amber-400 font-semibold';
+        return 'text-slate-700 dark:text-slate-300';
       }
       function reallocClass(v) {
         var n = parseInt(v, 10);
-        if (isNaN(n)) return 'text-slate-700';
-        return n > 0 ? 'text-red-700 font-semibold' : 'text-emerald-700';
+        if (isNaN(n)) return 'text-slate-700 dark:text-slate-300';
+        return n > 0 ? 'text-red-700 dark:text-red-400 font-semibold' : 'text-emerald-700 dark:text-emerald-400';
       }
       function usedClass(v) {
         var n = parseInt(v, 10);
-        if (isNaN(n)) return 'text-slate-700';
-        if (n >= 90)  return 'text-red-700 font-semibold';
-        if (n >= 70)  return 'text-amber-700 font-semibold';
-        return 'text-slate-700';
+        if (isNaN(n)) return 'text-slate-700 dark:text-slate-300';
+        if (n >= 90)  return 'text-red-700 dark:text-red-400 font-semibold';
+        if (n >= 70)  return 'text-amber-700 dark:text-amber-400 font-semibold';
+        return 'text-slate-700 dark:text-slate-300';
       }
 
       function closeReport() {
@@ -338,25 +338,25 @@
         [['Devices', String(rp.devices)], ['Report files', String(rp.runs)],
          ['Uploaded', (rp.uploaded_at || '').slice(0, 16)],
          ['Source', rp.source === 'api' ? 'Appliance' : 'Manual']].forEach(function (kv) {
-          chips.appendChild(el('span', 'rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700', kv[0] + ': ' + kv[1]));
+          chips.appendChild(el('span', 'rounded-full border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300', kv[0] + ': ' + kv[1]));
         });
-        var shaChip = el('span', 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700');
+        var shaChip = el('span', 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300');
         shaChip.appendChild(document.createTextNode('SHA:'));
         shaChip.appendChild(stateBadge(rp.sha_state));
         chips.appendChild(shaChip);
-        var sigChip = el('span', 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700');
+        var sigChip = el('span', 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300');
         sigChip.appendChild(document.createTextNode('Signature:'));
         sigChip.appendChild(stateBadge(rp.sig_state));
         chips.appendChild(sigChip);
         modalBody.appendChild(chips);
 
         // Hardware profile and per-drive data live on the dedicated tabs.
-        var links = el('p', 'mt-5 text-sm text-slate-500', 'Hardware & firmware → ');
-        var dl = el('a', 'font-semibold text-brand-700 hover:underline', 'Devices');
+        var links = el('p', 'mt-5 text-sm text-slate-500 dark:text-slate-400', 'Hardware & firmware → ');
+        var dl = el('a', 'font-semibold text-brand-700 dark:text-brand-400 hover:underline', 'Devices');
         dl.href = '/dashboard/devices';
         links.appendChild(dl);
         links.appendChild(document.createTextNode(' · Erasure & SMART → '));
-        var dr = el('a', 'font-semibold text-brand-700 hover:underline', 'Drives');
+        var dr = el('a', 'font-semibold text-brand-700 dark:text-brand-400 hover:underline', 'Drives');
         dr.href = '/dashboard/drives';
         links.appendChild(dr);
         modalBody.appendChild(links);
@@ -364,18 +364,18 @@
         // Report files.
         var files = rp.reports || [];
         if (files.length) {
-          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500', 'Report files'));
-          var ftable = el('table', 'mt-2 w-full border-collapse overflow-hidden rounded-xl border border-slate-200 bg-white text-xs');
-          var fhr = el('tr', 'bg-slate-100');
+          modalBody.appendChild(el('h3', 'mt-5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400', 'Report files'));
+          var ftable = el('table', 'mt-2 w-full border-collapse overflow-hidden rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 text-xs');
+          var fhr = el('tr', 'bg-slate-100 dark:bg-ink-800');
           ['File', 'SHA-256', 'State'].forEach(function (h) {
-            fhr.appendChild(el('th', 'border-b border-slate-200 px-3 py-2 text-left font-semibold uppercase text-slate-500', h));
+            fhr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
           });
           ftable.appendChild(fhr);
           files.forEach(function (f) {
             var tr = el('tr');
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 font-medium text-slate-800', f.name || '—'));
-            tr.appendChild(el('td', 'border-b border-slate-100 px-3 py-2 break-all font-mono text-slate-500', f.sha || '—'));
-            var tds = el('td', 'border-b border-slate-100 px-3 py-2');
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 font-medium text-slate-800 dark:text-slate-200', f.name || '—'));
+            tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 break-all font-mono text-slate-500 dark:text-slate-400', f.sha || '—'));
+            var tds = el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2');
             tds.appendChild(stateBadge(f.state));
             tr.appendChild(tds);
             ftable.appendChild(tr);

@@ -11,26 +11,26 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white text-slate-800">
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-        <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+        <nav class="sticky top-0 z-50 bg-white dark:bg-ink-900/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
-        <span class="text-xl font-extrabold tracking-tight text-ink-900">tScrub</span>
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 hover:bg-slate-100 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
         <span class="sr-only">Open menu</span>
         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
       </button>
       <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
         <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-ink-900">Pricing</a></li>
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
         </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
         <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
       </div>
     </div>
@@ -38,84 +38,84 @@
 
     <section class="mx-auto max-w-7xl px-4 py-16">
     <div class="mx-auto max-w-3xl text-center">
-      <h1 class="text-4xl font-extrabold tracking-tight text-ink-900">Download tScrub</h1>
-      <p class="mt-3 text-slate-600">The bootable tScrub appliance image — with a checksum and write instructions so you can confirm your download.</p>
+      <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">Download tScrub</h1>
+      <p class="mt-3 text-slate-600 dark:text-slate-400">The bootable tScrub appliance image — with a checksum and write instructions so you can confirm your download.</p>
     </div>
 
     <!-- Appliance ISO -->
-    <div class="mx-auto mt-12 max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-      <h2 class="text-xl font-bold text-ink-900">Bootable appliance image</h2>
-      <p class="mt-1 text-sm text-slate-600">A ready-to-boot USB image (BIOS + UEFI) that launches tScrub as the boot program. It bundles curl with HTTPS and CA certificates, so reports upload straight to your dashboard.</p>
+    <div class="mx-auto mt-12 max-w-3xl rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-ink-900 dark:text-white">Bootable appliance image</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">A ready-to-boot USB image (BIOS + UEFI) that launches tScrub as the boot program. It bundles curl with HTTPS and CA certificates, so reports upload straight to your dashboard.</p>
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <a id="iso-link" href="#" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Download ISO</a>
-        <span id="iso-meta" class="text-sm text-slate-500">Loading…</span>
-        <a id="iso-sha-link" href="#" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Checksum (.sha256)</a>
+        <span id="iso-meta" class="text-sm text-slate-500 dark:text-slate-400">Loading…</span>
+        <a id="iso-sha-link" href="#" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Checksum (.sha256)</a>
       </div>
-      <p class="mt-3 text-sm text-slate-600">Write the image to a USB stick with <code class="font-mono">dd</code> (Rufus in ISO mode also works). Place your <code class="font-mono">.lic</code> on the USB stick — where the licence goes, your reports follow. tScrub starts automatically on the console.</p>
+      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Write the image to a USB stick with <code class="font-mono">dd</code> (Rufus in ISO mode also works). Place your <code class="font-mono">.lic</code> on the USB stick — where the licence goes, your reports follow. tScrub starts automatically on the console.</p>
     </div>
 
     <!-- Create a bootable USB -->
-    <div class="mx-auto mt-6 max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-      <h2 class="text-xl font-bold text-ink-900">Create a bootable USB stick</h2>
-      <p class="mt-1 text-sm text-slate-600">Write the downloaded ISO to a 4 GB+ USB stick (its contents will be erased). Pick your operating system:</p>
+    <div class="mx-auto mt-6 max-w-3xl rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-ink-900 dark:text-white">Create a bootable USB stick</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Write the downloaded ISO to a 4 GB+ USB stick (its contents will be erased). Pick your operating system:</p>
 
       <div class="mt-5" data-ostabs>
-        <div class="border-b border-slate-200">
+        <div class="border-b border-slate-200 dark:border-ink-700">
           <ul class="-mb-px flex flex-wrap gap-1 text-sm font-medium" role="tablist">
-            <li role="presentation"><button type="button" data-ostab data-ostab-target="#usb-win" class="inline-block border-b-2 border-brand-600 px-4 py-2 font-semibold text-brand-700" role="tab" aria-selected="true" aria-controls="usb-win">Windows</button></li>
-            <li role="presentation"><button type="button" data-ostab data-ostab-target="#usb-mac" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500" role="tab" aria-selected="false" aria-controls="usb-mac">macOS</button></li>
-            <li role="presentation"><button type="button" data-ostab data-ostab-target="#usb-linux" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500" role="tab" aria-selected="false" aria-controls="usb-linux">Linux / Unix</button></li>
+            <li role="presentation"><button type="button" data-ostab data-ostab-target="#usb-win" class="inline-block border-b-2 border-brand-600 dark:border-brand-500 px-4 py-2 font-semibold text-brand-700 dark:text-brand-400" role="tab" aria-selected="true" aria-controls="usb-win">Windows</button></li>
+            <li role="presentation"><button type="button" data-ostab data-ostab-target="#usb-mac" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500 dark:text-slate-400" role="tab" aria-selected="false" aria-controls="usb-mac">macOS</button></li>
+            <li role="presentation"><button type="button" data-ostab data-ostab-target="#usb-linux" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500 dark:text-slate-400" role="tab" aria-selected="false" aria-controls="usb-linux">Linux / Unix</button></li>
           </ul>
         </div>
         <div class="grid pt-4">
           <div id="usb-win" data-ostab-panel role="tabpanel" aria-labelledby="usb-win" class="col-start-1 row-start-1 visible">
-            <ol class="list-decimal space-y-2 pl-5 text-sm text-slate-600">
+            <ol class="list-decimal space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
               <li>Insert a USB stick (4 GB or larger — its contents will be erased).</li>
-              <li>Open <a href="https://rufus.ie" class="font-medium text-brand-600 hover:underline">Rufus</a> and select your device.</li>
-              <li><span class="font-semibold text-ink-900">Boot selection:</span> the downloaded ISO; <span class="font-semibold text-ink-900">Partition scheme:</span> MBR for BIOS/CSM machines, GPT for pure UEFI; <span class="font-semibold text-ink-900">File system:</span> FAT32.</li>
+              <li>Open <a href="https://rufus.ie" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">Rufus</a> and select your device.</li>
+              <li><span class="font-semibold text-ink-900 dark:text-white">Boot selection:</span> the downloaded ISO; <span class="font-semibold text-ink-900 dark:text-white">Partition scheme:</span> MBR for BIOS/CSM machines, GPT for pure UEFI; <span class="font-semibold text-ink-900 dark:text-white">File system:</span> FAT32.</li>
               <li>Click <span class="font-semibold">Start</span>. When Rufus asks, choose <span class="font-semibold">Write in DD Image mode</span> — this writes the ISO byte-for-byte (equivalent to <code class="font-mono">dd</code>) so it boots correctly.</li>
             </ol>
           </div>
           <div id="usb-mac" data-ostab-panel role="tabpanel" aria-labelledby="usb-mac" class="col-start-1 row-start-1 invisible">
-            <p class="text-sm text-slate-600">Either use the <strong>balenaEtcher</strong> GUI (flash the ISO to the stick in three clicks), or the command line:</p>
+            <p class="text-sm text-slate-600 dark:text-slate-400">Either use the <strong>balenaEtcher</strong> GUI (flash the ISO to the stick in three clicks), or the command line:</p>
             <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">diskutil list                          # identify your stick, e.g. /dev/disk2
 diskutil unmountDisk /dev/disk2
 sudo dd if=&lt;downloaded-iso&gt; of=/dev/rdisk2 bs=4m && sync</pre>
-            <p class="mt-2 text-sm text-slate-600">Use the raw device (<code class="font-mono">/dev/rdisk2</code>, not <code class="font-mono">/dev/disk2</code>) — it writes much faster.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Use the raw device (<code class="font-mono">/dev/rdisk2</code>, not <code class="font-mono">/dev/disk2</code>) — it writes much faster.</p>
           </div>
           <div id="usb-linux" data-ostab-panel role="tabpanel" aria-labelledby="usb-linux" class="col-start-1 row-start-1 invisible">
             <pre class="overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">lsblk                                   # identify the stick, e.g. /dev/sdX
 sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
 # equivalent: sudo cp &lt;downloaded-iso&gt; /dev/sdX && sync</pre>
-            <p class="mt-2 text-sm text-slate-600">Write to the whole device (<code class="font-mono">/dev/sdX</code>), never a partition (<code class="font-mono">/dev/sdX1</code>).</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Write to the whole device (<code class="font-mono">/dev/sdX</code>), never a partition (<code class="font-mono">/dev/sdX1</code>).</p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Verify -->
-    <div class="mx-auto mt-6 max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-      <h2 class="text-xl font-bold text-ink-900">Verify your download</h2>
-      <p class="mt-1 text-sm text-slate-600">After downloading, verify its SHA-256 checksum:</p>
+    <div class="mx-auto mt-6 max-w-3xl rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-ink-900 dark:text-white">Verify your download</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">After downloading, verify its SHA-256 checksum:</p>
       <pre class="mt-4 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">sha256sum &lt;downloaded-file&gt;
 # → compare against the value in the .sha256 file</pre>
     </div>
 
     <!-- Licence note -->
-    <div class="mx-auto mt-6 max-w-3xl rounded-2xl border border-brand-200 bg-brand-50 p-8 text-center">
-      <h2 class="text-xl font-bold text-ink-900">Every appliance needs a licence</h2>
-      <p class="mt-1 text-sm text-slate-600">tScrub requires a licence to run — even the free one. The free licence is self-serve and takes a minute.</p>
+    <div class="mx-auto mt-6 max-w-3xl rounded-2xl border border-brand-200 bg-brand-50 dark:bg-brand-900/30 p-8 text-center">
+      <h2 class="text-xl font-bold text-ink-900 dark:text-white">Every appliance needs a licence</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">tScrub requires a licence to run — even the free one. The free licence is self-serve and takes a minute.</p>
       <div class="mt-4 flex justify-center gap-3">
         <a href="register" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Create account &amp; get a free licence</a>
-        <a href="login" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Sign in</a>
+        <a href="login" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Sign in</a>
       </div>
-      <p class="mt-3 text-xs text-slate-500">Free licences are self-serve from your dashboard Licences page; paid tiers are issued by tScrub.</p>
+      <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Free licences are self-serve from your dashboard Licences page; paid tiers are issued by tScrub.</p>
     </div>
 
     <!-- System requirements -->
     <div class="mx-auto mt-14 max-w-3xl">
-      <h2 class="text-2xl font-bold text-ink-900">System requirements</h2>
-      <ul class="mt-6 space-y-2 text-sm text-slate-600">
+      <h2 class="text-2xl font-bold text-ink-900 dark:text-white">System requirements</h2>
+      <ul class="mt-6 space-y-2 text-sm text-slate-600 dark:text-slate-400">
         <li>• x86-64 machine with USB or PXE boot</li>
         <li>• 1 GB RAM (erasure runs in parallel)</li>
         <li>• Directly attached NVMe, SATA, or SCSI drives (USB-attached drives are excluded by design)</li>
@@ -124,8 +124,8 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
 
     <!-- What's included -->
     <div class="mx-auto mt-14 max-w-3xl">
-      <h2 class="text-2xl font-bold text-ink-900">What's included</h2>
-      <ul class="mt-6 space-y-2 text-sm text-slate-600">
+      <h2 class="text-2xl font-bold text-ink-900 dark:text-white">What's included</h2>
+      <ul class="mt-6 space-y-2 text-sm text-slate-600 dark:text-slate-400">
         <li>• The self-contained tScrub appliance</li>
         <li>• Embedded sedutil-cli for SED/OPAL handling</li>
         <li>• Pre/post-wipe SMART capture for every drive</li>
@@ -143,13 +143,13 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
       <h2 class="text-3xl font-extrabold tracking-tight">Need a hand getting started?</h2>
       <p class="max-w-xl text-brand-50">Read the documentation, or email us and we will help you get set up.</p>
       <div class="flex flex-wrap justify-center gap-4">
-        <a href="docs" class="inline-flex items-center rounded-lg bg-white px-5 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">Read the docs</a>
-        <a href="contact" class="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">Contact us</a>
+        <a href="docs" class="inline-flex items-center rounded-lg bg-white dark:bg-ink-900 px-5 py-3 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30">Read the docs</a>
+        <a href="contact" class="inline-flex items-center rounded-lg border border-white/40 px-5 py-3 text-sm font-semibold text-white hover:bg-white dark:hover:bg-ink-900/10">Contact us</a>
       </div>
     </div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400">
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
       <div class="flex items-center gap-2">
         <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
@@ -201,8 +201,8 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
     // Panels are stacked in a single grid cell so each group keeps the height of
     // its tallest panel and the page doesn't jump when switching OS.
     (function () {
-      var ACTIVE = ['border-brand-600', 'font-semibold', 'text-brand-700'];
-      var INACTIVE = ['border-transparent', 'text-slate-500'];
+      var ACTIVE = ['border-brand-600 dark:border-brand-500', 'font-semibold', 'text-brand-700 dark:text-brand-400'];
+      var INACTIVE = ['border-transparent', 'text-slate-500 dark:text-slate-400'];
       var SHOW = ['visible'];
       var HIDE = ['invisible'];
       function setTab(group, btn) {

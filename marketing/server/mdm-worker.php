@@ -34,6 +34,7 @@ try {
 }
 
 $processed = 0;
+$graphUp = mdm_graph_reachable();
 try {
     while ($processed < MAX_JOBS_PER_RUN) {
         $job = mdm_claim_job();
@@ -54,6 +55,15 @@ try {
             continue;
         }
 
+        // Graph unreachable — don't burn a 600 s probe + import on a dead link;
+        // requeue quickly and retry next minute.
+        if (!$graphUp) {
+            mdm_log_probe($userId, $serial, $uuid, 'offline', 'error', 'worker');
+            mdm_fail_job($jobId, 'graph unreachable (pre-flight)');
+            echo 'job ' . $jobId . ' (' . $serial . '): offline (graph unreachable) requeued' . "\n";
+            continue;
+        }
+
         $res     = mdm_probe($serial, $hash, 600);
         $verdict = (string)$res['verdict'];
         $source  = (string)($res['source'] ?? 'live');
@@ -64,7 +74,7 @@ try {
         if (in_array($verdict, ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'unknown'], true)) {
             mdm_complete_job($jobId, $verdict, $source, $detail);
             echo 'job ' . $jobId . ' (' . $serial . '): ' . $verdict . "\n";
-        } elseif ((int)($job['attempts'] ?? 0) + 1 >= MAX_ATTEMPTS) {
+        } elseif ($verdict !== 'offline' && (int)($job['attempts'] ?? 0) + 1 >= MAX_ATTEMPTS) {
             mdm_abort_job($jobId, $verdict, $detail);
             echo 'job ' . $jobId . ' (' . $serial . '): giving up after ' . MAX_ATTEMPTS . " attempts -> " . $verdict . "\n";
         } else {
