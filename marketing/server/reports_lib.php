@@ -760,13 +760,32 @@ function load_devices(int $userId): array {
                 'ram'           => (string)($g['ram'] ?? ''),
                 'reports'       => 0,
                 'cocids'        => [],
+                'history'       => [],
                 'first'         => (string)$r['uploaded_at'],
                 'last'          => (string)$r['uploaded_at'],
             ];
         }
+        $snap = [
+            'cocid'          => (string)$r['cocid'],
+            'uploaded_at'    => (string)$r['uploaded_at'],
+            'system'         => (string)($g['system'] ?? ''),
+            'sysserial'      => (string)($g['sysSerial'] ?? ''),
+            'bbserial'       => (string)($g['bbSerial'] ?? ''),
+            'chassisserial'  => (string)($g['chassisserial'] ?? ''),
+            'chassistype'    => (string)($g['chassistype'] ?? ''),
+            'biosversion'    => (string)($g['biosversion'] ?? ''),
+            'biosdate'       => (string)($g['biosdate'] ?? ''),
+            'systemuuid'     => (string)($g['systemuuid'] ?? ''),
+            'bioslock'       => (string)($g['bioslock'] ?? ''),
+            'bioslockmethod' => (string)($g['bioslockmethod'] ?? ''),
+            'cpu'            => (string)($g['cpu'] ?? ''),
+            'gpu'            => (string)($g['gpu'] ?? ''),
+            'ram'            => (string)($g['ram'] ?? ''),
+        ];
         $d = &$devices[$key];
         $d['reports']++;
         if (!in_array((string)$r['cocid'], $d['cocids'], true)) $d['cocids'][] = (string)$r['cocid'];
+        $d['history'][] = $snap;
         if ((string)$r['uploaded_at'] < $d['first']) $d['first'] = (string)$r['uploaded_at'];
         if ((string)$r['uploaded_at'] > $d['last'])  $d['last']  = (string)$r['uploaded_at'];
         unset($d);
