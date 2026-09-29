@@ -58,12 +58,13 @@
   <div id="device-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="device-modal-title">
     <div id="device-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
-      <div class="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+      <div class="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10">
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <h2 id="device-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900"></h2>
           <button id="device-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Close</button>
         </div>
         <div id="device-modal-body" class="flex-1 overflow-y-auto bg-slate-50 p-5"></div>
+        <div id="device-modal-footer" class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3"></div>
       </div>
     </div>
   </div>
@@ -275,30 +276,58 @@
       function openDevice(dev) {
         modalTitle.textContent = dev.system || dev.sysserial || 'Machine';
         modalBody.innerHTML = '';
-        var grid = el('div', 'mt-2 grid gap-3 sm:grid-cols-2');
-        var fields = [
-          ['System', dev.system], ['System serial', dev.sysserial], ['Baseboard serial', dev.bbserial],
-          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype],
-          ['BIOS', dev.biosversion + (dev.biosdate ? ' (' + dev.biosdate + ')' : '')],
-          ['BIOS lock', dev.bioslock], ['BIOS lock method', dev.bioslockmethod],
-          ['System UUID', dev.systemuuid], ['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram],
-          ['CoC', dev.cocid],
-          ['Wiped', (dev.ts || dev.uploaded_at) ? fmtTsTime(dev.ts || dev.uploaded_at) : '']
-        ];
-        fields.forEach(function (kv) {
-          if (!kv[1]) return;
-          var cell = el('div', 'rounded-xl border border-slate-200 bg-white p-3');
-          cell.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', kv[0]));
-          cell.appendChild(el('div', 'mt-1 whitespace-pre-wrap break-words text-sm text-slate-800', kv[1]));
-          grid.appendChild(cell);
-        });
-        modalBody.appendChild(grid);
 
-        var foot = el('div', 'mt-4 flex justify-end border-t border-slate-200 pt-3');
+        var doc = el('div', 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm');
+
+        // Header.
+        var head = el('div', 'border-b border-slate-200 bg-slate-50 px-6 py-5');
+        head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700', 'tScrub machine report'));
+        var meta = el('div', 'mt-2 text-sm text-slate-600');
+        meta.appendChild(el('span', 'font-semibold text-slate-800', 'Chain of Custody ' + (dev.cocid || '—')));
+        meta.appendChild(document.createTextNode(' · wiped ' + (fmtTsTime(dev.ts || dev.uploaded_at) || '—')));
+        head.appendChild(meta);
+        doc.appendChild(head);
+
+        // BIOS lock status.
+        var strip = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 px-6 py-3');
+        strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400', 'BIOS lock'));
+        strip.appendChild(lockBadge(dev.bioslock) || el('span', 'text-sm text-slate-400', '—'));
+        doc.appendChild(strip);
+
+        function section(title, pairs) {
+          var sec = el('div', 'border-b border-slate-200 px-6 py-4');
+          sec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400', title));
+          var grid = el('div', 'mt-2 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3');
+          pairs.forEach(function (kv) {
+            if (!kv[1]) return;
+            var cell = el('div', 'min-w-0');
+            cell.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400', kv[0]));
+            cell.appendChild(el('div', 'break-words text-sm text-slate-800', kv[1]));
+            grid.appendChild(cell);
+          });
+          sec.appendChild(grid);
+          return sec;
+        }
+
+        doc.appendChild(section('Identity', [
+          ['System', dev.system], ['System serial', dev.sysserial], ['Baseboard serial', dev.bbserial],
+          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype], ['System UUID', dev.systemuuid]
+        ]));
+        doc.appendChild(section('Hardware', [['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram]]));
+        doc.appendChild(section('Firmware', [
+          ['BIOS version', dev.biosversion],
+          ['BIOS date', dev.biosdate],
+          ['BIOS lock method', dev.bioslockmethod]
+        ]));
+
+        modalBody.appendChild(doc);
+
+        // Footer actions.
+        var foot = document.getElementById('device-modal-footer');
+        foot.innerHTML = '';
         var dl = el('button', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download report');
         dl.addEventListener('click', function () { download('device-' + (dev.sysserial || 'report') + '.json', JSON.stringify(dev, null, 2)); });
         foot.appendChild(dl);
-        modalBody.appendChild(foot);
 
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
