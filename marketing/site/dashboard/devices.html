@@ -201,6 +201,7 @@
       var animKey = null;
       var sortKey = 'status';   // initial sort: Status column
       var sortDir = -1;         // descending (Online first)
+      var lastDevicesJson = '';
 
       function mdmRank(dev) {
         var st = String(dev.mdm_status || '');
@@ -230,17 +231,25 @@
         loadDevices();
       });
 
-      function loadDevices() {
+      function loadDevices(preservePage) {
         fetch('/api/devices').then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
           return r.json();
         }).then(function (d) {
           if (!d) return;
+          var json = JSON.stringify(d.devices || []);
+          if (json === lastDevicesJson) return;   // nothing changed — keep the current view
+          lastDevicesJson = json;
           devices = d.devices || [];
-          page = 1;
+          if (!preservePage) page = 1;
           render();
         });
       }
+
+      // Auto-refresh: new reports, BIOS/MDM results, and online/offline flips
+      // show up without a manual reload. Polling preserves sort/page/expanded
+      // state and skips re-rendering when nothing changed.
+      setInterval(function () { loadDevices(true); }, 10000);
 
       function render() {
         var list = document.getElementById('device-list');
