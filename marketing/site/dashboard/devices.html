@@ -326,7 +326,7 @@
           tr.appendChild(mdmCell);
           var stCell = el('td', 'px-4 py-2.5');
           var stLine = el('div', 'flex items-center gap-1.5 whitespace-nowrap');
-          var stDot = el('span', 'inline-block h-2 w-2 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-transparent ring-1 ring-inset ring-slate-400 dark:ring-slate-500'));
+          var stDot = el('span', 'inline-block h-2 w-2 shrink-0 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-transparent ring-1 ring-inset ring-slate-400 dark:ring-slate-500'));
           var stTxt = el('span', 'text-xs font-semibold ' + (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'), dev.online ? 'Online' : 'Offline');
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
           var drvCount = typeof dev.drive_count === 'number' ? dev.drive_count : null;
