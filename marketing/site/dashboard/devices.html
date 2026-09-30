@@ -199,8 +199,8 @@
       var page = 1, per = 10;
       var expanded = {};
       var animKey = null;
-      var sortKey = null;   // column key, or null for default (backend) order
-      var sortDir = 1;      // 1 = ascending, -1 = descending
+      var sortKey = 'status';   // initial sort: Status column
+      var sortDir = -1;         // descending (Online first)
 
       function mdmRank(dev) {
         var st = String(dev.mdm_status || '');
