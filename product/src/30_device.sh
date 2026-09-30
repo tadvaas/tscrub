@@ -281,27 +281,32 @@ device::frozen() {
             while :; do
                 status="$(hdparm -I /dev/$dev 2>&5)"
                 if [[ $status == *"not"?"frozen"* || $status != *"frozen"* ]]; then
-                    # Not frozen (or no security section at all) — nothing to do.
-                    echo " $dev not_frozen"
+                    # Confirm success only when we actually unfroze it — a drive
+                    # that was never frozen needs no line (keeps the boot quiet).
+                    if [[ "$i" -gt 1 ]]; then
+                        printf "%s%s: not frozen\n" "$TABLE_INDENT" "$dev"
+                    fi
                     break
                 fi
-                echo " $dev frozen"
-                echo " $dev unfreezing"
+                # Frozen: one clear line instead of the old "frozen" then
+                # "unfreezing" pair — the unfreeze IS a suspend/resume, so say
+                # so (the brief blank screen is the machine suspending to RAM).
+                printf "%s%s: frozen — suspending to clear the freeze lock (attempt %s/%s)\n" "$TABLE_INDENT" "$dev" "$i" "$times"
                 sleep 1 #give some time to CTRL+C if wanted
                 rtcwake -m mem -s 5 >&5 2>&5
                 if [[ $i -ge $times ]];then
                     if [[ "${NON_INTERACTIVE:-0}" -eq 1 ]]; then
-                        echo " $dev unfreeze exhausted; giving up (non-interactive)"
+                        printf "%s%s: still frozen — giving up (non-interactive)\n" "$TABLE_INDENT" "$dev"
                         break
                     fi
                     printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"
                     if ! read -r answer < /dev/tty 2>/dev/null; then
-                        echo " $dev aborted (no terminal)."
+                        printf "%s%s: aborted (no terminal).\n" "$TABLE_INDENT" "$dev"
                         exit 1
                     fi
                     i=0
                     if [[ "$answer" != "${answer#[Nn]}" ]]; then
-                        echo " $dev aborted."
+                        printf "%s%s: aborted.\n" "$TABLE_INDENT" "$dev"
                         exit 0
                     fi
                 fi

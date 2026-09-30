@@ -10,10 +10,18 @@ if [[ "$1" == "-I" ]]; then
     printf '\tMaster password revision code = 65534\n'
     case "$mode" in
         frozen)
-            printf '\t\tsupported\n'
-            printf '\tnot\tenabled\n'
-            printf '\tnot\tlocked\n'
-            printf '\t\tfrozen\n'
+            if [[ -n "${FAKE_HDPARM_UNFREEZE_FILE:-}" && -e "$FAKE_HDPARM_UNFREEZE_FILE" ]]; then
+                # The fake rtcwake "unfroze" the drive — report not frozen.
+                printf '\t\tsupported\n'
+                printf '\tnot\tenabled\n'
+                printf '\tnot\tlocked\n'
+                printf '\tnot\tfrozen\n'
+            else
+                printf '\t\tsupported\n'
+                printf '\tnot\tenabled\n'
+                printf '\tnot\tlocked\n'
+                printf '\t\tfrozen\n'
+            fi
             ;;
         none)
             printf '\tnot\tsupported\n'

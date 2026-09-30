@@ -1,2 +1,8 @@
 #!/usr/bin/env bash
+# Fake rtcwake: a suspend/resume that "clears" the ATA freeze lock. When
+# FAKE_RTCWAKE_FLAG is set, touch that file — the fake hdparm then reports the
+# drive as not frozen on its next IDENTIFY.
+if [[ -n "${FAKE_RTCWAKE_FLAG:-}" ]]; then
+    touch "$FAKE_RTCWAKE_FLAG"
+fi
 exit 0
