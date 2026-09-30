@@ -150,7 +150,7 @@ mdm::detect() {
     fi
 
     # Publish an honest "Queued" placeholder BEFORE the network/POST work so the
-    # panel never lingers on the initial "…" while DHCP and the POST settle.
+    # panel never lingers on the initial "Pending" while DHCP and the POST settle.
     mdm::publish "checking" "Queued"
 
     if ! network::ensure; then

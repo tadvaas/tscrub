@@ -123,9 +123,10 @@ fn_main() {
     # its late status write still reaches the UI reader. The appliance only sends
     # serial/uuid; the dashboard holds the Azure credentials.
     # Placeholder shown until the worker publishes the dashboard's real label —
-    # deliberately NOT "Checking…" so a not-yet-published state isn't mistaken
-    # for the server's own "checking".
-    MDM_STATUS="…"
+    # an honest ASCII "Pending" (NOT "Checking…", and NOT the Unicode "…" which
+    # the appliance console renders as a single dot) so a not-yet-published
+    # state can't be mistaken for the server's own "checking".
+    MDM_STATUS="Pending"
     mdm::detect &
     mdm_pid=$!
     presence::loop &
@@ -251,7 +252,7 @@ fn_main() {
         wait "$mdm_pid" 2>/dev/null || true
         if [[ -f "$MDM_RESULT_FILE" ]]; then
             [[ -z "${MDM_VERDICT:-}" ]] && MDM_VERDICT="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
-            if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "…" ]]; then
+            if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "Pending" ]]; then
                 MDM_STATUS="$(sed -n '2p' "$MDM_RESULT_FILE" 2>/dev/null)"
                 [[ -n "${MDM_STATUS:-}" ]] || MDM_STATUS="Offline"
             fi
