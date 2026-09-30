@@ -532,7 +532,7 @@ config::load_usb() {
 #   3. a licence file at the root of the boot USB (a *.lic file)
 #   4. the compiled default path (/etc/tscrub/license.lic)
 license::detect() {
-    local param url
+    local param url attempt fetched
 
     # Only consult the kernel command line when no explicit --license /
     # --license-url was given on the CLI, so the operator's choice always wins.
@@ -558,11 +558,22 @@ license::detect() {
         # On PXE/bare-metal boots the licence is fetched before the boot-time
         # DHCP has necessarily completed (the UEFI iPXE stack had its own
         # lease, but the booted Linux kernel re-DHCPs in the background).
-        # Ensure a default route exists first — a no-op when already up.
-        if command -v ip >/dev/null 2>&1; then
-            network::ensure
-        fi
-        if license::fetch "$LICENSE_URL"; then
+        # USB Ethernet adapters — common on laptops without a built-in NIC —
+        # can enumerate and bring their link up several seconds AFTER boot, so
+        # the fetch is retried a few times; each retry re-runs network::ensure
+        # (a no-op once a default route exists) before giving up.
+        fetched=0
+        for attempt in 1 2 3; do
+            if command -v ip >/dev/null 2>&1; then
+                network::ensure
+            fi
+            if license::fetch "$LICENSE_URL"; then
+                fetched=1
+                break
+            fi
+            [[ "$attempt" -lt 3 ]] && sleep 5
+        done
+        if [[ "$fetched" -eq 1 ]]; then
             printf "%sLicence fetched from %s.\n" "$TABLE_INDENT" "$LICENSE_URL"
         else
             printf "%s[!] Licence fetch failed: %s\n" "$TABLE_INDENT" "$LICENSE_URL" >&2

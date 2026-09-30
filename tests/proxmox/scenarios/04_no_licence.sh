@@ -15,5 +15,5 @@ vm_push_files "$IP"
 
 out="$(vm_ssh "$IP" 'cd /tmp/tscrub && sudo ./tscrub.sh --output /tmp/tscrub/out 2>&1; echo EXIT=$?')"
 
-assert_contains "$out" "No valid licence found" "licence required"
+assert_contains "$out" "No licence file found" "licence required"
 assert_contains "$out" "EXIT=1" "exits non-zero without a licence"

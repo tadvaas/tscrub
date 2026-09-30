@@ -121,5 +121,28 @@ rm -f "$FAKE_VOL"/* 2>/dev/null
 LICENSE_FILE=""
 t::check "USB: no licence → detect_usb fails" '! license::detect_usb'
 
+# --- licence fetch retries when the network comes up late -------------------
+# USB Ethernet adapters (laptops without a built-in NIC) can enumerate/link
+# after the first DHCP pass; license::detect must retry the fetch — re-running
+# network::ensure — before giving up. Mock the transport + sleep so the retry
+# gaps are instant.
+sleep() { :; }
+network_ensure() { return 0; }
+fetch_calls=0
+license::fetch() {
+    fetch_calls=$((fetch_calls + 1))
+    if (( fetch_calls >= 3 )); then
+        cp "$tdir/license.lic" "$tdir/fetched.lic"
+        LICENSE_FILE="$tdir/fetched.lic"
+        return 0
+    fi
+    return 1
+}
+LICENSE_SOURCE_SET=1
+LICENSE_URL="http://192.168.0.26/tScrub/test.lic"
+LICENSE_FILE=""
+license::detect
+t::check "licence fetch retried until it succeeds" '[[ "$fetch_calls" -eq 3 && -n "$LICENSE_FILE" ]]'
+
 rm -rf "$tdir"
 t::summary
