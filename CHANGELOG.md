@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.8.6] - 2026-09-30
 
 ### Changed — server-owned MDM wording + two report types
 
@@ -25,6 +25,16 @@ and this project uses date-based versioning (`v1.x`).
   The heartbeat itself stays a lightweight presence ping (serial + uuid);
   diagnostics are sent once at boot.
 - Dashboard MDM badge prefers the server's `mdm_label` when present.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.6_2025.11_30_x86-64_v0.41_20260930-b46890f0.iso`
+  (157,622,272 B, sha256 `195d2f4f040f0a25712584293b6d30ea35d81e7a41357b4b3aa3c65682c60cf5`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.6 sha256 `8f863fbf1f3705b23f259f6d12349d6b33b07073566833cd410439b1e15844d5`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `5480c7c0354962fcfbdce37807d2d93be727efcd909f4dc491d7137cf4b333b7`).
 
 ## [v1.8.5] - 2026-09-30
 
