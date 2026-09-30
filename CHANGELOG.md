@@ -6,6 +6,32 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.11] - 2026-09-30
+
+### Fixed
+
+- **Licence fetch retries for late-link NICs** — USB Ethernet adapters (common
+  on laptops with no built-in NIC) can enumerate and bring their link up after
+  the boot-time DHCP pass, which made `tscrub_license_url=` fetches fail on the
+  first attempt. The licence fetch now retries a few times, re-running
+  `network::ensure` before each attempt, so a late link is given time to come
+  up instead of failing straight to "No licence file found".
+- **Licence error no longer black-screens** — a fatal licence failure printed
+  the error and exited, and the appliance's `getty` respawn loop then cleared
+  the console and boot-looped into a black screen. The error is now kept on
+  screen with a "Press Enter to retry" prompt when running interactively
+  (headless runs still exit immediately).
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.11_2025.11_30_x86-64_v0.41_20260930-ada39098.iso`
+  (157,622,272 B, sha256 `1e2654d9e6a80890365091e899eec6fb002f1d4268e051be2358e086555840f7`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.11 sha256 `67e8371a21d82826fdaf384c7315de134307d43de0dfad3d465687bb65fdae54`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `514912e9a4bda68bc4b1de997e6ed4f1016deabfd88b099229e9f60d50a9c756`).
+
 ## [v1.8.10] - 2026-09-30
 
 ### Fixed
