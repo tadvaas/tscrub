@@ -6,6 +6,44 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.13] - 2026-09-30
+
+### Fixed
+
+- **More persistent DHCP for late-link USB NICs** — `network::ensure` now runs
+  two DHCP passes per call (a freshly reset RTL8153 re-enumerates via the USB
+  config-selector, so the first DISCOVER burst can be missed) with a slower
+  retry cadence, and the licence fetch retries up to four times. This gives a
+  USB Ethernet adapter time to get a lease on laptops without a working
+  built-in NIC.
+- **Network state shown on licence failure** — when the licence still can't be
+  fetched, the on-screen error now also prints `ip link` / `ip addr` /
+  `ip route` before the "Press Enter to retry" prompt, so a failed boot can be
+  diagnosed from the console alone.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.13_2025.11_30_x86-64_v0.41_20260930-406309b6.iso`
+  (157,622,272 B, sha256 `f204e0adb0e76b1562eb4dc19dabfb606a37c39ca08395f9e0fcae5683bf2b1a`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.13 sha256 `08a6eb25528eab9d61b37d9c9227fae17b39c21ba937596ee7c6ced683da7361`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `9efde6ca4172e6fb65ee1daf7b52afccec68efff9be27d1d88121bd9f8e2f6f9`).
+
+## [Unreleased]
+
+### Fixed
+
+- **Device registration POST retries for late-link NICs** — the boot-time
+  diagnostics push (`register::send` → `POST /api/reports/diagnostics`) was a
+  single one-shot attempt (retrying only on TLS error 60). On machines whose
+  USB Ethernet adapter brings its link up a few seconds after boot, the POST
+  failed silently and never retried, so the machine never appeared on the
+  dashboard Devices tab (it kept a live heartbeat but no diagnostics report).
+  The push now retries a few times, re-running `network::ensure` before each
+  attempt — mirroring the v1.8.12 licence-fetch fix.
+
 ## [v1.8.12] - 2026-09-30
 
 ### Fixed
