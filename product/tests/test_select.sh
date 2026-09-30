@@ -58,4 +58,30 @@ t::assert_contains "$(register::json)" '"serial":"' "register: json has serial"
 t::assert_contains "$(register::json)" '"drives":[' "register: json has drives"
 t::assert_contains "$(register::json)" '"bios_lock":"' "register: json has bios_lock"
 
+# --- selection legend keys ---
+legend="$(select::legend)"
+t::assert_contains "$legend" "T=start" "legend: start is Shift+T"
+t::assert_contains "$legend" "R=restart" "legend: restart is Shift+R"
+t::assert_contains "$legend" "S=shutdown" "legend: shutdown is Shift+S"
+t::check "legend: S no longer means start" '[[ "$legend" != *"S=start"* ]]'
+
+# --- selection power actions (Shift+R restart, Shift+S shutdown) ---
+reboot() { FAKE_REBOOT=1; }
+poweroff() { FAKE_POWEROFF=1; }
+
+SELECT_MODE=1; SELECT_CURSOR="sda"
+select::reboot >/dev/null
+rc=$?
+t::check "select: Shift+R aborts selection" '[[ "$rc" == "1" ]]'
+t::check "select: Shift+R invokes reboot" '[[ "$FAKE_REBOOT" == "1" ]]'
+t::check "select: Shift+R clears SELECT_MODE" '[[ "$SELECT_MODE" == "0" ]]'
+t::check "select: Shift+R clears SELECT_CURSOR" '[[ -z "$SELECT_CURSOR" ]]'
+
+SELECT_MODE=1; SELECT_CURSOR="sda"
+select::shutdown >/dev/null
+rc=$?
+t::check "select: Shift+S aborts selection" '[[ "$rc" == "1" ]]'
+t::check "select: Shift+S invokes poweroff" '[[ "$FAKE_POWEROFF" == "1" ]]'
+t::check "select: Shift+S clears SELECT_CURSOR" '[[ -z "$SELECT_CURSOR" ]]'
+
 t::summary

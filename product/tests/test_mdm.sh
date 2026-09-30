@@ -42,6 +42,14 @@ t::assert_eq "" \
     "$(printf '{"ok":true,"status":"queued","verdict":"","source":"none"}' | mdm::json_field verdict)" \
     "mdm json_field: empty verdict stays empty"
 
+# --- mdm::sync_state recovers the worker's result before the IPC loop --------
+MDM_STATUS="Pending"; MDM_VERDICT=""
+printf 'ms_error\nMS error\n' > "$MDM_RESULT_FILE"
+mdm::sync_state
+t::assert_eq "MS error" "${MDM_STATUS:-}" "mdm: sync_state replaces Pending with the result-file label"
+t::assert_eq "ms_error" "${MDM_VERDICT:-}" "mdm: sync_state fills the verdict from the result file"
+MDM_STATUS=""; MDM_VERDICT=""
+
 # ui::mdm_render colouring — regression for the bug where the colour never
 # rendered (the function runs inside $(...) so its stdout is a pipe and
 # [[ -t 1 ]] was always false; the caller now passes the decision explicitly).

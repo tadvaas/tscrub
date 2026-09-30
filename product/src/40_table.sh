@@ -763,7 +763,7 @@ SELECT_CURSOR=""
 # Compact selection legend (also shown in the sticky footer). The selected
 # count is embedded so the footer can be repainted in place on each toggle.
 select::legend() {
-    printf 'Space=select · ↑/↓=move · A=all · N=none · S=start · Esc=quit   Selected: %d / %d' \
+    printf 'Space=select ↑/↓=move A=all N=none T=start R=restart S=shutdown Esc   Sel: %d/%d' \
         "$(select::count)" "${#devices[@]}"
 }
 
@@ -789,6 +789,28 @@ select::paint_footer() {
     printf "\033[%d;1H\033[K%*s%s" "$(( rows - 1 ))" "$pad" "" "$legend"
 }
 
+# Selection-screen power actions (Shift+R / Shift+S). Each clears selection
+# state and returns 1 so a failed reboot/poweroff aborts instead of wiping.
+select::reboot() {
+    SELECT_MODE=0
+    SELECT_CURSOR=""
+    ui::cursor_show
+    ui::terminal_controls_supported && clear
+    printf "%sRestarting...\n" "$TABLE_INDENT"
+    reboot 2>/dev/null || reboot -f 2>/dev/null || true
+    return 1
+}
+
+select::shutdown() {
+    SELECT_MODE=0
+    SELECT_CURSOR=""
+    ui::cursor_show
+    ui::terminal_controls_supported && clear
+    printf "%sShutting down...\n" "$TABLE_INDENT"
+    poweroff 2>/dev/null || poweroff -f 2>/dev/null || true
+    return 1
+}
+
 # Interactive drive selection overlaid on the FULL table UI (blue screen).
 # Returns 0 when the operator starts (the selected set is in
 # devrow[*].selected); 1 on abort (Esc/q). Without an interactive terminal it
@@ -810,6 +832,7 @@ select::run() {
     ui::cursor_hide
 
     SELECT_CURSOR="${devices[0]:-}"
+    mdm::sync_state
     table::render    # one full render; every keystroke below is in-place
 
     while :; do
@@ -850,13 +873,15 @@ select::run() {
                 for dev in "${devices[@]}"; do select::paint_row "$dev"; done
                 select::paint_footer
                 ;;
-            'S')
+            'T')
                 if [[ "$(select::count)" -gt 0 ]]; then
                     SELECT_MODE=0
                     SELECT_CURSOR=""
                     return 0
                 fi
                 ;;
+            'R') select::reboot; return 1 ;;
+            'S') select::shutdown; return 1 ;;
             $'\e'|'q') SELECT_MODE=0; SELECT_CURSOR=""; return 1 ;;
         esac
     done

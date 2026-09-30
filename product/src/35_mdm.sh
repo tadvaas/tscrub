@@ -124,6 +124,23 @@ mdm::publish() {
     echo "mdm STATUS $label" >&3
 }
 
+# Pull the worker's latest published state back into the parent shell. The
+# worker is a subshell and its publishes travel over the fd-3 IPC pipe, which
+# only ui::loop reads (and only during the wipe) — so before ui::loop starts,
+# the parent still holds the initial "Pending" placeholder and the boot/
+# selection screen would render that stale value. The result file mirrors every
+# publish, so read the current label from it whenever the placeholder is still
+# showing.
+mdm::sync_state() {
+    [[ -f "$MDM_RESULT_FILE" ]] || return 0
+    [[ -z "${MDM_VERDICT:-}" ]] && MDM_VERDICT="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
+    if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "Pending" ]]; then
+        local label
+        label="$(sed -n '2p' "$MDM_RESULT_FILE" 2>/dev/null)"
+        [[ -n "$label" ]] && MDM_STATUS="$label"
+    fi
+}
+
 # Background worker: send the machine identifiers to the dashboard (which holds
 # the Azure credentials and runs the Graph probe) and publish the verdict to the
 # UI over the worker -> UI IPC channel (fd 3). Forked BEFORE `exec 3>&-` so its

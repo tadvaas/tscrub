@@ -25,9 +25,9 @@ dryrun::simulate_running_eta() {
 fn_main() {
     # Restore the cursor on exit; make Ctrl+C / SIGTERM actually abort (after
     # showing the cursor) instead of being silently swallowed.
-    trap 'ui::cursor_show; exit 130' INT
-    trap 'ui::cursor_show; exit 143' TERM
-    trap 'ui::cursor_show' EXIT
+    trap 'ui::spinner_stop; ui::cursor_show; exit 130' INT
+    trap 'ui::spinner_stop; ui::cursor_show; exit 143' TERM
+    trap 'ui::spinner_stop; ui::cursor_show' EXIT
 
     # Reset per-run state so a repeat run (post-run "Run again" option) starts
     # clean, and rebuild the worker -> UI IPC channel the previous run consumed.
@@ -125,6 +125,9 @@ fn_main() {
         printf "%s[!] Invalid COCID '%s'. Must be exactly 5 digits.\n" "$TABLE_INDENT" "$COCID" >&2
         exit 1
     fi
+    # Clear the centered COCID prompt so its text doesn't linger while the
+    # discovery -> SMART -> unfreeze sequence runs below.
+    ui::terminal_controls_supported && clear
     # Autonuke: wipe every drive immediately (no selection screen) when forced
     # by --autonuke, implied by --cocid / tscrub_cocid= (NON_INTERACTIVE), or
     # requested from the kernel command line (tscrub_autonuke=1).
@@ -148,22 +151,39 @@ fn_main() {
     bios_unlock::loop &
     bios_unlock_pid=$!
     device::install_sedutil
+    ui::spinner_start "Discovering devices..."
     if ! device::discover; then
+        ui::spinner_stop
         table::build
         table::render
         exit 1
     fi
     smart::capture_all pre
+    ui::spinner_stop
 
+    # Unfreezing prints its own lines (the suspend/resume IS the progress), so
+    # the spinner is off here to keep them from fighting over the same line.
     device::handle_locks
     device::frozen
+
+    ui::spinner_start "Preparing..."
     device::detect
     table::build
+    ui::spinner_stop
 
     # ITAD triage: register the machine with the portal (identity + hardware +
     # drive inventory) and save the snapshot to the USB, BEFORE any wipe. Then
     # either autonuke (wipe everything) or let the operator pick the drives.
-    register::push
+    # Runs in the background so a slow/late network (USB NIC) can't stall the
+    # transition to the selection screen; its retries happen in parallel. fd 3
+    # is closed so the job doesn't hold the UI IPC pipe open.
+    { register::push; } 3>&- &
+    register_pid=$!
+    # The MDM worker's result travels over the IPC pipe that only ui::loop reads
+    # (during the wipe), so pull its latest published state back before the
+    # selection screen renders — otherwise the panel shows the "Pending"
+    # placeholder even though the verdict already settled.
+    mdm::sync_state
     if [[ "$AUTONUKE" -eq 1 ]]; then
         select::all
         table::render
@@ -361,6 +381,12 @@ fn_main() {
     fi
     if [[ -n "${bios_unlock_pid:-}" ]]; then
         kill "$bios_unlock_pid" 2>/dev/null || true
+    fi
+    # The background registration is a one-shot POST; reap it if it outlived
+    # the run (its USB snapshot write is best-effort, so a late finish is fine).
+    if [[ -n "${register_pid:-}" ]]; then
+        kill "$register_pid" 2>/dev/null || true
+        wait "$register_pid" 2>/dev/null || true
     fi
 
     if [[ "$DRY_RUN" -eq 0 ]]; then

@@ -18,6 +18,33 @@ ui::cursor_show() {
     tput cnorm 2>/dev/null || true
 }
 
+# Animated progress line: a background loop redraws the SAME line in place while
+# a synchronous step runs, advancing the shared spinner glyph. Call
+# ui::spinner_stop before any other console output; the loop also exits when its
+# parent shell dies (so an abnormal exit can't leave an orphan scribbling). A
+# no-op when stdout isn't a terminal.
+ui::spinner_start() {
+    ui::terminal_controls_supported || return 0
+    local msg="$1"
+    (
+        while kill -0 "$PPID" 2>/dev/null; do
+            printf "\r\033[K%s %s %s" "$TABLE_INDENT" "$(ui::spinner)" "$msg"
+            UI_SPINNER_FRAME=$(( UI_SPINNER_FRAME + 1 ))
+            sleep 0.25
+        done
+    ) &
+    SPINNER_PID=$!
+}
+
+ui::spinner_stop() {
+    if [[ -n "${SPINNER_PID:-}" ]]; then
+        kill "$SPINNER_PID" 2>/dev/null || true
+        wait "$SPINNER_PID" 2>/dev/null || true
+        SPINNER_PID=""
+    fi
+    ui::terminal_controls_supported && printf "\r\033[K"
+}
+
 cocid::is_valid() {
     [[ "$1" =~ ^[0-9]{5}$ ]]
 }

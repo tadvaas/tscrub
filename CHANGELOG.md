@@ -6,6 +6,39 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.19] - 2026-09-30
+
+### Changed
+
+- **Selection screen keys remapped** — Shift+T now starts the wipe (was Shift+S),
+  Shift+R restarts the computer, and Shift+S shuts it down. The footer legend
+  was updated to match (`T=start R=restart S=shutdown`).
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.19_2025.11_30_x86-64_v0.41_20260930-47d70979.iso`
+  (157,622,272 B, sha256 `086cadd008f0dd446d493a15fbd22eb2176cb754dc01f44e4b0da1cc562920ae`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.19 sha256 `0c18ceab3eb03488203b595e78275ad1f1c1a70c1dcf1f14b392b17b26530f06`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `5e3bf4d9dcb86245ba78ea8db85772cc015e68331fc0d4e84dced2fd462656a0`).
+
+## [v1.8.18] - 2026-09-30
+
+### Fixed
+
+- **MDM verdict shown on the selection screen** — the Runtime panel's MDM cell
+  showed the initial "Pending" placeholder throughout boot/selection even after
+  the worker had settled (the worker publishes over the IPC pipe, which only
+  `ui::loop` reads during the wipe). `mdm::sync_state` now copies the worker's
+  latest published label from the result file back into the parent shell before
+  the selection screen renders, so the laptop and the dashboard agree on the
+  verdict from the moment the drive list appears.
+
+  _Shipped together with v1.8.19 (the v1.8.18 ISO was superseded before it was
+  announced)._
+
 ## [v1.8.17] - 2026-09-30
 
 ### Fixed
