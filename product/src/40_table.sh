@@ -104,11 +104,14 @@ table::compute_layout() {
 
 # Prints one device row using the current layout. Maps each label in
 # UI_TABLE_LABELS to its value so dropped/shrunk columns stay consistent.
-table::print_row() {
+# Build one device row as a single string (marker gutter + cells + optional
+# cursor highlight). Factored out so the full render and the in-place selection
+# repaint share identical formatting.
+table::row_text() {
     local dev="$1" now="$2"
     local eta_col smart_col temp_col label val fg_reset
     local -a cells
-    local i w cell hot
+    local i w cell hot row
 
     eta_col="$(ui::eta_text_for "$dev" "$now")"
     smart_col="${devrow[$dev.smart]:--}"
@@ -183,11 +186,16 @@ table::print_row() {
         i=$(( i + 1 ))
     done
 
+    row="${cells[*]}"
     if [[ "${SELECT_MODE:-0}" -eq 1 && "$dev" == "${SELECT_CURSOR:-}" && -t 1 ]]; then
-        printf "%s\033[7m%s\033[27m\n" "$TABLE_INDENT" "${cells[*]}"
-    else
-        printf "%s%s\n" "$TABLE_INDENT" "${cells[*]}"
+        row=$'\033[7m'"$row"$'\033[27m'
     fi
+    printf '%s' "$row"
+}
+
+table::print_row() {
+    local dev="$1" now="$2"
+    printf "%s%s\n" "$TABLE_INDENT" "$(table::row_text "$dev" "$now")"
 }
 
 table::build() {
@@ -336,7 +344,7 @@ ui::bios_render() {
 # line. Called with the cursor on the separator's row; it leaves the cursor on
 # the footer text row (the caller's blank bottom-margin row sits below it).
 ui::footer() {
-    local text term_w pad sep
+    local text term_w pad sep legend
     text="${SCRIPT_NAME} ${SCRIPT_VERSION} — tscrub.com"
     term_w="$(table::detect_terminal_width)"
     sep="$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
@@ -344,6 +352,12 @@ ui::footer() {
     pad=$(( (term_w - ${#text}) / 2 ))
     (( pad < 0 )) && pad=0
     printf "\033[K%*s%s" "$pad" "" "$text"
+    if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
+        legend="$(select::legend)"
+        pad=$(( (term_w - ${#legend}) / 2 ))
+        (( pad < 0 )) && pad=0
+        printf "\n\033[K%*s%s" "$pad" "" "$legend"
+    fi
 }
 
 ui::eta_text_for() {
@@ -606,20 +620,19 @@ table::render() {
 
     printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
 
-    if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
-        printf "\n%s%s\n" "$TABLE_INDENT" "Space=select · ↑/↓ or j/k=move · A=all · N=none · S=start · Esc=abort     Selected: $(select::count) / ${#devices[@]}"
-    fi
-
     if [[ "$UI_COMPLETE_THEME" -ne 0 && "$UI_COMPLETE_THEME" -ne 4 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
     fi
 
     # Sticky footer pinned just above the bottom margin (a blank line matching
-    # the top), with a separator line above it. Save/restore the cursor so the
-    # caller's position (finish message, in-place tick) is kept.
+    # the top), with a separator line above it. In selection mode an extra key
+    # legend line is appended, so the footer starts one row higher. Save/restore
+    # the cursor so the caller's position (finish message, in-place tick) is kept.
     if [[ -t 1 ]] && (( rows > 3 )); then
+        local footer_row=$(( rows - 2 ))
+        [[ "${SELECT_MODE:-0}" -eq 1 ]] && footer_row=$(( rows - 3 ))
         printf "\0337"
-        printf "\033[%d;1H" "$(( rows - 2 ))"
+        printf "\033[%d;1H" "$footer_row"
         ui::footer
         printf "\0338"
     fi
@@ -755,12 +768,41 @@ select::none() {
 SELECT_MODE=0
 SELECT_CURSOR=""
 
-# Interactive drive selection overlaid on the FULL table UI. Returns 0 when the
-# operator starts (the selected set is in devrow[*].selected); 1 on abort
-# (Esc/q). Without an interactive terminal it selects everything and starts
-# immediately (headless = autonuke).
+# Compact selection legend (also shown in the sticky footer). The selected
+# count is embedded so the footer can be repainted in place on each toggle.
+select::legend() {
+    printf 'Space=select · ↑/↓=move · A=all · N=none · S=start · Esc=quit   Selected: %d / %d' \
+        "$(select::count)" "${#devices[@]}"
+}
+
+# Repaint a single drive row in place (no clear/reflow) — used by the selection
+# loop so toggling/moving the cursor only touches the affected rows.
+select::paint_row() {
+    local dev="$1" row
+    [[ -t 1 ]] || return 0
+    row="${ui_eta_row[$dev]:-}"
+    [[ "$row" =~ ^[0-9]+$ ]] || return 0
+    printf "\033[%d;1H\033[K%s%s" "$row" "$TABLE_INDENT" "$(table::row_text "$dev" "$(ts::now)")"
+}
+
+# Repaint the footer legend in place (the selected count changes on toggle).
+select::paint_footer() {
+    local rows term_w pad legend
+    [[ -t 1 ]] || return 0
+    rows="$(table::detect_terminal_height)"
+    term_w="$(table::detect_terminal_width)"
+    legend="$(select::legend)"
+    pad=$(( (term_w - ${#legend}) / 2 ))
+    (( pad < 0 )) && pad=0
+    printf "\033[%d;1H\033[K%*s%s" "$(( rows - 1 ))" "$pad" "" "$legend"
+}
+
+# Interactive drive selection overlaid on the FULL table UI (blue screen).
+# Returns 0 when the operator starts (the selected set is in
+# devrow[*].selected); 1 on abort (Esc/q). Without an interactive terminal it
+# selects everything and starts immediately (headless = autonuke).
 select::run() {
-    local dev idx key k2
+    local dev idx key k2 prev
     select::none
     idx=0
     SELECT_MODE=1
@@ -771,12 +813,14 @@ select::run() {
         return 0
     fi
 
-    ui::cursor_show
+    # Blue "in progress" theme for the selection screen, matching the wipe UI.
+    UI_COMPLETE_THEME=4
+    ui::cursor_hide
+
+    SELECT_CURSOR="${devices[0]:-}"
+    table::render    # one full render; every keystroke below is in-place
 
     while :; do
-        SELECT_CURSOR="${devices[$idx]:-}"
-        table::render
-
         IFS= read -rsn1 key < /dev/tty 2>/dev/null || { select::all; SELECT_MODE=0; return 0; }
 
         if [[ "$key" == $'\e' ]]; then
@@ -785,20 +829,43 @@ select::run() {
         fi
 
         case "$key" in
-            $'\e[A'|'k') idx=$(( idx > 0 ? idx - 1 : ${#devices[@]} - 1 )) ;;
-            $'\e[B'|'j') idx=$(( idx < ${#devices[@]} - 1 ? idx + 1 : 0 )) ;;
-            ' ') select::toggle "${devices[$idx]}" ;;
-            'a') select::all ;;
-            'n') select::none ;;
+            $'\e[A'|'k')
+                prev="$SELECT_CURSOR"
+                idx=$(( idx > 0 ? idx - 1 : ${#devices[@]} - 1 ))
+                SELECT_CURSOR="${devices[$idx]}"
+                select::paint_row "$prev"
+                select::paint_row "$SELECT_CURSOR"
+                ;;
+            $'\e[B'|'j')
+                prev="$SELECT_CURSOR"
+                idx=$(( idx < ${#devices[@]} - 1 ? idx + 1 : 0 ))
+                SELECT_CURSOR="${devices[$idx]}"
+                select::paint_row "$prev"
+                select::paint_row "$SELECT_CURSOR"
+                ;;
+            ' ')
+                select::toggle "$SELECT_CURSOR"
+                select::paint_row "$SELECT_CURSOR"
+                select::paint_footer
+                ;;
+            'a')
+                select::all
+                for dev in "${devices[@]}"; do select::paint_row "$dev"; done
+                select::paint_footer
+                ;;
+            'n')
+                select::none
+                for dev in "${devices[@]}"; do select::paint_row "$dev"; done
+                select::paint_footer
+                ;;
             'S')
                 if [[ "$(select::count)" -gt 0 ]]; then
                     SELECT_MODE=0
                     SELECT_CURSOR=""
-                    ui::cursor_hide
                     return 0
                 fi
                 ;;
-            $'\e'|'q') SELECT_MODE=0; SELECT_CURSOR=""; ui::cursor_hide; return 1 ;;
+            $'\e'|'q') SELECT_MODE=0; SELECT_CURSOR=""; return 1 ;;
         esac
     done
 }
