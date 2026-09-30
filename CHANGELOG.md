@@ -6,6 +6,31 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.9] - 2026-09-30
+
+### Fixed
+
+- **MDM Runtime panel no longer shows a misleading "Checking…"** — the panel
+  was seeded with the literal `Checking…` placeholder and only replaced once the
+  MDM worker finished its DHCP wait and the first POST round-trip, so for the
+  first ~5–30 s the panel showed the same string the server uses for a genuinely
+  in-flight check. The initial state is now a distinct `…` ("no answer yet"),
+  and the worker publishes an honest state **before** touching the network
+  (`Skipped` when unconfigured/identifiers missing, `Queued` before the POST,
+  `Offline` when DHCP/POST fail), then the server's exact `label` after the POST
+  and on every poll. `Checking…` now appears only when the server itself reports
+  `status=checking`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.9_2025.11_30_x86-64_v0.41_20260930-abacb695.iso`
+  (157,622,272 B, sha256 `f847b9c154268ad82afebbc928603af9e69405dda5bb11178f8b57b8824d36ff`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.9 sha256 `e08c962b406a76addb03f804c00c8c64dcd2d7859a0e821159d8c69184ed1664`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `4667c0348a05f6a2b32a3bdc04c514c4ec5d833cbc611af3bc786d067dd3986a`).
+
 ## [v1.8.8] - 2026-09-30
 
 ### Fixed
