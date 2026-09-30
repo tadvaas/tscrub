@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [v1.8.11] - 2026-09-30
+## [v1.8.12] - 2026-09-30
 
 ### Fixed
 
@@ -24,13 +24,13 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Release
 
-- Appliance ISO `tscrub-v1.8.11_2025.11_30_x86-64_v0.41_20260930-ada39098.iso`
-  (157,622,272 B, sha256 `1e2654d9e6a80890365091e899eec6fb002f1d4268e051be2358e086555840f7`);
+- Appliance ISO `tscrub-v1.8.12_2025.11_30_x86-64_v0.41_20260930-125c638d.iso`
+  (157,622,272 B, sha256 `e6fa286a71b85e0df32cec05761e8c35bb554ed9e03c65affa77676c33cf0ca1`);
   stable `tscrub-appliance.iso` symlink repointed.
-- Standalone script v1.8.11 sha256 `67e8371a21d82826fdaf384c7315de134307d43de0dfad3d465687bb65fdae54`
+- Standalone script v1.8.12 sha256 `892f699c8242b04ca9e87cb4e7abca55aef06331fd23412b6e0ca9dc554e7efb`
   (signed).
 - PXE `bzImage` republished + signed with the operator's iPXE vendor key
-  (sha256 `514912e9a4bda68bc4b1de997e6ed4f1016deabfd88b099229e9f60d50a9c756`).
+  (sha256 `0c3c4dfd9d1e29692344240a86d937b43cfc7239198f41e97adaaf43b4ef7061`).
 
 ## [v1.8.10] - 2026-09-30
 
