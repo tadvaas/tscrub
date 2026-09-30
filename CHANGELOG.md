@@ -6,6 +6,29 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.14] - 2026-09-30
+
+### Fixed
+
+- **Interfaces brought up before DHCP** — `network::ensure` now issues
+  `ip link set <dev> up` for every non-loopback interface before waiting for
+  carrier and requesting a lease. A USB Ethernet adapter (e.g. the HP/RTL8153
+  dongle) that enumerates after boot — or is reset by the RTL8153
+  config-selector re-enumeration — can be left admin-down (`qdisc noop`, no UP
+  flag), and `udhcpc` on a down interface never transmits a DISCOVER. The
+  interface was bring-up-able manually from the root shell, but the scripts
+  weren't doing it; now they do.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.14_2025.11_30_x86-64_v0.41_20260930-d8beafb7.iso`
+  (157,622,272 B, sha256 `94c1557de6ad50374cbe60b4bb7a9bf4440d7e8c385f9bd01ad247bbe7892dac`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.14 sha256 `3d9becda92cc3b3a1d38b423e61caef5ec6d195c63c00eb9cedbdf33af69d3ac`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `fb1ea7a89f6430003a3f7b178b6b2294e4ed447f452fbd4fb3d0cf7e1e2d81dc`).
+
 ## [v1.8.13] - 2026-09-30
 
 ### Fixed

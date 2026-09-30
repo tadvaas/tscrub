@@ -828,6 +828,16 @@ network::ensure() {
     ip route 2>/dev/null | grep -q '^default ' && return 0
 
     local dev waited=0 found=0 pass
+    # Bring every network interface up first: a USB NIC that enumerated after
+    # the boot-time network init — or was reset by the RTL8153 config-selector
+    # re-enumeration — can be left admin-down (qdisc noop), and udhcpc on a
+    # down interface never transmits a DISCOVER.
+    for dev in /sys/class/net/*; do
+        dev="${dev##*/}"
+        case "$dev" in lo|sit*) continue ;; esac
+        ip link set "$dev" up 2>/dev/null
+    done
+
     # Wait up to ~20s for a carrier to appear (e1000e/USB NICs can take
     # several seconds to negotiate after boot).
     while (( waited < 20 )); do
