@@ -2,8 +2,8 @@
 # MDM (Windows Autopilot enrolment) check
 # =============================================================================
 
-MDM_STATUS=""     # CHECKING / UNLOCKED / LOCKED / OFFLINE / SKIPPED / NA
-MDM_VERDICT=""    # unlocked / locked_this / locked_other / offline / skipped / na / checking
+MDM_STATUS=""     # exact display text from the dashboard (rendered verbatim in the Runtime panel)
+MDM_VERDICT=""    # machine-readable verdict for the report CSV (unlocked / locked_this / locked_other / offline / skipped / na / checking)
 MDM_RESULT_FILE="/tmp/tscrub-mdm.verdict"
 
 mdm::is_configured() {
@@ -42,17 +42,8 @@ mdm::endpoint() {
 }
 
 # Map the dashboard's machine-readable verdict to a UI status word.
-mdm::state_for_verdict() {
-    case "${1:-}" in
-        locked_this|locked_other) printf 'LOCKED' ;;
-        unlocked)                 printf 'UNLOCKED' ;;
-        skipped)                  printf 'SKIPPED' ;;
-        unknown)                  printf 'UNKNOWN' ;;   # import still queued when the poll window closed
-        checking)                 printf 'CHECKING' ;;  # server has it queued/checking — verdict pending
-        na)                       printf 'NA' ;;        # no staged hash — the WinPE capture step was skipped
-        *)                        printf 'OFFLINE' ;;
-    esac
-}
+# (Removed — the dashboard now supplies the exact display text in `label` and
+# the Runtime panel renders it verbatim, so wording is owned server-side.)
 
 # Extract a JSON string field from stdin (single-line JSON from the dashboard).
 mdm::json_field() {
@@ -91,18 +82,21 @@ mdm::http_post() {
 # MDM_RESULT_FILE so fn_main can recover it even if the UI loop ended first
 # (instant dry-run).
 mdm::detect() {
-    local url body resp rc verdict status state man prod
+    local url body resp rc verdict status label man prod
 
     mdm::parse_cmdline
 
     if ! mdm::is_configured; then
         verdict="skipped"
+        label="Skipped"
     elif [[ "${SYS_SERIAL:-N/A}" == "N/A" || "${SYS_UUID:-N/A}" == "N/A" ]]; then
         verdict="skipped"
+        label="Skipped"
     elif ! network::ensure; then
         # No IPv4 route (and DHCP couldn't obtain one) — skip the probe rather
         # than burning curl retries against an unreachable dashboard.
         verdict="offline"
+        label="Offline"
     else
         man="${SYS_MANUFACTURER:-N/A}"; [[ "$man" == "N/A" ]] && man=""
         prod="${SYS_PRODUCT:-N/A}";   [[ "$prod" == "N/A" ]] && prod=""
@@ -116,16 +110,18 @@ mdm::detect() {
 
         # The Graph probe runs in the background on the server (mdm-worker.php),
         # so POST /api/mdm/autopilot returns immediately with
-        # {status: queued|checking|done|na, verdict}. Display whatever the server
-        # reports right now — the authoritative verdict is picked up later from
-        # the dashboard's MDM tab (the device is registered server-side).
+        # {status: queued|checking|done|na, verdict, label}. The dashboard owns
+        # the wording via `label`; the Runtime panel renders it verbatim (no
+        # client-side verdict mapping).
         resp="$(mdm::http_post "$url" "$body")"
         rc=$?
         if [[ $rc -ne 0 ]]; then
             verdict="offline"
+            label="Offline"
         else
             verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
             status="$(printf '%s' "$resp" | mdm::json_field status)"
+            label="$(printf '%s' "$resp" | mdm::json_field label)"
             if [[ -z "$verdict" ]]; then
                 case "$status" in
                     na)              verdict="na" ;;
@@ -133,18 +129,20 @@ mdm::detect() {
                     *)               verdict="unknown" ;;
                 esac
             fi
+            # Defensive fallback only (older dashboard without `label`): show
+            # the machine verdict verbatim rather than mapping it locally.
+            [[ -z "$label" ]] && label="${verdict:-Unknown}"
         fi
     fi
 
-    # Persist the verdict so the report can read it even if the UI loop ended
-    # before this worker finished (the worker is a subshell — it cannot set the
-    # parent's variables directly).
-    printf '%s' "$verdict" > "$MDM_RESULT_FILE" 2>/dev/null
+    # Persist the verdict AND the exact label so the report can read them even
+    # if the UI loop ended before this worker finished (the worker is a
+    # subshell — it cannot set the parent's variables directly).
+    printf '%s\n%s' "$verdict" "$label" > "$MDM_RESULT_FILE" 2>/dev/null
 
-    state="$(mdm::state_for_verdict "$verdict")"
     # VERDICT first so it sits on the IPC channel before the terminal STATUS
     # that lets ui::loop consider the check done.
     echo "mdm VERDICT $verdict" >&3
-    echo "mdm STATUS $state" >&3
+    echo "mdm STATUS $label" >&3
     return 0
 }

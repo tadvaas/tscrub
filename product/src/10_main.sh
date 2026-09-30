@@ -122,7 +122,7 @@ fn_main() {
     # over the worker IPC channel (fd 3). Forked before the `exec 3>&-` below so
     # its late status write still reaches the UI reader. The appliance only sends
     # serial/uuid; the dashboard holds the Azure credentials.
-    MDM_STATUS="CHECKING"
+    MDM_STATUS="Checking…"
     mdm::detect &
     mdm_pid=$!
     presence::loop &
@@ -240,11 +240,12 @@ fn_main() {
             done
         fi
         wait "$mdm_pid" 2>/dev/null || true
-        if [[ -z "${MDM_VERDICT:-}" && -f "$MDM_RESULT_FILE" ]]; then
-            MDM_VERDICT="$(cat "$MDM_RESULT_FILE" 2>/dev/null)"
-        fi
-        if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "CHECKING" ]]; then
-            MDM_STATUS="$(mdm::state_for_verdict "${MDM_VERDICT:-offline}")"
+        if [[ -f "$MDM_RESULT_FILE" ]]; then
+            [[ -z "${MDM_VERDICT:-}" ]] && MDM_VERDICT="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
+            if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "Checking…" ]]; then
+                MDM_STATUS="$(sed -n '2p' "$MDM_RESULT_FILE" 2>/dev/null)"
+                [[ -n "${MDM_STATUS:-}" ]] || MDM_STATUS="Offline"
+            fi
         fi
     fi
 

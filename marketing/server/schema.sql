@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS reports (
   sha_state   VARCHAR(16)     NOT NULL DEFAULT 'unverified',
   sig_state   VARCHAR(16)     NOT NULL DEFAULT 'none',
   source      VARCHAR(16)     NOT NULL DEFAULT 'manual',
+  report_type ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure',
   devices     INT UNSIGNED    NOT NULL DEFAULT 0,
   runs        INT UNSIGNED    NOT NULL DEFAULT 0,
   payload     JSON            NOT NULL,

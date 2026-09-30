@@ -53,6 +53,37 @@ function mdm_graph(): string {
     return rtrim((string)(mdm_settings()['graph_url'] ?? 'https://graph.microsoft.com'), '/');
 }
 
+/**
+ * Human-readable status word for a device, keyed off the machine state
+ * (status + verdict). This is the SINGLE source of truth for MDM wording: the
+ * appliance renders `label` verbatim in its Runtime panel instead of mapping
+ * verdicts itself, so the wording can change server-side without an appliance
+ * release. Keep the labels short enough for the runtime panel's value column.
+ */
+function mdm_status_label(string $status, string $verdict): string {
+    $st = strtolower($status);
+    $v  = strtolower($verdict);
+
+    if ($st === 'checking') return 'Checking…';
+    if ($st === 'queued')   return 'Queued';
+    if ($st === 'failed')   return 'Failed';
+    if ($st === 'na')       return 'No hash';
+
+    switch ($v) {
+        case 'unlocked':     return 'Unlocked';
+        case 'locked_this':  return 'Locked (this)';
+        case 'locked_other': return 'Locked (other)';
+        case 'hash_invalid': return 'Invalid hash';
+        case 'ms_error':     return 'MS error';
+        case 'offline':      return 'Offline';
+        case 'error':        return 'Error';
+        case 'unknown':      return 'Pending';
+        case 'skipped':      return 'Skipped';
+        case 'na':           return 'No hash';
+    }
+    return 'Unknown';
+}
+
 // ---- OAv3 4K hardware hash (base mode) ------------------------------------
 // Byte-for-byte port of research/oa3hash.py build_records()/encode() base set,
 // validated 2026-09-28 against a real oa3tool.exe capture and live-tested
@@ -705,6 +736,7 @@ function mdm_fold_devices(int $userId, array $devices): array {
             if ($m !== null) {
                 $devices[$k]['mdm_status'] = (string)$m['status'];
                 $devices[$k]['mdm_verdict'] = (string)$m['verdict'];
+                $devices[$k]['mdm_label'] = mdm_status_label((string)$m['status'], (string)$m['verdict']);
                 $devices[$k]['mdm_last_checked_at'] = $m['last_checked_at'] ?? null;
             }
         }

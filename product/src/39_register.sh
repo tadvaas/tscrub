@@ -1,17 +1,19 @@
 # =============================================================================
 # DEVICE REGISTRATION — send this machine's identity + hardware + drive
-# inventory to the portal immediately on boot (ITAD triage), and save the same
-# snapshot to the report USB if one is mounted.
+# inventory to the portal immediately on boot (ITAD triage) as a DIAGNOSTICS
+# report (the first of two report kinds; the signed erasure report follows at
+# the end of the run), and save the same snapshot to the report USB if one is
+# mounted.
 # =============================================================================
 
-# The registration endpoint, derived from the report upload URL the same way as
-# the MDM / presence / BIOS-unlock endpoints so a custom `tscrub_upload=` host
-# is honoured.
+# The diagnostics-report endpoint, derived from the report upload URL the same
+# way as the MDM / presence / BIOS-unlock endpoints so a custom
+# `tscrub_upload=` host is honoured.
 register::endpoint() {
     local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
     url="${url%/}"
     [[ "$url" == */api/reports ]] && url="${url%/api/reports}"
-    printf '%s/api/devices/register' "$url"
+    printf '%s/api/reports/diagnostics' "$url"
 }
 
 # Build the registration JSON (one line). Pure string builder — unit-testable.

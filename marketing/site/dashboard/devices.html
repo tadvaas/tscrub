@@ -154,13 +154,18 @@
         var st = String(dev.mdm_status || '');
         var v = String(dev.mdm_verdict || '').toLowerCase();
         var rep = String(dev.mdm || '').toLowerCase();
+        var serverLabel = String(dev.mdm_label || '');
         var REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
 
         function b(cls, label) { return el('span', 'whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ' + cls, label); }
+        // Badge colour/tooltip are keyed off state+verdict; the TEXT prefers
+        // the server's own wording (mdm_label) so wording changes server-side
+        // without a dashboard release.
+        var L = function (d) { return serverLabel || d; };
 
-        if (st === 'checking') return b('bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', 'Checking…');
-        if (st === 'queued') return b('bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Queued');
-        if (st === 'failed') return b('bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Failed');
+        if (st === 'checking') return b('bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', L('Checking…'));
+        if (st === 'queued') return b('bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', L('Queued'));
+        if (st === 'failed') return b('bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', L('Failed'));
 
         // Prefer a real registry verdict, then the report's point-in-time
         // verdict (a stalled Microsoft import returns 'unknown', which is less
@@ -177,11 +182,11 @@
           unknown: ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Pending', 'Microsoft has not processed the import yet']
         };
         if (map[verdict]) {
-          var s = b(map[verdict][0], map[verdict][1]);
+          var s = b(map[verdict][0], L(map[verdict][1]));
           s.title = map[verdict][2];
           return s;
         }
-        if (st === 'na' || st === 'done') return b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'No hash');
+        if (st === 'na' || st === 'done') return b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', L('No hash'));
         return null;
       }
 

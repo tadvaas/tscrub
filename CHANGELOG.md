@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Changed — server-owned MDM wording + two report types
+
+- **Runtime MDM status is now server-owned** — the appliance previously mapped
+  the dashboard's machine-readable verdict (`locked_this`, `ms_error`, …) to a
+  UI status word itself, so a wording change needed an appliance release. The
+  dashboard now returns an exact `label` on `POST /api/mdm/autopilot` and
+  `GET /api/mdm/status` (`mdm_status_label()`), and the Runtime panel renders
+  it verbatim (colouring still keyed off the verdict). Wording changes are a
+  server-only change from now on.
+- **Two report types** — reports are now typed in the `reports` table
+  (`report_type`: `erasure` | `diagnostics`, default `erasure`). The boot-time
+  device + drive snapshot is ingested as a `diagnostics` report via the new
+  `POST /api/reports/diagnostics` endpoint (the appliance's registration now
+  posts there), and the signed post-erasure CSV remains the `erasure` report.
+  The heartbeat itself stays a lightweight presence ping (serial + uuid);
+  diagnostics are sent once at boot.
+- Dashboard MDM badge prefers the server's `mdm_label` when present.
+
 ## [v1.8.5] - 2026-09-30
 
 ### Fixed

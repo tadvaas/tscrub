@@ -61,6 +61,24 @@ function licence_pub_keys(int $userId): array {
 }
 
 /**
+ * Lazily add the `report_type` column to an existing `reports` table
+ * (idempotent — mirrors schema.sql). A fresh install gets the column from
+ * schema.sql; an existing server self-heals on first use.
+ */
+function reports_ensure_schema(): void {
+    try {
+        db()->exec(
+            "ALTER TABLE reports
+             ADD COLUMN report_type ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source"
+        );
+    } catch (Throwable $e) {
+        // Column already present (1060) or any other ALTER failure — the
+        // column is only an optimisation; ingestion falls back to erasure.
+        error_log('reports ensure schema: ' . $e->getMessage());
+    }
+}
+
+/**
  * Parse an uploaded reports multipart and group drives by Chain of Custody ID.
  *
  * @param array $files The `$_FILES['reports']` array.
@@ -596,13 +614,14 @@ function user_ingested_shas(int $userId): array {
 
 /**
  * Persist parsed report groups (raw evidence) to the `reports` table. Returns
- * the list of inserted report row IDs.
+ * the list of inserted report row IDs. $reportType is 'erasure' (default) or
+ * 'diagnostics'.
  */
-function store_reports(array $groups, int $userId, string $source): array {
+function store_reports(array $groups, int $userId, string $source, string $reportType = 'erasure'): array {
     $ids = [];
     $q = db()->prepare(
-        'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, devices, runs, payload)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, report_type, devices, runs, payload)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     foreach ($groups as $g) {
         $names = array_map(fn($r) => (string)($r['name'] ?? ''), $g['reports'] ?? []);
@@ -614,6 +633,7 @@ function store_reports(array $groups, int $userId, string $source): array {
             (string)($g['shaState'] ?? 'unverified'),
             (string)($g['sigState'] ?? 'none'),
             $source,
+            $reportType === 'diagnostics' ? 'diagnostics' : 'erasure',
             count($g['drives'] ?? []),
             count($g['reports'] ?? []),
             json_encode($g, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -621,6 +641,73 @@ function store_reports(array $groups, int $userId, string $source): array {
         $ids[] = (int)db()->lastInsertId();
     }
     return $ids;
+}
+
+/**
+ * Ingest a boot-time diagnostics report (identity + hardware + attached drive
+ * inventory) into the `reports` table with report_type = 'diagnostics'. The
+ * payload is stored as a JSON envelope in the same shape as an erasure group
+ * (system / sysserial / drives / reports) so the generic report readers stay
+ * tolerant of it. Returns the inserted row id, or 0 on failure.
+ */
+function store_diagnostics_report(int $userId, array $d, string $serial, string $uuid): int {
+    reports_ensure_schema();
+
+    $system = trim((string)($d['manufacturer'] ?? '') . ' ' . (string)($d['product'] ?? ''));
+    $now    = gmdate('Y-m-d\TH:i:s\Z');
+
+    $drives = [];
+    foreach (($d['drives'] ?? []) as $dv) {
+        if (!is_array($dv)) continue;
+        $drives[] = [
+            'device'     => (string)($dv['device'] ?? ''),
+            'type'       => (string)($dv['type'] ?? ''),
+            'model'      => (string)($dv['model'] ?? ''),
+            'serial'     => (string)($dv['serial'] ?? ''),
+            'size'       => (string)($dv['size'] ?? ''),
+            'bus'        => (string)($dv['bus'] ?? ''),
+            'class'      => (string)($dv['class'] ?? ''),
+            'capability' => (string)($dv['capability'] ?? ''),
+            'opal_locked'=> isset($dv['opal_locked']) ? (bool)$dv['opal_locked'] : false,
+        ];
+    }
+
+    $payload = [
+        'report_type'    => 'diagnostics',
+        'system'         => $system,
+        'sysserial'      => $serial,
+        'systemuuid'     => $uuid,
+        'chassisserial'  => (string)($d['chassis_serial'] ?? ''),
+        'chassistype'    => (string)($d['chassis_type'] ?? ''),
+        'biosversion'    => (string)($d['bios_version'] ?? ''),
+        'biosdate'       => (string)($d['bios_date'] ?? ''),
+        'bioslock'       => (string)($d['bios_lock'] ?? ''),
+        'bioslockmethod' => (string)($d['bios_lock_method'] ?? ''),
+        'cpu'            => (string)($d['cpu'] ?? ''),
+        'gpu'            => (string)($d['gpu'] ?? ''),
+        'ram'            => (string)($d['ram'] ?? ''),
+        'first'          => $now,
+        'last'           => $now,
+        'reports'        => [['name' => 'diagnostics', 'sha' => '']],
+        'drives'         => $drives,
+    ];
+
+    try {
+        db()->prepare(
+            'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, report_type, devices, runs, payload)
+             VALUES (?, ?, ?, "unverified", "none", "api", "diagnostics", ?, 1, ?)'
+        )->execute([
+            $userId,
+            '',
+            'diagnostics',
+            count($drives),
+            json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+        return (int)db()->lastInsertId();
+    } catch (Throwable $e) {
+        error_log('store diagnostics report error: ' . $e->getMessage());
+        return 0;
+    }
 }
 
 /** Shape one reports-table row (with decoded payload) for the JSON API. */
@@ -632,6 +719,7 @@ function report_row(array $r, ?array $payload): array {
         'sha_state'   => (string)$r['sha_state'],
         'sig_state'   => (string)$r['sig_state'],
         'source'      => (string)$r['source'],
+        'report_type' => (string)($r['report_type'] ?? 'erasure'),
         'devices'     => (int)$r['devices'],
         'runs'        => (int)$r['runs'],
         'uploaded_at' => ts_local((string)$r['uploaded_at']),
@@ -667,7 +755,8 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
     $page = max(1, $page);
     $offset = ($page - 1) * $per;
 
-    $where = 'user_id = ?';
+    reports_ensure_schema();
+    $where = "user_id = ? AND report_type <> 'diagnostics'";
     $params = [$userId];
     $types = [PDO::PARAM_INT];
 
@@ -712,11 +801,12 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
  * of report uploads and the existing certificate (if any) for each COCID.
  */
 function distinct_cocids(int $userId): array {
+    reports_ensure_schema();
     $stmt = db()->prepare(
         'SELECT r.cocid, COUNT(*) AS report_count, MAX(r.uploaded_at) AS latest,
                 (SELECT c.cert_id FROM certificates c WHERE c.user_id = r.user_id AND c.cocid = r.cocid ORDER BY c.id DESC LIMIT 1) AS cert_id
          FROM reports r
-         WHERE r.user_id = ?
+         WHERE r.user_id = ? AND r.report_type <> \'diagnostics\'
          GROUP BY r.cocid
          ORDER BY latest DESC'
     );
@@ -738,7 +828,8 @@ function distinct_cocids(int $userId): array {
  * the input set for generating a consolidated certificate.
  */
 function load_report_payloads(int $userId, string $cocid): array {
-    $stmt = db()->prepare('SELECT payload FROM reports WHERE user_id = ? AND cocid = ? ORDER BY id');
+    reports_ensure_schema();
+    $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id = ? AND cocid = ? AND report_type <> 'diagnostics' ORDER BY id");
     $stmt->execute([$userId, $cocid]);
     $groups = [];
     foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $p) {
@@ -886,7 +977,8 @@ function load_registered_devices(int $userId): array {
  * the dashboard "Devices" tab.
  */
 function load_devices(int $userId): array {
-    $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
+    reports_ensure_schema();
+    $stmt = db()->prepare("SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute([$userId]);
 
     $devices = [];
@@ -1017,7 +1109,8 @@ function load_devices(int $userId): array {
  * model, then serial.
  */
 function load_drives(int $userId): array {
-    $stmt = db()->prepare('SELECT cocid, uploaded_at, devices, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
+    reports_ensure_schema();
+    $stmt = db()->prepare("SELECT cocid, uploaded_at, devices, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute([$userId]);
 
     $drives = [];

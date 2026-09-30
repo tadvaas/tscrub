@@ -747,9 +747,16 @@ if ($method === 'POST' && $route === '/reports') {
         $owner = auth_require();
     }
     rate_limit('reports', 10);
+    reports_ensure_schema();
 
     if (empty($_FILES['reports'])) {
         fail(400, 'Upload one or more tScrub report files (.csv).');
+    }
+    // Machine ingestion may tag the upload as 'diagnostics'; the signed
+    // post-erasure CSV stays the default 'erasure' type.
+    $reportType = (string)($_POST['report_type'] ?? 'erasure');
+    if ($reportType !== 'diagnostics') {
+        $reportType = 'erasure';
     }
     $ingested = user_ingested_shas((int)$owner['id']);
     $stats = ['uploaded' => 0, 'skipped' => 0];
@@ -758,7 +765,7 @@ if ($method === 'POST' && $route === '/reports') {
         fail(400, 'No valid report data found.');
     }
 
-    $ids = $groups ? store_reports($groups, (int)$owner['id'], $source) : [];
+    $ids = $groups ? store_reports($groups, (int)$owner['id'], $source, $reportType) : [];
 
     // Per-device billing: every paid tier spends one credit per newly ingested
     // drive (free is exempt). Best-effort and idempotent — a shortfall is
@@ -784,6 +791,48 @@ if ($method === 'POST' && $route === '/reports') {
         'skipped' => $stats['skipped'],
         'credits' => ['billed' => $billed, 'short' => $short],
     ], 201);
+}
+
+// POST /api/reports/diagnostics — boot-time diagnostics report (identity +
+// hardware + attached drive inventory), the first of the two report kinds the
+// appliance ingests (this one at boot, the signed erasure report at the end).
+// API-token auth only, same token as the appliance. Records presence and keeps
+// the legacy device_registrations upsert so the Devices tab's triage merge
+// keeps working; the typed `reports` row is the new canonical store.
+if ($method === 'POST' && $route === '/reports/diagnostics') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+
+    // Online now + legacy registration upsert (backward-compatible Devices-tab
+    // triage merge), then the typed diagnostics report row.
+    presence_ensure_schema();
+    presence_heartbeat((int)$owner['id'], $serial, $uuid);
+    device_register((int)$owner['id'], $serial, $uuid, $d);
+    $id = store_diagnostics_report((int)$owner['id'], $d, $serial, $uuid);
+
+    json_out(['ok' => true, 'report_type' => 'diagnostics', 'id' => $id, 'registered' => true]);
 }
 
 // POST /api/mdm/hash — stage a WinPE-captured authoritative 4K hash for the
@@ -883,7 +932,7 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     // Nothing to check: the appliance marks missing identifiers as "N/A".
     if ($serial === '' || $uuid === '' || $serial === 'N/A' || $uuid === 'N/A') {
         mdm_log_probe((int)$owner['id'], $serial, $uuid, 'skipped', 'none', $ip);
-        json_out(['ok' => true, 'verdict' => 'skipped', 'source' => 'none']);
+        json_out(['ok' => true, 'verdict' => 'skipped', 'source' => 'none', 'label' => 'Skipped']);
     }
 
     // The check now runs in the background (mdm-worker.php): the appliance
@@ -891,7 +940,7 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     $staged = mdm_staged_hash((int)$owner['id'], $serial, $uuid);
     if ($staged === null) {
         mdm_log_probe((int)$owner['id'], $serial, $uuid, 'na', 'none', $ip);
-        json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na']);
+        json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na', 'label' => 'No hash']);
     }
 
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid);
@@ -905,6 +954,7 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     }
 
     json_out(['ok' => true, 'status' => $status, 'verdict' => $verdict,
+        'label' => mdm_status_label($status, $verdict),
         'source' => $status === 'done' ? (string)($job['source'] ?? 'live') : 'none']);
 }
 
@@ -933,12 +983,15 @@ if ($method === 'GET' && $route === '/mdm/status') {
     }
 
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid !== '' ? $uuid : null);
+    $status  = (string)($job['status'] ?? 'na');
+    $verdict = (string)($job['verdict'] ?? '');
     json_out([
         'ok' => true,
         'serial' => $serial,
         'uuid' => $uuid,
-        'status' => (string)($job['status'] ?? 'na'),
-        'verdict' => (string)($job['verdict'] ?? ''),
+        'status' => $status,
+        'verdict' => $verdict,
+        'label' => mdm_status_label($status, $verdict),
         'source' => (string)($job['source'] ?? 'none'),
         'last_checked_at' => $job['updated_at'] ?? null,
     ]);

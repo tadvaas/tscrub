@@ -242,11 +242,13 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
-# The Runtime panel's MDM status cell: the plain label padded to the panel's
-# value width, colourised (green Unlocked / red Locked / amber Offline) when
-# $1 is 1. The caller supplies the colour decision because this function runs
-# inside a $(...) command substitution (its stdout is a pipe, so [[ -t 1 ]]
-# would always be false here).
+# The Runtime panel's MDM status cell: the dashboard's exact label (verbatim —
+# no client-side mapping, so wording can change server-side without an
+# appliance release), padded to the panel's value width. Colouring is keyed off
+# the machine-readable MDM_VERDICT (green Unlocked / red Locked / amber
+# Offline) when $1 is 1. The caller supplies the colour decision because this
+# function runs inside a $(...) command substitution (its stdout is a pipe, so
+# [[ -t 1 ]] would always be false here).
 #
 # Two refinements keep it legible on the coloured screens:
 #   * the colour reset restores the THEME's text colour (black on green/amber,
@@ -258,18 +260,8 @@ ui::spinner() {
 #     the value falls back to the theme's text colour in BOLD so it stays
 #     readable and subtly distinct.
 ui::mdm_render() {
-    local state="${MDM_STATUS:-}" colour="${1:-0}" label cell w="${UI_RUNTIME_VALUE_W:-20}" esc fg_reset
-    case "$state" in
-        CHECKING) label="Checking..." ;;
-        UNLOCKED) label="Unlocked" ;;
-        LOCKED)   label="Locked" ;;
-        OFFLINE)  label="Offline" ;;
-        SKIPPED)  label="Skipped" ;;
-        UNKNOWN)  label="Pending" ;;
-        NA)       label="N/A" ;;
-        *)        label="-" ;;
-    esac
-    cell="$(printf '%-*.*s' "$w" "$w" "$label")"
+    local state="${MDM_STATUS:-}" verdict="${MDM_VERDICT:-}" colour="${1:-0}" cell w="${UI_RUNTIME_VALUE_W:-20}" esc fg_reset
+    cell="$(printf '%-*.*s' "$w" "$w" "${state:-}")"
     if [[ "$colour" -eq 1 ]]; then
         # Theme text colour (same mapping as table::print_row's fg_reset), plus
         # SGR 22 (normal intensity) so the bold clash fallback below cannot leak
@@ -279,17 +271,17 @@ ui::mdm_render() {
             2|4) printf -v fg_reset '\033[22;37m' ;;   # red/blue: white
             *)   printf -v fg_reset '\033[22;39m' ;;   # normal screen: default fg
         esac
-        case "$state" in
-            UNLOCKED) esc=$'\033[32m' ;;
-            LOCKED)   esc=$'\033[31m' ;;
-            OFFLINE)  esc=$'\033[33m' ;;
-            *)        esc="" ;;
+        case "$verdict" in
+            unlocked)                 esc=$'\033[32m' ;;
+            locked_this|locked_other) esc=$'\033[31m' ;;
+            offline|ms_error|error)   esc=$'\033[33m' ;;
+            *)                        esc="" ;;
         esac
         # Status colour clashes with the themed background → swap to the theme
         # text colour in bold (readable, subtle).
-        case "${UI_COMPLETE_THEME:-0}:${state}" in
-            1:UNLOCKED|3:OFFLINE) esc=$'\033[1;30m' ;;   # green/amber bg: bold black
-            2:LOCKED)             esc=$'\033[1;37m' ;;   # red bg: bold white
+        case "${UI_COMPLETE_THEME:-0}:${verdict}" in
+            1:unlocked|3:offline|3:ms_error|3:error) esc=$'\033[1;30m' ;;   # green/amber bg: bold black
+            2:locked_this|2:locked_other)             esc=$'\033[1;37m' ;;   # red bg: bold white
         esac
         if [[ -n "$esc" ]]; then
             printf '%s%s%s' "$esc" "$cell" "$fg_reset"

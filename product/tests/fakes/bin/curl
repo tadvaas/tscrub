@@ -27,15 +27,19 @@ for a in "$@"; do
         # Stage 1: FAKE_MDM_QUEUE (queued|checking) returns an empty verdict so
         # the appliance polls the status endpoint below.
         if [[ -n "${FAKE_MDM_QUEUE:-}" ]]; then
-            printf '{"ok":true,"status":"%s","verdict":"","source":"none"}\n' "$FAKE_MDM_QUEUE"
+            case "${FAKE_MDM_QUEUE}" in
+                queued)   printf '{"ok":true,"status":"queued","verdict":"","source":"none","label":"Queued"}\n' ;;
+                checking) printf '{"ok":true,"status":"checking","verdict":"","source":"none","label":"Checking…"}\n' ;;
+                *)        printf '{"ok":true,"status":"%s","verdict":"","source":"none"}\n' "$FAKE_MDM_QUEUE" ;;
+            esac
             exit 0
         fi
         case "${FAKE_MDM_VERDICT:-unlocked}" in
-            locked_this)  printf '{"ok":true,"status":"done","verdict":"locked_this","source":"live"}\n' ;;
-            locked_other) printf '{"ok":true,"status":"done","verdict":"locked_other","source":"live"}\n' ;;
-            offline)      printf '{"ok":true,"status":"done","verdict":"offline","source":"error"}\n' ;;
-            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none"}\n' ;;
-            *)            printf '{"ok":true,"status":"done","verdict":"unlocked","source":"live"}\n' ;;
+            locked_this)  printf '{"ok":true,"status":"done","verdict":"locked_this","source":"live","label":"Locked (this)"}\n' ;;
+            locked_other) printf '{"ok":true,"status":"done","verdict":"locked_other","source":"live","label":"Locked (other)"}\n' ;;
+            offline)      printf '{"ok":true,"status":"done","verdict":"offline","source":"error","label":"Offline"}\n' ;;
+            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"No hash"}\n' ;;
+            *)            printf '{"ok":true,"status":"done","verdict":"unlocked","source":"live","label":"Unlocked"}\n' ;;
         esac
         exit 0
     fi
@@ -44,8 +48,8 @@ for a in "$@"; do
             { printf 'curl'; printf ' %q' "$@"; printf '\n'; } >> "$FAKE_MDM_CURL_LOG"
         fi
         case "${FAKE_MDM_VERDICT:-unlocked}" in
-            na) printf '{"ok":true,"status":"na","verdict":"na","source":"none","last_checked_at":null}\n' ;;
-            *)  printf '{"ok":true,"status":"done","verdict":"%s","source":"live","last_checked_at":"2026-09-29T14:11:52Z"}\n' "${FAKE_MDM_VERDICT:-unlocked}" ;;
+            na) printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"No hash","last_checked_at":null}\n' ;;
+            *)  printf '{"ok":true,"status":"done","verdict":"%s","source":"live","label":"Unlocked","last_checked_at":"2026-09-29T14:11:52Z"}\n' "${FAKE_MDM_VERDICT:-unlocked}" ;;
         esac
         exit 0
     fi
@@ -56,11 +60,11 @@ for a in "$@"; do
         printf '{"ok":true}\n'
         exit 0
     fi
-    if [[ "$a" == *"/api/devices/register"* ]]; then
+    if [[ "$a" == *"/api/devices/register"* || "$a" == *"/api/reports/diagnostics"* ]]; then
         if [[ -n "${FAKE_MDM_CURL_LOG:-}" ]]; then
             { printf 'curl'; printf ' %q' "$@"; printf '\n'; } >> "$FAKE_MDM_CURL_LOG"
         fi
-        printf '{"ok":true,"registered":true}\n'
+        printf '{"ok":true,"registered":true,"report_type":"diagnostics"}\n'
         exit 0
     fi
 done
