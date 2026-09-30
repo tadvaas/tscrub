@@ -9,8 +9,13 @@ MDM_RESULT_FILE="$tmpdir/verdict"
 ipc_file="$tmpdir/ipc"
 FAKE_MDM_CURL_LOG="$tmpdir/curl.log"
 FAKE_MDM_FAIL_FLAG="$tmpdir/failflag"
+FAKE_MDM_POLL_FILE="$tmpdir/poll"
 # The fake curl is a separate process, so the FAKE_MDM_* knobs must be exported.
 export FAKE_MDM_VERDICT FAKE_MDM_RC FAKE_MDM_FAIL_FIRST FAKE_MDM_CURL_LOG FAKE_MDM_FAIL_FLAG FAKE_MDM_QUEUE
+export FAKE_MDM_POLL_FILE FAKE_MDM_POLLS FAKE_MDM_STATUS_RC
+
+# The poll loop sleeps between status checks; no-op it so tests run instantly.
+sleep() { :; }
 
 # --- pure helpers -----------------------------------------------------------
 t::assert_eq "https://tscrub.com/api/mdm/autopilot" \
@@ -22,6 +27,13 @@ t::assert_eq "https://host.example/api/mdm/autopilot" \
 t::assert_eq "https://host.example/api/mdm/autopilot" \
     "$(TSCRUB_UPLOAD_URL='https://host.example' mdm::endpoint)" \
     "mdm endpoint: bare host"
+
+t::assert_eq "https://tscrub.com/api/mdm/status" \
+    "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' mdm::status_endpoint)" \
+    "mdm status endpoint: built-in reports URL"
+t::assert_eq "https://host.example/api/mdm/status" \
+    "$(TSCRUB_UPLOAD_URL='https://host.example/api/reports' mdm::status_endpoint)" \
+    "mdm status endpoint: custom /api/reports"
 
 t::assert_eq "locked_other" \
     "$(printf '{"ok":true,"verdict":"locked_other","source":"live"}' | mdm::json_field verdict)" \
@@ -142,16 +154,48 @@ run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT na" "mdm: na verdict on IPC"
 t::assert_contains "$(cat "$ipc_file")" "mdm STATUS No hash" "mdm: na label on IPC"
 
-# --- queued/checking on the server: display immediately, don't poll ---------
-FAKE_MDM_VERDICT=""
+# --- queued on the server: poll until the verdict settles -------------------
+FAKE_MDM_VERDICT="locked_this"
 FAKE_MDM_QUEUE="queued"
 FAKE_MDM_RC=""
 FAKE_MDM_FAIL_FIRST=""
+FAKE_MDM_STATUS_RC=""
+FAKE_MDM_POLLS=2
+: > "$FAKE_MDM_POLL_FILE"
 : > "$FAKE_MDM_CURL_LOG"
 run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT checking" "mdm: queued server state → checking verdict"
-t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Queued" "mdm: queued server state → Queued label"
-t::check "mdm: no status poll issued" '! grep -q "api/mdm/status" "$FAKE_MDM_CURL_LOG"'
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Queued" "mdm: queued server state → Queued label (first publish)"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Checking…" "mdm: poll publishes Checking… while pending"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Locked (this)" "mdm: poll resolves to the server's Locked (this) label"
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT locked_this" "mdm: poll resolves the verdict"
+t::assert_eq "locked_this" "$(sed -n '1p' "$MDM_RESULT_FILE")" "mdm: result file final verdict locked_this"
+t::assert_eq "Locked (this)" "$(sed -n '2p' "$MDM_RESULT_FILE")" "mdm: result file final label Locked (this)"
+t::check "mdm: status poll issued" 'grep -q "api/mdm/status" "$FAKE_MDM_CURL_LOG"'
+FAKE_MDM_POLLS=""
+
+# --- poll window exhausted with no answer → N/A (not an indefinite Checking) --
+FAKE_MDM_VERDICT="unlocked"
+FAKE_MDM_QUEUE="queued"
+FAKE_MDM_POLLS=99
+MDM_POLL_MAX=2
+: > "$FAKE_MDM_POLL_FILE"
+run_detect
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS N/A" "mdm: poll window exhausted → N/A label"
+t::assert_eq "checking" "$(sed -n '1p' "$MDM_RESULT_FILE")" "mdm: result file keeps honest checking verdict"
+t::assert_eq "N/A" "$(sed -n '2p' "$MDM_RESULT_FILE")" "mdm: result file label N/A"
+MDM_POLL_MAX=24
+FAKE_MDM_POLLS=""
+
+# --- status endpoint unreachable mid-poll → Offline --------------------------
+FAKE_MDM_VERDICT="unlocked"
+FAKE_MDM_QUEUE="queued"
+FAKE_MDM_STATUS_RC=7
+: > "$FAKE_MDM_POLL_FILE"
+run_detect
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Offline" "mdm: status endpoint unreachable → Offline"
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT offline" "mdm: status endpoint unreachable → offline verdict"
+FAKE_MDM_STATUS_RC=""
 FAKE_MDM_QUEUE=""
 
 # --- offline (curl fails) ---------------------------------------------------

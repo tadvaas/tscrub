@@ -47,9 +47,31 @@ for a in "$@"; do
         if [[ -n "${FAKE_MDM_CURL_LOG:-}" ]]; then
             { printf 'curl'; printf ' %q' "$@"; printf '\n'; } >> "$FAKE_MDM_CURL_LOG"
         fi
+        # FAKE_MDM_STATUS_RC simulates the status endpoint becoming unreachable
+        # mid-poll (the initial autopilot POST already succeeded).
+        if [[ -n "${FAKE_MDM_STATUS_RC:-}" && "${FAKE_MDM_STATUS_RC}" != "0" ]]; then
+            printf 'curl: (7) Failed to connect to host\n' >&2
+            exit "${FAKE_MDM_STATUS_RC}"
+        fi
+        # Poll simulation: FAKE_MDM_POLLS = how many "checking" responses to
+        # return before the terminal verdict. The counter lives in a file
+        # (FAKE_MDM_POLL_FILE) because the fake curl runs as a fresh process.
+        if [[ -n "${FAKE_MDM_POLL_FILE:-}" && -n "${FAKE_MDM_POLLS:-}" ]]; then
+            n="$(cat "$FAKE_MDM_POLL_FILE" 2>/dev/null || echo 0)"
+            if (( n < FAKE_MDM_POLLS )); then
+                echo $((n + 1)) > "$FAKE_MDM_POLL_FILE"
+                printf '{"ok":true,"status":"checking","verdict":"","source":"none","label":"Checking…","last_checked_at":null}\n'
+                exit 0
+            fi
+        fi
         case "${FAKE_MDM_VERDICT:-unlocked}" in
-            na) printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"No hash","last_checked_at":null}\n' ;;
-            *)  printf '{"ok":true,"status":"done","verdict":"%s","source":"live","label":"Unlocked","last_checked_at":"2026-09-29T14:11:52Z"}\n' "${FAKE_MDM_VERDICT:-unlocked}" ;;
+            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"No hash","last_checked_at":null}\n' ;;
+            locked_this)  printf '{"ok":true,"status":"done","verdict":"locked_this","source":"live","label":"Locked (this)","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
+            locked_other) printf '{"ok":true,"status":"done","verdict":"locked_other","source":"live","label":"Locked (other)","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
+            offline)      printf '{"ok":true,"status":"done","verdict":"offline","source":"error","label":"Offline","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
+            ms_error)     printf '{"ok":true,"status":"done","verdict":"ms_error","source":"error","label":"MS error","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
+            hash_invalid) printf '{"ok":true,"status":"done","verdict":"hash_invalid","source":"error","label":"Invalid hash","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
+            *)            printf '{"ok":true,"status":"done","verdict":"unlocked","source":"live","label":"Unlocked","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
         esac
         exit 0
     fi
