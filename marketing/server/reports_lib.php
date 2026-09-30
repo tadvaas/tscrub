@@ -915,6 +915,7 @@ function load_devices(int $userId): array {
                 'cpu'           => (string)($g['cpu'] ?? ''),
                 'gpu'           => (string)($g['gpu'] ?? ''),
                 'ram'           => (string)($g['ram'] ?? ''),
+                'mdm'           => (string)($g['enrollment'] ?? ''),
                 'reports'       => 0,
                 'cocids'        => [],
                 'history'       => [],
@@ -939,6 +940,7 @@ function load_devices(int $userId): array {
             'cpu'            => (string)($g['cpu'] ?? ''),
             'gpu'            => (string)($g['gpu'] ?? ''),
             'ram'            => (string)($g['ram'] ?? ''),
+            'mdm'            => (string)($g['enrollment'] ?? ''),
         ];
         $d = &$devices[$key];
         $d['reports']++;
@@ -991,6 +993,7 @@ function load_devices(int $userId): array {
             'cpu'           => (string)($p['cpu'] ?? ''),
             'gpu'           => (string)($p['gpu'] ?? ''),
             'ram'           => (string)($p['ram'] ?? ''),
+            'mdm'           => '',
             'reports'       => 0,
             'cocids'        => [],
             'history'       => [],

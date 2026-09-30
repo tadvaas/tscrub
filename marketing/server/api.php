@@ -1131,10 +1131,11 @@ if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'reports' && $seg[1] =
     json_out(['ok' => true, 'cocids' => distinct_cocids((int)$u['id'])]);
 }
 
-// GET /api/devices — aggregated machine (hardware/firmware) inventory.
+// GET /api/devices — aggregated machine (hardware/firmware) inventory, with
+// the MDM (Autopilot) registry folded in per device.
 if ($method === 'GET' && $route === '/devices') {
     $u = auth_require();
-    json_out(['ok' => true, 'devices' => load_devices((int)$u['id'])]);
+    json_out(['ok' => true, 'devices' => mdm_fold_devices((int)$u['id'], load_devices((int)$u['id']))]);
 }
 
 // POST /api/devices/register — the appliance posts its identity + hardware +

@@ -150,6 +150,41 @@
         return span;
       }
 
+      function mdmBadge(dev) {
+        var st = String(dev.mdm_status || '');
+        var v = String(dev.mdm_verdict || '').toLowerCase();
+        var rep = String(dev.mdm || '').toLowerCase();
+        var REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
+
+        function b(cls, label) { return el('span', 'whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ' + cls, label); }
+
+        if (st === 'checking') return b('bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', 'Checking…');
+        if (st === 'queued') return b('bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Queued');
+        if (st === 'failed') return b('bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Failed');
+
+        // Prefer a real registry verdict, then the report's point-in-time
+        // verdict (a stalled Microsoft import returns 'unknown', which is less
+        // useful than the appliance's own probe result).
+        var verdict = REAL.indexOf(v) !== -1 ? v : (REAL.indexOf(rep) !== -1 ? rep : (st === 'done' && v === 'unknown' ? 'unknown' : ''));
+
+        var map = {
+          locked_other: ['bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Locked', 'Enrolled in another tenant'],
+          locked_this: ['bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Locked', 'Enrolled in this tenant'],
+          unlocked: ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Unlocked', 'Not enrolled in Autopilot'],
+          hash_invalid: ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Invalid hash', 'Captured hash rejected by Microsoft'],
+          ms_error: ['bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400', 'MS error', 'Microsoft Autopilot service degraded'],
+          offline: ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Offline', 'Check could not reach Microsoft'],
+          unknown: ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Pending', 'Microsoft has not processed the import yet']
+        };
+        if (map[verdict]) {
+          var s = b(map[verdict][0], map[verdict][1]);
+          s.title = map[verdict][2];
+          return s;
+        }
+        if (st === 'na' || st === 'done') return b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'No hash');
+        return null;
+      }
+
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
         loadDevices();
@@ -197,7 +232,7 @@
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-        [['System', 'w-[22%]'], ['Serial', 'w-[13%]'], ['BIOS', 'w-[9%]'], ['CPU', 'w-[16%]'], ['RAM', 'w-[8%]'], ['Status', 'w-[10%]'], ['', 'w-[22%]']].forEach(function (c) {
+        [['System', 'w-[22%]'], ['Serial', 'w-[13%]'], ['BIOS', 'w-[9%]'], ['MDM', 'w-[16%]'], ['Status', 'w-[10%]'], ['', 'w-[30%]']].forEach(function (c) {
           hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', c[0]));
         });
         thead.appendChild(hr);
@@ -216,10 +251,9 @@
           var tdl = el('td', 'px-4 py-2.5');
           tdl.appendChild(lockBadge(dev.bioslock) || document.createTextNode('—'));
           tr.appendChild(tdl);
-          var cpuCell = el('td', 'truncate px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300', dev.cpu || '—');
-          cpuCell.title = dev.cpu || '';
-          tr.appendChild(cpuCell);
-          tr.appendChild(el('td', 'truncate px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300', dev.ram || '—'));
+          var mdmCell = el('td', 'px-4 py-2.5');
+          mdmCell.appendChild(mdmBadge(dev) || document.createTextNode('—'));
+          tr.appendChild(mdmCell);
           var stCell = el('td', 'px-4 py-2.5');
           var stLine = el('div', 'flex items-center gap-1.5');
           var stDot = el('span', 'inline-block h-2 w-2 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-ink-700'));
@@ -384,6 +418,7 @@
         opsModal.classList.add('hidden');
         document.body.style.overflow = '';
         if (unlockPollTimer) { clearTimeout(unlockPollTimer); unlockPollTimer = null; }
+        if (mdmPollTimer) { clearTimeout(mdmPollTimer); mdmPollTimer = null; }
       }
 
       function unlockStateFor(u) {
@@ -407,20 +442,20 @@
         }
       }
 
-      function loadUnlockState(dev, online) {
+      function loadUnlockState(dev, online, host) {
         fetch('/api/bios/unlock?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
-          .then(function (d) { renderUnlockCard(dev, online, unlockStateFor(d && d.unlock)); })
-          .catch(function () { renderUnlockCard(dev, online, { kind: 'idle', data: null }); });
+          .then(function (d) { renderUnlockCard(dev, online, unlockStateFor(d && d.unlock), host); })
+          .catch(function () { renderUnlockCard(dev, online, { kind: 'idle', data: null }, host); });
       }
 
-      function schedulePoll(dev, online, state) {
+      function schedulePoll(dev, online, state, host) {
         if (unlockPollTimer) { clearTimeout(unlockPollTimer); unlockPollTimer = null; }
         if (state.kind === 'staged' || state.kind === 'inprogress') {
-          unlockPollTimer = setTimeout(function () { loadUnlockState(dev, online); }, 4000);
+          unlockPollTimer = setTimeout(function () { loadUnlockState(dev, online, host); }, 4000);
         }
       }
 
-      function sendUnlock(dev, online, inp, btn, st) {
+      function sendUnlock(dev, online, host, inp, btn, st) {
         var pwd = inp.value;
         if (!pwd) { st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400'; st.textContent = 'Enter the current BIOS password.'; return; }
         st.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
@@ -435,7 +470,7 @@
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
           if (res.ok) {
             inp.value = '';
-            loadUnlockState(dev, online);
+            loadUnlockState(dev, online, host);
           } else {
             btn.disabled = false;
             st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
@@ -448,7 +483,7 @@
         });
       }
 
-      function cancelUnlock(dev, online, id, btn) {
+      function cancelUnlock(dev, online, host, id, btn) {
         btn.disabled = true;
         getCsrf().then(function (csrf) {
           return fetch('/api/bios/unlock/cancel', {
@@ -457,14 +492,14 @@
             body: JSON.stringify({ id: id })
           });
         }).then(function (r) { return r.json(); }).then(function () {
-          loadUnlockState(dev, online);
+          loadUnlockState(dev, online, host);
         }).catch(function () {
           btn.disabled = false;
         });
       }
 
-      function renderUnlockCard(dev, online, state) {
-        opsBody.innerHTML = '';
+      function renderUnlockCard(dev, online, state, host) {
+        host.innerHTML = '';
 
         var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
         var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
@@ -487,14 +522,14 @@
           var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
           st.textContent = online ? 'Machine is online — cleared within a few seconds.' : 'Machine is offline — staged and runs at next boot.';
           card.appendChild(st);
-          btn.addEventListener('click', function () { sendUnlock(dev, online, inp, btn, st); });
+          btn.addEventListener('click', function () { sendUnlock(dev, online, host, inp, btn, st); });
         } else if (kind === 'staged') {
           var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
           var cancelBtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
           row.appendChild(cancelBtn);
           card.appendChild(row);
           card.appendChild(el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400', 'Staged — the appliance will clear it at its next boot. Cancel to withdraw it.'));
-          cancelBtn.addEventListener('click', function () { cancelUnlock(dev, online, u.id, cancelBtn); });
+          cancelBtn.addEventListener('click', function () { cancelUnlock(dev, online, host, u.id, cancelBtn); });
         } else if (kind === 'inprogress') {
           card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'The appliance has picked up the command and is clearing the password.'));
         } else if (kind === 'cleared') {
@@ -514,23 +549,99 @@
           card.appendChild(rform);
           var rst = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
           card.appendChild(rst);
-          rbtn.addEventListener('click', function () { sendUnlock(dev, online, rinp, rbtn, rst); });
+          rbtn.addEventListener('click', function () { sendUnlock(dev, online, host, rinp, rbtn, rst); });
         } else if (kind === 'unsupported') {
           card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'Not supported on this machine' + (u && u.detail ? ' — ' + u.detail : '') + '.'));
         }
 
-        opsBody.appendChild(card);
-        schedulePoll(dev, online, state);
+        host.appendChild(card);
+        schedulePoll(dev, online, state, host);
+      }
+
+      var mdmPollTimer = null;
+
+      function renderMdmCard(dev, online, host) {
+        host.innerHTML = '';
+
+        var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
+        var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
+        head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Check MDM lock'));
+        head.appendChild(mdmBadge(dev) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
+        card.appendChild(head);
+
+        var hasHash = !!dev.mdm_status;
+        var btn = el('button', 'mt-3 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Check now');
+        var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+
+        if (hasHash) {
+          st.textContent = 'Re-runs the Windows Autopilot enrolment check for this device.';
+          btn.addEventListener('click', function () {
+            btn.disabled = true;
+            st.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
+            st.textContent = 'Queuing…';
+            getCsrf().then(function (csrf) {
+              return fetch('/api/mdm/recheck', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '' })
+              });
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+              if (res.ok) {
+                st.textContent = 'Queued — checking in the background.';
+                pollMdmState(dev, online, host, 0);
+              } else {
+                btn.disabled = false;
+                st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
+                st.textContent = res.data.error || 'Could not queue the check.';
+              }
+            }).catch(function () {
+              btn.disabled = false;
+              st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
+              st.textContent = 'Network error — try again.';
+            });
+          });
+        } else {
+          btn.disabled = true;
+          st.textContent = 'No captured hardware hash for this device — boot the WinPE hash reporter from the PXE menu first.';
+        }
+
+        card.appendChild(btn);
+        card.appendChild(st);
+        host.appendChild(card);
+      }
+
+      function pollMdmState(dev, online, host, attempt) {
+        if (mdmPollTimer) { clearTimeout(mdmPollTimer); mdmPollTimer = null; }
+        if (attempt >= 10) return;
+        mdmPollTimer = setTimeout(function () {
+          fetch('/api/mdm/devices').then(function (r) { return r.json(); }).then(function (d) {
+            var rows = (d && d.devices) || [];
+            var found = null;
+            rows.forEach(function (m) {
+              if (!found && m.serial && dev.sysserial && String(m.serial).toLowerCase() === String(dev.sysserial).toLowerCase()) found = m;
+            });
+            if (found) {
+              var merged = Object.assign({}, dev, { mdm_status: found.status, mdm_verdict: found.verdict, mdm_last_checked_at: found.last_checked_at });
+              renderMdmCard(merged, online, host);
+              if (found.status === 'queued' || found.status === 'checking') pollMdmState(merged, online, host, attempt + 1);
+            }
+          }).catch(function () {});
+        }, 4000);
       }
 
       function openOperations(dev, online) {
-        opsSub.textContent = (dev.system || dev.sysserial || 'Machine') + ' · ' + (online ? 'Online' : 'Offline');
+        opsSub.textContent = (dev.system || 'Machine') + ' · ' + (dev.sysserial ? 'SN ' + dev.sysserial : 'no serial') + ' · ' + (online ? 'Online' : 'Offline');
+        opsBody.innerHTML = '';
         if (!dev.sysserial) {
-          opsBody.innerHTML = '';
           opsBody.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No system serial to target.'));
         } else {
-          renderUnlockCard(dev, online, { kind: 'idle', data: null });
-          loadUnlockState(dev, online);
+          var unlockHost = el('div', '');
+          var mdmHost = el('div', 'mt-4');
+          opsBody.appendChild(unlockHost);
+          opsBody.appendChild(mdmHost);
+          renderUnlockCard(dev, online, { kind: 'idle', data: null }, unlockHost);
+          loadUnlockState(dev, online, unlockHost);
+          renderMdmCard(dev, online, mdmHost);
         }
         opsModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';

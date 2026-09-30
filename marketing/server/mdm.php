@@ -192,6 +192,91 @@ function mdm_graph_reachable(): bool {
     return $r['ok'];
 }
 
+/**
+ * Ordered list of probe tenants. The primary tenant (config.json "autopilot")
+ * comes first, then any extra tenants from "autopilot_tenants". The Autopilot
+ * import verdicts are tenant-independent — "ZtdDeviceAssignedToOtherTenant"
+ * means the hash matches a device in SOME other tenant, and a clean import
+ * completes code 0 regardless of which tenant runs it — so a healthy alternate
+ * tenant answers the same question while another tenant's Autopilot service is
+ * degraded (the BitRaser shared-probe-tenant model).
+ *
+ * "autopilot_tenants" is an array of {tenant_id, client_id, client_secret}.
+ * All tenants share the primary's graph_url/authority (Microsoft endpoints).
+ */
+function mdm_tenant_pool(): array {
+    $pool = [];
+    if (mdm_configured()) {
+        $pool[] = mdm_settings();
+    }
+    $extras = db_config()['autopilot_tenants'] ?? [];
+    if (is_array($extras)) {
+        foreach ($extras as $t) {
+            if (!is_array($t)) {
+                continue;
+            }
+            if ((($t['tenant_id'] ?? '') !== '') && (($t['client_id'] ?? '') !== '') && (($t['client_secret'] ?? '') !== '')) {
+                $pool[] = $t;
+            }
+        }
+    }
+    $seen = [];
+    $out  = [];
+    foreach ($pool as $t) {
+        $tid = (string)($t['tenant_id'] ?? '');
+        if ($tid === '' || isset($seen[$tid])) {
+            continue;
+        }
+        $seen[$tid] = true;
+        $out[] = $t;
+    }
+    return $out;
+}
+
+/** Health probe of Microsoft's Autopilot backend for one tenant.
+ *
+ *  The Autopilot registrations collection (`windowsAutopilotDeviceIdentities`)
+ *  returns HTTP 500 on ANY `$select`, so it can't be used for a cheap health
+ *  check. Read the tenant's Windows Autopilot sync status instead: Microsoft
+ *  sets `syncStatus: "failed"` when the Autopilot ingestion backend is down for
+ *  the tenant (the exact state behind the 2026-09-29/30 import stall). Only a
+ *  transport failure, an HTTP 5xx, or an explicit `syncStatus: "failed"` is
+ *  treated as a Microsoft-side error; 4xx (can't read the setting) is assumed
+ *  up so the real probe can decide. When $token/$tenant are omitted the
+ *  primary tenant is used. */
+function mdm_autopilot_reachable(?string $token = null, ?array $tenant = null): bool {
+    $s = $tenant ?? mdm_settings();
+    if ((($s['tenant_id'] ?? '') === '') || (($s['client_id'] ?? '') === '') || (($s['client_secret'] ?? '') === '')) {
+        return true; // unconfigured — let mdm_probe report its own verdict
+    }
+    if ($token === null || $token === '') {
+        $token = mdm_token((string)$s['tenant_id'], (string)$s['client_id'], (string)$s['client_secret']);
+        if ($token === null) {
+            return false;
+        }
+    }
+    $r = mdm_http_once([
+        'method'  => 'GET',
+        'url'     => mdm_graph() . '/beta/deviceManagement/windowsAutopilotSettings',
+        'headers' => ['Authorization: Bearer ' . $token],
+        'timeout' => 8,
+    ]);
+    if (!$r['ok']) {
+        return false;
+    }
+    if ($r['status'] >= 500) {
+        return false;
+    }
+    if ($r['status'] !== 200) {
+        return true; // 4xx — can't read the setting, let the real probe decide
+    }
+    $d = json_decode($r['body'], true);
+    if (!is_array($d)) {
+        return true;
+    }
+    return strtolower((string)($d['syncStatus'] ?? '')) !== 'failed';
+}
+
 // ---- Graph client ---------------------------------------------------------
 
 function mdm_token(string $tenant, string $client, string $secret): ?string {
@@ -583,6 +668,7 @@ function mdm_devices(int $userId): array {
                 'captured_at' => (string)$h['captured_at'],
                 'status' => $j['status'] ?? 'na',
                 'verdict' => $j['verdict'] ?? '',
+                'started_at' => $j['created_at'] ?? null,
                 'last_checked_at' => $j['updated_at'] ?? null,
             ];
         }
@@ -594,55 +680,115 @@ function mdm_devices(int $userId): array {
 }
 
 /**
- * Probe Microsoft Graph with a WinPE-captured OAv3 hash: token → purge leaked
- * registrations → import → poll → verdict → delete. Returns
- * ['verdict' => ..., 'source' => 'live']. Never throws: failures degrade to
- * 'offline'. A generated base hash is deliberately NOT used — it cannot match
- * an externally-enrolled device (autopilot-report.md §26).
+ * Attach each device's latest MDM (Autopilot) state from the WinPE registry to
+ * a Devices-tab list. Matches by system serial first, then system UUID (both
+ * lowercased). Adds mdm_status / mdm_verdict / mdm_last_checked_at when a
+ * captured hash exists; devices never captured keep their report's
+ * point-in-time 'mdm' verdict and gain no mdm_status. Never throws.
+ */
+function mdm_fold_devices(int $userId, array $devices): array {
+    try {
+        $bySerial = [];
+        $byUuid = [];
+        foreach (mdm_devices($userId) as $m) {
+            $s = strtolower(trim((string)$m['serial']));
+            $u = strtolower(trim((string)$m['uuid']));
+            if ($s !== '') $bySerial[$s] = $m;
+            if ($u !== '') $byUuid[$u] = $m;
+        }
+        foreach ($devices as $k => $dv) {
+            $s = strtolower(trim((string)($dv['sysserial'] ?? '')));
+            $u = strtolower(trim((string)($dv['systemuuid'] ?? '')));
+            $m = null;
+            if ($s !== '' && isset($bySerial[$s])) $m = $bySerial[$s];
+            elseif ($u !== '' && isset($byUuid[$u])) $m = $byUuid[$u];
+            if ($m !== null) {
+                $devices[$k]['mdm_status'] = (string)$m['status'];
+                $devices[$k]['mdm_verdict'] = (string)$m['verdict'];
+                $devices[$k]['mdm_last_checked_at'] = $m['last_checked_at'] ?? null;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('mdm fold devices error: ' . $e->getMessage());
+    }
+    return $devices;
+}
+
+/**
+ * Probe Microsoft Graph with a WinPE-captured OAv3 hash against each probe
+ * tenant in turn: token → health gate → purge leaked registrations → import →
+ * poll → verdict → delete. Returns ['verdict' => ..., 'source' => 'live'].
+ * Never throws: failures degrade to 'offline', and when every configured
+ * tenant's Autopilot service is degraded it returns 'ms_error'. A generated
+ * base hash is deliberately NOT used — it cannot match an externally-enrolled
+ * device (autopilot-report.md §26).
  */
 function mdm_probe(string $serial, string $hash, int $pollTimeout = 300): array {
-    if (!mdm_configured()) {
-        error_log('mdm: autopilot not configured');
-        return ['verdict' => 'offline', 'source' => 'error'];
-    }
     if ($hash === '') {
         return ['verdict' => 'hash_invalid', 'source' => 'error'];
     }
-    $s = mdm_settings();
-
-    $token = mdm_token((string)$s['tenant_id'], (string)$s['client_id'], (string)$s['client_secret']);
-    if ($token === null) {
+    $pool = mdm_tenant_pool();
+    if (empty($pool)) {
+        error_log('mdm: autopilot not configured');
         return ['verdict' => 'offline', 'source' => 'error'];
     }
 
-    // Self-heal BEFORE probing: a registration for this serial in OUR tenant
-    // can only be a leak from a previous probe (the tScrub tenant is probe-only),
-    // and leaving it would make the import return a false "locked_this".
-    mdm_purge_serial($token, $serial);
+    // Try each probe tenant in order. The import verdicts are tenant-independent
+    // (ZtdDeviceAssignedToOtherTenant / complete-code-0), so the first tenant
+    // whose Autopilot service is up answers the question. A tenant whose service
+    // is degraded (syncStatus=failed) is skipped; if ALL are degraded we report
+    // ms_error so the dashboard surfaces the Microsoft-side outage honestly.
+    $sawMsError = false;
+    foreach ($pool as $tenant) {
+        $token = mdm_token((string)$tenant['tenant_id'], (string)$tenant['client_id'], (string)$tenant['client_secret']);
+        if ($token === null) {
+            continue; // offline tenant (bad creds/transport) — try the next
+        }
+        if (!mdm_autopilot_reachable($token, $tenant)) {
+            $sawMsError = true; // Microsoft's Autopilot service is down for this tenant
+            continue;
+        }
 
-    $import = mdm_import($token, $serial, $hash);
-    if ($import === null) {
-        return ['verdict' => 'offline', 'source' => 'error'];
-    }
-    $identityId = (string)($import['id'] ?? '');
-    if ($identityId === '') {
-        return ['verdict' => 'offline', 'source' => 'error'];
+        // Self-heal BEFORE probing: a registration for this serial in a probe
+        // tenant can only be a leak from a previous probe (probe tenants are
+        // probe-only), and leaving it would make the import return a false
+        // "locked_this".
+        mdm_purge_serial($token, $serial);
+
+        $import = mdm_import($token, $serial, $hash);
+        if ($import === null) {
+            continue;
+        }
+        $identityId = (string)($import['id'] ?? '');
+        if ($identityId === '') {
+            continue;
+        }
+
+        $state = mdm_poll($token, $identityId, $pollTimeout, 5);
+        mdm_delete($token, $identityId); // always clean up our own probe (import queue entry)
+
+        $out = mdm_verdict_from_state($state);
+        // A successful import CREATES a real device in the tenant's registered
+        // list, a timed-out (unknown) import may still complete later, and
+        // locked_this means the import matched a registration in the SAME
+        // (probe-only) tenant (a leak) — remove the registration in all three
+        // cases so a probe never leaves one behind. locked_other/hash_invalid/
+        // error create no registration here.
+        if (in_array($out['verdict'], ['unlocked', 'unknown', 'locked_this'], true)) {
+            mdm_delete_registration($token, (string)($state['deviceRegistrationId'] ?? ''), $serial);
+        }
+        $out['source'] = 'live';
+        return $out;
     }
 
-    $state = mdm_poll($token, $identityId, $pollTimeout, 5);
-    mdm_delete($token, $identityId); // always clean up our own probe (import queue entry)
-
-    $out = mdm_verdict_from_state($state);
-    // A successful import CREATES a real device in the tenant's registered list,
-    // a timed-out (unknown) import may still complete later, and locked_this
-    // means the import matched a registration in OUR OWN tenant (a leak) —
-    // remove the registration in all three cases so a probe never leaves one
-    // behind. locked_other/hash_invalid/error create no registration here.
-    if (in_array($out['verdict'], ['unlocked', 'unknown', 'locked_this'], true)) {
-        mdm_delete_registration($token, (string)($state['deviceRegistrationId'] ?? ''), $serial);
+    if ($sawMsError) {
+        return [
+            'verdict' => 'ms_error',
+            'source'  => 'error',
+            'detail'  => 'Microsoft Autopilot service unavailable (syncStatus failed) for all probe tenants',
+        ];
     }
-    $out['source'] = 'live';
-    return $out;
+    return ['verdict' => 'offline', 'source' => 'error'];
 }
 
 // ---- audit log (mdm_log) --------------------------------------------------
