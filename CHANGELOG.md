@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.3] - 2026-09-30
+
+### Fixed — boot-time registration & heartbeat
+
+- **PXE appliances now register on boot** — the kernel-command-line
+  `tscrub_api_token=` / `tscrub_upload=` were previously only parsed at
+  report-upload time (after the wipe), so a PXE-booted appliance never sent its
+  boot-time device registration (`POST /api/devices/register`) nor any presence
+  heartbeat — it never appeared in the dashboard's Devices tab as a live
+  "Not wiped" machine (the final report still uploaded, so it only ever showed
+  up as a wiped device). The command line is now parsed at boot.
+- **Dead-RTC clock-skew tolerance** — registration and heartbeat now retry once
+  without TLS certificate verification on `curl` error 60 (wrong system clock),
+  mirroring the report upload.
+- **Registration waits for a route** — the one-shot registration now ensures a
+  default route exists before posting, matching the report upload.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.3_2025.11_30_x86-64_v0.41_20260930-377abc28.iso`
+  (157,622,272 B, sha256 `5b5f7c880f834aa29faa5f267afb423776ed9a149ca0e4cb4a7dbba83b1634bf`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.3 sha256 `b411e8961e71e259c4e2e3cb8a7bf78812d2b5de401fe90caae0aab142ce10cc`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `b53d3f1df6840a9f44c3c134c75853049b3eb887b3c8d2e5b605795a6324050e`).
+
 ## [v1.8.2] - 2026-09-30
 
 ### Changed — selection screen polish
