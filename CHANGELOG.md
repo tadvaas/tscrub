@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.5] - 2026-09-30
+
+### Fixed
+
+- **No more black-table flash before selection** — on an interactive boot the
+  appliance briefly rendered the old black table (no selection markers) before
+  the blue selection screen appeared. The table is now rendered once at the
+  right time (blue selection screen for interactive boots, plain table for
+  autonuke/headless).
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.5_2025.11_30_x86-64_v0.41_20260930-57f98dba.iso`
+  (157,622,272 B, sha256 `ad47ec94eec3a921115ecd83c0cc82b8f9011840aa03206ad1768a654e038c35`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.5 sha256 `925936c6ce965f2e2d786b6d00d29b26133cef4679cb177d85f5757a622d65d4`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `8c80ce147606c082b4355a2c4ff8765930f365d4e4f9d3d0db483286dfaf851b`).
+
 ## [v1.8.4] - 2026-09-30
 
 ### Fixed — frozen drives + missing identity
