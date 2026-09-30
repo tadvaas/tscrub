@@ -221,9 +221,17 @@
           tr.appendChild(cpuCell);
           tr.appendChild(el('td', 'truncate px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300', dev.ram || '—'));
           var stCell = el('td', 'px-4 py-2.5');
-          var stDot = el('span', 'mr-1.5 inline-block h-2 w-2 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-ink-700'));
+          var stLine = el('div', 'flex items-center gap-1.5');
+          var stDot = el('span', 'inline-block h-2 w-2 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-ink-700'));
           var stTxt = el('span', 'text-xs font-semibold ' + (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'), dev.online ? 'Online' : 'Offline');
-          stCell.appendChild(stDot); stCell.appendChild(stTxt);
+          stLine.appendChild(stDot); stLine.appendChild(stTxt);
+          stCell.appendChild(stLine);
+          var drvCount = typeof dev.drive_count === 'number' ? dev.drive_count : null;
+          if (dev.wiped === false) {
+            stCell.appendChild(el('div', 'mt-0.5 whitespace-nowrap text-[10px] font-semibold text-amber-600 dark:text-amber-400', 'Not wiped' + (drvCount !== null ? ' · ' + drvCount + ' drive' + (drvCount === 1 ? '' : 's') : '')));
+          } else if (drvCount !== null && drvCount > 0) {
+            stCell.appendChild(el('div', 'mt-0.5 whitespace-nowrap text-[10px] text-slate-400 dark:text-slate-500', drvCount + ' drive' + (drvCount === 1 ? '' : 's')));
+          }
           stCell.title = dev.online ? 'Appliance heartbeat seen within the last 90s' : 'No recent heartbeat';
           tr.appendChild(stCell);
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');

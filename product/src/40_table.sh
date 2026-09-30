@@ -682,11 +682,120 @@ ui::all_drives_terminal() {
     local dev
     for dev in "${devices[@]}"; do
         case "${devrow[$dev.status]}" in
-            COMPLETED|FAILED|FROZEN|BLOCKED|DRY-RUN) ;;
+            COMPLETED|FAILED|FROZEN|BLOCKED|DRY-RUN|SKIPPED) ;;
             *) return 1 ;;
         esac
     done
     return 0
+}
+
+# =============================================================================
+# DRIVE SELECTION (triage screen) — Space toggles, Shift+S starts.
+# =============================================================================
+
+# Number of currently selected drives.
+select::count() {
+    local dev n=0
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && n=$((n+1))
+    done
+    printf '%d' "$n"
+}
+
+# Selected drive names, space-separated (used by tests and the wipe loop).
+select::chosen() {
+    local dev out=""
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && out+="$dev "
+    done
+    printf '%s' "$out"
+}
+
+select::toggle() {
+    local dev="$1"
+    if [[ "${devrow[$dev.selected]:-0}" -eq 1 ]]; then
+        devrow["$dev.selected"]=0
+    else
+        devrow["$dev.selected"]=1
+    fi
+}
+
+select::all() {
+    local dev
+    for dev in "${devices[@]}"; do devrow["$dev.selected"]=1; done
+}
+
+select::none() {
+    local dev
+    for dev in "${devices[@]}"; do devrow["$dev.selected"]=0; done
+}
+
+# One line of the selection list; the cursor row is inverse-video.
+select::render_line() {
+    local dev="$1" cur="$2" mark line
+    if [[ "${devrow[$dev.selected]:-0}" -eq 1 ]]; then mark="[*]"; else mark="[ ]"; fi
+    line="$(printf '%s %-8s %-26.26s %-22.22s %-7s %-4s %-4s %s' \
+        "$mark" "$dev" "${devrow[$dev.model]:-}" "${devrow[$dev.serial]:-}" \
+        "${devrow[$dev.size]:-}" "${devrow[$dev.bus]:-}" "${devrow[$dev.type]:-}" \
+        "${devrow[$dev.method]:-}")"
+    if [[ "$dev" == "$cur" ]]; then
+        printf "\033[7m%s\033[27m\n" "$line"
+    else
+        printf '%s\n' "$line"
+    fi
+}
+
+# Interactive drive selection. Returns 0 when the operator starts (the selected
+# set is in devrow[*].selected); 1 on abort (Esc/q). Without an interactive
+# terminal it selects everything and starts immediately (headless = autonuke).
+select::run() {
+    local dev idx key k2
+    select::none
+    idx=0
+
+    if ! ui::terminal_controls_supported; then
+        select::all
+        return 0
+    fi
+
+    ui::cursor_show
+
+    while :; do
+        [[ -t 1 ]] && clear
+        printf "%sSelect drives to erase — Space toggle · ↑/↓ or j/k move · a all · n none · Shift+S start · Esc abort\n\n" "$TABLE_INDENT"
+        local i=0
+        for dev in "${devices[@]}"; do
+            local cur=""
+            [[ "$i" -eq "$idx" ]] && cur="$dev"
+            select::render_line "$dev" "$cur"
+            i=$((i+1))
+        done
+        printf "\n%sSelected: %d / %d\n" "$TABLE_INDENT" "$(select::count)" "${#devices[@]}"
+
+        IFS= read -rsn1 key < /dev/tty 2>/dev/null || { select::all; return 0; }
+
+        if [[ "$key" == $'\e' ]]; then
+            IFS= read -rsn2 -t 0.05 k2 < /dev/tty 2>/dev/null
+            key="$key$k2"
+        fi
+
+        case "$key" in
+            $'\e[A'|'k') idx=$(( idx > 0 ? idx - 1 : ${#devices[@]} - 1 )) ;;
+            $'\e[B'|'j') idx=$(( idx < ${#devices[@]} - 1 ? idx + 1 : 0 )) ;;
+            ' ') select::toggle "${devices[$idx]}" ;;
+            'a') select::all ;;
+            'n') select::none ;;
+            'S')
+                if [[ "$(select::count)" -gt 0 ]]; then
+                    ui::cursor_hide
+                    return 0
+                fi
+                printf "\n%s[!] Select at least one drive (Space), or Esc to abort.\n" "$TABLE_INDENT"
+                sleep 1
+                ;;
+            $'\e'|'q') ui::cursor_hide; return 1 ;;
+        esac
+    done
 }
 
 

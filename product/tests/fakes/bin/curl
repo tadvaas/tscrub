@@ -56,6 +56,13 @@ for a in "$@"; do
         printf '{"ok":true}\n'
         exit 0
     fi
+    if [[ "$a" == *"/api/devices/register"* ]]; then
+        if [[ -n "${FAKE_MDM_CURL_LOG:-}" ]]; then
+            { printf 'curl'; printf ' %q' "$@"; printf '\n'; } >> "$FAKE_MDM_CURL_LOG"
+        fi
+        printf '{"ok":true,"registered":true}\n'
+        exit 0
+    fi
 done
 
 upload=0

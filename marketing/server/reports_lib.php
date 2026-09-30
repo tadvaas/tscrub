@@ -815,6 +815,66 @@ function presence_is_online(string $serial, string $uuid, array $map, int $windo
     return false;
 }
 
+/** Lazily create the device_registrations table (idempotent — mirrors schema.sql). */
+function register_ensure_schema(): void {
+    try {
+        db()->exec(
+            'CREATE TABLE IF NOT EXISTS device_registrations (
+               id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+               user_id       BIGINT UNSIGNED NOT NULL,
+               serial        VARCHAR(255)    NOT NULL DEFAULT "",
+               uuid          VARCHAR(64)     NOT NULL DEFAULT "",
+               payload       JSON            NOT NULL,
+               registered_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               last_seen_ts  INT UNSIGNED    NOT NULL DEFAULT 0,
+               PRIMARY KEY (id),
+               UNIQUE KEY uq_reg_device (user_id, serial, uuid),
+               KEY idx_reg_user (user_id, id),
+               CONSTRAINT fk_reg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )'
+        );
+    } catch (Throwable $e) {
+        error_log('register ensure schema error: ' . $e->getMessage());
+    }
+}
+
+/** Upsert a boot-time registration snapshot (identity + hardware + drives). */
+function device_register(int $userId, string $serial, string $uuid, array $payload): void {
+    register_ensure_schema();
+    try {
+        db()->prepare(
+            'INSERT INTO device_registrations (user_id, serial, uuid, payload, registered_at, last_seen_ts)
+             VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), UNIX_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE payload = VALUES(payload), last_seen_ts = UNIX_TIMESTAMP()'
+        )->execute([$userId, $serial, $uuid, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+    } catch (Throwable $e) {
+        error_log('device register error: ' . $e->getMessage());
+    }
+}
+
+/** Fetch a user's registration snapshots (newest first). */
+function load_registered_devices(int $userId): array {
+    $out = [];
+    try {
+        $stmt = db()->prepare('SELECT serial, uuid, payload, registered_at, last_seen_ts FROM device_registrations WHERE user_id = ? ORDER BY registered_at DESC, id DESC');
+        $stmt->execute([$userId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $p = json_decode((string)$r['payload'], true);
+            if (!is_array($p)) $p = [];
+            $out[] = [
+                'serial'        => (string)$r['serial'],
+                'uuid'          => (string)$r['uuid'],
+                'payload'       => $p,
+                'registered_at' => (string)$r['registered_at'],
+                'last_seen_ts'  => (int)$r['last_seen_ts'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('register load error: ' . $e->getMessage());
+    }
+    return $out;
+}
+
 /**
  * Aggregated machine (hardware/firmware) inventory across a user's reports —
  * one row per physical machine, keyed by system UUID (fallback: system serial,
@@ -886,10 +946,59 @@ function load_devices(int $userId): array {
     }
     $out = array_values($devices);
     $presence = presence_map($userId);
-    foreach ($out as &$dv) {
-        $dv['online'] = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
-        unset($dv);
+    foreach ($out as $k => $dv) {
+        $out[$k]['online'] = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
+        $out[$k]['wiped']  = true;   // came from an uploaded report
     }
+
+    // Merge boot-time registrations (ITAD triage): a registration whose serial
+    // or UUID later uploaded a report upgrades that device to `wiped`;
+    // otherwise it appears as a live, not-yet-wiped triage entry.
+    foreach (load_registered_devices($userId) as $reg) {
+        $p = $reg['payload'];
+        $serial = strtolower(trim((string)($p['serial'] ?? $reg['serial'])));
+        $uuid   = strtolower(trim((string)($p['uuid'] ?? $reg['uuid'])));
+        $drives = is_array($p['drives'] ?? null) ? $p['drives'] : [];
+        $matched = false;
+        foreach ($out as $k => $dv) {
+            $mSerial = strtolower(trim((string)$dv['sysserial']));
+            $mUuid   = strtolower(trim((string)$dv['systemuuid']));
+            if (($serial !== '' && $serial === $mSerial) || ($uuid !== '' && $uuid === $mUuid)) {
+                $out[$k]['wiped'] = true;
+                $out[$k]['drive_count'] = count($drives);
+                $out[$k]['drives'] = $drives;
+                $matched = true;
+                break;
+            }
+        }
+        if ($matched) continue;
+
+        $out[] = [
+            'system'        => trim((string)($p['manufacturer'] ?? '') . ' ' . (string)($p['product'] ?? '')),
+            'sysserial'     => (string)($p['serial'] ?? $reg['serial']),
+            'bbserial'      => '',
+            'chassisserial' => (string)($p['chassis_serial'] ?? ''),
+            'chassistype'   => (string)($p['chassis_type'] ?? ''),
+            'biosversion'   => (string)($p['bios_version'] ?? ''),
+            'biosdate'      => (string)($p['bios_date'] ?? ''),
+            'systemuuid'    => (string)($p['uuid'] ?? $reg['uuid']),
+            'bioslock'      => (string)($p['bios_lock'] ?? ''),
+            'bioslockmethod'=> (string)($p['bios_lock_method'] ?? ''),
+            'cpu'           => (string)($p['cpu'] ?? ''),
+            'gpu'           => (string)($p['gpu'] ?? ''),
+            'ram'           => (string)($p['ram'] ?? ''),
+            'reports'       => 0,
+            'cocids'        => [],
+            'history'       => [],
+            'first'         => ts_local((string)$reg['registered_at']),
+            'last'          => ts_local((string)$reg['registered_at']),
+            'online'        => presence_is_online((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
+            'wiped'         => false,
+            'drive_count'   => count($drives),
+            'drives'        => $drives,
+        ];
+    }
+
     return $out;
 }
 

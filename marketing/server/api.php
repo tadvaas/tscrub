@@ -1137,6 +1137,39 @@ if ($method === 'GET' && $route === '/devices') {
     json_out(['ok' => true, 'devices' => load_devices((int)$u['id'])]);
 }
 
+// POST /api/devices/register — the appliance posts its identity + hardware +
+// drive inventory on boot (ITAD triage), before any wipe. API-token auth.
+if ($method === 'POST' && $route === '/devices/register') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+
+    device_register((int)$owner['id'], $serial, $uuid, $d);
+    presence_heartbeat((int)$owner['id'], $serial, $uuid);
+    json_out(['ok' => true, 'registered' => true]);
+}
+
 // GET /api/drives — aggregated storage-device inventory (erasure + SMART).
 if ($method === 'GET' && $route === '/drives') {
     $u = auth_require();

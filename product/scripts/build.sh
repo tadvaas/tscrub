@@ -34,6 +34,7 @@ for part in \
   "$SRC_DIR/36_bios.sh" \
   "$SRC_DIR/37_presence.sh" \
   "$SRC_DIR/38_bios_unlock.sh" \
+  "$SRC_DIR/39_register.sh" \
   "$SRC_DIR/40_table.sh" \
   "$SRC_DIR/50_report.sh"; do
   [[ -f "$part" ]] || {

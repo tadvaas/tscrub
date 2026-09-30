@@ -125,7 +125,7 @@ ui::any_drive_failed() {
     local dev
     for dev in "${devices[@]}"; do
         case "${devrow[$dev.status]}" in
-            COMPLETED|DRY-RUN) ;;
+            COMPLETED|DRY-RUN|SKIPPED) ;;
             *) return 0 ;;
         esac
     done

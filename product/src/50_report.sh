@@ -162,6 +162,23 @@ report::_json_field() {
     printf '%s' "$s"
 }
 
+# Selected / skipped drive counts for the report manifest.
+report::selected_count() {
+    local dev n=0
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && n=$((n+1))
+    done
+    printf '%d' "$n"
+}
+
+report::skipped_count() {
+    local dev n=0
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.status]:-}" == "SKIPPED" ]] && n=$((n+1))
+    done
+    printf '%d' "$n"
+}
+
 # Sign a report CSV. Writes <csv>.sig (base64 Ed25519 signature) and a
 # <stem>.json manifest alongside the CSV.
 report::sign() {
@@ -202,7 +219,9 @@ report::sign() {
         printf '  "chassis_type": "%s",\n' "$(report::_json_field "${SYS_CHASSIS_TYPE:-}")"
         printf '  "bios_version": "%s",\n' "$(report::_json_field "${SYS_BIOS_VERSION:-}")"
         printf '  "bios_date": "%s",\n' "$(report::_json_field "${SYS_BIOS_DATE:-}")"
-        printf '  "system_uuid": "%s"\n' "$(report::_json_field "${SYS_UUID:-}")"
+        printf '  "system_uuid": "%s",\n' "$(report::_json_field "${SYS_UUID:-}")"
+        printf '  "selected": %s,\n' "$(report::selected_count)"
+        printf '  "skipped": %s\n' "$(report::skipped_count)"
         printf '}\n'
     } > "$manifest"
 

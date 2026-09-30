@@ -14,6 +14,7 @@ TABLE_INDENT="    "
 COCID=""
 CONFIG_USB_DEBUG=""
 NON_INTERACTIVE=0
+AUTONUKE=0
 LOG_FILE="/$SCRIPT_NAME.log"
 DRY_RUN=0
 DRY_RUN_SIM_ETA_MINS=0
@@ -308,8 +309,17 @@ parse_args() {
                 COCID="$1"
                 NON_INTERACTIVE=1
                 ;;
+            --autonuke)
+                AUTONUKE=1
+                ;;
+            --autonuke=*)
+                case "${arg#*=}" in
+                    true|1|yes|on) AUTONUKE=1 ;;
+                    *)             AUTONUKE=0 ;;
+                esac
+                ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
@@ -319,6 +329,7 @@ parse_args() {
                 echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.lic)."
                 echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
                 echo "  --cocid 12345        Set the Chain of Custody ID and run non-interactively (autonuke)."
+                echo "  --autonuke           Select every drive and start erasure without the selection screen."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -334,5 +345,17 @@ parse_args() {
         echo "--simulate-running-eta requires --dry-run"
         exit 1
     fi
+}
+
+# Autonuke can also be forced from the kernel command line (tscrub_autonuke=1)
+# — useful for PXE fleets that bake the flag into their boot config.
+cmdline::autonuke() {
+    local param
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_autonuke=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    case "${param//\"/}" in
+        true|1|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 

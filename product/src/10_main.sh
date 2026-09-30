@@ -8,6 +8,7 @@ dryrun::simulate_running_eta() {
     sim_secs=$(( DRY_RUN_SIM_ETA_MINS * 60 ))
 
     for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
         echo "$dev STATUS RUNNING" >&3
     done
 
@@ -16,6 +17,7 @@ dryrun::simulate_running_eta() {
     done
 
     for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
         echo "$dev STATUS DRY-RUN" >&3
     done
 }
@@ -94,10 +96,21 @@ fn_main() {
         exit 1
     fi
 
+    # Provision the report destination (mount the boot USB) now, before the
+    # triage/selection screen, so the device registration snapshot can be saved
+    # to the stick immediately. The final report reuses the same mount.
+    report::detect_output
+
     cocid::detect
     if ! cocid::is_valid "$COCID"; then
         printf "%s[!] Invalid COCID '%s'. Must be exactly 5 digits.\n" "$TABLE_INDENT" "$COCID" >&2
         exit 1
+    fi
+    # Autonuke: wipe every drive immediately (no selection screen) when forced
+    # by --autonuke, implied by --cocid / tscrub_cocid= (NON_INTERACTIVE), or
+    # requested from the kernel command line (tscrub_autonuke=1).
+    if [[ "$AUTONUKE" -eq 1 || "$NON_INTERACTIVE" -eq 1 ]] || cmdline::autonuke; then
+        AUTONUKE=1
     fi
     # Kick off the MDM (Autopilot) check in the background — it runs in parallel
     # with device discovery/SMART capture and publishes its verdict to the UI
@@ -125,11 +138,32 @@ fn_main() {
     table::build
     table::render
 
+    # ITAD triage: register the machine with the portal (identity + hardware +
+    # drive inventory) and save the snapshot to the USB, BEFORE any wipe. Then
+    # either autonuke (wipe everything) or let the operator pick the drives.
+    register::push
+    if [[ "$AUTONUKE" -eq 1 ]]; then
+        select::all
+    else
+        if ! select::run; then
+            ui::cursor_show
+            printf "%s%s\n" "$TABLE_INDENT" "Selection aborted — nothing was erased."
+            report::sync_out
+            exit 0
+        fi
+    fi
+
     pids=()
+
+    # Unselected drives are recorded (not wiped) as SKIPPED.
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || devrow["$dev.status"]="SKIPPED"
+    done
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         if [[ "$DRY_RUN_SIM_ETA_MINS" -gt 0 ]]; then
             for dev in "${devices[@]}"; do
+                [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
                 devrow["$dev.eta_mins"]="$DRY_RUN_SIM_ETA_MINS"
                 devrow["$dev.status"]="PLANNED"
                 devrow["$dev.wipe_start"]=""
@@ -140,6 +174,7 @@ fn_main() {
             pids+=($!)
         else
             for dev in "${devices[@]}"; do
+                [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
                 devrow["$dev.status"]="DRY-RUN"
             done
             table::render
@@ -149,6 +184,7 @@ fn_main() {
         # (green/red/amber) is painted only once everything has finished.
         UI_COMPLETE_THEME=4
         for dev in "${devices[@]}"; do
+            [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
             device::execute "$dev" &
             pids+=($!)
         done
@@ -204,7 +240,7 @@ fn_main() {
     # not leave a drive showing RUNNING on the report.
     for dev in "${devices[@]}"; do
         case "${devrow[$dev.status]:-}" in
-            COMPLETED|FAILED|BLOCKED|FROZEN|DRY-RUN) ;;
+            COMPLETED|FAILED|BLOCKED|FROZEN|DRY-RUN|SKIPPED) ;;
             *) devrow["$dev.status"]="UNKNOWN" ;;
         esac
     done
@@ -215,7 +251,6 @@ fn_main() {
 
     smart::capture_all post
 
-    report::detect_output
     # A dry-run report is not evidence of a real wipe — never vendor-sign it.
     if [[ "$DRY_RUN" -eq 1 ]]; then
         unset REPORT_KEY
@@ -261,7 +296,7 @@ fn_main() {
         local failed_count=0
         for dev in "${devices[@]}"; do
             case "${devrow[$dev.status]}" in
-                COMPLETED|DRY-RUN) ;;
+                COMPLETED|DRY-RUN|SKIPPED) ;;
                 *) failed_count=$((failed_count + 1)) ;;
             esac
         done
@@ -275,6 +310,11 @@ fn_main() {
     fi
 
     ui::print_drive_guidance
+
+    if [[ "$(report::skipped_count)" -gt 0 ]]; then
+        printf "\033[K%sWiped %s of %d drive(s); %d skipped (not selected).\n" \
+            "$TABLE_INDENT" "$(report::selected_count)" "${#devices[@]}" "$(report::skipped_count)"
+    fi
 
     report::print_summary
 

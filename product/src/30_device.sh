@@ -498,6 +498,11 @@ device::normalize_outcome() {
                 devrow["$dev.cert"]="NOT SANITISED"
                 devrow["$dev.method"]="Blocked by firmware (Block SID)"
                 ;;
+            SKIPPED)
+                devrow["$dev.class"]="SKIPPED"
+                devrow["$dev.cert"]="NOT SANITISED"
+                devrow["$dev.method"]="Not selected"
+                ;;
             UNKNOWN)
                 devrow["$dev.class"]="FAILED"
                 devrow["$dev.cert"]="NOT SANITISED"

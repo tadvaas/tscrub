@@ -324,3 +324,20 @@ CREATE TABLE IF NOT EXISTS bios_unlock (
   KEY idx_unlock_status (status, id),
   CONSTRAINT fk_unlock_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Live device registration: the appliance posts its identity + hardware + drive
+-- inventory on boot (ITAD triage), BEFORE any wipe. Keyed + upserted by
+-- (user_id, serial, uuid); the JSON payload carries the full snapshot.
+CREATE TABLE IF NOT EXISTS device_registrations (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id       BIGINT UNSIGNED NOT NULL,
+  serial        VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid          VARCHAR(64)     NOT NULL DEFAULT '',
+  payload       JSON            NOT NULL,
+  registered_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_seen_ts  INT UNSIGNED    NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reg_device (user_id, serial, uuid),
+  KEY idx_reg_user (user_id, id),
+  CONSTRAINT fk_reg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
