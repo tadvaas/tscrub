@@ -135,7 +135,18 @@ table::print_row() {
     for label in "${UI_TABLE_LABELS[@]}"; do
         w="${UI_TABLE_WIDTHS[i]}"
         case "$label" in
-            MODEL)  val="${devrow[$dev.model]}" ;;
+            MODEL)
+                val="${devrow[$dev.model]}"
+                if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
+                    if [[ "$dev" == "${SELECT_CURSOR:-}" ]]; then
+                        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && val=">[x] $val" || val=">[ ] $val"
+                    elif [[ "${devrow[$dev.selected]:-0}" -eq 1 ]]; then
+                        val=" [x] $val"
+                    else
+                        val=" [ ] $val"
+                    fi
+                fi
+                ;;
             SERIAL) val="${devrow[$dev.serial]}" ;;
             SIZE)   val="${devrow[$dev.size]}" ;;
             BUS)    val="${devrow[$dev.bus]}" ;;
@@ -172,7 +183,11 @@ table::print_row() {
         i=$(( i + 1 ))
     done
 
-    printf "%s%s\n" "$TABLE_INDENT" "${cells[*]}"
+    if [[ "${SELECT_MODE:-0}" -eq 1 && "$dev" == "${SELECT_CURSOR:-}" && -t 1 ]]; then
+        printf "%s\033[7m%s\033[27m\n" "$TABLE_INDENT" "${cells[*]}"
+    else
+        printf "%s%s\n" "$TABLE_INDENT" "${cells[*]}"
+    fi
 }
 
 table::build() {
@@ -591,6 +606,10 @@ table::render() {
 
     printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
 
+    if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
+        printf "\n%s%s\n" "$TABLE_INDENT" "Space=select · ↑/↓ or j/k=move · A=all · N=none · S=start · Esc=abort     Selected: $(select::count) / ${#devices[@]}"
+    fi
+
     if [[ "$UI_COMPLETE_THEME" -ne 0 && "$UI_COMPLETE_THEME" -ne 4 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
     fi
@@ -730,49 +749,35 @@ select::none() {
     for dev in "${devices[@]}"; do devrow["$dev.selected"]=0; done
 }
 
-# One line of the selection list; the cursor row is inverse-video.
-select::render_line() {
-    local dev="$1" cur="$2" mark line
-    if [[ "${devrow[$dev.selected]:-0}" -eq 1 ]]; then mark="[*]"; else mark="[ ]"; fi
-    line="$(printf '%s %-8s %-26.26s %-22.22s %-7s %-4s %-4s %s' \
-        "$mark" "$dev" "${devrow[$dev.model]:-}" "${devrow[$dev.serial]:-}" \
-        "${devrow[$dev.size]:-}" "${devrow[$dev.bus]:-}" "${devrow[$dev.type]:-}" \
-        "${devrow[$dev.method]:-}")"
-    if [[ "$dev" == "$cur" ]]; then
-        printf "\033[7m%s\033[27m\n" "$line"
-    else
-        printf '%s\n' "$line"
-    fi
-}
+# Selection mode globals: when SELECT_MODE=1 the device table shows a marker
+# gutter and a cursor row; the full table UI (system/runtime panels + drive
+# table + footer) still renders underneath it.
+SELECT_MODE=0
+SELECT_CURSOR=""
 
-# Interactive drive selection. Returns 0 when the operator starts (the selected
-# set is in devrow[*].selected); 1 on abort (Esc/q). Without an interactive
-# terminal it selects everything and starts immediately (headless = autonuke).
+# Interactive drive selection overlaid on the FULL table UI. Returns 0 when the
+# operator starts (the selected set is in devrow[*].selected); 1 on abort
+# (Esc/q). Without an interactive terminal it selects everything and starts
+# immediately (headless = autonuke).
 select::run() {
     local dev idx key k2
     select::none
     idx=0
+    SELECT_MODE=1
 
     if ! ui::terminal_controls_supported; then
         select::all
+        SELECT_MODE=0
         return 0
     fi
 
     ui::cursor_show
 
     while :; do
-        [[ -t 1 ]] && clear
-        printf "%sSelect drives to erase — Space toggle · ↑/↓ or j/k move · a all · n none · Shift+S start · Esc abort\n\n" "$TABLE_INDENT"
-        local i=0
-        for dev in "${devices[@]}"; do
-            local cur=""
-            [[ "$i" -eq "$idx" ]] && cur="$dev"
-            select::render_line "$dev" "$cur"
-            i=$((i+1))
-        done
-        printf "\n%sSelected: %d / %d\n" "$TABLE_INDENT" "$(select::count)" "${#devices[@]}"
+        SELECT_CURSOR="${devices[$idx]:-}"
+        table::render
 
-        IFS= read -rsn1 key < /dev/tty 2>/dev/null || { select::all; return 0; }
+        IFS= read -rsn1 key < /dev/tty 2>/dev/null || { select::all; SELECT_MODE=0; return 0; }
 
         if [[ "$key" == $'\e' ]]; then
             IFS= read -rsn2 -t 0.05 k2 < /dev/tty 2>/dev/null
@@ -787,13 +792,13 @@ select::run() {
             'n') select::none ;;
             'S')
                 if [[ "$(select::count)" -gt 0 ]]; then
+                    SELECT_MODE=0
+                    SELECT_CURSOR=""
                     ui::cursor_hide
                     return 0
                 fi
-                printf "\n%s[!] Select at least one drive (Space), or Esc to abort.\n" "$TABLE_INDENT"
-                sleep 1
                 ;;
-            $'\e'|'q') ui::cursor_hide; return 1 ;;
+            $'\e'|'q') SELECT_MODE=0; SELECT_CURSOR=""; ui::cursor_hide; return 1 ;;
         esac
     done
 }
