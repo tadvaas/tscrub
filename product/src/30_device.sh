@@ -34,6 +34,21 @@ device::install_sedutil() {
     fi
 }
 
+# Fall back to the kernel's block-layer inquiry files for model/serial when
+# the hdparm/nvme pass-through returned nothing (e.g. SG_IO rejected on an
+# older SATA controller, or a drive whose IDENTIFY is blocked while frozen).
+# These sysfs files are populated by the driver for every sd*/nvme* device and
+# need no pass-through.
+device::identity_fallback() {
+    local dev="$1" block_dir="$2"
+    if [[ -z "${serial[$dev]:-}" && -r "$block_dir/$dev/device/serial" ]]; then
+        serial[$dev]="$(tr -d ' \000-\037\177' < "$block_dir/$dev/device/serial" 2>/dev/null)"
+    fi
+    if [[ -z "${model[$dev]:-}" && -r "$block_dir/$dev/device/model" ]]; then
+        model[$dev]="$(tr -d '\000-\037\177' < "$block_dir/$dev/device/model" 2>/dev/null)"
+    fi
+}
+
 device::discover() {
     devices=()
     NO_SUPPORTED_DRIVES=0
@@ -73,6 +88,7 @@ device::discover() {
             # Metadata extraction
             serial[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^sn[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
             model[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^mn[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
+            device::identity_fallback "$dev" "$block_dir"
             
             # OPAL Lock Check
             if sedutil-cli --query "$ctrl_dev" 2>/dev/null | grep -q "Locked = Y"; then
@@ -127,6 +143,7 @@ device::discover() {
                 # Extract Serial and Model via hdparm
                 serial[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Serial Number/ {print $2}' | xargs | tr -d ' \000-\037\177')
                 model[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Model Number/ {print $2}' | xargs | tr -d '\000-\037\177')
+                device::identity_fallback "$dev" "$block_dir"
                 
                 # OPAL Lock Check for SATA
                 if sedutil-cli --query "/dev/$dev" 2>/dev/null | grep -q "Locked = Y"; then
@@ -274,9 +291,8 @@ device::frozen() {
                 rtcwake -m mem -s 5 >&5 2>&5
                 if [[ $i -ge $times ]];then
                     if [[ "${NON_INTERACTIVE:-0}" -eq 1 ]]; then
-                        echo " $dev unfreeze exhausted; continuing (non-interactive)"
-                        i=0
-                        continue
+                        echo " $dev unfreeze exhausted; giving up (non-interactive)"
+                        break
                     fi
                     printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"
                     if ! read -r answer < /dev/tty 2>/dev/null; then
