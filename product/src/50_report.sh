@@ -563,7 +563,7 @@ license::detect() {
         # the fetch is retried a few times; each retry re-runs network::ensure
         # (a no-op once a default route exists) before giving up.
         fetched=0
-        for attempt in 1 2 3; do
+        for attempt in 1 2 3 4; do
             if command -v ip >/dev/null 2>&1; then
                 network::ensure
             fi
@@ -571,7 +571,7 @@ license::detect() {
                 fetched=1
                 break
             fi
-            [[ "$attempt" -lt 3 ]] && sleep 5
+            [[ "$attempt" -lt 4 ]] && sleep 6
         done
         if [[ "$fetched" -eq 1 ]]; then
             printf "%sLicence fetched from %s.\n" "$TABLE_INDENT" "$LICENSE_URL"
@@ -827,7 +827,7 @@ network::ensure() {
     # Already routable? nothing to do.
     ip route 2>/dev/null | grep -q '^default ' && return 0
 
-    local dev waited=0 found=0
+    local dev waited=0 found=0 pass
     # Wait up to ~20s for a carrier to appear (e1000e/USB NICs can take
     # several seconds to negotiate after boot).
     while (( waited < 20 )); do
@@ -842,14 +842,20 @@ network::ensure() {
         waited=$(( waited + 1 ))
     done
 
-    for dev in /sys/class/net/*; do
-        dev="${dev##*/}"
-        case "$dev" in lo|sit*) continue ;; esac
-        [[ "$(cat "/sys/class/net/$dev/carrier" 2>/dev/null)" == "1" ]] || continue
+    # Two DHCP passes: the first DISCOVER burst can be missed while a freshly
+    # reset USB NIC re-arms (RTL8153 cfgselector re-enumeration) or when the
+    # DHCP server responds late. Each pass tries every carrier-up interface.
+    for pass in 1 2; do
+        for dev in /sys/class/net/*; do
+            dev="${dev##*/}"
+            case "$dev" in lo|sit*) continue ;; esac
+            [[ "$(cat "/sys/class/net/$dev/carrier" 2>/dev/null)" == "1" ]] || continue
 
-        printf "%sNetwork: no IPv4 route — requesting DHCP on %s...\n" "$TABLE_INDENT" "$dev" >&5
-        udhcpc -i "$dev" -n -q -t 6 -T 2 -A 3 -O search -O staticroutes >/dev/null 2>&1
-        ip route 2>/dev/null | grep -q '^default ' && break
+            printf "%sNetwork: no IPv4 route — requesting DHCP on %s (pass %d)...\n" "$TABLE_INDENT" "$dev" "$pass" >&5
+            udhcpc -i "$dev" -n -q -t 6 -T 3 -A 2 -O search -O staticroutes >/dev/null 2>&1
+            ip route 2>/dev/null | grep -q '^default ' && break 2
+        done
+        [[ "$pass" -eq 1 ]] && sleep 3
     done
 
     ip route 2>/dev/null | grep -q '^default ' || return 1

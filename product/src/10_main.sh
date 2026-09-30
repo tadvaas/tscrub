@@ -100,10 +100,15 @@ fn_main() {
         fi
         # Keep the error on screen: on the appliance getty respawns tScrub when
         # it exits, so a bare `exit 1` here clears the console and loops back
-        # into a black screen, hiding the reason. Wait for a keypress when
-        # interactive so the operator can read the error and retry (headless
-        # runs — e.g. the VM test harness — still exit immediately).
+        # into a black screen, hiding the reason. Show the network state and
+        # wait for a keypress when interactive so the operator can read the
+        # error (and this diagnostic) and retry. Headless runs — e.g. the VM
+        # test harness — still exit immediately.
         if [[ -t 0 ]]; then
+            printf "\n%sNetwork state:\n" "$TABLE_INDENT" >&2
+            ip link 2>/dev/null | sed 's/^/    /' >&2 || true
+            ip addr 2>/dev/null | grep -E 'inet |link/ether' | sed 's/^/    /' >&2 || true
+            ip route 2>/dev/null | sed 's/^/    /' >&2 || true
             printf "\n%sPress Enter to retry, or Ctrl+Alt+Del to reboot. " "$TABLE_INDENT" >&2
             read -r _ 2>/dev/null || true
         fi
