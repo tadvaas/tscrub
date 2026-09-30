@@ -6,6 +6,37 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.7] - 2026-09-30
+
+### Fixed
+
+- **MDM status now resolves to the server's verdict** — the appliance posted
+  `/api/mdm/autopilot` once and showed whatever transient label came back
+  (`Queued`/`Checking…`), which never settled because the Graph probe runs in
+  the background server-side. The MDM worker now polls `GET /api/mdm/status`
+  (bounded, best-effort, never blocks the wipe) and re-publishes the dashboard's
+  exact label as it settles, so the Runtime panel tracks
+  Queued → Checking… → Locked/Unlocked/… in real time. If the server becomes
+  unreachable it shows `Offline`; if the poll window expires while the check is
+  still pending it shows `N/A` instead of an indefinite `Checking…`.
+- **Cleaner frozen-drive output** — the unfreeze sequence was three confusing
+  lines (`sda frozen`, `sda unfreezing`, then `sda not frozen` after the
+  suspend/resume), and every never-frozen SATA drive printed a pointless
+  `not_frozen`. Now a never-frozen drive prints nothing, a frozen drive prints
+  one clear line with the attempt count and a note that the unfreeze is a
+  suspend/resume (`sda: frozen — suspending to clear the freeze lock (attempt 1/5)`),
+  and success is confirmed with a single `sda: not frozen`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.7_2025.11_30_x86-64_v0.41_20260930-187f6a78.iso`
+  (157,622,272 B, sha256 `70594481b1f11191059fe12ac2ae5f193276c8ec6009d2000e586d992b094e52`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.7 sha256 `bb3f829a8db2d76662364ea83d380a62ddf2cf11d68a6517ca9d4aae4aec3725`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `a6503cc5875f838ee6a40f3bc911b1a83389f29b0714ff4595094eb8e9331c26`).
+
 ## [v1.8.6] - 2026-09-30
 
 ### Changed — server-owned MDM wording + two report types
