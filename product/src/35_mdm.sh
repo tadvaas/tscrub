@@ -141,54 +141,58 @@ mdm::detect() {
     mdm::parse_cmdline
 
     if ! mdm::is_configured; then
-        verdict="skipped"
-        label="Skipped"
-    elif [[ "${SYS_SERIAL:-N/A}" == "N/A" || "${SYS_UUID:-N/A}" == "N/A" ]]; then
-        verdict="skipped"
-        label="Skipped"
-    elif ! network::ensure; then
-        # No IPv4 route (and DHCP couldn't obtain one) — skip the probe rather
-        # than burning curl retries against an unreachable dashboard.
-        verdict="offline"
-        label="Offline"
-    else
-        man="${SYS_MANUFACTURER:-N/A}"; [[ "$man" == "N/A" ]] && man=""
-        prod="${SYS_PRODUCT:-N/A}";   [[ "$prod" == "N/A" ]] && prod=""
-
-        body="$(printf '{"serial":"%s","uuid":"%s","manufacturer":"%s","product":"%s"}' \
-            "$(report::_json_field "${SYS_SERIAL}")" \
-            "$(report::_json_field "${SYS_UUID}")" \
-            "$(report::_json_field "$man")" \
-            "$(report::_json_field "$prod")")"
-        url="$(mdm::endpoint)"
-
-        # POST /api/mdm/autopilot enqueues the check and returns immediately
-        # with {status: queued|checking|done|na, verdict, label}. The dashboard
-        # owns the wording via `label`; the Runtime panel renders it verbatim.
-        resp="$(mdm::http_post "$url" "$body")"
-        rc=$?
-        if [[ $rc -ne 0 ]]; then
-            verdict="offline"
-            label="Offline"
-        else
-            verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
-            status="$(printf '%s' "$resp" | mdm::json_field status)"
-            label="$(printf '%s' "$resp" | mdm::json_field label)"
-            if [[ -z "$verdict" ]]; then
-                case "$status" in
-                    na)              verdict="na" ;;
-                    queued|checking) verdict="checking" ;;
-                    *)               verdict="unknown" ;;
-                esac
-            fi
-            # Defensive fallback only (older dashboard without `label`): show
-            # the machine verdict verbatim rather than mapping it locally.
-            [[ -z "$label" ]] && label="${verdict:-Unknown}"
-        fi
+        mdm::publish "skipped" "Skipped"
+        return 0
+    fi
+    if [[ "${SYS_SERIAL:-N/A}" == "N/A" || "${SYS_UUID:-N/A}" == "N/A" ]]; then
+        mdm::publish "skipped" "Skipped"
+        return 0
     fi
 
-    # Publish the first answer immediately so the panel never sits at the
-    # initial "Checking…" for longer than one POST round-trip.
+    # Publish an honest "Queued" placeholder BEFORE the network/POST work so the
+    # panel never lingers on the initial "…" while DHCP and the POST settle.
+    mdm::publish "checking" "Queued"
+
+    if ! network::ensure; then
+        # No IPv4 route (and DHCP couldn't obtain one) — skip the probe rather
+        # than burning curl retries against an unreachable dashboard.
+        mdm::publish "offline" "Offline"
+        return 0
+    fi
+
+    man="${SYS_MANUFACTURER:-N/A}"; [[ "$man" == "N/A" ]] && man=""
+    prod="${SYS_PRODUCT:-N/A}";   [[ "$prod" == "N/A" ]] && prod=""
+
+    body="$(printf '{"serial":"%s","uuid":"%s","manufacturer":"%s","product":"%s"}' \
+        "$(report::_json_field "${SYS_SERIAL}")" \
+        "$(report::_json_field "${SYS_UUID}")" \
+        "$(report::_json_field "$man")" \
+        "$(report::_json_field "$prod")")"
+    url="$(mdm::endpoint)"
+
+    # POST /api/mdm/autopilot enqueues the check and returns immediately with
+    # {status: queued|checking|done|na, verdict, label}. The dashboard owns the
+    # wording via `label`; the Runtime panel renders it verbatim.
+    resp="$(mdm::http_post "$url" "$body")"
+    rc=$?
+    if [[ $rc -ne 0 ]]; then
+        mdm::publish "offline" "Offline"
+        return 0
+    fi
+
+    verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
+    status="$(printf '%s' "$resp" | mdm::json_field status)"
+    label="$(printf '%s' "$resp" | mdm::json_field label)"
+    if [[ -z "$verdict" ]]; then
+        case "$status" in
+            na)              verdict="na" ;;
+            queued|checking) verdict="checking" ;;
+            *)               verdict="unknown" ;;
+        esac
+    fi
+    # Defensive fallback only (older dashboard without `label`): show the
+    # machine verdict verbatim rather than mapping it locally.
+    [[ -z "$label" ]] && label="${verdict:-Unknown}"
     mdm::publish "$verdict" "$label"
 
     # Still pending → poll the status endpoint until the server settles on a
