@@ -12,7 +12,7 @@ FAKE_MDM_FAIL_FLAG="$tmpdir/failflag"
 FAKE_MDM_POLL_FILE="$tmpdir/poll"
 # The fake curl is a separate process, so the FAKE_MDM_* knobs must be exported.
 export FAKE_MDM_VERDICT FAKE_MDM_RC FAKE_MDM_FAIL_FIRST FAKE_MDM_CURL_LOG FAKE_MDM_FAIL_FLAG FAKE_MDM_QUEUE
-export FAKE_MDM_POLL_FILE FAKE_MDM_POLLS FAKE_MDM_STATUS_RC
+export FAKE_MDM_POLL_FILE FAKE_MDM_POLLS FAKE_MDM_UNKNOWN_POLLS FAKE_MDM_STATUS_RC
 
 # The poll loop sleeps between status checks; no-op it so tests run instantly.
 sleep() { :; }
@@ -185,6 +185,21 @@ t::assert_contains "$(cat "$ipc_file")" "mdm STATUS N/A" "mdm: poll window exhau
 t::assert_eq "checking" "$(sed -n '1p' "$MDM_RESULT_FILE")" "mdm: result file keeps honest checking verdict"
 t::assert_eq "N/A" "$(sed -n '2p' "$MDM_RESULT_FILE")" "mdm: result file label N/A"
 MDM_POLL_MAX=24
+FAKE_MDM_POLLS=""
+
+# --- unknown verdict re-polls until a real verdict resolves -----------------
+FAKE_MDM_VERDICT="ms_error"
+FAKE_MDM_QUEUE="queued"
+FAKE_MDM_POLLS=1
+FAKE_MDM_UNKNOWN_POLLS=2
+: > "$FAKE_MDM_POLL_FILE"
+: > "$FAKE_MDM_CURL_LOG"
+run_detect
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Pending" "mdm: unknown poll publishes Pending (not frozen)"
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT unknown" "mdm: unknown poll publishes unknown verdict"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS MS error" "mdm: re-poll resolves unknown → MS error"
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT ms_error" "mdm: re-poll resolves unknown → ms_error verdict"
+FAKE_MDM_UNKNOWN_POLLS=""
 FAKE_MDM_POLLS=""
 
 # --- status endpoint unreachable mid-poll → Offline --------------------------

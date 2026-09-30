@@ -946,8 +946,12 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid);
     $status  = (string)($job['status'] ?? '');
     $verdict = (string)($job['verdict'] ?? '');
-    if ($status === '' || $status === 'failed') {
-        // No useful result yet — enqueue a fresh check for the worker.
+    // No useful result yet, a failed attempt, or an inconclusive 'unknown'
+    // (the import's poll window closed while Microsoft was still processing)
+    // → re-probe so the appliance's re-poll can resolve to a real verdict
+    // instead of freezing on "Pending". mdm_enqueue_job dedupes a job that is
+    // already queued/checking for the same device.
+    if ($status === '' || $status === 'failed' || ($status === 'done' && $verdict === 'unknown')) {
         mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
         $status = 'queued';
         $verdict = '';
@@ -1163,7 +1167,8 @@ if ($method === 'POST' && $route === '/mdm/recheck') {
     if (mdm_staged_hash((int)$u['id'], $serial, $uuid) === null) {
         fail(404, 'No captured hash for that device.');
     }
-    $jobId = mdm_enqueue_job((int)$u['id'], $serial, $uuid);
+    mdm_ensure_schema();
+    $jobId = mdm_enqueue_job((int)$u['id'], $serial, $uuid, true);
     json_out(['ok' => true, 'queued' => $jobId > 0, 'job_id' => $jobId]);
 }
 

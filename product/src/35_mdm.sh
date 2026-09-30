@@ -195,10 +195,12 @@ mdm::detect() {
     [[ -z "$label" ]] && label="${verdict:-Unknown}"
     mdm::publish "$verdict" "$label"
 
-    # Still pending → poll the status endpoint until the server settles on a
-    # verdict (or we hit the bound). Each poll re-publishes so the panel tracks
-    # the server's label as it changes (Queued → Checking… → Locked/Unlocked/…).
-    if [[ "$verdict" == "checking" ]]; then
+    # Still unsettled → poll the status endpoint until the server settles on a
+    # verdict (or we hit the bound). Both "checking" and "unknown" mean the
+    # check hasn't produced a real answer yet; each poll re-publishes so the
+    # panel tracks the server's label (Queued → Checking… → Pending →
+    # Locked/Unlocked/MS error/…).
+    if [[ "$verdict" == "checking" || "$verdict" == "unknown" ]]; then
         status_url="$(mdm::status_endpoint)"
         while [[ $poll -lt "$MDM_POLL_MAX" ]]; do
             sleep "$MDM_POLL_SECONDS"
@@ -222,16 +224,18 @@ mdm::detect() {
             fi
             [[ -z "$label" ]] && label="${verdict:-Unknown}"
             mdm::publish "$verdict" "$label"
-            # Terminal once the job leaves queued/checking (done/failed/na).
-            case "$status" in
-                queued|checking) : ;;
+            # Settled once the server returns a real verdict — keep polling
+            # through "checking" and the inconclusive "unknown" (import still
+            # processing) so the panel doesn't freeze on "Pending".
+            case "$verdict" in
+                checking|unknown) : ;;
                 *) break ;;
             esac
         done
-        if [[ "$verdict" == "checking" ]]; then
-            # Poll window exhausted with the job still pending — show N/A rather
-            # than an indefinite "Checking…". The CSV keeps the honest "checking"
-            # verdict; the panel shows the no-answer marker.
+        if [[ "$verdict" == "checking" || "$verdict" == "unknown" ]]; then
+            # Poll window exhausted with the job still unsettled — show N/A
+            # rather than an indefinite "Checking…"/"Pending". The CSV keeps the
+            # honest verdict; the panel shows the no-answer marker.
             label="N/A"
             mdm::publish "$verdict" "$label"
         fi

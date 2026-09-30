@@ -54,13 +54,22 @@ for a in "$@"; do
             exit "${FAKE_MDM_STATUS_RC}"
         fi
         # Poll simulation: FAKE_MDM_POLLS = how many "checking" responses to
-        # return before the terminal verdict. The counter lives in a file
-        # (FAKE_MDM_POLL_FILE) because the fake curl runs as a fresh process.
-        if [[ -n "${FAKE_MDM_POLL_FILE:-}" && -n "${FAKE_MDM_POLLS:-}" ]]; then
+        # return, then FAKE_MDM_UNKNOWN_POLLS = how many "done + unknown"
+        # (Pending) responses, before the terminal verdict. The counter lives
+        # in a file (FAKE_MDM_POLL_FILE) because the fake curl runs as a fresh
+        # process.
+        if [[ -n "${FAKE_MDM_POLL_FILE:-}" ]] && [[ -n "${FAKE_MDM_POLLS:-}${FAKE_MDM_UNKNOWN_POLLS:-}" ]]; then
             n="$(cat "$FAKE_MDM_POLL_FILE" 2>/dev/null || echo 0)"
-            if (( n < FAKE_MDM_POLLS )); then
+            checking_polls="${FAKE_MDM_POLLS:-0}"
+            unknown_polls="${FAKE_MDM_UNKNOWN_POLLS:-0}"
+            if (( n < checking_polls )); then
                 echo $((n + 1)) > "$FAKE_MDM_POLL_FILE"
                 printf '{"ok":true,"status":"checking","verdict":"","source":"none","label":"Checking…","last_checked_at":null}\n'
+                exit 0
+            fi
+            if (( n < checking_polls + unknown_polls )); then
+                echo $((n + 1)) > "$FAKE_MDM_POLL_FILE"
+                printf '{"ok":true,"status":"done","verdict":"unknown","source":"live","label":"Pending","last_checked_at":null}\n'
                 exit 0
             fi
         fi

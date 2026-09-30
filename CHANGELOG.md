@@ -6,6 +6,52 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.17] - 2026-09-30
+
+### Fixed
+
+- **MDM verdict re-polled until it settles** — the appliance's Runtime panel
+  used to freeze on "Pending" whenever the server's latest verdict was the
+  inconclusive `unknown` (Microsoft had accepted the import but not yet
+  processed it). `mdm::detect` now keeps polling `GET /api/mdm/status` through
+  both `checking` AND `unknown`, and `POST /api/mdm/autopilot` re-queues a
+  fresh probe when the previous job ended inconclusively — so the laptop and
+  the dashboard converge on the same latest verdict (e.g. both show "MS error"
+  while Microsoft's Autopilot service is degraded).
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.17_2025.11_30_x86-64_v0.41_20260930-7f7b2981.iso`
+  (157,622,272 B, sha256 `0003c0b3dbd985ffbe93ce13bb64d71346907c387c342b67f861c9383213cdc6`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.17 sha256 `ce9b1aff4f74f60380b9062dbb14a3fa83197e9b4a672cce321bc200f943cbe0`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `07a32664600c48faaa46438232a8231654b3be601a03a6742816b948a207493b`).
+
+## [v1.8.16] - 2026-09-30
+
+### Changed
+
+- **Boot progress shown before the drive-selection screen** — the boot-time
+  device registration (`register::push`) now runs in the background (fd 3
+  closed so it can't hold the UI pipe), so a slow or late-arriving network can
+  no longer stall the transition to the selection screen. The COCID prompt is
+  cleared after entry and replaced with an animated "Discovering devices…"
+  progress line, and a "Preparing…" spinner covers the classify/table-build
+  step; unfreezing still prints its own progress lines (the suspend/resume is
+  the progress).
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.16_2025.11_30_x86-64_v0.41_20260930-f31be9f2.iso`
+  (157,622,272 B, sha256 `f3d6b04969fea3540d7487c3f811b363c69d2c0582b8243c9bf8e5bb0f4c6c73`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.16 sha256 `7a1f8005e389871ea9319424d5bb8ab1ee91995a6e3c08af7d48a713741da54b`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `fc2926b640502a93ea5963908316ccef0d663da06b9ed0751519be5f751dada7`).
+
 ## [v1.8.15] - 2026-09-30
 
 ### Fixed
