@@ -59,30 +59,39 @@ register::json() {
 # run). The portal marks the device online and shows it on the Devices tab even
 # before anything has been wiped.
 register::send() {
-    local body resp
+    local body resp attempt
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
     command -v curl >/dev/null 2>&1 || return 0
 
-    # One-shot at boot — make sure a default route exists first (a no-op when
-    # the boot-time DHCP already landed, same guard as license::fetch).
-    if command -v ip >/dev/null 2>&1; then
-        network::ensure
-    fi
-
     body="$(register::json)"
-    if ! resp="$(curl -fsS --connect-timeout 5 --max-time 15 \
-        -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-        -H "Content-Type: application/json" \
-        --data-binary "$body" "$(register::endpoint)" 2>&1)"; then
+
+    # One-shot at boot — but the boot-time DHCP may not have completed yet
+    # (USB Ethernet adapters on laptops without a built-in NIC can bring their
+    # link up several seconds after boot). Retry a few times like
+    # license::detect; each retry re-runs network::ensure (a no-op once a
+    # default route exists).
+    for attempt in 1 2 3; do
+        if command -v ip >/dev/null 2>&1; then
+            network::ensure
+        fi
+        if resp="$(curl -fsS --connect-timeout 5 --max-time 15 \
+            -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary "$body" "$(register::endpoint)" 2>&1)"; then
+            return 0
+        fi
         # Dead RTC clock skew breaks TLS verification (curl error 60); retry
         # once without verification, mirroring report::upload_http.
         if [[ "$resp" == *"curl: (60)"* ]]; then
-            curl -kfsS --connect-timeout 5 --max-time 15 \
+            if curl -kfsS --connect-timeout 5 --max-time 15 \
                 -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
                 -H "Content-Type: application/json" \
-                --data-binary "$body" "$(register::endpoint)" >/dev/null 2>&1
+                --data-binary "$body" "$(register::endpoint)" >/dev/null 2>&1; then
+                return 0
+            fi
         fi
-    fi
+        [[ "$attempt" -lt 3 ]] && sleep 5
+    done
     return 0
 }
 

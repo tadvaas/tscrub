@@ -6,6 +6,29 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.15] - 2026-09-30
+
+### Fixed
+
+- **Device registration POST retries for late-link NICs** — the boot-time
+  diagnostics push (`register::send` → `POST /api/reports/diagnostics`) was a
+  single one-shot attempt (retrying only on TLS error 60). On machines whose
+  USB Ethernet adapter brings its link up a few seconds after boot, the POST
+  failed silently and never retried, so the machine never appeared on the
+  dashboard Devices tab (it kept a live heartbeat but no diagnostics report).
+  The push now retries up to three times, re-running `network::ensure` before
+  each attempt — mirroring the v1.8.12 licence-fetch fix.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.15_2025.11_30_x86-64_v0.41_20260930-7b030ec5.iso`
+  (157,622,272 B, sha256 `f9e74778542d1692889acc940126586a42de15f9e8f78bcdf1912463c00399f5`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.15 sha256 `2a7d45b54ab35231293a7aaa5b90527d65fc05d60ae0d2c2010c033780b84215`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `6d43d43e9b4033c4eec96df371f1af42a53f9ed36ad4c4001b6273b94c88ff86`).
+
 ## [v1.8.14] - 2026-09-30
 
 ### Fixed
@@ -53,19 +76,6 @@ and this project uses date-based versioning (`v1.x`).
   (signed).
 - PXE `bzImage` republished + signed with the operator's iPXE vendor key
   (sha256 `9efde6ca4172e6fb65ee1daf7b52afccec68efff9be27d1d88121bd9f8e2f6f9`).
-
-## [Unreleased]
-
-### Fixed
-
-- **Device registration POST retries for late-link NICs** — the boot-time
-  diagnostics push (`register::send` → `POST /api/reports/diagnostics`) was a
-  single one-shot attempt (retrying only on TLS error 60). On machines whose
-  USB Ethernet adapter brings its link up a few seconds after boot, the POST
-  failed silently and never retried, so the machine never appeared on the
-  dashboard Devices tab (it kept a live heartbeat but no diagnostics report).
-  The push now retries a few times, re-running `network::ensure` before each
-  attempt — mirroring the v1.8.12 licence-fetch fix.
 
 ## [v1.8.12] - 2026-09-30
 
