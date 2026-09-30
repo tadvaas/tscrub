@@ -199,6 +199,31 @@
       var page = 1, per = 10;
       var expanded = {};
       var animKey = null;
+      var sortKey = null;   // column key, or null for default (backend) order
+      var sortDir = 1;      // 1 = ascending, -1 = descending
+
+      function mdmRank(dev) {
+        var st = String(dev.mdm_status || '');
+        var v = String(dev.mdm_verdict || '').toLowerCase();
+        var rep = String(dev.mdm || '').toLowerCase();
+        var REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
+        if (st === 'checking') return 90;
+        if (st === 'queued') return 80;
+        var verdict = REAL.indexOf(v) !== -1 ? v : (REAL.indexOf(rep) !== -1 ? rep : (st === 'done' && v === 'unknown' ? 'unknown' : ''));
+        var r = { locked_other: 70, locked_this: 70, ms_error: 60, hash_invalid: 50, offline: 40, unlocked: 30, unknown: 20 };
+        return r[verdict] || 0;
+      }
+
+      function sortValue(key, dev) {
+        switch (key) {
+          case 'system': return String(dev.system || dev.sysserial || '').toLowerCase();
+          case 'serial': return String(dev.sysserial || '').toLowerCase();
+          case 'bios':   return String(dev.bioslock || '').toLowerCase();
+          case 'mdm':    return mdmRank(dev);
+          case 'status': return dev.online ? 1 : 0;
+        }
+        return '';
+      }
 
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
@@ -226,14 +251,45 @@
           return;
         }
         var start = (page - 1) * per;
-        var slice = devices.slice(start, start + per);
+        var rows = devices.slice();
+        if (sortKey) {
+          rows.sort(function (a, b) {
+            var av = sortValue(sortKey, a), bv = sortValue(sortKey, b);
+            if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sortDir;
+            return String(av).localeCompare(String(bv)) * sortDir;
+          });
+        }
+        var slice = rows.slice(start, start + per);
 
         var wrap = el('div', '');
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-        [['System', 'w-[22%]'], ['Serial', 'w-[13%]'], ['BIOS', 'w-[9%]'], ['MDM', 'w-[16%]'], ['Status', 'w-[10%]'], ['', 'w-[30%]']].forEach(function (c) {
-          hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', c[0]));
+        var cols = [
+          ['System', 'w-[22%]', 'system'],
+          ['Serial', 'w-[13%]', 'serial'],
+          ['BIOS', 'w-[9%]', 'bios'],
+          ['MDM', 'w-[16%]', 'mdm'],
+          ['Status', 'w-[10%]', 'status'],
+          ['', 'w-[30%]', null]
+        ];
+        cols.forEach(function (c) {
+          var th = el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
+          if (c[2]) {
+            th.classList.add('cursor-pointer', 'select-none', 'hover:bg-slate-200', 'dark:hover:bg-ink-700');
+            var lbl = el('span', '', c[0]);
+            if (sortKey === c[2]) lbl.appendChild(document.createTextNode(sortDir === 1 ? ' ▲' : ' ▼'));
+            th.appendChild(lbl);
+            th.addEventListener('click', function () {
+              if (sortKey === c[2]) sortDir = -sortDir;
+              else { sortKey = c[2]; sortDir = 1; }
+              page = 1;
+              render();
+            });
+          } else {
+            th.textContent = c[0];
+          }
+          hr.appendChild(th);
         });
         thead.appendChild(hr);
         table.appendChild(thead);
