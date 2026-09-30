@@ -6,6 +6,32 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.4] - 2026-09-30
+
+### Fixed — frozen drives + missing identity
+
+- **Frozen-drive hang** — in non-interactive mode (autonuke / PXE with a
+  `tscrub_cocid`), a drive that stayed frozen after the suspend/resume unfreeze
+  attempts made the appliance loop forever printing `frozen`/`unfreezing`
+  instead of giving up — the wipe never started and the drive table never
+  rendered. It now gives up after the attempts and records the drive as
+  `FROZEN` (physical destruction).
+- **Missing model/serial on older laptops** — the drive identity relied solely
+  on the `hdparm`/`nvme` pass-through, which some older SATA controllers reject
+  (SG_IO), leaving the MODEL/SERIAL columns blank. The appliance now falls back
+  to the kernel's `/sys/block/<dev>/device/{model,serial}` inquiry files, which
+  are always present.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.4_2025.11_30_x86-64_v0.41_20260930-046fe730.iso`
+  (157,622,272 B, sha256 `d9762d89965ec96deaeaa53fd4aea3ac9088f1f145e1991e5baea18dca5eeb62`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.4 sha256 `5fa8db1f5c7876ebd66f561faed385e2a31e25af3dc690f93b1ba595d3c0e8f6`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `2899fbfa9a59ad2306ee62be5024a660d9cde8429555c6e60838127644a84616`).
+
 ## [v1.8.3] - 2026-09-30
 
 ### Fixed — boot-time registration & heartbeat
