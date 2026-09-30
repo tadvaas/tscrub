@@ -18,16 +18,26 @@ presence::endpoint() {
 
 # Send one heartbeat (best-effort — a failed ping never fails the run).
 presence::ping() {
-    local url body
+    local url body resp
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
     body="$(printf '{"serial":"%s","uuid":"%s"}' \
         "$(report::_json_field "${SYS_SERIAL:-}")" \
         "$(report::_json_field "${SYS_UUID:-}")")"
     url="$(presence::endpoint)"
-    curl -fsS --connect-timeout 5 --max-time 10 \
+    if ! resp="$(curl -fsS --connect-timeout 5 --max-time 10 \
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
         -H "Content-Type: application/json" \
-        --data-binary "$body" "$url" >/dev/null 2>&1
+        --data-binary "$body" "$url" 2>&1)"; then
+        # A dead RTC battery leaves the system clock wrong, so TLS certificate
+        # verification fails (curl error 60) on an otherwise healthy server.
+        # Retry once without verification, mirroring report::upload_http.
+        if [[ "$resp" == *"curl: (60)"* ]]; then
+            curl -kfsS --connect-timeout 5 --max-time 10 \
+                -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data-binary "$body" "$url" >/dev/null 2>&1
+        fi
+    fi
     return 0
 }
 

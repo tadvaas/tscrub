@@ -57,13 +57,30 @@ register::json() {
 # run). The portal marks the device online and shows it on the Devices tab even
 # before anything has been wiped.
 register::send() {
-    local body
+    local body resp
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+
+    # One-shot at boot — make sure a default route exists first (a no-op when
+    # the boot-time DHCP already landed, same guard as license::fetch).
+    if command -v ip >/dev/null 2>&1; then
+        network::ensure
+    fi
+
     body="$(register::json)"
-    curl -fsS --connect-timeout 5 --max-time 15 \
+    if ! resp="$(curl -fsS --connect-timeout 5 --max-time 15 \
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
         -H "Content-Type: application/json" \
-        --data-binary "$body" "$(register::endpoint)" >/dev/null 2>&1
+        --data-binary "$body" "$(register::endpoint)" 2>&1)"; then
+        # Dead RTC clock skew breaks TLS verification (curl error 60); retry
+        # once without verification, mirroring report::upload_http.
+        if [[ "$resp" == *"curl: (60)"* ]]; then
+            curl -kfsS --connect-timeout 5 --max-time 15 \
+                -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data-binary "$body" "$(register::endpoint)" >/dev/null 2>&1
+        fi
+    fi
     return 0
 }
 

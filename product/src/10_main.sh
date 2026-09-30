@@ -74,6 +74,11 @@ fn_main() {
     # Apply any on-stick tscrub.conf (dashboard upload, COCID, licence URL)
     # first, so the licence/COCID resolution below sees it.
     config::load_usb
+    # Also parse the kernel command line NOW (rather than at report-upload time)
+    # so a PXE-supplied tscrub_api_token= / tscrub_upload= is available to the
+    # boot-time device registration and presence heartbeat, both of which run
+    # long before the final report upload. Cmdline wins over tscrub.conf.
+    report::parse_upload
 
     # Enable attributable (vendor-signed) reports when a valid licence is present.
     # tScrub always requires a licence — even the free tier.
