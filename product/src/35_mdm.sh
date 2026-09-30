@@ -7,10 +7,11 @@ MDM_VERDICT=""    # machine-readable verdict for the report CSV (unlocked / lock
 MDM_RESULT_FILE="/tmp/tscrub-mdm.verdict"
 # How long the worker polls GET /api/mdm/status for the authoritative verdict
 # once the check is queued server-side (the Graph probe resolves in the
-# background via mdm-worker.php, cron every minute). Bounded so it never blocks
-# the wipe; the panel resolves to the server's label as soon as it settles.
-MDM_POLL_SECONDS=5
-MDM_POLL_MAX=24
+# background via mdm-worker.php, cron every minute). ~5 minutes covers one cron
+# cycle plus a healthy probe, so the panel resolves during a real wipe; a fast
+# wipe/dry-run is released by fn_main's bounded wait instead of blocking here.
+MDM_POLL_SECONDS=10
+MDM_POLL_MAX=30
 
 mdm::is_configured() {
     # The Autopilot check is opt-in: it runs only when the operator explicitly

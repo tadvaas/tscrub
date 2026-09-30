@@ -221,10 +221,10 @@ fn_main() {
         # as "Checking…") until the worker actually exits.
         if [[ -t 1 ]] && kill -0 "$mdm_pid" 2>/dev/null; then
             local mdm_row=$(( UI_RUNTIME_ROW + 6 ))
-            local mdm_stat_line mdm_state
+            local mdm_stat_line mdm_state mdm_ticks=0
             printf "\033[%d;%dH%-*.*s" "$mdm_row" "$UI_RUNTIME_COL" \
                 "$UI_RUNTIME_VALUE_W" "$UI_RUNTIME_VALUE_W" "Finalising..."
-            while kill -0 "$mdm_pid" 2>/dev/null; do
+            while kill -0 "$mdm_pid" 2>/dev/null && (( mdm_ticks < 20 )); do
                 # A finished-but-unreaped worker is a zombie and kill -0 still
                 # succeeds for it — stop as soon as its /proc state reads "Z".
                 if [[ -r "/proc/$mdm_pid/stat" ]]; then
@@ -233,12 +233,18 @@ fn_main() {
                     [[ "$mdm_state" == "Z" ]] && break
                 fi
                 # Advances the elapsed timer + spinner (and refreshes the ETA
-                # cells, all terminal now) so they keep running until EVERY
-                # worker — including this Autopilot probe — has finished.
+                # cells) while the worker settles, bounded so a still-pending
+                # probe can't hold the finish screen open.
                 ui::tick_inplace || true
                 sleep 0.25
+                mdm_ticks=$(( mdm_ticks + 1 ))
             done
         fi
+        # The MDM worker polls the dashboard in the background and normally
+        # finishes long before the wipe does; a fast wipe/dry-run can outrun it.
+        # Stop it here so the finish screen/report are never blocked on a
+        # still-pending probe — the latest published label is recovered below.
+        kill "$mdm_pid" 2>/dev/null || true
         wait "$mdm_pid" 2>/dev/null || true
         if [[ -f "$MDM_RESULT_FILE" ]]; then
             [[ -z "${MDM_VERDICT:-}" ]] && MDM_VERDICT="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
