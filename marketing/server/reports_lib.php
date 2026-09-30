@@ -877,9 +877,13 @@ function load_registered_devices(int $userId): array {
 
 /**
  * Aggregated machine (hardware/firmware) inventory across a user's reports —
- * one row per physical machine, keyed by system UUID (fallback: system serial,
- * then COCID). The most recent report's profile wins; report counts and the
- * wiped window are accumulated. This feeds the dashboard "Devices" tab.
+ * one row per physical machine, keyed by system serial (fallback: baseboard
+ * serial, then system UUID, then COCID). The serial is the stable ITAD
+ * inventory key; UUIDs are frequently absent from older reports or
+ * vendor-garbage, and serial-first keeps the same machine from appearing twice
+ * when one report carried a UUID and another did not. The most recent report's
+ * profile wins; report counts and the wiped window are accumulated. This feeds
+ * the dashboard "Devices" tab.
  */
 function load_devices(int $userId): array {
     $stmt = db()->prepare('SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? ORDER BY uploaded_at DESC, id DESC');
@@ -891,7 +895,7 @@ function load_devices(int $userId): array {
         if (!is_array($g)) continue;
 
         $key = '';
-        foreach (['systemuuid', 'sysserial', 'sysSerial', 'bbserial', 'bbSerial'] as $k) {
+        foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
             if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
         }
         if ($key === '') $key = 'cocid:' . strtolower((string)$r['cocid']);
