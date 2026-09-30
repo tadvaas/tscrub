@@ -141,7 +141,6 @@ fn_main() {
     device::frozen
     device::detect
     table::build
-    table::render
 
     # ITAD triage: register the machine with the portal (identity + hardware +
     # drive inventory) and save the snapshot to the USB, BEFORE any wipe. Then
@@ -149,7 +148,15 @@ fn_main() {
     register::push
     if [[ "$AUTONUKE" -eq 1 ]]; then
         select::all
+        table::render
     else
+        # The interactive selection screen renders itself (blue, with markers)
+        # inside select::run — rendering a black, marker-less table here first
+        # would flash it before the real screen. Headless (no terminal) has no
+        # selection UI, so render once for it here instead.
+        if ! ui::terminal_controls_supported; then
+            table::render
+        fi
         if ! select::run; then
             ui::cursor_show
             printf "%s%s\n" "$TABLE_INDENT" "Selection aborted — nothing was erased."
