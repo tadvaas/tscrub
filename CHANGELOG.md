@@ -6,6 +6,29 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.8] - 2026-09-30
+
+### Fixed
+
+- **MDM status resolves reliably to the server's verdict** — the 2-minute poll
+  window raced the server's resolution (the MDM worker cron runs every minute,
+  then the Graph probe takes another ~10–60 s), so a freshly-booted device often
+  stayed at `Checking…`/`N/A`. The poll window is now ~5 minutes (10 s × 30),
+  so the Runtime panel tracks Queued → Checking… → the final verdict during a
+  real wipe. The finish-screen MDM settle wait is also bounded to ~5 s (then the
+  worker is stopped and the latest published label recorded), so a fast wipe or
+  dry-run can't block the report or the finish screen on a still-pending probe.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.8_2025.11_30_x86-64_v0.41_20260930-b699700a.iso`
+  (157,622,272 B, sha256 `6102a049b783cc11f0a51dbec884ea3066b5bb29fde88321966fdd68f294560b`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.8 sha256 `ea6898a5a1939dac47f962f3bc6eb8ffb57d4941dff2c8eb9708c7f003b024a5`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `4cbf332ed8b912de734ec77f73b5408d0ea334196523083864bb91d56d1d0768`).
+
 ## [v1.8.7] - 2026-09-30
 
 ### Fixed
