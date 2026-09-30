@@ -6,6 +6,38 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.0] - 2026-09-30
+
+### Changed — triage-first boot
+
+tScrub is now an ITAD device-triage tool first, eraser second. On boot it no
+longer wipes immediately — it registers the machine and presents an interactive
+drive selection, and only erases what the operator confirms.
+
+- **No auto-wipe** — the default boot lands on a drive-selection screen
+  (nwipe-style): `↑/↓` or `j/k` to move, `Space` to toggle, `a` all / `n` none,
+  **`Shift+S`** to start, `Esc` to abort. Nothing is erased until `Shift+S`.
+- **Autonuke kept** — `--autonuke` / `tscrub_autonuke=1` select everything and
+  start immediately; `--cocid` / `tscrub_cocid=` still imply autonuke (the PXE
+  fleet workflow is unchanged).
+- **Device registration** — on boot, before any wipe, the appliance posts its
+  identity + hardware + drive inventory to the portal (`POST /api/devices/register`)
+  and saves the same snapshot to the USB. The Devices tab now shows these as
+  live **"Not wiped · N drives"** triage entries; a later report upgrades the
+  same serial to wiped.
+- **Honest reports** — unselected drives are recorded as `SKIPPED` (`Not selected`,
+  not sanitised) in the CSV and manifest, with `selected`/`skipped` counts.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.0_2025.11_30_x86-64_v0.41_20260930-d2606625.iso`
+  (157,622,272 B, sha256 `4e33905769cd7a491bd716ba78f2dbcf87923c156a31fdcb0914498df012ab3b`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.0 sha256 `90bef866c1e7b20767a6fe3f6bc39e9f04ab99805c06e4e58e84ebe39ccc6f73`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `8ba7d743c1535491a6ec3add2d31e1a38496e91782fb660f4355c8e16b643c65`).
+
 ## [v1.7.0] - 2026-09-29
 
 ### Added
