@@ -6,6 +6,27 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.1] - 2026-09-30
+
+### Fixed
+
+- **Drive selection lives in the full table UI** — the triage screen now renders
+  the complete tScrub interface (system/runtime panels + drive table + footer)
+  and overlays an nwipe-style marker gutter on the drive table: `[ ]`/`[x]`
+  checkbox per drive, a `>` cursor row in inverse video, and a key legend
+  (`Space=select · ↑/↓ move · A all · N none · S start · Esc abort`). The v1.8.0
+  build swapped in a bare list instead; this restores the full interface.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.1_2025.11_30_x86-64_v0.41_20260930-945cd0eb.iso`
+  (157,622,272 B, sha256 `9afaa28637a8714518d164ac971abe32cd4b9b2d7f6b98feda652d7278aafb96`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.1 sha256 `022f8c030805aee8760e1bbef8a4db9529befbbff5d4e72b8b8c1c7d6f2d56c0`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `9b529abe3e0b572e975de1bc17c97e14d46343d346ab679f7d2ec5507534074b`).
+
 ## [v1.8.0] - 2026-09-30
 
 ### Changed — triage-first boot
