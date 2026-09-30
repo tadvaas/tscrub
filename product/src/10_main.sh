@@ -98,6 +98,15 @@ fn_main() {
             printf "%s    To use a .lic file on the boot USB: copy it to the root of the USB\n" "$TABLE_INDENT" >&2
             printf "%s    stick (the writable partition), or run with --license <path>.\n" "$TABLE_INDENT" >&2
         fi
+        # Keep the error on screen: on the appliance getty respawns tScrub when
+        # it exits, so a bare `exit 1` here clears the console and loops back
+        # into a black screen, hiding the reason. Wait for a keypress when
+        # interactive so the operator can read the error and retry (headless
+        # runs — e.g. the VM test harness — still exit immediately).
+        if [[ -t 0 ]]; then
+            printf "\n%sPress Enter to retry, or Ctrl+Alt+Del to reboot. " "$TABLE_INDENT" >&2
+            read -r _ 2>/dev/null || true
+        fi
         exit 1
     fi
 
