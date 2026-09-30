@@ -277,8 +277,13 @@
           var th = el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
           if (c[2]) {
             th.classList.add('cursor-pointer', 'select-none', 'hover:bg-slate-200', 'dark:hover:bg-ink-700');
-            var lbl = el('span', '', c[0]);
-            if (sortKey === c[2]) lbl.appendChild(document.createTextNode(sortDir === 1 ? ' ▲' : ' ▼'));
+            var lbl = el('span', 'inline-flex items-center gap-1', c[0]);
+            var arrow = el('span', 'text-xs font-normal text-slate-400 dark:text-slate-500', '↕');
+            if (sortKey === c[2]) {
+              arrow.textContent = sortDir === 1 ? '▲' : '▼';
+              arrow.className = 'text-xs font-normal text-brand-600 dark:text-brand-400';
+            }
+            lbl.appendChild(arrow);
             th.appendChild(lbl);
             th.addEventListener('click', function () {
               if (sortKey === c[2]) sortDir = -sortDir;
