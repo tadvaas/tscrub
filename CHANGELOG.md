@@ -6,6 +6,30 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.2] - 2026-09-30
+
+### Changed — selection screen polish
+
+- **Blue selection screen** — the triage/drive-selection screen now uses the
+  same blue "in progress" theme as a running wipe instead of the black default.
+- **Legend moved into the footer** — the key legend
+  (`Space=select · ↑/↓ move · A all · N none · S start · Esc quit`) now sits in
+  the sticky footer as a third line, with the live selected count, instead of a
+  standalone hint line below the table.
+- **No more full-screen reflow** — the selection loop renders once, then
+  repaints only the affected rows (cursor move, toggle, all/none) and the footer
+  legend in place, so the screen no longer redraws end-to-end on every keypress.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.2_2025.11_30_x86-64_v0.41_20260930-f08ea1eb.iso`
+  (157,622,272 B, sha256 `bc7bb961baa801a9585318017966f30e70bf68632fa102d47b15399cd9bf7442`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.2 sha256 `04a2d5e605a0a54f58dd95008a58ccdf3375b867c40ac7f643697e7f648611f6`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `a7e056c2e49f49bfbabbfeadf21c88a2f93f97b64e542656d3dd5f3033a9f92a`).
+
 ## [v1.8.1] - 2026-09-30
 
 ### Fixed
