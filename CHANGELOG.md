@@ -6,6 +6,27 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.8.10] - 2026-09-30
+
+### Fixed
+
+- **MDM Runtime panel showed a single dot** — v1.8.9 seeded the panel with the
+  Unicode ellipsis `…` while the worker published its first real state, and the
+  appliance console renders that character as a lone `.`. The placeholder is now
+  plain ASCII `Pending`, so it renders correctly everywhere and is immediately
+  replaced by the worker's `Queued`/`Skipped`/`Offline` and then the server's
+  exact label.
+
+### Release
+
+- Appliance ISO `tscrub-v1.8.10_2025.11_30_x86-64_v0.41_20260930-b7a11881.iso`
+  (157,622,272 B, sha256 `c33632a88aa904a3c01b6b943bfdc39ab363f3f8a186bfbb7624f5ae8409db33`);
+  stable `tscrub-appliance.iso` symlink repointed.
+- Standalone script v1.8.10 sha256 `f620375dd6e2edaae0f3810f69903c8b53a9f4fcddc500af7ce9697bcc6cc5cb`
+  (signed).
+- PXE `bzImage` republished + signed with the operator's iPXE vendor key
+  (sha256 `359648fc69058de600bc8b06422fe27852ede305de3ff19d59007271fd0a6d20`).
+
 ## [v1.8.9] - 2026-09-30
 
 ### Fixed
