@@ -38,6 +38,21 @@ register::json() {
         "$(report::_json_field "${SYS_CPU_LIST:-}")" \
         "$(report::_json_field "${SYS_GPU_LIST:-}")" \
         "$(report::_json_field "${SYS_RAM_GB:-}")"
+    printf ',"sku":"%s","asset_tag":"%s","bios_vendor":"%s","board":"%s","tpm":"%s"' \
+        "$(report::_json_field "${SYS_SKU:-}")" \
+        "$(report::_json_field "${ASSET_TAG:-${SYS_ASSET_TAG:-}}")" \
+        "$(report::_json_field "${SYS_BIOS_VENDOR:-}")" \
+        "$(report::_json_field "${SYS_BOARD:-}")" \
+        "$(report::_json_field "${SYS_TPM:-}")"
+    printf ',"macs":"%s","storage_controllers":"%s","tool_version":"%s"' \
+        "$(report::_json_field "${SYS_MAC_LIST:-}")" \
+        "$(report::_json_field "${SYS_STORAGE_CTRLS:-}")" \
+        "$(report::_json_field "${SCRIPT_VERSION:-}")"
+    printf ',"operator":"%s","validator":"%s","media_source":"%s","media_destination":"%s"' \
+        "$(report::_json_field "${OPERATOR_NAME:-}")" \
+        "$(report::_json_field "${VALIDATOR_NAME:-}")" \
+        "$(report::_json_field "${MEDIA_SOURCE:-}")" \
+        "$(report::_json_field "${MEDIA_DESTINATION:-}")"
     printf ',"drives":['
     for dev in "${devices[@]}"; do
         [[ "$first" -eq 1 ]] && first=0 || printf ','

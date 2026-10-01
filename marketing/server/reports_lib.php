@@ -246,6 +246,9 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '',
                 'chassisserial' => '', 'chassistype' => '', 'biosversion' => '',
                 'biosdate' => '', 'systemuuid' => '', 'bioslock' => '', 'bioslockmethod' => '',
+                'sku' => '', 'asset_tag' => '', 'bios_vendor' => '', 'board' => '', 'tpm' => '',
+                'macs' => '', 'storage_controllers' => '', 'tool_version' => '',
+                'operator' => '', 'validator' => '', 'media_source' => '', 'media_destination' => '',
                 'first' => null, 'last' => null,
             ];
         }
@@ -305,6 +308,29 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'smartpost' => clip_str($get($row, 'smartpost'), 16),
                 'tempcpost' => clip_str($get($row, 'tempcpost'), 16),
                 'poweronhourspost' => clip_str($get($row, 'poweronhourspost'), 32),
+                'start_time' => clip_str($get($row, 'starttime'), 32),
+                'end_time' => clip_str($get($row, 'endtime'), 32),
+                'duration_secs' => clip_str($get($row, 'durationsecs'), 32),
+                'firmware' => clip_str($get($row, 'firmware'), 64),
+                'sector_size' => clip_str($get($row, 'sectorsize'), 16),
+                'sectors' => clip_str($get($row, 'sectors'), 32),
+                'hpa' => clip_str($get($row, 'hpa'), 20),
+                'dco' => clip_str($get($row, 'dco'), 20),
+                'sed_status' => clip_str($get($row, 'sedstatus'), 20),
+                'reallocsectorspost' => clip_str($get($row, 'reallocsectorspost'), 32),
+                'selftest' => clip_str($get($row, 'selftest'), 128),
+                'sku' => clip_str($get($row, 'sku'), 128),
+                'asset_tag' => clip_str($get($row, 'assettag'), 128),
+                'bios_vendor' => clip_str($get($row, 'biosvendor'), 64),
+                'board' => clip_str($get($row, 'boardmodel'), 128),
+                'tpm' => clip_str($get($row, 'tpm'), 32),
+                'macs' => clip_str($get($row, 'macaddress'), 255),
+                'storage_controllers' => clip_str($get($row, 'storagecontrollers'), 255),
+                'tool_version' => clip_str($get($row, 'toolversion'), 32),
+                'operator' => clip_str($get($row, 'operator'), 128),
+                'validator' => clip_str($get($row, 'validator'), 128),
+                'media_source' => clip_str($get($row, 'mediasource'), 128),
+                'media_destination' => clip_str($get($row, 'mediadestination'), 128),
             ];
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
@@ -338,6 +364,20 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 $g['biosdate'] = clip_str($get($row, 'biosdate'), 32);
                 $g['bioslock'] = clip_str($get($row, 'bioslock'), 20);
                 $g['bioslockmethod'] = clip_str($get($row, 'bioslockmethod'), 255);
+            }
+            if ($g['sku'] === '' && isset($map['sku'])) {
+                $g['sku'] = clip_str($get($row, 'sku'), 128);
+                $g['asset_tag'] = clip_str($get($row, 'assettag'), 128);
+                $g['bios_vendor'] = clip_str($get($row, 'biosvendor'), 64);
+                $g['board'] = clip_str($get($row, 'boardmodel'), 128);
+                $g['tpm'] = clip_str($get($row, 'tpm'), 32);
+                $g['macs'] = clip_str($get($row, 'macaddress'), 255);
+                $g['storage_controllers'] = clip_str($get($row, 'storagecontrollers'), 255);
+                $g['tool_version'] = clip_str($get($row, 'toolversion'), 32);
+                $g['operator'] = clip_str($get($row, 'operator'), 128);
+                $g['validator'] = clip_str($get($row, 'validator'), 128);
+                $g['media_source'] = clip_str($get($row, 'mediasource'), 128);
+                $g['media_destination'] = clip_str($get($row, 'mediadestination'), 128);
             }
             if ($ts !== '') {
                 $tsEpoch = strtotime($ts) ?: null;
@@ -374,6 +414,18 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
             if ($g['bioslockmethod'] === '' && !empty($manifestData['bios_lock_method'])) {
                 $g['bioslockmethod'] = clip_str((string)$manifestData['bios_lock_method'], 255);
             }
+            if ($g['sku'] === '' && !empty($manifestData['sku'])) $g['sku'] = clip_str((string)$manifestData['sku'], 128);
+            if ($g['asset_tag'] === '' && !empty($manifestData['asset_tag'])) $g['asset_tag'] = clip_str((string)$manifestData['asset_tag'], 128);
+            if ($g['bios_vendor'] === '' && !empty($manifestData['bios_vendor'])) $g['bios_vendor'] = clip_str((string)$manifestData['bios_vendor'], 64);
+            if ($g['board'] === '' && !empty($manifestData['board'])) $g['board'] = clip_str((string)$manifestData['board'], 128);
+            if ($g['tpm'] === '' && !empty($manifestData['tpm'])) $g['tpm'] = clip_str((string)$manifestData['tpm'], 32);
+            if ($g['macs'] === '' && !empty($manifestData['macs'])) $g['macs'] = clip_str((string)$manifestData['macs'], 255);
+            if ($g['storage_controllers'] === '' && !empty($manifestData['storage_controllers'])) $g['storage_controllers'] = clip_str((string)$manifestData['storage_controllers'], 255);
+            if ($g['tool_version'] === '' && !empty($manifestData['version'])) $g['tool_version'] = clip_str((string)$manifestData['version'], 32);
+            if ($g['operator'] === '' && !empty($manifestData['operator'])) $g['operator'] = clip_str((string)$manifestData['operator'], 128);
+            if ($g['validator'] === '' && !empty($manifestData['validator'])) $g['validator'] = clip_str((string)$manifestData['validator'], 128);
+            if ($g['media_source'] === '' && !empty($manifestData['media_source'])) $g['media_source'] = clip_str((string)$manifestData['media_source'], 128);
+            if ($g['media_destination'] === '' && !empty($manifestData['media_destination'])) $g['media_destination'] = clip_str((string)$manifestData['media_destination'], 128);
         }
         unset($g);
     }
@@ -694,6 +746,18 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
         'cpu'            => (string)($d['cpu'] ?? ''),
         'gpu'            => (string)($d['gpu'] ?? ''),
         'ram'            => (string)($d['ram'] ?? ''),
+        'sku'            => (string)($d['sku'] ?? ''),
+        'asset_tag'      => (string)($d['asset_tag'] ?? ''),
+        'bios_vendor'    => (string)($d['bios_vendor'] ?? ''),
+        'board'          => (string)($d['board'] ?? ''),
+        'tpm'            => (string)($d['tpm'] ?? ''),
+        'macs'           => (string)($d['macs'] ?? ''),
+        'storage_controllers' => (string)($d['storage_controllers'] ?? ''),
+        'tool_version'   => (string)($d['tool_version'] ?? ''),
+        'operator'       => (string)($d['operator'] ?? ''),
+        'validator'      => (string)($d['validator'] ?? ''),
+        'media_source'   => (string)($d['media_source'] ?? ''),
+        'media_destination' => (string)($d['media_destination'] ?? ''),
         'first'          => $now,
         'last'           => $now,
         'reports'        => [['name' => 'diagnostics', 'sha' => '']],
@@ -747,6 +811,18 @@ function report_row(array $r, ?array $payload): array {
         'systemuuid'    => is_array($payload) ? (string)($payload['systemuuid'] ?? '') : '',
         'bioslock'      => is_array($payload) ? (string)($payload['bioslock'] ?? '') : '',
         'bioslockmethod'=> is_array($payload) ? (string)($payload['bioslockmethod'] ?? '') : '',
+        'sku'            => is_array($payload) ? (string)($payload['sku'] ?? '') : '',
+        'asset_tag'      => is_array($payload) ? (string)($payload['asset_tag'] ?? '') : '',
+        'bios_vendor'    => is_array($payload) ? (string)($payload['bios_vendor'] ?? '') : '',
+        'board'          => is_array($payload) ? (string)($payload['board'] ?? '') : '',
+        'tpm'            => is_array($payload) ? (string)($payload['tpm'] ?? '') : '',
+        'macs'           => is_array($payload) ? (string)($payload['macs'] ?? '') : '',
+        'storage_controllers' => is_array($payload) ? (string)($payload['storage_controllers'] ?? '') : '',
+        'tool_version'   => is_array($payload) ? (string)($payload['tool_version'] ?? '') : '',
+        'operator'       => is_array($payload) ? (string)($payload['operator'] ?? '') : '',
+        'validator'      => is_array($payload) ? (string)($payload['validator'] ?? '') : '',
+        'media_source'   => is_array($payload) ? (string)($payload['media_source'] ?? '') : '',
+        'media_destination' => is_array($payload) ? (string)($payload['media_destination'] ?? '') : '',
         'drives'      => is_array($payload) ? ($payload['drives'] ?? []) : [],
         'reports'     => is_array($payload) ? ($payload['reports'] ?? []) : [],
     ];
@@ -1034,6 +1110,18 @@ function load_devices(int $userId): array {
                 'cpu'           => (string)($g['cpu'] ?? ''),
                 'gpu'           => (string)($g['gpu'] ?? ''),
                 'ram'           => (string)($g['ram'] ?? ''),
+                'sku'           => (string)($g['sku'] ?? ''),
+                'asset_tag'     => (string)($g['asset_tag'] ?? ''),
+                'bios_vendor'   => (string)($g['bios_vendor'] ?? ''),
+                'board'         => (string)($g['board'] ?? ''),
+                'tpm'           => (string)($g['tpm'] ?? ''),
+                'macs'          => (string)($g['macs'] ?? ''),
+                'storage_controllers' => (string)($g['storage_controllers'] ?? ''),
+                'tool_version'  => (string)($g['tool_version'] ?? ''),
+                'operator'      => (string)($g['operator'] ?? ''),
+                'validator'     => (string)($g['validator'] ?? ''),
+                'media_source'  => (string)($g['media_source'] ?? ''),
+                'media_destination' => (string)($g['media_destination'] ?? ''),
                 'mdm'           => (string)($g['enrollment'] ?? ''),
                 'first'         => (string)$r['uploaded_at'],
                 'last'          => (string)$r['uploaded_at'],
@@ -1061,6 +1149,18 @@ function load_devices(int $userId): array {
             'cpu'            => (string)($g['cpu'] ?? ''),
             'gpu'            => (string)($g['gpu'] ?? ''),
             'ram'            => (string)($g['ram'] ?? ''),
+            'sku'            => (string)($g['sku'] ?? ''),
+            'asset_tag'      => (string)($g['asset_tag'] ?? ''),
+            'bios_vendor'    => (string)($g['bios_vendor'] ?? ''),
+            'board'          => (string)($g['board'] ?? ''),
+            'tpm'            => (string)($g['tpm'] ?? ''),
+            'macs'           => (string)($g['macs'] ?? ''),
+            'storage_controllers' => (string)($g['storage_controllers'] ?? ''),
+            'tool_version'   => (string)($g['tool_version'] ?? ''),
+            'operator'       => (string)($g['operator'] ?? ''),
+            'validator'      => (string)($g['validator'] ?? ''),
+            'media_source'   => (string)($g['media_source'] ?? ''),
+            'media_destination' => (string)($g['media_destination'] ?? ''),
             'drive_count'    => count($drives),
             'drives'         => $drives,
         ];
@@ -1117,6 +1217,18 @@ function load_devices(int $userId): array {
             'cpu'            => (string)($p['cpu'] ?? ''),
             'gpu'            => (string)($p['gpu'] ?? ''),
             'ram'            => (string)($p['ram'] ?? ''),
+            'sku'            => (string)($p['sku'] ?? ''),
+            'asset_tag'      => (string)($p['asset_tag'] ?? ''),
+            'bios_vendor'    => (string)($p['bios_vendor'] ?? ''),
+            'board'          => (string)($p['board'] ?? ''),
+            'tpm'            => (string)($p['tpm'] ?? ''),
+            'macs'           => (string)($p['macs'] ?? ''),
+            'storage_controllers' => (string)($p['storage_controllers'] ?? ''),
+            'tool_version'   => (string)($p['tool_version'] ?? ''),
+            'operator'       => (string)($p['operator'] ?? ''),
+            'validator'      => (string)($p['validator'] ?? ''),
+            'media_source'   => (string)($p['media_source'] ?? ''),
+            'media_destination' => (string)($p['media_destination'] ?? ''),
         ];
         $regSeen = presence_last_seen((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence);
         $out[] = $profile + [
