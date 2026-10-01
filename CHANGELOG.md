@@ -6,6 +6,34 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.7] - 2026-10-01
+
+### Added
+
+- **LAN IP reporting** — the appliance now reports its acquired IPv4 address
+  (`"ip"`) with every presence heartbeat, so the dashboard shows where each
+  machine is reachable (telnet/SSH on the bench LAN). The appliance's System
+  Info panel also shows the current LAN IP.
+
+### Changed
+
+- **System Info panel** — the detailed BIOS-lock detection method is no longer
+  shown on the appliance console; the Runtime panel keeps the compact
+  Locked / Unlocked verdict.
+
+### Fixed
+
+- **Devices tab empty** — `load_devices()` called `ts_rel()`, which was missing
+  from `http.php`, so every `/api/devices` request 500'd and the Devices tab
+  showed no machines. `ts_rel()` has been restored.
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.7_2025.11_30_x86-64_v0.41_20261001-b1da7932.iso`
+  (157,622,272 B, sha256 `37e2f19be7f55f0c8974fbeb6b2f01a67cc7391f16042248ef623de3c60ab22c`);
+- standalone script v1.9.7 sha256 `18f5801bb44d5b36aa31adc1e734c60481ba7a44d2b08f67470d93d54467b645` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ca2852fbcb60866a8140960430904f84e3fba6fca630eef5d9bd8e22e1726975`.
+
 ## [v1.9.6] - 2026-10-01
 
 ### Added
