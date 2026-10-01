@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.1] - 2026-10-01
+
+### Changed
+
+- **Boot diagnostics now carry the v1.9.0 machine fields** — the boot-time
+  `/api/reports/diagnostics` envelope now includes SKU, asset tag, BIOS vendor,
+  motherboard, TPM, MAC addresses, storage controllers, tool version, operator,
+  validator, and media source/destination, so the dashboard Devices tab shows
+  the full machine profile (not just system/CPU/GPU/RAM).
+
+### Release
+
+- (populated after the appliance build)
+
 ## [v1.9.0] - 2026-10-01
 
 ### Added
