@@ -41,7 +41,7 @@
 
     <div class="mt-10">
       <h2 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Devices</h2>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Machines processed by tScrub — hardware and firmware as recorded at wipe time, consolidated from your reports.</p>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Machines seen by tScrub at boot — hardware, firmware and attached drives, consolidated from your diagnostics uploads.</p>
     </div>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
@@ -251,8 +251,8 @@
         });
       }
 
-      // Auto-refresh: new reports, BIOS/MDM results, and online/offline flips
-      // show up without a manual reload. Polling preserves sort/page/expanded
+      // Auto-refresh: new diagnostics, BIOS/MDM results, and online/offline
+      // flips show up without a manual reload. Polling preserves sort/page
       // state and skips re-rendering when nothing changed.
       setInterval(function () { loadDevices(true); }, 10000);
 
@@ -260,7 +260,7 @@
         var list = document.getElementById('device-list');
         list.innerHTML = '';
         if (!devices.length) {
-          list.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', 'No devices yet. Upload a report (or boot an appliance) to record the first machine.'));
+          list.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', 'No devices yet. Boot an appliance with a dashboard token to record the first machine.'));
           renderPager();
           return;
         }
@@ -334,19 +334,15 @@
           var stDot = el('span', 'inline-block h-2 w-2 shrink-0 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-transparent ring-1 ring-inset ring-slate-400 dark:ring-slate-500'));
           var stTxt = el('span', 'text-xs font-semibold ' + (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'), dev.online ? 'Online' : 'Offline');
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
-          var drvCount = typeof dev.drive_count === 'number' ? dev.drive_count : null;
-          var drvTxt = drvCount !== null ? drvCount + ' drive' + (drvCount === 1 ? '' : 's') : '';
-          if (dev.wiped === false) {
-            stLine.appendChild(el('span', 'text-xs font-semibold text-amber-600 dark:text-amber-400', 'Not wiped' + (drvTxt ? ' · ' + drvTxt : '')));
-          } else if (drvTxt) {
-            stLine.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', drvTxt));
+          if (!dev.online && dev.last_seen) {
+            stLine.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'Seen ' + dev.last_seen));
           }
           stCell.appendChild(stLine);
-          stCell.title = dev.online ? 'Appliance heartbeat seen within the last 90s' : 'No recent heartbeat';
+          stCell.title = dev.online ? 'Appliance heartbeat seen within the last 90s' : (dev.last_seen_at ? 'Last seen ' + dev.last_seen_at : 'No recent heartbeat');
           tr.appendChild(stCell);
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
           var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 text-brand-700 dark:text-brand-400' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
-          btn.title = 'Show every report for this device';
+          btn.title = 'Show every diagnostics report for this device';
           btn.addEventListener('click', function () { expanded[key] = !expanded[key]; animKey = key; render(); });
           tdv.appendChild(btn);
           var opBtn = el('button', 'ml-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Operations');
@@ -359,24 +355,24 @@
           if (expanded[key]) {
             var sub = el('tr', 'bg-slate-50 dark:bg-ink-800');
             var subtd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
-            subtd.colSpan = 7;
+            subtd.colSpan = 6;
             var st = el('table', 'w-full border-collapse text-xs');
             var shr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-            ['CoC', 'Wiped', 'BIOS', 'BIOS lock', ''].forEach(function (h) {
+            ['Submitted', 'BIOS', 'BIOS lock', 'Drives', ''].forEach(function (h) {
               shr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
             });
             st.appendChild(shr);
             (dev.history || []).forEach(function (h) {
               var htr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
-              htr.appendChild(el('td', 'px-2 py-1.5 font-mono text-slate-700 dark:text-slate-300', h.cocid || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
+              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.biosversion ? h.biosversion + (h.biosdate ? ' (' + h.biosdate + ')' : '') : '—'));
               var htdl = el('td', 'px-2 py-1.5');
               htdl.appendChild(lockBadge(h.bioslock) || document.createTextNode('—'));
               htr.appendChild(htdl);
+              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', typeof h.drive_count === 'number' ? h.drive_count : '—'));
               var htdv = el('td', 'px-2 py-1.5 text-right');
               var hvbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
-              hvbtn.addEventListener('click', function () { openDevice(h, dev.online); });
+              hvbtn.addEventListener('click', function () { openDevice(h); });
               htdv.appendChild(hvbtn);
               htr.appendChild(htdv);
               st.appendChild(htr);
@@ -428,10 +424,15 @@
 
         // Header.
         var head = el('div', 'border-b border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-6 py-5');
-        head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400', 'tScrub machine report'));
+        head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400', 'tScrub device diagnostics'));
         var meta = el('div', 'mt-2 text-sm text-slate-600 dark:text-slate-400');
-        meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Chain of Custody ' + (dev.cocid || '—')));
-        meta.appendChild(document.createTextNode(' · wiped ' + (fmtTsTime(dev.ts || dev.uploaded_at) || '—')));
+        var fsub = fmtTsTime(dev.first), lsub = fmtTsTime(dev.last);
+        if (fsub && fsub === lsub) {
+          meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Report submitted ' + fsub));
+        } else {
+          meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Reports from ' + (fsub || '—')));
+          meta.appendChild(document.createTextNode(' to ' + (lsub || '—')));
+        }
         head.appendChild(meta);
         doc.appendChild(head);
 
@@ -458,14 +459,50 @@
 
         doc.appendChild(section('Identity', [
           ['System', dev.system], ['System serial', dev.sysserial], ['Baseboard serial', dev.bbserial],
-          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype], ['System UUID', dev.systemuuid]
+          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype], ['System UUID', dev.systemuuid],
+          ['SKU', dev.sku], ['Asset tag', dev.asset_tag]
         ]));
-        doc.appendChild(section('Hardware', [['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram]]));
+        doc.appendChild(section('Hardware', [
+          ['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram],
+          ['TPM', dev.tpm], ['MAC address', dev.macs], ['Storage controllers', dev.storage_controllers],
+          ['Battery', dev.battery], ['Memory modules', dev.dimms]
+        ]));
         doc.appendChild(section('Firmware', [
           ['BIOS version', dev.biosversion],
           ['BIOS date', dev.biosdate],
-          ['BIOS lock method', dev.bioslockmethod]
+          ['BIOS vendor', dev.bios_vendor],
+          ['Motherboard', dev.board],
+          ['BIOS lock method', dev.bioslockmethod],
+          ['Secure Boot', dev.secure_boot]
         ]));
+        doc.appendChild(section('Report', [
+          ['Operator', dev.operator], ['Validator', dev.validator],
+          ['Media source', dev.media_source], ['Media destination', dev.media_destination],
+          ['Tool version', dev.tool_version]
+        ]));
+
+        if (Array.isArray(dev.drives) && dev.drives.length) {
+          var drvSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
+          drvSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Drives'));
+          var dtbl = el('table', 'mt-2 w-full border-collapse text-sm');
+          var dhead = el('tr', 'bg-slate-100 dark:bg-ink-800');
+          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type'].forEach(function (h) {
+            dhead.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
+          });
+          dtbl.appendChild(dhead);
+          dev.drives.forEach(function (dv) {
+            var dtr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
+            dtr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.device || '—'));
+            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.model || '—'));
+            dtr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.serial || '—'));
+            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.size || '—'));
+            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.bus || '—'));
+            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.type || '—'));
+            dtbl.appendChild(dtr);
+          });
+          drvSec.appendChild(dtbl);
+          doc.appendChild(drvSec);
+        }
 
         modalBody.appendChild(doc);
 

@@ -758,6 +758,9 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
         'validator'      => (string)($d['validator'] ?? ''),
         'media_source'   => (string)($d['media_source'] ?? ''),
         'media_destination' => (string)($d['media_destination'] ?? ''),
+        'battery'        => (string)($d['battery'] ?? ''),
+        'secure_boot'    => (string)($d['secure_boot'] ?? ''),
+        'dimms'          => (string)($d['dimms'] ?? ''),
         'first'          => $now,
         'last'           => $now,
         'reports'        => [['name' => 'diagnostics', 'sha' => '']],
@@ -823,6 +826,9 @@ function report_row(array $r, ?array $payload): array {
         'validator'      => is_array($payload) ? (string)($payload['validator'] ?? '') : '',
         'media_source'   => is_array($payload) ? (string)($payload['media_source'] ?? '') : '',
         'media_destination' => is_array($payload) ? (string)($payload['media_destination'] ?? '') : '',
+        'battery'        => is_array($payload) ? (string)($payload['battery'] ?? '') : '',
+        'secure_boot'    => is_array($payload) ? (string)($payload['secure_boot'] ?? '') : '',
+        'dimms'          => is_array($payload) ? (string)($payload['dimms'] ?? '') : '',
         'drives'      => is_array($payload) ? ($payload['drives'] ?? []) : [],
         'reports'     => is_array($payload) ? ($payload['reports'] ?? []) : [],
     ];
@@ -1122,6 +1128,9 @@ function load_devices(int $userId): array {
                 'validator'     => (string)($g['validator'] ?? ''),
                 'media_source'  => (string)($g['media_source'] ?? ''),
                 'media_destination' => (string)($g['media_destination'] ?? ''),
+                'battery'       => (string)($g['battery'] ?? ''),
+                'secure_boot'   => (string)($g['secure_boot'] ?? ''),
+                'dimms'         => (string)($g['dimms'] ?? ''),
                 'mdm'           => (string)($g['enrollment'] ?? ''),
                 'first'         => (string)$r['uploaded_at'],
                 'last'          => (string)$r['uploaded_at'],
@@ -1161,6 +1170,9 @@ function load_devices(int $userId): array {
             'validator'      => (string)($g['validator'] ?? ''),
             'media_source'   => (string)($g['media_source'] ?? ''),
             'media_destination' => (string)($g['media_destination'] ?? ''),
+            'battery'        => (string)($g['battery'] ?? ''),
+            'secure_boot'    => (string)($g['secure_boot'] ?? ''),
+            'dimms'          => (string)($g['dimms'] ?? ''),
             'drive_count'    => count($drives),
             'drives'         => $drives,
         ];
@@ -1229,6 +1241,9 @@ function load_devices(int $userId): array {
             'validator'      => (string)($p['validator'] ?? ''),
             'media_source'   => (string)($p['media_source'] ?? ''),
             'media_destination' => (string)($p['media_destination'] ?? ''),
+            'battery'        => (string)($p['battery'] ?? ''),
+            'secure_boot'    => (string)($p['secure_boot'] ?? ''),
+            'dimms'          => (string)($p['dimms'] ?? ''),
         ];
         $regSeen = presence_last_seen((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence);
         $out[] = $profile + [
