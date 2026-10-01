@@ -39,6 +39,27 @@ function ts_local(?string $utc): string {
     }
 }
 
+// Convert a Unix timestamp to a compact relative "… ago" string using a
+// single unit, e.g. "3m ago", "2h ago", "5d ago", "3w ago", "2mo ago",
+// "1y ago". The value floors to the largest whole unit (1h59m -> "1h ago",
+// 2h01m -> "2h ago"); ages under a minute report "just now".
+function ts_rel(?int $unix): string {
+    if ($unix === null || $unix <= 0) {
+        return '';
+    }
+    $diff = time() - $unix;
+    if ($diff < 0) {
+        $diff = 0;
+    }
+    if ($diff < 60)       return 'just now';
+    if ($diff < 3600)     return intdiv($diff, 60) . 'm ago';
+    if ($diff < 86400)    return intdiv($diff, 3600) . 'h ago';
+    if ($diff < 604800)   return intdiv($diff, 86400) . 'd ago';
+    if ($diff < 2592000)  return intdiv($diff, 604800) . 'w ago';
+    if ($diff < 31536000) return intdiv($diff, 2592000) . 'mo ago';
+    return intdiv($diff, 31536000) . 'y ago';
+}
+
 // JSON endpoints must never leak a raw 500 HTML page or stack trace. Log the
 // exception and return a JSON error body instead.
 set_exception_handler(function (Throwable $e): void {

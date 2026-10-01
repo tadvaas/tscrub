@@ -144,25 +144,36 @@ function mdm_base_hash(string $serial, string $uuid, string $manufacturer, strin
 
 /**
  * One HTTP call with retry. $req = [method, url, headers[], body, timeout].
- * Returns [ok => bool, status => int, body => string]. Transient transport
- * failures (DNS/connect/SSL/timeout) and Graph 5xx responses are retried up to
- * twice with a short backoff. POSTs are NOT re-issued on 5xx (a retried import
- * could create a duplicate queue entry); 2xx/4xx are returned immediately.
+ * Returns [ok => bool, status => int, body => string, headers => string[]].
+ * Transient transport failures (DNS/connect/SSL/timeout) and Graph 5xx
+ * responses are retried up to twice with a short backoff. POSTs are NOT
+ * re-issued on 5xx (a retried import could create a duplicate queue entry).
+ * HTTP 429 responses are retried honouring the Retry-After header (a 429'd
+ * request was never processed, so retrying is safe even for POST); the sleep
+ * is capped at 60s. Other 2xx/4xx are returned immediately.
  * $GLOBALS['mdm_http_override'] (a callable) replaces the transport — used by
  * the offline test harness.
  */
 function mdm_http(array $req): array {
     $method = strtoupper((string)($req['method'] ?? 'GET'));
-    $last = ['ok' => false, 'status' => 0, 'body' => ''];
+    $last = ['ok' => false, 'status' => 0, 'body' => '', 'headers' => []];
     for ($attempt = 0; $attempt < 3; $attempt++) {
         $last = mdm_http_once($req);
         $transportFail = !$last['ok'] || $last['status'] === 0;
         $serverFail   = $last['ok'] && $last['status'] >= 500 && $method !== 'POST';
-        if (!$transportFail && !$serverFail) {
+        $rateLimited  = $last['ok'] && $last['status'] === 429;
+        if (!$transportFail && !$serverFail && !$rateLimited) {
             return $last;
         }
         if ($attempt < 2) {
-            usleep(400000 * ($attempt + 1)); // 0.4 s, 0.8 s
+            if ($rateLimited) {
+                $retryAfter = (int)($last['headers']['retry-after'] ?? 5);
+                if ($retryAfter < 1) { $retryAfter = 5; }
+                if ($retryAfter > 60) { $retryAfter = 60; }
+                sleep($retryAfter);
+            } else {
+                usleep(400000 * ($attempt + 1)); // 0.4 s, 0.8 s
+            }
         }
     }
     return $last;
@@ -175,13 +186,16 @@ function mdm_http_once(array $req): array {
     }
     if (!function_exists('curl_init')) {
         error_log('mdm: curl extension missing');
-        return ['ok' => false, 'status' => 0, 'body' => ''];
+        return ['ok' => false, 'status' => 0, 'body' => '', 'headers' => []];
     }
     $ch = curl_init((string)($req['url'] ?? ''));
     if ($ch === false) {
-        return ['ok' => false, 'status' => 0, 'body' => ''];
+        return ['ok' => false, 'status' => 0, 'body' => '', 'headers' => []];
     }
     $method = strtoupper((string)($req['method'] ?? 'GET'));
+    // Collect response headers (lowercased name → value) so callers can honour
+    // Retry-After on a 429.
+    $respHeaders = [];
     $opts = [
         CURLOPT_HTTPHEADER       => (array)($req['headers'] ?? []),
         CURLOPT_RETURNTRANSFER   => true,
@@ -191,6 +205,19 @@ function mdm_http_once(array $req): array {
         // the intermittent SSL_ERROR_SYSCALL failures were IPv6 connection
         // attempts. Force IPv4 so probes never traverse the dead path.
         CURLOPT_IPRESOLVE        => CURL_IPRESOLVE_V4,
+        CURLOPT_HEADERFUNCTION   => function ($ch, string $line) use (&$respHeaders): int {
+            $len = strlen($line);
+            $trimmed = trim($line);
+            $pos = strpos($trimmed, ':');
+            if ($pos !== false) {
+                $name  = strtolower(trim(substr($trimmed, 0, $pos)));
+                $value = trim(substr($trimmed, $pos + 1));
+                if ($name !== '') {
+                    $respHeaders[$name] = $value;
+                }
+            }
+            return $len;
+        },
     ];
     if ($method === 'POST') {
         $opts[CURLOPT_POST]       = true;
@@ -206,9 +233,9 @@ function mdm_http_once(array $req): array {
 
     if ($body === false) {
         error_log('mdm http error: ' . $err);
-        return ['ok' => false, 'status' => 0, 'body' => ''];
+        return ['ok' => false, 'status' => 0, 'body' => '', 'headers' => []];
     }
-    return ['ok' => true, 'status' => $status, 'body' => (string)$body];
+    return ['ok' => true, 'status' => $status, 'body' => (string)$body, 'headers' => $respHeaders];
 }
 
 /** Quick reachability pre-flight for the Graph endpoint (IPv4, short timeout).
@@ -587,17 +614,21 @@ function mdm_unstage_hash(int $userId, string $serial, string $uuid): void {
 // move queued -> checking -> done|failed.
 
 /** Enqueue a fresh check for a device; returns the job id (0 on error).
- *  Skips a duplicate while one is already queued/checking for the same device. */
-function mdm_enqueue_job(int $userId, string $serial, string $uuid): int {
+ *  Skips a duplicate while one is already queued/checking for the same device,
+ *  UNLESS $force is set (the dashboard Re-check button) — a forced check always
+ *  creates a new job and bypasses the verdict cache in the worker. */
+function mdm_enqueue_job(int $userId, string $serial, string $uuid, bool $force = false): int {
     try {
-        $stmt = db()->prepare('SELECT id FROM mdm_jobs WHERE user_id = ? AND serial = ? AND uuid = ? AND status IN ("queued","checking") ORDER BY id DESC LIMIT 1');
-        $stmt->execute([$userId, $serial, $uuid]);
-        $existing = $stmt->fetch();
-        if ($existing !== false) {
-            return (int)$existing['id'];
+        if (!$force) {
+            $stmt = db()->prepare('SELECT id FROM mdm_jobs WHERE user_id = ? AND serial = ? AND uuid = ? AND status IN ("queued","checking") ORDER BY id DESC LIMIT 1');
+            $stmt->execute([$userId, $serial, $uuid]);
+            $existing = $stmt->fetch();
+            if ($existing !== false) {
+                return (int)$existing['id'];
+            }
         }
-        db()->prepare('INSERT INTO mdm_jobs (user_id, serial, uuid, status) VALUES (?, ?, ?, "queued")')
-            ->execute([$userId, $serial, $uuid]);
+        db()->prepare('INSERT INTO mdm_jobs (user_id, serial, uuid, status, `force`) VALUES (?, ?, ?, "queued", ?)')
+            ->execute([$userId, $serial, $uuid, $force ? 1 : 0]);
         return (int)db()->lastInsertId();
     } catch (Throwable $e) {
         error_log('mdm enqueue job error: ' . $e->getMessage());
@@ -681,6 +712,68 @@ function mdm_latest_job(int $userId, string $serial, ?string $uuid = null): ?arr
     } catch (Throwable $e) {
         error_log('mdm latest job error: ' . $e->getMessage());
         return null;
+    }
+}
+
+/**
+ * Most recent CACHED verdict for a device, or null. Reuses the last completed
+ * job's real verdict (unlocked/locked_this/locked_other) if it is still within
+ * $ttlSeconds, so a device re-checked within the window doesn't re-import its
+ * hash (fewer register→unregister cycles = less abuse-flag exposure).
+ * unknown/ms_error/offline/hash_invalid are never cached — a failed or
+ * inconclusive check must be retried, and a bad hash must be re-checked after
+ * the operator re-captures it. The dashboard Re-check button forces a bypass.
+ */
+function mdm_cached_verdict(int $userId, string $serial, string $uuid, int $ttlSeconds = 86400): ?array {
+    try {
+        $stmt = db()->prepare(
+            "SELECT verdict, updated_at FROM mdm_jobs
+             WHERE user_id = ? AND serial = ? AND uuid = ?
+               AND status = 'done'
+               AND verdict IN ('unlocked','locked_this','locked_other')
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$userId, $serial, $uuid]);
+        $j = $stmt->fetch();
+        if ($j === false) {
+            return null;
+        }
+        $updated = strtotime((string)($j['updated_at'] ?? ''));
+        if ($updated === false || (time() - $updated) > $ttlSeconds) {
+            return null;
+        }
+        return [
+            'verdict'     => (string)$j['verdict'],
+            'source'      => 'cache',
+            'cached_at'   => (string)($j['updated_at'] ?? ''),
+            'age_seconds' => time() - $updated,
+        ];
+    } catch (Throwable $e) {
+        error_log('mdm cached verdict error: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Seconds until the next live Graph probe is allowed (0 = allowed now). Live
+ * probes are import→delete cycles; spacing them out avoids the rapid-fire
+ * register/unregister pattern Microsoft's abuse heuristics watch for. Reads
+ * the last live probe's timestamp from mdm_log (source = 'live').
+ */
+function mdm_probe_cooldown_remaining(int $cooldownSeconds = 30): int {
+    try {
+        $last = db()->query("SELECT MAX(created_at) FROM mdm_log WHERE source = 'live'")->fetchColumn();
+        if ($last === false || $last === null || $last === '') {
+            return 0;
+        }
+        $lastTs = strtotime((string)$last);
+        if ($lastTs === false) {
+            return 0;
+        }
+        $elapsed = time() - $lastTs;
+        return $elapsed < $cooldownSeconds ? ($cooldownSeconds - $elapsed) : 0;
+    } catch (Throwable $e) {
+        return 0;
     }
 }
 
@@ -876,6 +969,16 @@ function mdm_ensure_schema(): void {
                CONSTRAINT fk_mdm_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
+        // mdm_jobs.force — a forced check (dashboard Re-check) bypasses the
+        // verdict cache. Added idempotently for pre-existing tables (MySQL 8
+        // has no ADD COLUMN IF NOT EXISTS).
+        $hasForce = db()->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_jobs' AND COLUMN_NAME = 'force'"
+        )->fetchColumn();
+        if ((int)$hasForce === 0) {
+            db()->exec('ALTER TABLE mdm_jobs ADD COLUMN `force` TINYINT(1) NOT NULL DEFAULT 0');
+        }
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_ingest_log (
                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

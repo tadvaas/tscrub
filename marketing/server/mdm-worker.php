@@ -18,6 +18,7 @@ require __DIR__ . '/mdm.php';
 
 const MAX_JOBS_PER_RUN = 10;
 const MAX_ATTEMPTS = 3;
+const PROBE_COOLDOWN_SECONDS = 30;
 
 set_time_limit(0);
 date_default_timezone_set('UTC');
@@ -33,6 +34,7 @@ try {
     exit(1);
 }
 
+mdm_ensure_schema();
 $processed = 0;
 $graphUp = mdm_graph_reachable();
 try {
@@ -55,6 +57,19 @@ try {
             continue;
         }
 
+        // Verdict cache: for a non-forced check, reuse the most recent real
+        // verdict within TTL instead of re-importing the same hash (fewer
+        // register→unregister cycles = less Microsoft abuse-flag exposure).
+        if (!(int)($job['force'] ?? 0)) {
+            $cached = mdm_cached_verdict($userId, $serial, $uuid);
+            if ($cached !== null) {
+                mdm_log_probe($userId, $serial, $uuid, $cached['verdict'], 'cache', 'worker');
+                mdm_complete_job($jobId, $cached['verdict'], 'cache', json_encode($cached));
+                echo 'job ' . $jobId . ' (' . $serial . '): ' . $cached['verdict'] . " (cached)\n";
+                continue;
+            }
+        }
+
         // Graph unreachable — don't burn a 600 s probe + import on a dead link;
         // requeue quickly and retry next minute.
         if (!$graphUp) {
@@ -64,6 +79,14 @@ try {
             continue;
         }
 
+        // Cooldown: space live probes so a queued batch doesn't fire rapid
+        // import→delete cycles back-to-back (another abuse-flag trigger).
+        $cooldown = mdm_probe_cooldown_remaining(PROBE_COOLDOWN_SECONDS);
+        if ($cooldown > 0) {
+            echo 'job ' . $jobId . ' (' . $serial . "): cooldown {$cooldown}s\n";
+            sleep($cooldown);
+        }
+
         $res     = mdm_probe($serial, $hash, 600);
         $verdict = (string)$res['verdict'];
         $source  = (string)($res['source'] ?? 'live');
@@ -71,7 +94,7 @@ try {
 
         mdm_log_probe($userId, $serial, $uuid, $verdict, $source, 'worker');
 
-        if (in_array($verdict, ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'unknown'], true)) {
+        if (in_array($verdict, ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'unknown', 'ms_error'], true)) {
             mdm_complete_job($jobId, $verdict, $source, $detail);
             echo 'job ' . $jobId . ' (' . $serial . '): ' . $verdict . "\n";
         } elseif ($verdict !== 'offline' && (int)($job['attempts'] ?? 0) + 1 >= MAX_ATTEMPTS) {

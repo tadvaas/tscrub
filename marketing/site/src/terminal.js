@@ -14,7 +14,6 @@ let busy = false
 let pendingConfirm = false
 let paintTimer = null
 
-const VERSION = 'v1.4.54'
 const COCID = '48213'
 const SPINNER = ['|', '/', '-', '\\']
 
@@ -127,7 +126,7 @@ function table(drives) {
 }
 
 function footer() {
-  const text = `tScrub ${VERSION} — tscrub.com`
+  const text = `tScrub — tscrub.com`
   line(dash(W))
   line(' '.repeat(Math.max(0, Math.floor((W - text.length) / 2))) + text)
 }
@@ -159,7 +158,7 @@ async function runDemo(dryRun = false) {
   // Boot.
   theme('boot')
   line('tScrub started at boot', 't-info')
-  line(`tScrub ${VERSION} — verifiable disk sanitisation`, 't-muted')
+  line(`tScrub — verifiable disk sanitisation`, 't-muted')
   line('')
   await sleep(500)
 
