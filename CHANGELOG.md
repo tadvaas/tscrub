@@ -6,6 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.6] - 2026-10-01
+
+### Added
+
+- **telnetd in the appliance image** — a `S50telnetd` init script starts
+  `telnetd` with a passwordless root shell for bench diagnostics. Intended for
+  an isolated bench LAN only; remove the script from the overlay for production
+  fleets.
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.6_2025.11_30_x86-64_v0.41_20261001-7bdcec46.iso`
+  (157,622,272 B, sha256 `0507efd127a541573abe8ea45f9208f97d8d444c944284fc4de45199cd3d5b6f`);
+- standalone script v1.9.6 sha256 `c247d7cc0ceb77b681a14390044ffeadeb423f27d734c61eff4fd5deb2760cac` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `4661cadeba4d416fa6911931cf64ec2661ee5541e0bafc87d2b4406a8523355f`.
+
 ## [v1.9.5] - 2026-10-01
 
 ### Changed
