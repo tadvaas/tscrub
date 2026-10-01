@@ -6,6 +6,31 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.3] - 2026-10-01
+
+### Added
+
+- **Report identity & audit proof** — every boot-time diagnostics report now
+  carries a `report_id` (UUID) and a `digital_identifier` (SHA-256 over the
+  snapshot), so each report is individually identifiable and tamper-evident.
+- **Board serial** — the diagnostics envelope now records the baseboard serial
+  (previously only captured for erasure reports).
+- **Per-drive health in diagnostics** — the drive inventory in a diagnostics
+  report now includes firmware revision, logical sector size, total sectors,
+  SMART health (PASS/FAIL/UNSUP), the most recent self-test result, and the
+  reallocated-sector count.
+- **Battery health (laptops)** — battery health is now derived from the ratio
+  of full capacity to design capacity (`energy_full`/`energy_full_design`,
+  falling back to `charge_full`/`charge_full_design`) plus charge-cycle count,
+  instead of the unreliable `health` sysfs attribute.
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.3_2025.11_30_x86-64_v0.41_20261001-052a2217.iso`
+  (157,622,272 B, sha256 `df361c77d413dbea435b66a829b218be9c20a4a24d5a0d467889546f9425335d`);
+- standalone script v1.9.3 sha256 `a3c2935aaa253bcdfcd8b43cd87a9cc5715f4d81612a300f022be9b1007b3ac6` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `c282bb1d3822f8e9b8118946f4af27b4590357d0454dc387f8efa47b6f7eb14d`.
+
 ## [v1.9.2] - 2026-10-01
 
 ### Added
