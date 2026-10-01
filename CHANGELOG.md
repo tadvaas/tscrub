@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.0] - 2026-10-01
+
+### Changed — triage-first boot
+
+- The appliance is now a **triage tool first**: it connects to the network,
+  submits its diagnostics, and starts a long-lived online heartbeat (plus the
+  remote BIOS-unlock poll and the opt-in MDM check) before showing anything.
+- Boot lands on a **triage screen** (live timer, LAN IP, MDM/BIOS lock status,
+  drive inventory). Erasure starts only on **Shift+T**, returns seamlessly to
+  triage afterwards, and is repeatable within a session.
+- **COCID no longer implies autonuke** — `--cocid` / `tscrub_cocid=` /
+  `tscrub.conf` just skip the prompt; `--autonuke` / `tscrub_autonuke=1` is the
+  explicit wipe-everything switch (fleet/PXE).
+- The elapsed timer now starts **after COCID entry**.
+- The post-erasure prompt and the "Run tScrub again" loop are removed; reboot and
+  shutdown are disabled during erasure and only offered on the triage screen.
+- The heartbeat/BIOS-unlock/MDM workers are now long-lived (no longer killed at
+  the end of a run), and MDM status refreshes live on both the triage and wipe
+  screens.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.0_2025.11_30_x86-64_v0.41_20261001-95ece3a3.iso`
+  (157,622,272 B, sha256 `e87d5edb20adb81cffcdf914918c936801ae6648cfc8293e4ba7f81da3bc4b32`);
+- standalone script v1.10.0 sha256 `ba43c9b1f4301b4c8a28af8903fb7f8444604e3a225c47bc6debbbe7f4e30f22` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `6859b5c880f99323573e2fe99fd957e004478c52e7adbf34feac61c5acd79b9e`.
+
 ## [v1.9.8] - 2026-10-01
 
 ### Added

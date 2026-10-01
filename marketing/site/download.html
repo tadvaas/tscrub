@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <title>Download — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/download" />
-  <meta name="description" content="Download the tScrub bootable sanitisation appliance image — with a SHA-256 checksum and dd write instructions." />
+  <meta name="description" content="Download the tScrub bootable appliance image — hardware triage and grading, MDM and BIOS lock detection, and verifiable drive erasure, with a SHA-256 checksum and dd write instructions." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -127,6 +127,9 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
       <h2 class="text-2xl font-bold text-ink-900 dark:text-white">What's included</h2>
       <ul class="mt-6 space-y-2 text-sm text-slate-600 dark:text-slate-400">
         <li>• The self-contained tScrub appliance</li>
+        <li>• Boot-time hardware triage &amp; grading (display, battery, CPU, RAM, firmware)</li>
+        <li>• Windows Autopilot MDM &amp; BIOS lock detection</li>
+        <li>• Printable ITAD diagnostics report per machine</li>
         <li>• Embedded sedutil-cli for SED/OPAL handling</li>
         <li>• Pre/post-wipe SMART capture for every drive</li>
         <li>• Chain-of-custody report + Certificate of Destruction generation</li>
@@ -175,10 +178,10 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
     (function () {
       var FALLBACK = {
         appliance: {
-          version: 'v1.9.8',
-          filename: 'tscrub-v1.9.8_2025.11_30_x86-64_v0.41_20261001-276f7320.iso',
-          url: '/downloads/tscrub-v1.9.8_2025.11_30_x86-64_v0.41_20261001-276f7320.iso',
-          sha256: 'd6f2c44e0e12dd1051bb5f45b3b3641e93e2d7868a4baae28a885e4139ae4605',
+          version: 'v1.10.0',
+          filename: 'tscrub-v1.10.0_2025.11_30_x86-64_v0.41_20261001-95ece3a3.iso',
+          url: '/downloads/tscrub-v1.10.0_2025.11_30_x86-64_v0.41_20261001-95ece3a3.iso',
+          sha256: 'e87d5edb20adb81cffcdf914918c936801ae6648cfc8293e4ba7f81da3bc4b32',
           size_mb: 150
         }
       };
