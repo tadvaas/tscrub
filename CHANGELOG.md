@@ -6,6 +6,21 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.1] - 2026-10-01
+
+### Changed — appliance base (kernel)
+
+- **Intel VMD support** — `CONFIG_VMD=y` so NVMe drives behind Intel Volume
+  Management Device controllers (common on modern Intel platforms) are
+  enumerated instead of appearing as "no supported drives".
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.1_2025.11_30_x86-64_v0.41_20261001-2a660fcb.iso`
+  (157,622,272 B, sha256 `ddf3add21856eb6361281df2d7ddfccb850894d2a3dfd725730481724f9b006d`);
+- standalone script v1.10.1 sha256 `8575554c8655f1353a6fac075f01edf3a0aba41b6906cf2d57cb394afa9a6237` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `83f3a6d5c2fe31c9fbb9fdbaa318bcb73e6aa519ac037b502ca51d18117b3cd3`.
+
 ## [v1.10.0] - 2026-10-01
 
 ### Changed — triage-first boot
