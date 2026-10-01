@@ -82,6 +82,10 @@ fn_main() {
     # Same for operator/validator/asset-tag/media-source/destination: parse them
     # early so the report (and any boot-time snapshot) already carries them.
     report::parse_identity
+    # Same for the network upload destination (tscrub_output=ftp:/sftp:) — parse
+    # it early so the boot-time diagnostics snapshot is delivered to LAN the
+    # same way the erasure report is.
+    report::parse_output
 
     # Enable attributable (vendor-signed) reports when a valid licence is present.
     # tScrub always requires a licence — even the free tier.
@@ -308,14 +312,21 @@ fn_main() {
         fi
     fi
 
-    # A worker that died without reporting a terminal status (OOM/killed) must
-    # not leave a drive showing RUNNING on the report.
-    for dev in "${devices[@]}"; do
-        case "${devrow[$dev.status]:-}" in
-            COMPLETED|FAILED|BLOCKED|FROZEN|DRY-RUN|SKIPPED) ;;
-            *) devrow["$dev.status"]="UNKNOWN" ;;
-        esac
-    done
+    # The erasure report must only be produced/uploaded once every drive has
+    # reached a terminal state — never while an erase is still in progress. A
+    # worker that died without reporting (OOM/killed) leaves a drive
+    # non-terminal; flag it and withhold the report (a half-done run is not an
+    # erasure report).
+    local erasure_complete=1
+    if ! ui::all_drives_terminal; then
+        erasure_complete=0
+        for dev in "${devices[@]}"; do
+            case "${devrow[$dev.status]:-}" in
+                COMPLETED|FAILED|BLOCKED|FROZEN|DRY-RUN|SKIPPED) ;;
+                *) devrow["$dev.status"]="UNKNOWN" ;;
+            esac
+        done
+    fi
 
     # Make the report honest: drives that didn't complete must not carry the
     # optimistic class/cert/method they were classified for.
@@ -327,23 +338,30 @@ fn_main() {
     if [[ "$DRY_RUN" -eq 1 ]]; then
         unset REPORT_KEY
     fi
-    if report_file=$(report::csv); then
-        # report::csv runs in a command-substitution subshell, so record the
-        # USB-save outcome here (detect_output may already have flagged "fail").
-        [[ -z "${REPORT_USB_STATUS:-}" ]] && REPORT_USB_STATUS="ok"
-    else
-        REPORT_USB_STATUS="fail"
-        REPORT_USB_REASON="failed to write report file"
-    fi
-    if [[ "$DRY_RUN" -eq 0 && -n "$report_file" ]]; then
-        report::parse_upload
-        report::parse_output
-        # If an upload destination is configured but the boot-time DHCP missed
-        # the link-up window, re-request a lease before trying to send.
-        if [[ -n "${TSCRUB_API_TOKEN:-}" || -n "${TSCRUB_NET_PROTO:-}" ]]; then
-            network::ensure
+
+    if [[ "$erasure_complete" -eq 1 ]]; then
+        if report_file=$(report::csv); then
+            # report::csv runs in a command-substitution subshell, so record the
+            # USB-save outcome here (detect_output may already have flagged "fail").
+            [[ -z "${REPORT_USB_STATUS:-}" ]] && REPORT_USB_STATUS="ok"
+        else
+            REPORT_USB_STATUS="fail"
+            REPORT_USB_REASON="failed to write report file"
         fi
-        report::upload "$report_file"
+        if [[ "$DRY_RUN" -eq 0 && -n "$report_file" ]]; then
+            report::parse_upload
+            report::parse_output
+            # If an upload destination is configured but the boot-time DHCP missed
+            # the link-up window, re-request a lease before trying to send.
+            if [[ -n "${TSCRUB_API_TOKEN:-}" || -n "${TSCRUB_NET_PROTO:-}" ]]; then
+                network::ensure
+            fi
+            report::upload "$report_file"
+        fi
+    else
+        printf "%sErasure report withheld: not all drives reached a terminal state (erasure incomplete).\n" "$TABLE_INDENT" >&5
+        REPORT_USB_STATUS="fail"
+        REPORT_USB_REASON="erasure incomplete — report withheld"
     fi
     debug::save
     report::sync_out

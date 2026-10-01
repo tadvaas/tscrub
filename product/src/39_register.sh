@@ -156,9 +156,29 @@ register::save_usb() {
     return 0
 }
 
-# One-shot registration: portal push + USB copy. Call once after discovery and
-# capability detection (so the drive inventory is complete), before selection.
+# Deliver the same snapshot to a network destination (FTP/SFTP via
+# tscrub_output=), mirroring the erasure report's network delivery so both
+# report kinds use the same destinations (USB + dashboard + LAN). Best-effort:
+# a failed LAN push never fails the run.
+register::upload_lan() {
+    local file
+    [[ -n "${TSCRUB_NET_PROTO:-}" ]] || return 0
+    command -v lftp >/dev/null 2>&1 || return 0
+    if command -v ip >/dev/null 2>&1; then
+        network::ensure
+    fi
+    file="/tmp/tScrub_device_${SYS_SERIAL:-unknown}.json"
+    register::json > "$file" 2>/dev/null || return 0
+    report::upload_net "$file"
+    rm -f "$file" 2>/dev/null
+    return 0
+}
+
+# One-shot registration: portal push + USB copy + LAN copy. Call once after
+# discovery and capability detection (so the drive inventory is complete),
+# before selection.
 register::push() {
     register::send
     register::save_usb
+    register::upload_lan
 }
