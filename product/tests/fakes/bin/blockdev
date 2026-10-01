@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 if [[ "$1" == "--getsize64" ]]; then
     printf '1000204886016\n'
+elif [[ "$1" == "--getss" ]]; then
+    printf '512\n'
 fi
 exit 0

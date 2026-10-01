@@ -109,7 +109,7 @@ device::discover() {
             # Firmware revision (NVMe: `fr`), logical sector size, total sectors.
             firmware[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^fr[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
             secsize[$dev]="$(blockdev --getss /dev/$dev 2>/dev/null)"
-            [[ "$secsize[$dev]" =~ ^[0-9]+$ ]] || secsize[$dev]=""
+            [[ "${secsize[$dev]}" =~ ^[0-9]+$ ]] || secsize[$dev]=""
             hpa[$dev]="N/A"
             dco[$dev]="N/A"
 
@@ -178,7 +178,7 @@ device::discover() {
                 # state (HPA via `hdparm -N`, DCO via `--dco-identify`).
                 firmware[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Firmware Revision/ {print $2}' | xargs | tr -d '\000-\037\177')
                 secsize[$dev]="$(blockdev --getss /dev/$dev 2>/dev/null)"
-                [[ "$secsize[$dev]" =~ ^[0-9]+$ ]] || secsize[$dev]=""
+                [[ "${secsize[$dev]}" =~ ^[0-9]+$ ]] || secsize[$dev]=""
 
                 _hpa="$(hdparm -N /dev/$dev 2>/dev/null)"
                 if [[ "$_hpa" == *"HPA is enabled"* ]]; then

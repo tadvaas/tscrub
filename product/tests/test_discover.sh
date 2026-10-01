@@ -21,10 +21,11 @@ t::assert_eq "SATA" "${bus[sda]}" "sda bus"
 t::assert_eq "HDD" "${type[sda]}" "sda type (rotational=1)"
 t::assert_eq "NO" "${opal_locked[sda]}" "sda opal not locked"
 t::assert_eq "1953525168" "${sectors[sda]}" "sda total 512-byte sectors"
-t::assert_eq "" "${secsize[sda]}" "sda logical sector size (unavailable in fake)"
+t::assert_eq "512" "${secsize[sda]}" "sda logical sector size"
 t::assert_eq "N/A" "${hpa[sda]}" "sda HPA state N/A (no hdparm -N output)"
 t::assert_eq "Doesn't exist" "${dco[sda]}" "sda DCO not present"
 t::assert_eq "1953525168" "${sectors[nvme0n1]}" "nvme total 512-byte sectors"
+t::assert_eq "512" "${secsize[nvme0n1]}" "nvme logical sector size"
 t::assert_eq "N/A" "${hpa[nvme0n1]}" "nvme HPA N/A"
 
 t::summary
