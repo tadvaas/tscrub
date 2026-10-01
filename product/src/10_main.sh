@@ -22,16 +22,34 @@ dryrun::simulate_running_eta() {
     done
 }
 
+# Kill the long-lived session workers (presence heartbeat, BIOS-unlock poll,
+# MDM check) and the one-shot registration when the session ends. Best-effort:
+# the pids may be empty (workers not yet forked) or already dead. A
+# non-interactive shell does NOT kill `&` jobs when it exits — without this they
+# would keep heartbeating as orphans while getty respawns a fresh tScrub.
+session::teardown() {
+    local p
+    for p in "${presence_pid:-}" "${bios_unlock_pid:-}" "${mdm_pid:-}" "${register_pid:-}"; do
+        [[ -n "$p" ]] || continue
+        kill "$p" 2>/dev/null || true
+    done
+    # Flush + unmount the report USB if it is still mounted. A pure-triage
+    # session (Esc without erasing) never reaches report::sync_out, so without
+    # this the boot-time diagnostics snapshot written to the stick would be
+    # lost on power-off AND the mount would leak across getty respawns.
+    report::sync_out
+}
+
 fn_main() {
     # Restore the cursor on exit; make Ctrl+C / SIGTERM actually abort (after
-    # showing the cursor) instead of being silently swallowed.
+    # showing the cursor) instead of being silently swallowed. The EXIT trap
+    # also tears down the long-lived session workers.
     trap 'ui::spinner_stop; ui::cursor_show; exit 130' INT
     trap 'ui::spinner_stop; ui::cursor_show; exit 143' TERM
-    trap 'ui::spinner_stop; ui::cursor_show' EXIT
+    trap 'ui::spinner_stop; ui::cursor_show; session::teardown' EXIT
 
-    # Reset per-run state so a repeat run (post-run "Run again" option) starts
-    # clean, and rebuild the worker -> UI IPC channel the previous run consumed.
-    RERUN=0
+    # Reset per-run state. (The worker -> UI IPC channel is opened per erasure
+    # inside erasure::run, since one session can run several erasures.)
     REPORT_USB_STATUS=""
     REPORT_USB_REASON=""
     REPORT_DASH_STATUS=""
@@ -43,10 +61,12 @@ fn_main() {
     BIOS_PASSWORD_STATUS=""
     BIOS_DETECTION_METHOD=""
     mdm_pid=""
+    presence_pid=""
+    bios_unlock_pid=""
+    register_pid=""
     devrow=()
     ui_eta_row=()
     pids=()
-    ipc::open
     rm -f "$MDM_RESULT_FILE"
 
     if [ -t 1 ]; then
@@ -69,7 +89,6 @@ fn_main() {
     # BIOS lock check: a synchronous local read (sysfs + dmidecode) that
     # completes in <1s, so it runs inline before the first render — no worker.
     bios::detect
-    START_TS="$(ts::now)"
 
     # Apply any on-stick tscrub.conf (dashboard upload, COCID, licence URL)
     # first, so the licence/COCID resolution below sees it.
@@ -135,27 +154,41 @@ fn_main() {
     # Clear the centered COCID prompt so its text doesn't linger while the
     # discovery -> SMART -> unfreeze sequence runs below.
     ui::terminal_controls_supported && clear
-    # Autonuke: wipe every drive immediately (no selection screen) when forced
-    # by --autonuke, implied by --cocid / tscrub_cocid= (NON_INTERACTIVE), or
-    # requested from the kernel command line (tscrub_autonuke=1).
-    if [[ "$AUTONUKE" -eq 1 || "$NON_INTERACTIVE" -eq 1 ]] || cmdline::autonuke; then
+
+    # The session timer starts once the COCID has been resolved (the "app
+    # start" moment), so the Elapsed panel does not count COCID entry time.
+    START_TS="$(ts::now)"
+
+    # Connect to the network explicitly, so the presence heartbeat, remote
+    # BIOS unlock and the LAN-IP display are reliable from the start (a no-op
+    # once a default route already exists). Runs AFTER the COCID prompt so a
+    # no-network machine doesn't stall on a blank screen before the prompt.
+    if command -v ip >/dev/null 2>&1; then
+        network::ensure || true
+    fi
+
+    # Autonuke is opt-in only: --autonuke / tscrub_autonuke=1. Supplying a COCID
+    # (CLI flag, kernel cmdline or tscrub.conf) no longer implies autonuke — a
+    # COCID'd boot lands on the triage screen like any other boot.
+    if [[ "$AUTONUKE" -eq 1 ]] || cmdline::autonuke; then
         AUTONUKE=1
     fi
-    # Kick off the MDM (Autopilot) check in the background — it runs in parallel
-    # with device discovery/SMART capture and publishes its verdict to the UI
-    # over the worker IPC channel (fd 3). Forked before the `exec 3>&-` below so
-    # its late status write still reaches the UI reader. The appliance only sends
-    # serial/uuid; the dashboard holds the Azure credentials.
+
+    # Long-lived background workers — the presence heartbeat, the remote
+    # BIOS-unlock poll and (opt-in) the MDM/Autopilot check. They are forked
+    # DETACHED (IPC fds closed) and run for the WHOLE session; the erasure
+    # workflow must never kill them. The MDM verdict travels via its result
+    # file and is re-read by the triage + wipe screens (mdm::sync_state).
     # Placeholder shown until the worker publishes the dashboard's real label —
     # an honest ASCII "Pending" (NOT "Checking…", and NOT the Unicode "…" which
     # the appliance console renders as a single dot) so a not-yet-published
     # state can't be mistaken for the server's own "checking".
     MDM_STATUS="Pending"
-    mdm::detect &
+    { mdm::detect; } 3>&- 4<&- &
     mdm_pid=$!
-    presence::loop &
+    { presence::loop; } 3>&- 4<&- &
     presence_pid=$!
-    bios_unlock::loop &
+    { bios_unlock::loop; } 3>&- 4<&- &
     bios_unlock_pid=$!
     device::install_sedutil
     ui::spinner_start "Discovering devices..."
@@ -198,11 +231,72 @@ fn_main() {
     # is closed so the job doesn't hold the UI IPC pipe open.
     { register::push; } 3>&- &
     register_pid=$!
-    # The MDM worker's result travels over the IPC pipe that only ui::loop reads
-    # (during the wipe), so pull its latest published state back before the
-    # selection screen renders — otherwise the panel shows the "Pending"
-    # placeholder even though the verdict already settled.
+    # The MDM worker publishes its verdict to a result file; pull its latest
+    # state back before the first screen renders.
     mdm::sync_state
+
+    if [[ "$AUTONUKE" -eq 1 ]]; then
+        # PXE fleet / --autonuke: wipe every drive immediately, report, then
+        # exit (no triage screen, no post-run prompt).
+        erasure::run
+        ui::cursor_show
+    else
+        # Default: the persistent triage screen. Erasure is entered on Shift+T.
+        triage::run
+        ui::cursor_show
+    fi
+
+    # The background registration is a one-shot POST; reap it if it outlived
+    # the session (its USB snapshot write is best-effort, so a late finish is
+    # fine). The presence / BIOS-unlock / MDM workers are long-lived and are
+    # intentionally left to die with the process.
+    if [[ -n "${register_pid:-}" ]]; then
+        kill "$register_pid" 2>/dev/null || true
+        wait "$register_pid" 2>/dev/null || true
+    fi
+}
+
+# =============================================================================
+# ERASURE WORKFLOW (repeatable) — entered from the triage screen via Shift+T,
+# or immediately when --autonuke is set. Runs one full select → wipe → report
+# → finish cycle, then returns to the caller (the triage screen re-renders).
+# =============================================================================
+erasure::run() {
+    local dev
+
+    # A repeat erasure starts clean. Rebuild the drive table (re-runs
+    # device::classify, resetting status→PLANNED and clearing the timing
+    # caches) and clear the per-cycle selection + report-timing fields the
+    # previous cycle left behind. table::build is required here because
+    # device::normalize_outcome rewrites class/cert/method for non-completed
+    # drives at the end of each cycle.
+    table::build
+    for dev in "${devices[@]}"; do
+        devrow["$dev.selected"]=0
+        devrow["$dev.start_ts"]=""
+        devrow["$dev.end_ts"]=""
+    done
+    ui_eta_row=()
+    pids=()
+
+    # Report-delivery state is per-cycle, not per-session.
+    REPORT_USB_STATUS=""
+    REPORT_USB_REASON=""
+    REPORT_DASH_STATUS=""
+    REPORT_DASH_REASON=""
+    REPORT_NET_STATUS=""
+    REPORT_NET_REASON=""
+
+    # Re-mount the report destination if a previous cycle unmounted it (the
+    # boot-time mount is consumed by each erasure's sync_out).
+    if [[ -z "${REPORT_USB_MNT:-}" ]]; then
+        report::detect_output
+    fi
+
+    # Fresh worker -> UI IPC channel for this erasure (the previous one was
+    # consumed; a session can run several erasures).
+    ipc::open
+
     if [[ "$AUTONUKE" -eq 1 ]]; then
         select::all
         table::render
@@ -215,14 +309,22 @@ fn_main() {
             table::render
         fi
         if ! select::run; then
-            ui::cursor_show
-            printf "%s%s\n" "$TABLE_INDENT" "Selection aborted — nothing was erased."
+            # Esc on the selection screen: land back on the triage screen, not a
+            # frozen selection screen. select::run has just cleared SELECT_MODE,
+            # so the marker rows and the selection footer legend on the console
+            # are stale — re-render the idle table (blue, triage legend). Return
+            # 2 so the caller (triage::run) knows to resume its normal MDM
+            # re-renders instead of pinning the finish screen (return 0 means
+            # the finish screen is up as the post-erasure result view).
             report::sync_out
-            exit 0
+            ipc::close
+            TRIAGE_MODE=1
+            UI_COMPLETE_THEME=4
+            mdm::sync_state
+            table::render
+            return 2
         fi
     fi
-
-    pids=()
 
     # Unselected drives are recorded (not wiped) as SKIPPED.
     for dev in "${devices[@]}"; do
@@ -267,50 +369,11 @@ fn_main() {
         wait "$pid"
     done
 
-    # Settle the MDM verdict before the report is written: wait for the worker
-    # (bounded by its curl --max-time) and recover its verdict from the result
-    # file if the UI loop ended before it published (e.g. an instant dry-run).
-    if [[ -n "${mdm_pid:-}" ]]; then
-        # If the Autopilot worker outlived the drive workers the screen would
-        # otherwise sit frozen — both the elapsed timer and its spinner stop
-        # the moment the last drive completes. Keep ticking the timer/spinner
-        # in place and swap the MDM cell to "Finalising…" (same static ellipsis
-        # as "Checking…") until the worker actually exits.
-        if [[ -t 1 ]] && kill -0 "$mdm_pid" 2>/dev/null; then
-            local mdm_row=$(( UI_RUNTIME_ROW + 6 ))
-            local mdm_stat_line mdm_state mdm_ticks=0
-            printf "\033[%d;%dH%-*.*s" "$mdm_row" "$UI_RUNTIME_COL" \
-                "$UI_RUNTIME_VALUE_W" "$UI_RUNTIME_VALUE_W" "Finalising..."
-            while kill -0 "$mdm_pid" 2>/dev/null && (( mdm_ticks < 20 )); do
-                # A finished-but-unreaped worker is a zombie and kill -0 still
-                # succeeds for it — stop as soon as its /proc state reads "Z".
-                if [[ -r "/proc/$mdm_pid/stat" ]]; then
-                    mdm_stat_line="$(< "/proc/$mdm_pid/stat")"
-                    mdm_state="${mdm_stat_line##*) }"; mdm_state="${mdm_state:0:1}"
-                    [[ "$mdm_state" == "Z" ]] && break
-                fi
-                # Advances the elapsed timer + spinner (and refreshes the ETA
-                # cells) while the worker settles, bounded so a still-pending
-                # probe can't hold the finish screen open.
-                ui::tick_inplace || true
-                sleep 0.25
-                mdm_ticks=$(( mdm_ticks + 1 ))
-            done
-        fi
-        # The MDM worker polls the dashboard in the background and normally
-        # finishes long before the wipe does; a fast wipe/dry-run can outrun it.
-        # Stop it here so the finish screen/report are never blocked on a
-        # still-pending probe — the latest published label is recovered below.
-        kill "$mdm_pid" 2>/dev/null || true
-        wait "$mdm_pid" 2>/dev/null || true
-        if [[ -f "$MDM_RESULT_FILE" ]]; then
-            [[ -z "${MDM_VERDICT:-}" ]] && MDM_VERDICT="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
-            if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "Pending" ]]; then
-                MDM_STATUS="$(sed -n '2p' "$MDM_RESULT_FILE" 2>/dev/null)"
-                [[ -n "${MDM_STATUS:-}" ]] || MDM_STATUS="Offline"
-            fi
-        fi
-    fi
+    # Settle the MDM verdict for the report from the worker's result file
+    # (non-blocking — the worker is long-lived and must NOT be killed here; it
+    # finishes its own bounded polling and the triage screen keeps showing its
+    # latest label).
+    mdm::sync_state
 
     # The erasure report must only be produced/uploaded once every drive has
     # reached a terminal state — never while an erase is still in progress. A
@@ -378,6 +441,11 @@ fn_main() {
     [[ "${REPORT_DASH_STATUS:-}" == "fail" ]] && report_failed=1
     [[ "${REPORT_NET_STATUS:-}" == "fail" ]]  && report_failed=1
 
+    # The finish screen doubles as the post-erasure result view: show the triage
+    # key legend in its footer so the operator can re-erase (Shift+T), power off
+    # (R/S) or exit (Esc) without a blocking prompt.
+    TRIAGE_MODE=1
+
     # Paint the outcome colour only now that the wipe, SMART capture and report
     # delivery have all finished — no green/red then amber flash.
     if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -408,22 +476,10 @@ fn_main() {
 
     report::print_summary
 
-    # Stop the presence heartbeat — the run is finished.
-    if [[ -n "${presence_pid:-}" ]]; then
-        kill "$presence_pid" 2>/dev/null || true
-    fi
-    if [[ -n "${bios_unlock_pid:-}" ]]; then
-        kill "$bios_unlock_pid" 2>/dev/null || true
-    fi
-    # The background registration is a one-shot POST; reap it if it outlived
-    # the run (its USB snapshot write is best-effort, so a late finish is fine).
-    if [[ -n "${register_pid:-}" ]]; then
-        kill "$register_pid" 2>/dev/null || true
-        wait "$register_pid" 2>/dev/null || true
-    fi
-
-    if [[ "$DRY_RUN" -eq 0 ]]; then
-        [[ "$NON_INTERACTIVE" -eq 1 ]] || ui::post_run_prompt
-    fi
+    # Consume this erasure's IPC channel so the next erasure (or the triage
+    # screen) can open a fresh one. The long-lived telemetry workers are
+    # deliberately left running — they die with the process, never here.
+    ipc::close
+    return 0
 }
 

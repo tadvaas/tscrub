@@ -68,7 +68,9 @@ vm_ssh "$IP" 'mkdir -p /tmp/tscrub/out' >/dev/null 2>&1 || true
 scp -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "$IMAGE_DIR/tscrub.sh" "$VM_USER@$IP:/tmp/tscrub/" >/dev/null
 
-# COCID comes from tscrub.conf (no prompt); feed "C" for the post-run prompt.
+# COCID comes from tscrub.conf (no prompt). Stdout is piped, so there is no
+# terminal: the triage screen's headless fallback wipes everything (no key
+# press needed — the old post-run prompt is gone).
 printf 'C\n' | ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -tt \
     "$VM_USER@$IP" "cd /tmp/tscrub && sudo ./tscrub.sh 2>&1" \
     | tee "$REPORTS/run.log"

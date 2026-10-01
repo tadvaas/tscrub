@@ -9,7 +9,7 @@ fi
 # defined. Must run before fn_main, and AFTER the verify dispatch above.
 parse_args "$@"
 
-RERUN=1
-while [[ "$RERUN" -eq 1 ]]; do
-    fn_main
-done
+# A single persistent session: fn_main boots the triage screen and, on Shift+T,
+# runs (and re-runs) the erasure workflow. The getty respawns tScrub when the
+# process exits, so a fresh session starts on the next boot/exit.
+fn_main

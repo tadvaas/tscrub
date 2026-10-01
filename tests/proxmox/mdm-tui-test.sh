@@ -68,13 +68,13 @@ vm_prepare "$IP"
 vm_push_files "$IP"
 
 # 3. Run with the Autopilot check on, against the local mock dashboard.
-#    --cocid implies autonuke (no selection screen, no post-run prompt);
-#    --dry-run --simulate-running-eta=1 keeps the UI up ~60s so the MDM worker
-#    has time to resolve (no real wipe).
+#    --autonuke skips the triage screen (no selection screen, no post-run
+#    prompt); --dry-run --simulate-running-eta=1 keeps the UI up ~60s so the
+#    MDM worker has time to resolve (no real wipe).
 ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null -tt \
     "$VM_USER@$IP" \
-    "cd /tmp/tscrub && sudo sh -c 'stty cols 120 rows 50 2>/dev/null; TERM=xterm-256color exec env TSCRUB_API_TOKEN=mdm-vm-test-token TSCRUB_UPLOAD_URL=http://192.168.0.85:8080/api/reports ./tscrub.sh --license /tmp/tscrub/test.lic --cocid 12345 --autopilotcheck --dry-run --simulate-running-eta=1 --output /tmp/tscrub/out' 2>&1" \
+    "cd /tmp/tscrub && sudo sh -c 'stty cols 120 rows 50 2>/dev/null; TERM=xterm-256color exec env TSCRUB_API_TOKEN=mdm-vm-test-token TSCRUB_UPLOAD_URL=http://192.168.0.85:8080/api/reports ./tscrub.sh --license /tmp/tscrub/test.lic --cocid 12345 --autonuke --autopilotcheck --dry-run --simulate-running-eta=1 --output /tmp/tscrub/out' 2>&1" \
     > "$OUT" 2>&1 || true
 
 echo "== captured $(wc -c < "$OUT") bytes"

@@ -34,6 +34,7 @@ t::source_src() {
     local f
     for f in \
         "$ROOT_DIR/src/00_bootstrap.sh" \
+        "$ROOT_DIR/src/10_main.sh" \
         "$ROOT_DIR/src/20_ui.sh" \
         "$ROOT_DIR/src/30_device.sh" \
         "$ROOT_DIR/src/31_device_nvme.sh" \

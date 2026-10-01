@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.9.8"
+SCRIPT_VERSION="v1.10.0"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -13,7 +13,6 @@ REPORT_OUTPUT=""
 TABLE_INDENT="    "
 COCID=""
 CONFIG_USB_DEBUG=""
-NON_INTERACTIVE=0
 AUTONUKE=0
 SELFTEST=0
 SELFTEST_CPU=""
@@ -31,7 +30,6 @@ REPORT_DASH_STATUS=""
 REPORT_DASH_REASON=""
 REPORT_NET_STATUS=""
 REPORT_NET_REASON=""
-RERUN=0
 UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
 UI_RUNTIME_VALUE_W=0
@@ -530,13 +528,23 @@ fi
 exec 5>>"$LOG_FILE" || exec 5>/dev/null
 
 # (Re)establish the worker -> UI IPC channel. Workers write status lines to
-# fd 3; the UI reads them from fd 4. A single run consumes (closes) fds 3 and 4
-# and lets the coprocess exit, so this is called at the start of every run to
-# rebuild the channel when the post-run prompt's "Run again" option is chosen.
+# fd 3; the UI reads them from fd 4. One erasure cycle consumes (closes) the
+# channel, so erasure::run opens a fresh one at the start of each cycle.
 ipc::open() {
     coproc UI { cat; }
     exec 3>&${UI[1]}
     exec 4<&${UI[0]}
+}
+
+# Tear down the worker -> UI IPC channel. Best-effort — the fds may already be
+# closed (ui::loop closes fds 4 and UI[0]; erasure::run closes fd 3 + UI[1]
+# before ui::loop). Called on the selection-abort path and at the end of each
+# erasure so a repeat erasure opens a clean channel.
+ipc::close() {
+    exec 3>&- 2>/dev/null || true
+    exec 4<&- 2>/dev/null || true
+    { exec {UI[0]}<&-; } 2>/dev/null || true
+    { exec {UI[1]}>&-; } 2>/dev/null || true
 }
 
 parse_args() {
@@ -608,13 +616,11 @@ parse_args() {
                 ;;
             --cocid=*)
                 COCID="${arg#*=}"
-                NON_INTERACTIVE=1
                 ;;
             --cocid)
                 shift
                 [[ $# -gt 0 ]] || { echo "--cocid requires a 5-digit Chain of Custody ID"; exit 1; }
                 COCID="$1"
-                NON_INTERACTIVE=1
                 ;;
             --autonuke)
                 AUTONUKE=1
@@ -675,8 +681,8 @@ parse_args() {
                 echo "  --license PATH       Read the licence from PATH (default: boot USB, then /etc/tscrub/license.lic)."
                 echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.lic)."
                 echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
-                echo "  --cocid 12345        Set the Chain of Custody ID and run non-interactively (autonuke)."
-                echo "  --autonuke           Select every drive and start erasure without the selection screen."
+                echo "  --cocid 12345        Set the Chain of Custody ID (no longer implies autonuke)."
+                echo "  --autonuke           Select every drive and start erasure without the triage screen."
                 echo "  --operator NAME      Record the erasure technician on the report."
                 echo "  --validator NAME     Record the validation official on the report."
                 echo "  --asset-tag TAG      Override the asset tag (default: firmware chassis asset tag)."

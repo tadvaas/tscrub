@@ -336,7 +336,7 @@ ui::bios_render() {
 # line. Called with the cursor on the separator's row; it leaves the cursor on
 # the footer text row (the caller's blank bottom-margin row sits below it).
 ui::footer() {
-    local text term_w pad sep legend
+    local text term_w pad sep legend=""
     text="${SCRIPT_NAME} ${SCRIPT_VERSION} — tscrub.com"
     term_w="$(table::detect_terminal_width)"
     sep="$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
@@ -346,6 +346,10 @@ ui::footer() {
     printf "\033[K%*s%s" "$pad" "" "$text"
     if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
         legend="$(select::legend)"
+    elif [[ "${TRIAGE_MODE:-0}" -eq 1 ]]; then
+        legend="$(triage::legend)"
+    fi
+    if [[ -n "$legend" ]]; then
         pad=$(( (term_w - ${#legend}) / 2 ))
         (( pad < 0 )) && pad=0
         printf "\n\033[K%*s%s" "$pad" "" "$legend"
@@ -620,7 +624,9 @@ table::render() {
     # the cursor so the caller's position (finish message, in-place tick) is kept.
     if [[ -t 1 ]] && (( rows > 3 )); then
         local footer_row=$(( rows - 2 ))
-        [[ "${SELECT_MODE:-0}" -eq 1 ]] && footer_row=$(( rows - 3 ))
+        if [[ "${SELECT_MODE:-0}" -eq 1 || "${TRIAGE_MODE:-0}" -eq 1 ]]; then
+            footer_row=$(( rows - 3 ))
+        fi
         printf "\0337"
         printf "\033[%d;1H" "$footer_row"
         ui::footer
@@ -676,8 +682,14 @@ ui::loop() {
                 printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5
             fi
         elif (( _rc > 128 )); then
-            # read timed out — update only time fields to avoid full-screen flicker
-            if ! ui::tick_inplace && [[ -t 1 ]]; then
+            # read timed out — refresh the MDM cell from the worker's result
+            # file (re-render only when the label changes), else update just
+            # the time fields in place to avoid full-screen flicker.
+            local prev_mdm="${MDM_STATUS:-}"
+            mdm::sync_state
+            if [[ "${MDM_STATUS:-}" != "$prev_mdm" ]]; then
+                table::render
+            elif ! ui::tick_inplace && [[ -t 1 ]]; then
                 table::render
             fi
             # If every drive is already terminal but the pipe read end never
@@ -703,11 +715,9 @@ ui::loop() {
         fi
     done
     exec 4<&-
-    # Close the coprocess read end too, so repeated "Run again" (RERUN) does
-    # not leak one fd per run.
-    # Close the coprocess read end too, so repeated "Run again" (RERUN) does
-    # not leak one fd per run. The stderr suppression is scoped to the group so
-    # it does NOT permanently redirect the shell's stderr.
+    # Close the coprocess read end too, so a repeat erasure does not leak one
+    # fd per cycle. The stderr suppression is scoped to the group so it does
+    # NOT permanently redirect the shell's stderr.
     { exec {UI[0]}<&-; } 2>/dev/null || true
 }
 
@@ -724,7 +734,7 @@ ui::all_drives_terminal() {
 }
 
 # =============================================================================
-# DRIVE SELECTION (triage screen) — Space toggles, Shift+S starts.
+# DRIVE SELECTION — Space toggles, T starts (entered from the triage screen).
 # =============================================================================
 
 # Number of currently selected drives.
@@ -770,10 +780,14 @@ select::none() {
 SELECT_MODE=0
 SELECT_CURSOR=""
 
+# Triage mode: the idle diagnostics screen (default after COCID). When set the
+# footer shows the triage key legend instead of the selection legend.
+TRIAGE_MODE=0
+
 # Compact selection legend (also shown in the sticky footer). The selected
 # count is embedded so the footer can be repainted in place on each toggle.
 select::legend() {
-    printf 'Space=select ↑/↓=move A=all N=none T=start R=restart S=shutdown Esc   Sel: %d/%d' \
+    printf 'Space=select ↑/↓=move A=all N=none T=start Esc   Sel: %d/%d' \
         "$(select::count)" "${#devices[@]}"
 }
 
@@ -890,11 +904,107 @@ select::run() {
                     return 0
                 fi
                 ;;
-            'R') select::reboot; return 1 ;;
-            'S') select::shutdown; return 1 ;;
             $'\e'|'q') SELECT_MODE=0; SELECT_CURSOR=""; return 1 ;;
         esac
     done
+}
+
+# =============================================================================
+# TRIAGE SCREEN — the idle diagnostics screen shown after COCID entry
+# =============================================================================
+
+# Triage (idle) screen key legend, shown in the sticky footer.
+triage::legend() {
+    printf 'Shift+T=erase  R=restart  S=shutdown  Esc=quit'
+}
+
+# Persistent triage screen: shows the live diagnostics table (timer, LAN IP,
+# MDM, BIOS lock, drive inventory) and waits. Shift+T enters the erasure
+# workflow; R/S power off; Esc/q exits (the getty respawns tScrub). The
+# presence / BIOS-unlock / MDM workers keep running the whole time, so the
+# machine stays "online" while it idles here.
+triage::run() {
+    local key k2 rc prev_status on_finish=0
+
+    TRIAGE_MODE=1
+    SELECT_MODE=0
+    SELECT_CURSOR=""
+    UI_COMPLETE_THEME=4
+    if [[ -t 1 ]] && [[ -n "${TERM:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
+        UI_INPLACE=1
+    else
+        UI_INPLACE=0
+    fi
+    ui::cursor_hide
+
+    mdm::sync_state
+    table::render
+
+    if ! ui::terminal_controls_supported; then
+        # Headless (no terminal): there is no triage screen to interact with —
+        # fall back to wiping everything (the same select-all fallback the old
+        # selection screen used), so unattended boots still erase + report.
+        TRIAGE_MODE=0
+        erasure::run
+        return 0
+    fi
+
+    while :; do
+        IFS= read -t 0.5 -rsn1 key < /dev/tty 2>/dev/null; rc=$?
+        if (( rc > 128 )); then
+            # Timeout — refresh the elapsed timer in place; re-render only when
+            # the MDM verdict label changes. On the finish screen (the result
+            # view after an erasure) never re-render — that would erase the
+            # report summary + drive guidance; just keep ticking the timer.
+            prev_status="${MDM_STATUS:-}"
+            mdm::sync_state
+            if [[ "$on_finish" -eq 0 && "${MDM_STATUS:-}" != "$prev_status" ]]; then
+                table::render
+            else
+                ui::tick_inplace || true
+            fi
+            continue
+        elif (( rc != 0 )); then
+            # Read failed (EOF / no tty) — leave triage.
+            break
+        fi
+
+        if [[ "$key" == $'\e' ]]; then
+            IFS= read -rsn2 -t 0.05 k2 < /dev/tty 2>/dev/null
+            key="$key$k2"
+        fi
+
+        case "$key" in
+            T|t)
+                # Enter the erasure workflow; return seamlessly afterwards. The
+                # finish screen stays up as the result view (erasure::run sets
+                # TRIAGE_MODE so its footer carries the triage key legend) with
+                # its report summary + drive guidance intact — Shift+T re-erases,
+                # R/S power off, Esc exits. The elapsed timer keeps ticking.
+                TRIAGE_MODE=0
+                erasure::run
+                # erasure::run leaves either the result view (finish screen,
+                # theme 1/2/3 — keep it up, never re-render) or, after a
+                # selection abort (return 2), the re-rendered triage screen —
+                # resume normal MDM re-renders in that case.
+                if [[ $? -eq 2 ]]; then
+                    on_finish=0
+                else
+                    on_finish=1
+                fi
+                if [[ -t 1 ]] && [[ -n "${TERM:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
+                    UI_INPLACE=1
+                fi
+                ui::cursor_hide
+                ;;
+            R|r) TRIAGE_MODE=0; select::reboot; return 0 ;;
+            S|s) TRIAGE_MODE=0; select::shutdown; return 0 ;;
+            $'\e'|q|Q) break ;;
+        esac
+    done
+
+    TRIAGE_MODE=0
+    return 0
 }
 
 

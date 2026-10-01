@@ -1,6 +1,6 @@
 # tScrub
 
-> tScrub is an open, auditable disk-sanitisation tool for regulated IT. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels and produces a verifiable chain-of-custody report. Boot the ready-to-go tScrub appliance image from USB or PXE on hardware you already own.
+> tScrub is an open ITAD (IT asset disposition) platform. It triages and grades every machine it boots on — hardware profile, battery health, display, and MDM or BIOS lock status — then erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels when you start the job (Shift+T). Every run produces a printable hardware diagnostics report plus a verifiable, signed chain-of-custody report. Boot the ready-to-go tScrub appliance image from USB or PXE on hardware you already own.
 
 ## Pages
 
@@ -12,6 +12,7 @@
 - [Resources](https://tscrub.com/resources): Data erasure guides — standards, drive types, wipe methods, certificates of destruction, and a buyer's guide.
 - [FAQ](https://tscrub.com/faq): Certification, running on your own hardware, and edge-case drive handling.
 - [Certificates](https://tscrub.com/dashboard/certificates): Upload reports on the Drives page, then select a Chain of Custody ID to generate one consolidated, printable Certificate of Destruction per job, and manage every certificate on your account.
+- [Devices](https://tscrub.com/dashboard/devices): Every machine that has booted tScrub — hardware profile (display, battery, CPU, RAM, BIOS, TPM, Secure Boot), MDM and BIOS lock status, online presence and LAN IP, and a printable ITAD diagnostics report PDF per device.
 - [Drives](https://tscrub.com/dashboard/drives): Upload reports and view erasure and pre/post-wipe SMART data for every drive — each drive's reports are listed under it, uploaded manually or pushed from an appliance.
 - [Contact](https://tscrub.com/contact): Sales, support, and compliance enquiries.
 
@@ -56,10 +57,16 @@
 
 - Supports NVMe (crypto, block, overwrite sanitise + format fallback), ATA (enhanced/standard secure erase), and SCSI sanitise.
 - Handles SED/OPAL drives via PSID revert and detects BIOS Block SID lockdown (0x4286).
+- Hardware triage & grading at boot: display panel (EDID), battery health/capacity, CPU spec, DIMMs, board serial, BIOS, TPM, Secure Boot, MACs, and storage controllers.
+- One-touch Windows Autopilot MDM check, BIOS lock report, and remote BIOS unlock from the dashboard.
+- Printable two-page ITAD diagnostics report PDF per device (machine summary + storage inventory) from the Devices tab.
+- Opt-in hardware self-tests (CPU arithmetic + per-drive short self-test).
+- Every report carries a report_id (UUID) + digital_identifier (SHA-256) for tamper-evident audit proof.
 - Chain-of-custody report (CSV) with COCID, system serials, and per-drive final status.
 - Reports can be signed (SHA-256 + Ed25519) for verifiable proof of destruction.
 - NIST 800-88 alignment, GDPR, HIPAA, ISO 27001.
 - Bootable, inspectable appliance image; inspect every line of what runs.
+- Triage-first boot: diagnostics + online heartbeat at boot; erasure starts on Shift+T from the triage screen.
 - End-to-end loop: erase → signed report → PDF Certificate of Destruction with a verification QR (tscrub.com/verify).
 - The customer (data controller) certifies their own destruction; tScrub supplies the signed, tamper-evident evidence.
 - Open source (GPL-3.0), runs on your own hardware. Contrast: Blancco = closed, platform-only, enterprise quote; nwipe/DBAN = free ad-hoc overwrite, no signed reports or certificates.

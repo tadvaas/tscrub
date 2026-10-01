@@ -343,8 +343,8 @@ device::frozen() {
                 sleep 1 #give some time to CTRL+C if wanted
                 rtcwake -m mem -s 5 >&5 2>&5
                 if [[ $i -ge $times ]];then
-                    if [[ "${NON_INTERACTIVE:-0}" -eq 1 ]]; then
-                        printf "%s%s: still frozen — giving up (non-interactive)\n" "$TABLE_INDENT" "$dev"
+                    if [[ "${AUTONUKE:-0}" -eq 1 ]]; then
+                        printf "%s%s: still frozen — giving up (autonuke)\n" "$TABLE_INDENT" "$dev"
                         break
                     fi
                     printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"

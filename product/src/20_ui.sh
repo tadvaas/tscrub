@@ -65,7 +65,6 @@ cocid::detect() {
         param="${param#\"}"
         param="${param%\"}"
         COCID="$(printf "%s" "$param" | xargs)"
-        NON_INTERACTIVE=1
         return 0
     fi
 
@@ -185,60 +184,5 @@ ui::print_drive_guidance() {
     done
 }
 
-# Blocking decision prompt shown after sanitization completes.
-# Holds the terminal so the caller (e.g. the appliance shell) does not paint over the
-# final report. Offers Reboot / Shutdown / Continue.
-ui::post_run_prompt() {
-    local key theme=""
 
-    ui::cursor_show
-
-    # Match the finish theme so the prompt blends into the previously painted
-    # completion screen (green on success, red if any drive failed). \033[K
-    # paints each line's full width with the chosen background.
-    if ui::terminal_controls_supported; then
-        case "${UI_COMPLETE_THEME:-1}" in
-            2) theme="\033[0;41;37m" ;;   # red: a drive failed/blocked
-            3) theme="\033[0;43;30m" ;;   # amber: report save/upload failed
-            4) theme="\033[0;44;37m" ;;   # blue: wipe in progress (defensive)
-            *) theme="\033[0;42;30m" ;;   # green: all good
-        esac
-    fi
-
-    while :; do
-        printf "\n${theme}\033[K%s\033[1m[R]\033[22m Reboot    \033[1m[S]\033[22m Shutdown    \033[1m[C]\033[22m Continue    \033[1m[A]\033[22m Run tScrub again\n" "$TABLE_INDENT"
-        printf "${theme}\033[K%sSelect an option: " "$TABLE_INDENT"
-
-        read -r -n1 key < /dev/tty
-        printf "\n"
-
-        case "$key" in
-            r|R)
-                printf "${theme}\033[K%sRebooting...\n" "$TABLE_INDENT"
-                reboot
-                return 0
-                ;;
-            s|S)
-                printf "${theme}\033[K%sShutting down...\n" "$TABLE_INDENT"
-                poweroff
-                return 0
-                ;;
-            a|A)
-                # Reset colors and request another full run of tScrub.
-                [[ -n "$theme" ]] && printf "\033[0m"
-                printf "%sRestarting tScrub...\n" "$TABLE_INDENT"
-                RERUN=1
-                return 0
-                ;;
-            c|C|"")
-                # Reset to default colors before handing off to nwipe.
-                [[ -n "$theme" ]] && printf "\033[0m"
-                return 0
-                ;;
-            *)
-                printf "${theme}\033[K%s[!] Invalid selection. Press R, S, C, or A.\n" "$TABLE_INDENT"
-                ;;
-        esac
-    done
-}
 

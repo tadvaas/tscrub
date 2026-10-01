@@ -79,7 +79,7 @@ UI_COMPLETE_THEME=1; MDM_VERDICT=unlocked; MDM_STATUS="Unlocked"
 t::check "mdm: unlocked on green finish is bold black, not green" '[[ "$(ui::mdm_render 1)" == *"$esc_bold_black"* && "$(ui::mdm_render 1)" != *"$esc_green"* ]]'
 UI_COMPLETE_THEME=1; MDM_VERDICT=locked_this; MDM_STATUS="Locked (this)"
 t::check "mdm: locked on green finish stays red" '[[ "$(ui::mdm_render 1)" == *"$esc_red"* ]]'
-UI_COMPLETE_THEME=2; MDM_VERDICT=locked_other; MDM_STATUS="Locked (other)"
+UI_COMPLETE_THEME=2; MDM_VERDICT=locked_other; MDM_STATUS="Locked"
 t::check "mdm: locked on red finish is bold white" '[[ "$(ui::mdm_render 1)" == *"$esc_bold_white"* ]]'
 UI_COMPLETE_THEME=3; MDM_VERDICT=offline; MDM_STATUS="Offline"
 t::check "mdm: offline on amber finish is bold black" '[[ "$(ui::mdm_render 1)" == *"$esc_bold_black"* ]]'

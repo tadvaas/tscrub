@@ -120,25 +120,25 @@ mdm::http_post() {
 mdm::publish() {
     local verdict="$1" label="$2"
     printf '%s\n%s' "$verdict" "$label" > "$MDM_RESULT_FILE" 2>/dev/null
-    echo "mdm VERDICT $verdict" >&3
-    echo "mdm STATUS $label" >&3
+    # Best-effort publish to the UI IPC channel (fd 3) when it is open. The
+    # result file above is the single source of truth — the worker is forked
+    # DETACHED from the erasure IPC, so fd 3 is normally closed here.
+    echo "mdm VERDICT $verdict" >&3 2>/dev/null || true
+    echo "mdm STATUS $label" >&3 2>/dev/null || true
 }
 
 # Pull the worker's latest published state back into the parent shell. The
-# worker is a subshell and its publishes travel over the fd-3 IPC pipe, which
-# only ui::loop reads (and only during the wipe) — so before ui::loop starts,
-# the parent still holds the initial "Pending" placeholder and the boot/
-# selection screen would render that stale value. The result file mirrors every
-# publish, so read the current label from it whenever the placeholder is still
-# showing.
+# worker is a subshell forked DETACHED (no fd-3 IPC), so its publishes travel
+# ONLY through the result file; the triage + wipe screens call this on every
+# tick to keep the MDM cell live. Always overwrite from the file so a settled
+# verdict (Queued → Locked/Unlocked/…) keeps advancing.
 mdm::sync_state() {
     [[ -f "$MDM_RESULT_FILE" ]] || return 0
-    [[ -z "${MDM_VERDICT:-}" ]] && MDM_VERDICT="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
-    if [[ -z "${MDM_STATUS:-}" || "${MDM_STATUS:-}" == "Pending" ]]; then
-        local label
-        label="$(sed -n '2p' "$MDM_RESULT_FILE" 2>/dev/null)"
-        [[ -n "$label" ]] && MDM_STATUS="$label"
-    fi
+    local verdict label
+    verdict="$(sed -n '1p' "$MDM_RESULT_FILE" 2>/dev/null)"
+    label="$(sed -n '2p' "$MDM_RESULT_FILE" 2>/dev/null)"
+    [[ -n "$verdict" ]] && MDM_VERDICT="$verdict"
+    [[ -n "$label" ]] && MDM_STATUS="$label"
 }
 
 # Background worker: send the machine identifiers to the dashboard (which holds

@@ -5,6 +5,25 @@ state as of v1.4.54 (appliance image shipped; free reports self-signed; dashboar
 upload, certificates, customer-as-certifier, and Stripe billing/PAYG licences all
 shipped).
 
+## 0. Triage-first conversion — IMPLEMENTED (2026-10-01, working tree; not yet released)
+
+The appliance is now a **triage tool first, erasure tool second** (see
+`triage-conversion.md` for the full plan + TODO):
+
+- Boot connects to the network, submits the diagnostics report, and starts a
+  **long-lived online heartbeat** (presence) plus the remote **BIOS-unlock** poll
+  and the opt-in MDM check. These run for the whole session and are never killed
+  by an erasure — the device stays online through and after a wipe.
+- The default screen is a **triage screen** (live timer, LAN IP, MDM/BIOS lock
+  status, drive inventory). Erasure only starts on **Shift+T**, returns
+  seamlessly to triage afterwards, and is repeatable within the session.
+- The elapsed timer starts **after COCID entry**; supplying a COCID via
+  `--cocid` / `tscrub_cocid=` / `tscrub.conf` **no longer implies autonuke** —
+  autonuke is now explicit (`--autonuke` / `tscrub_autonuke=1`).
+- The post-erasure prompt (Reboot/Shutdown/Continue/Run-again) and the RERUN
+  loop are removed; reboot/shutdown are disabled during erasure and only offered
+  on the triage screen (R/S).
+
 ## 1. Self-built Buildroot appliance image — SHIPPED
 
 **Done (2026-09-19):** a ready-to-boot hybrid ISO (BIOS + UEFI) is built on the

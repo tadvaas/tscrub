@@ -51,7 +51,7 @@ t::check "autonuke: --autonuke sets AUTONUKE" '[[ "$AUTONUKE" -eq 1 ]]'
 
 AUTONUKE=0; NON_INTERACTIVE=0; COCID=""
 parse_args --cocid 12345
-t::check "autonuke: --cocid implies NON_INTERACTIVE" '[[ "$NON_INTERACTIVE" -eq 1 ]]'
+t::check "autonuke: --cocid sets COCID (no longer implies NON_INTERACTIVE)" '[[ "$COCID" == "12345" && "$NON_INTERACTIVE" -eq 0 ]]'
 
 # --- registration JSON shape ---
 t::assert_contains "$(register::json)" '"serial":"' "register: json has serial"
@@ -61,8 +61,8 @@ t::assert_contains "$(register::json)" '"bios_lock":"' "register: json has bios_
 # --- selection legend keys ---
 legend="$(select::legend)"
 t::assert_contains "$legend" "T=start" "legend: start is Shift+T"
-t::assert_contains "$legend" "R=restart" "legend: restart is Shift+R"
-t::assert_contains "$legend" "S=shutdown" "legend: shutdown is Shift+S"
+t::check "legend: no restart key during erasure" '[[ "$legend" != *"R=restart"* ]]'
+t::check "legend: no shutdown key during erasure" '[[ "$legend" != *"S=shutdown"* ]]'
 t::check "legend: S no longer means start" '[[ "$legend" != *"S=start"* ]]'
 
 # --- selection power actions (Shift+R restart, Shift+S shutdown) ---

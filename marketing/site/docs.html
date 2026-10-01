@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <title>Documentation — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/docs" />
-  <meta name="description" content="tScrub documentation: downloading the appliance, running sanitisation, and verifying reports." />
+  <meta name="description" content="tScrub documentation: downloading the appliance, hardware triage and grading, running sanitisation, and verifying reports." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -39,7 +39,7 @@
   <section class="mx-auto max-w-7xl px-4 py-16">
     <div class="mx-auto max-w-3xl text-center">
       <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">Documentation</h1>
-      <p class="mt-3 text-slate-600 dark:text-slate-400">Everything you need to run tScrub — from boot to a verifiable report.</p>
+      <p class="mt-3 text-slate-600 dark:text-slate-400">Everything you need to run tScrub — from boot and hardware triage to a verifiable report.</p>
     </div>
 
     <div class="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-[260px_1fr]">
@@ -116,8 +116,8 @@
               <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
                 <li>Boot the tScrub appliance image from USB or PXE and run it.</li>
                 <li>Enter a 5-digit Chain of Custody ID (COCID) when prompted.</li>
-                <li>tScrub discovers every drive and maps it to its strongest wipe capability.</li>
-                <li>Watch live progress; each drive ends with a status (COMPLETED, FROZEN, BLOCKED, or FAILED).</li>
+                <li>tScrub connects to the network, captures the machine's hardware profile and MDM/BIOS lock status, submits its diagnostics to the dashboard, and starts its online heartbeat — then shows the triage screen.</li>
+                <li>Press <kbd>Shift</kbd>+<kbd>T</kbd> to erase: pick the drives, watch live progress; each drive ends with a status (COMPLETED, FROZEN, BLOCKED, or FAILED).</li>
                 <li>Collect the report files, which are written to the report directory.</li>
               </ol>
             </div>
@@ -148,8 +148,8 @@
             </div>
             <div id="run">
               <h2 class="text-xl font-bold text-ink-900 dark:text-white">4. Run a sanitisation job</h2>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">There is nothing to run manually — tScrub starts automatically as the appliance boots (from USB or PXE). It prompts for a Chain of Custody ID, then wipes all supported drives in parallel. Frozen, locked, or blocked drives are flagged rather than marked clean.</p>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">For unattended fleet runs, pre-set <code class="font-mono">tscrub_cocid=</code> on the kernel command line to skip the prompt (see <a href="#kernel-params" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 13</a>).</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">There is nothing to run manually — tScrub starts automatically as the appliance boots (from USB or PXE). After you enter a Chain of Custody ID it lands on a <strong>triage screen</strong> showing the captured hardware, MDM/BIOS lock status and LAN IP while it heartbeats online. Press <kbd>Shift</kbd>+<kbd>T</kbd> to erase the selected drives in parallel; frozen, locked, or blocked drives are flagged rather than marked clean.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">For unattended fleet runs, pre-set <code class="font-mono">tscrub_cocid=</code> to skip the prompt and add <code class="font-mono">tscrub_autonuke=1</code> to skip the triage screen and wipe every drive automatically (see <a href="#kernel-params" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 13</a>).</p>
             </div>
           </div>
         </section>
@@ -281,7 +281,7 @@ tscrub_validator=John Roe
 tscrub_asset_tag=IT-2041
 tscrub_media_source=IT decommissioning
 tscrub_media_destination=resale</pre>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_autopilotcheck=true</code> opts in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. The report metadata keys — <code class="font-mono">tscrub_operator</code>, <code class="font-mono">tscrub_validator</code>, <code class="font-mono">tscrub_asset_tag</code>, <code class="font-mono">tscrub_media_source</code> and <code class="font-mono">tscrub_media_destination</code> — record who performed and validated the erasure and where the media came from / is going; unlike the kernel command line, <code class="font-mono">tscrub.conf</code> values may contain spaces. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> pre-fills the COCID (no prompt), <code class="font-mono">tscrub_autopilotcheck=true</code> opts in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. The report metadata keys — <code class="font-mono">tscrub_operator</code>, <code class="font-mono">tscrub_validator</code>, <code class="font-mono">tscrub_asset_tag</code>, <code class="font-mono">tscrub_media_source</code> and <code class="font-mono">tscrub_media_destination</code> — record who performed and validated the erasure and where the media came from / is going; unlike the kernel command line, <code class="font-mono">tscrub.conf</code> values may contain spaces. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Full details and examples are in <a href="#report" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 8, The report</a>.</p>
             </div>
           </div>
@@ -298,6 +298,7 @@ tscrub_media_destination=resale</pre>
 tScrub_48213_20260912T103000Z.json   # manifest (SHA-256, public key, drive summary)
 tScrub_48213_20260912T103000Z.csv.sig  # base64 Ed25519 signature (vendor key on paid, appliance key on free)</pre>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The CSV columns are: <code class="font-mono">COCID, Timestamp, Model, Serial, Size, Bus, Type, Device, Class, Certification, Method, FinalStatus, SMART, TempC, PowerOnHours, PowerCycles, ReallocSectors, PctUsed, AvailSpare, TBW_TB, SMARTPOST, TempCPost, PowerOnHoursPost, System, SystemSerial, BaseboardSerial, CPU, GPU, RAM</code> — the machine's make, serials, processors, graphics, and memory are repeated on every drive row.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The erasure report is only one of two reports tScrub writes. At <strong>boot</strong>, before any wipe, tScrub captures a <strong>hardware diagnostics report</strong> — the full machine profile (system and board serials, SKU/asset tag, BIOS, motherboard, TPM, Secure Boot, CPU spec, per-DIMM memory, display panel, Wi-Fi adapter, battery) plus a per-drive inventory (firmware, sector size, SMART health, self-test result, reallocated sectors). It is delivered to the same destinations as the erasure report (USB, dashboard, or LAN) and renders as a printable two-page ITAD triage PDF on the dashboard's <a href="/dashboard/devices" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">Devices tab</a>.</p>
 
               <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Drive final status</h3>
               <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Every drive ends a run with one of the following statuses, shown live on the console and recorded in the report's <code class="font-mono">FinalStatus</code> column:</p>
@@ -420,7 +421,8 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><th class="px-6 py-3 font-semibold">Parameter</th><th class="px-6 py-3 font-semibold">Purpose</th></tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-ink-800 bg-white dark:bg-ink-900">
-                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_cocid=12345</td><td class="px-6 py-3">Chain of Custody ID. Setting it skips the prompt and runs non-interactively (autonuke).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_cocid=12345</td><td class="px-6 py-3">Chain of Custody ID. Setting it skips the prompt (no longer implies autonuke).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_autonuke=1</td><td class="px-6 py-3">Skip the triage screen and wipe every drive automatically (fleet/PXE unattended runs).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_license=/path.lic</td><td class="px-6 py-3">Read the licence from a filesystem path.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_license_url=http://…</td><td class="px-6 py-3">Fetch the licence over the network.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_output=/mnt/usb</td><td class="px-6 py-3">Where to write the report (a filesystem path).</td></tr>
@@ -455,7 +457,8 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><th class="px-6 py-3 font-semibold">Flag</th><th class="px-6 py-3 font-semibold">Purpose</th></tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100 dark:divide-ink-800 bg-white dark:bg-ink-900">
-                    <tr><td class="px-6 py-3 font-mono text-xs">--cocid 12345</td><td class="px-6 py-3">Chain of Custody ID; runs non-interactively (autonuke).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--cocid 12345</td><td class="px-6 py-3">Chain of Custody ID (no longer implies autonuke).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--autonuke</td><td class="px-6 py-3">Select every drive and start erasure without the triage screen.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--license /path.lic</td><td class="px-6 py-3">Read the licence from a path (default: boot USB, then <code class="font-mono">/etc/tscrub/</code>).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--license-url URL</td><td class="px-6 py-3">Fetch the licence from a URL.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--output /mnt/usb</td><td class="px-6 py-3">Write reports to a directory (default: boot USB, then RAM).</td></tr>

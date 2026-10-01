@@ -1,6 +1,6 @@
-# tScrub — Verifiable Disk Sanitisation
+# tScrub — Open ITAD Triage, Grading & Verifiable Erasure
 
-tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels, then hands you a chain-of-custody report your auditors can actually read. The bootable appliance image is open and inspectable — your security team can inspect every line of what runs. Boot the ready-to-go tScrub appliance image from USB or PXE on hardware you already own. No locked-down vendor box required.
+tScrub is an open ITAD (IT asset disposition) platform. One boot on a machine captures its full hardware profile — display panel, battery health and capacity, CPU spec, memory modules, storage, firmware, and MDM or BIOS lock status — grades it for resale, redeployment, or recycling, then erases its NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels. Every run produces a printable two-page ITAD diagnostics report plus a signed chain-of-custody report you can turn into a Certificate of Destruction. The bootable appliance image is open and inspectable — your security team can read every line of what runs. Boot it from USB or PXE on hardware you already own. No locked-down vendor box required.
 
 ## What it does
 
@@ -11,13 +11,18 @@ tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe,
 - **Chain of custody** — COCID, system serials, and per-drive final status in a single CSV report for the whole job.
 - **SMART capture** — pre/post-wipe SMART health (status, temperature, power-on hours, wear) recorded per drive.
 - **Verifiable proof of destruction** — reports can be signed (SHA-256 + Ed25519), producing a sidecar signature and manifest that auditors can independently verify.
+- **Hardware triage & grading** — boot-time capture of the display panel (manufacturer, resolution, diagonal size, year), battery (health and full-charge capacity in Wh, cycle count), CPU core/thread spec, DIMM part numbers, board serial, SKU/asset tag, BIOS vendor/version, TPM, Secure Boot, MAC addresses, and storage controllers.
+- **MDM check, BIOS lock report & unlock** — one boot runs a Windows Autopilot MDM check (Locked/Unlocked) and BIOS password-lock detection, surfaced in the dashboard; BIOS unlocks can be dispatched remotely from the dashboard.
+- **Printable diagnostics report** — each device snapshot renders as a two-page ITAD triage PDF (machine summary + storage inventory), downloadable from the Devices tab.
+- **Hardware self-tests (opt-in)** — a deterministic CPU arithmetic check plus a per-drive short self-test (SMART for SATA, NVMe device-self-test for NVMe).
+- **Audit-proof report identity** — every report carries a report_id (UUID) and a digital_identifier (SHA-256 over the snapshot), making each report individually identifiable and tamper-evident.
 
 ## How it works (four steps)
 
 1. **Boot** — boot the tScrub appliance image from USB or PXE and run it; tScrub needs zero installation.
-2. **Discover & classify** — every drive is detected and mapped to its best Purge or Clear capability.
-3. **Sanitise** — live progress across all drives, with frozen and blocked drives flagged.
-4. **Report** — a chain-of-custody CSV with method, certification, final status, and pre/post-wipe SMART per drive.
+2. **Triage & grade** — tScrub connects to the network, submits its diagnostics, records the machine's full hardware profile (display, battery, CPU, RAM, storage, MDM and BIOS lock status), and starts an online heartbeat while showing the triage screen.
+3. **Erase (Shift+T)** — press Shift+T to pick drives and erase them, with live progress; frozen and blocked drives are flagged. The heartbeat keeps running throughout and after.
+4. **Report** — a printable ITAD diagnostics report plus a chain-of-custody CSV with method, certification, final status, and pre/post-wipe SMART per drive.
 
 ## Compliance
 
@@ -27,7 +32,7 @@ tScrub is an open, auditable data-erasure tool for regulated IT. It erases NVMe,
 
 ## Comparison vs Blancco
 
-tScrub is the open, auditable alternative to Blancco for verifiable disk sanitisation — same compliance outcome, no vendor lock-in.
+tScrub is the open, auditable alternative to Blancco for ITAD — erasure plus hardware grading, MDM/BIOS lock detection, and a printable diagnostics report, with the same NIST 800-88 sanitisation outcomes and no vendor lock-in.
 
 | Capability | tScrub | Blancco |
 |---|---|---|
@@ -39,9 +44,12 @@ tScrub is the open, auditable alternative to Blancco for verifiable disk sanitis
 | Certificate of Destruction | PDF, self-serve, QR-verified | Platform |
 | Pre/post-wipe SMART capture | Built in | Platform |
 | Self-serve accounts & licences | Free tier, self-serve | Enterprise quote |
+| Hardware triage & grading (display, battery, CPU, RAM) | Built in | Platform |
+| MDM & BIOS lock detection | Built in | Platform |
+| Printable diagnostics report | Built in | Platform |
 | Pricing | Transparent | Enterprise quote |
 
-The key differences: tScrub is open and inspectable — every line of the erasure code is auditable — while Blancco is closed. tScrub generates the chain-of-custody report and the signed Certificate of Destruction itself (CSV + JSON manifest + PDF with a verification QR); Blancco routes both through its proprietary platform. tScrub has a self-serve free tier and transparent per-device pricing; Blancco is enterprise-quote only.
+The key differences: tScrub is open and inspectable — every line of the erasure code is auditable — while Blancco is closed. tScrub generates the chain-of-custody report and the signed Certificate of Destruction itself (CSV + JSON manifest + PDF with a verification QR); Blancco routes both through its proprietary platform. tScrub also captures a full hardware profile and MDM/BIOS lock status in the same boot and renders a printable diagnostics report, so a single tool covers triage, grading, and erasure. tScrub has a self-serve free tier and transparent per-device pricing; Blancco is enterprise-quote only.
 
 ### vs free wipe tools (nwipe / DBAN)
 
@@ -62,13 +70,17 @@ Step-by-step documentation is at https://tscrub.com/docs. Download the bootable 
 
 ## Certificate of Destruction
 
-The end-to-end loop is: boot → erase → signed chain-of-custody report → Certificate of Destruction, verifiable at every step. The customer (the data controller) certifies their own destruction — tScrub provides the signed, tamper-evident evidence.
+The end-to-end loop is: boot → triage (diagnostics + online heartbeat) → Shift+T erase → signed chain-of-custody report → Certificate of Destruction, verifiable at every step. The customer (the data controller) certifies their own destruction — tScrub provides the signed, tamper-evident evidence.
 
 Upload a tScrub report (CSV + JSON manifest + optional signature) on the dashboard Reports page, then select its Chain of Custody ID on the Certificates page to generate a printable PDF Certificate of Destruction. Certificates include a device annex (Annex A), a pre/post-wipe SMART capture annex (Annex B, when present in the report: status, temperature, power-on hours, wear), and a verification QR code on every certificate. The QR encodes tscrub.com/verify?cert=COD-…, which confirms the issuance record and document hash; on free-tier certificates the same scan explains that the certificate is self-signed and cannot be independently confirmed, with an upgrade prompt to a commercial plan for attributable verification. Generated certificates are listed on the Certificates page for download and management.
 
 ## SMART data reports
 
 Per-drive erasure and pre/post-wipe SMART data for every uploaded report are available at tscrub.com/dashboard/drives: device, type, model, serial, sanitisation method, certification, final status, and before/after SMART attributes (status, temperature, power-on hours, power cycles, wear, TBW).
+
+## Hardware triage & the Devices dashboard
+
+Every machine that boots tScrub registers itself and appears at tscrub.com/dashboard/devices with a full hardware profile captured at boot: system and board serials, SKU and asset tag, BIOS vendor/version, motherboard, TPM status, Secure Boot state, CPU core/thread spec, per-DIMM memory (size/type/speed/serial/part number), the internal display panel (manufacturer, resolution, diagonal size, manufacture year from EDID), the Wi-Fi adapter model, and battery (model, serial, charge, health, full-charge capacity in Wh, cycle count). Per-drive health — firmware revision, logical sector size, SMART health, most recent self-test result, reallocated-sector count, and HPA/DCO and SED/OPAL lock state — is captured alongside the machine profile. The dashboard also shows each machine's online/offline presence and its LAN IP, and each device's snapshot renders as a printable two-page ITAD triage report PDF. Opt-in hardware self-tests add a CPU arithmetic check and a per-drive short self-test.
 
 ## Resources
 
