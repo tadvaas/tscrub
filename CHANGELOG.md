@@ -6,6 +6,32 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.4] - 2026-10-01
+
+### Added
+
+- **Opt-in hardware self-tests** — `--selftest` (or `tscrub_selftest=1` on the
+  kernel command line) runs a deterministic CPU arithmetic check plus a storage
+  short self-test per drive (SMART for SATA, `nvme device-self-test` for NVMe).
+  Verdicts (`selftest_cpu` and per-drive `selftest_run`: PASS/FAIL/UNKNOWN/UNSUP)
+  land in the diagnostics report and the Devices tab. Off by default so triage
+  boots stay fast.
+
+### Fixed
+
+- **Battery cycle count** — no longer reports a misleading `0 cycles` when the
+  ACPI firmware doesn't expose a cycle count (most laptops, Dell included); the
+  field is omitted unless a real, positive count is reported.
+- **Battery health** — guarded against a firmware-reported zero full capacity,
+  which could otherwise show a bogus `health 0%`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.4_2025.11_30_x86-64_v0.41_20261001-454284e8.iso`
+  (157,622,272 B, sha256 `53d667b8302cde300a178f4233c4789c127804e5e947267b38ee9f0efe49d10e`);
+- standalone script v1.9.4 sha256 `b725a4cab68931fe4279e67acf9dbcb0aff2d4f23a18b840dee1111bad506ff4` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `1aee89e1b66287fed6f062cfbd77c5137c539409b809dfa615dc3a7010272b3f`.
+
 ## [v1.9.3] - 2026-10-01
 
 ### Added
