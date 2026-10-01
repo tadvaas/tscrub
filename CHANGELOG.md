@@ -6,6 +6,31 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.5] - 2026-10-01
+
+### Changed
+
+- **Unified report delivery** — the boot-time diagnostics snapshot is now
+  delivered the same way as the erasure report: writable USB, dashboard
+  (`tscrub_api_token=`), and LAN (`tscrub_output=ftp:/sftp:`) all based on
+  config. Previously the diagnostics snapshot only went to USB + dashboard.
+
+### Fixed
+
+- **Erasure report gating** — the erasure report is now withheld unless every
+  drive reached a terminal state (a worker that died mid-erase no longer
+  produces a half-done report).
+- **Sector size** — the logical sector size was always recorded empty because
+  of a missing-braces array reference in the capture validation; it is now
+  populated correctly.
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.5_2025.11_30_x86-64_v0.41_20261001-84709c04.iso`
+  (157,622,272 B, sha256 `9f5319f3b9e12550c686441180bdb5baaafa1b681e5b3a9edf1c65cbc222f464`);
+- standalone script v1.9.5 sha256 `aa6432dda8523d98081ba58c755cf81d136969c4b4daf1a57b48036692e6f41b` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ffca090c6ba962401ca68e62fb52dbc9a049838b5bd161e50af67a3a1a96151e`.
+
 ## [v1.9.4] - 2026-10-01
 
 ### Added
