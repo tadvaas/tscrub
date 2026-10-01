@@ -39,6 +39,10 @@ register::json_body() {
         "$(report::_json_field "${SYS_CPU_LIST:-}")" \
         "$(report::_json_field "${SYS_GPU_LIST:-}")" \
         "$(report::_json_field "${SYS_RAM_GB:-}")"
+    printf ',"cpu_spec":"%s","display":"%s","wifi":"%s"' \
+        "$(report::_json_field "${SYS_CPU_SPEC:-}")" \
+        "$(report::_json_field "${SYS_DISPLAY:-}")" \
+        "$(report::_json_field "${SYS_WIFI:-}")"
     printf ',"sku":"%s","asset_tag":"%s","bios_vendor":"%s","board":"%s","board_serial":"%s","tpm":"%s"' \
         "$(report::_json_field "${SYS_SKU:-}")" \
         "$(report::_json_field "${ASSET_TAG:-${SYS_ASSET_TAG:-}}")" \
@@ -64,7 +68,7 @@ register::json_body() {
     printf ',"drives":['
     for dev in "${devices[@]}"; do
         [[ "$first" -eq 1 ]] && first=0 || printf ','
-        printf '{"device":"%s","model":"%s","serial":"%s","size":"%s","bus":"%s","type":"%s","capability":"%s","class":"%s","firmware":"%s","sector_size":"%s","sectors":"%s","smart":"%s","selftest":"%s","realloc":"%s","selftest_run":"%s","opal_locked":%s}' \
+        printf '{"device":"%s","model":"%s","serial":"%s","size":"%s","bus":"%s","type":"%s","capability":"%s","class":"%s","firmware":"%s","sector_size":"%s","sectors":"%s","hpa":"%s","dco":"%s","smart":"%s","selftest":"%s","realloc":"%s","temp":"%s","poh":"%s","cycles":"%s","pct_used":"%s","spare":"%s","tbw":"%s","selftest_run":"%s","opal_locked":%s}' \
             "$(report::_json_field "${devrow[$dev.device]:-$dev}")" \
             "$(report::_json_field "${devrow[$dev.model]:-}")" \
             "$(report::_json_field "${devrow[$dev.serial]:-}")" \
@@ -76,9 +80,17 @@ register::json_body() {
             "$(report::_json_field "${firmware[$dev]:-}")" \
             "$(report::_json_field "${secsize[$dev]:-}")" \
             "$(report::_json_field "${sectors[$dev]:-}")" \
+            "$(report::_json_field "${hpa[$dev]:-}")" \
+            "$(report::_json_field "${dco[$dev]:-}")" \
             "$(report::_json_field "${devrow[$dev.smart]:-}")" \
             "$(report::_json_field "${devrow[$dev.selftest]:-}")" \
             "$(report::_json_field "${devrow[$dev.realloc]:-}")" \
+            "$(report::_json_field "${devrow[$dev.temp]:-}")" \
+            "$(report::_json_field "${devrow[$dev.poh]:-}")" \
+            "$(report::_json_field "${devrow[$dev.cycles]:-}")" \
+            "$(report::_json_field "${devrow[$dev.pct_used]:-}")" \
+            "$(report::_json_field "${devrow[$dev.spare]:-}")" \
+            "$(report::_json_field "${devrow[$dev.tbw]:-}")" \
             "$(report::_json_field "${devrow[$dev.selftest_run]:-}")" \
             "$([[ "${opal_locked[$dev]:-}" == "YES" ]] && printf 'true' || printf 'false')"
     done

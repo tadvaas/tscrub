@@ -67,21 +67,23 @@ function licence_pub_keys(int $userId): array {
  */
 function reports_ensure_schema(): void {
     try {
-        $stmt = db()->prepare(
-            "SELECT COUNT(*) FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports' AND COLUMN_NAME = 'report_type'"
-        );
-        $stmt->execute();
-        if ((int)$stmt->fetchColumn() > 0) {
-            return;   // column already present — nothing to do
+        $wanted = [
+            'report_type' => "ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source",
+        ];
+        foreach ($wanted as $col => $ddl) {
+            $stmt = db()->prepare(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports' AND COLUMN_NAME = ?"
+            );
+            $stmt->execute([$col]);
+            if ((int)$stmt->fetchColumn() > 0) {
+                continue;   // column already present — nothing to do
+            }
+            db()->exec("ALTER TABLE reports ADD COLUMN $col $ddl");
         }
-        db()->exec(
-            "ALTER TABLE reports
-             ADD COLUMN report_type ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source"
-        );
     } catch (Throwable $e) {
-        // Any real failure is non-fatal: the column is only a typed-report
-        // optimisation and ingestion otherwise falls back to erasure.
+        // Non-fatal: report_type is a typed-report optimisation; pdf_sha and
+        // pdf_path are only needed for the diagnostics PDF download.
         error_log('reports ensure schema: ' . $e->getMessage());
     }
 }
@@ -731,9 +733,17 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
             'firmware'    => (string)($dv['firmware'] ?? ''),
             'sector_size' => (string)($dv['sector_size'] ?? ''),
             'sectors'     => (string)($dv['sectors'] ?? ''),
+            'hpa'         => (string)($dv['hpa'] ?? ''),
+            'dco'         => (string)($dv['dco'] ?? ''),
             'smart'       => (string)($dv['smart'] ?? ''),
             'selftest'    => (string)($dv['selftest'] ?? ''),
             'realloc'     => (string)($dv['realloc'] ?? ''),
+            'temp'        => (string)($dv['temp'] ?? ''),
+            'poh'         => (string)($dv['poh'] ?? ''),
+            'cycles'      => (string)($dv['cycles'] ?? ''),
+            'pct_used'    => (string)($dv['pct_used'] ?? ''),
+            'spare'       => (string)($dv['spare'] ?? ''),
+            'tbw'         => (string)($dv['tbw'] ?? ''),
             'selftest_run' => (string)($dv['selftest_run'] ?? ''),
             'opal_locked'=> isset($dv['opal_locked']) ? (bool)$dv['opal_locked'] : false,
         ];
@@ -742,6 +752,8 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
     $payload = [
         'report_type'    => 'diagnostics',
         'system'         => $system,
+        'manufacturer'   => (string)($d['manufacturer'] ?? ''),
+        'product'        => (string)($d['product'] ?? ''),
         'sysserial'      => $serial,
         'systemuuid'     => $uuid,
         'report_id'      => (string)($d['report_id'] ?? ''),
@@ -771,6 +783,9 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
         'battery'        => (string)($d['battery'] ?? ''),
         'secure_boot'    => (string)($d['secure_boot'] ?? ''),
         'dimms'          => (string)($d['dimms'] ?? ''),
+        'cpu_spec'       => (string)($d['cpu_spec'] ?? ''),
+        'display'        => (string)($d['display'] ?? ''),
+        'wifi'           => (string)($d['wifi'] ?? ''),
         'selftest_cpu'   => (string)($d['selftest_cpu'] ?? ''),
         'first'          => $now,
         'last'           => $now,
@@ -843,6 +858,9 @@ function report_row(array $r, ?array $payload): array {
         'battery'        => is_array($payload) ? (string)($payload['battery'] ?? '') : '',
         'secure_boot'    => is_array($payload) ? (string)($payload['secure_boot'] ?? '') : '',
         'dimms'          => is_array($payload) ? (string)($payload['dimms'] ?? '') : '',
+        'cpu_spec'       => is_array($payload) ? (string)($payload['cpu_spec'] ?? '') : '',
+        'display'        => is_array($payload) ? (string)($payload['display'] ?? '') : '',
+        'wifi'           => is_array($payload) ? (string)($payload['wifi'] ?? '') : '',
         'drives'      => is_array($payload) ? ($payload['drives'] ?? []) : [],
         'reports'     => is_array($payload) ? ($payload['reports'] ?? []) : [],
     ];
@@ -1116,7 +1134,7 @@ function load_registered_devices(int $userId): array {
  */
 function load_devices(int $userId): array {
     reports_ensure_schema();
-    $stmt = db()->prepare("SELECT uploaded_at, payload FROM reports WHERE user_id = ? AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, uploaded_at, payload FROM reports WHERE user_id = ? AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute([$userId]);
 
     $devices = [];
@@ -1140,6 +1158,7 @@ function load_devices(int $userId): array {
                 'bbserial'      => (string)($g['bbserial'] ?? $g['bbSerial'] ?? ''),
                 'report_id'     => (string)($g['report_id'] ?? ''),
                 'digital_identifier' => (string)($g['digital_identifier'] ?? ''),
+                'pdf_id'        => (int)$r['id'],
                 'selftest_cpu'  => (string)($g['selftest_cpu'] ?? ''),
                 'chassisserial' => (string)($g['chassisserial'] ?? ''),
                 'chassistype'   => (string)($g['chassistype'] ?? ''),
@@ -1166,6 +1185,9 @@ function load_devices(int $userId): array {
                 'battery'       => (string)($g['battery'] ?? ''),
                 'secure_boot'   => (string)($g['secure_boot'] ?? ''),
                 'dimms'         => (string)($g['dimms'] ?? ''),
+                'cpu_spec'      => (string)($g['cpu_spec'] ?? ''),
+                'display'       => (string)($g['display'] ?? ''),
+                'wifi'          => (string)($g['wifi'] ?? ''),
                 'mdm'           => (string)($g['enrollment'] ?? ''),
                 'first'         => (string)$r['uploaded_at'],
                 'last'          => (string)$r['uploaded_at'],
@@ -1185,6 +1207,7 @@ function load_devices(int $userId): array {
             'bbserial'       => (string)($g['bbserial'] ?? $g['bbSerial'] ?? ''),
             'report_id'      => (string)($g['report_id'] ?? ''),
             'digital_identifier' => (string)($g['digital_identifier'] ?? ''),
+            'pdf_id'         => (int)$r['id'],
             'selftest_cpu'   => (string)($g['selftest_cpu'] ?? ''),
             'chassisserial'  => (string)($g['chassisserial'] ?? ''),
             'chassistype'    => (string)($g['chassistype'] ?? ''),
@@ -1211,6 +1234,9 @@ function load_devices(int $userId): array {
             'battery'        => (string)($g['battery'] ?? ''),
             'secure_boot'    => (string)($g['secure_boot'] ?? ''),
             'dimms'          => (string)($g['dimms'] ?? ''),
+            'cpu_spec'       => (string)($g['cpu_spec'] ?? ''),
+            'display'        => (string)($g['display'] ?? ''),
+            'wifi'           => (string)($g['wifi'] ?? ''),
             'drive_count'    => count($drives),
             'drives'         => $drives,
         ];
@@ -1286,6 +1312,9 @@ function load_devices(int $userId): array {
             'battery'        => (string)($p['battery'] ?? ''),
             'secure_boot'    => (string)($p['secure_boot'] ?? ''),
             'dimms'          => (string)($p['dimms'] ?? ''),
+            'cpu_spec'       => (string)($p['cpu_spec'] ?? ''),
+            'display'        => (string)($p['display'] ?? ''),
+            'wifi'           => (string)($p['wifi'] ?? ''),
         ];
         $regSeen = presence_last_seen((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence);
         $out[] = $profile + [

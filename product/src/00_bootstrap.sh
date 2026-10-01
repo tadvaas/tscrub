@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.9.7"
+SCRIPT_VERSION="v1.9.8"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -82,6 +82,9 @@ SYS_BIOS_VERSION=""
 SYS_BIOS_DATE=""
 SYS_CPU_LIST=""
 SYS_GPU_LIST=""
+SYS_CPU_SPEC=""
+SYS_DISPLAY=""
+SYS_WIFI=""
 SYS_RAM_GB=""
 SYS_SKU=""
 SYS_ASSET_TAG=""
@@ -102,6 +105,134 @@ MEDIA_SOURCE=""
 MEDIA_DESTINATION=""
 # Per-run report identity (generated once; shared by the portal POST + USB snapshot).
 REPORT_ID=""
+
+# Battery (laptops) — model / serial / state-of-charge / health / cycles.
+# Isolated so the sysfs root is overridable in tests (POWER_SUPPLY_DIR).
+
+# Format the battery's current full-charge capacity in watt-hours, e.g.
+# "33.4 Wh". $1 = "energy" (µWh) or "charge" (µAh); $2 = capacity; $3 = nominal
+# voltage in µV (charge path only). Prints nothing when it can't be derived.
+battery::_full_wh() {
+    local _mode="$1" _cap="$2" _volt="${3:-}"
+    local _tenths
+    [[ "$_cap" =~ ^[0-9]+$ && "$_cap" -gt 0 ]] || return 0
+    if [[ "$_mode" == "energy" ]]; then
+        _tenths=$(( (_cap + 50000) / 100000 ))                    # µWh -> Wh (1 dp)
+    else
+        [[ "$_volt" =~ ^[0-9]+$ && "$_volt" -gt 0 ]] || return 0
+        _tenths=$(( (_cap * _volt + 50000000000) / 100000000000 ))  # µAh·µV -> Wh
+    fi
+    printf '%d.%d Wh' "$(( _tenths / 10 ))" "$(( _tenths % 10 ))"
+    return 0
+}
+
+battery::capture() {
+    local _ps_dir="${POWER_SUPPLY_DIR:-/sys/class/power_supply}"
+    local _bat _b_model _b_serial _b_cap _b_status _b_cycles _b_full _b_design _b_health _b_energy _b_vdesign _b_wh _bat_list=""
+    for _bat in "$_ps_dir"/BAT*; do
+        [[ -d "$_bat" ]] || continue
+        _b_model="$(cat "$_bat/model_name" 2>/dev/null)"
+        _b_serial="$(cat "$_bat/serial_number" 2>/dev/null)"
+        _b_cap="$(cat "$_bat/capacity" 2>/dev/null)"
+        _b_status="$(cat "$_bat/status" 2>/dev/null)"
+        _b_cycles="$(cat "$_bat/cycle_count" 2>/dev/null)"
+        # cycle_count is only reported when the firmware exposes a meaningful
+        # value; the generic ACPI battery driver leaves it 0/absent on most
+        # laptops (Dell included), so omit it rather than print a misleading
+        # "0 cycles".
+        [[ "$_b_cycles" =~ ^[0-9]+$ && "$_b_cycles" -gt 0 ]] || _b_cycles=""
+        # Prefer energy_* (µWh), fall back to charge_* (µAh) + nominal voltage.
+        _b_energy=0
+        _b_vdesign=""
+        _b_full="$(cat "$_bat/energy_full" 2>/dev/null)"
+        _b_design="$(cat "$_bat/energy_full_design" 2>/dev/null)"
+        if [[ -z "$_b_full" || -z "$_b_design" ]]; then
+            _b_full="$(cat "$_bat/charge_full" 2>/dev/null)"
+            _b_design="$(cat "$_bat/charge_full_design" 2>/dev/null)"
+            _b_vdesign="$(cat "$_bat/voltage_min_design" 2>/dev/null)"
+        else
+            _b_energy=1
+        fi
+        _b_health=""
+        # Health is only meaningful when the firmware exposes a design capacity
+        # that DIFFERS from the current full capacity. On HP EliteBook/ProBook
+        # (and many ACPI-battery laptops) charge_full_design is reported equal
+        # to charge_full, so full/design would always be 100% regardless of
+        # wear — omitting the figure is more honest than printing a bogus 100%.
+        if [[ "$_b_full" =~ ^[0-9]+$ && "$_b_design" =~ ^[0-9]+$ && "$_b_full" -gt 0 && "$_b_design" -gt 0 && "$_b_full" -lt "$_b_design" ]]; then
+            _b_health="$(( (_b_full * 100 + _b_design / 2) / _b_design ))%"
+        fi
+        # Current full-charge capacity in Wh — the real, label-comparable wear
+        # signal, available even when the firmware hides the design capacity.
+        if [[ "$_b_energy" -eq 1 ]]; then
+            _b_wh="$(battery::_full_wh energy "$_b_full")"
+        else
+            _b_wh="$(battery::_full_wh charge "$_b_full" "$_b_vdesign")"
+        fi
+        _bat_list="${_bat_list}${_bat_list:+; }${_b_model:-Battery}${_b_serial:+ SN=$_b_serial}${_b_cap:+ @ ${_b_cap}%}"
+        _bat_list="${_bat_list}${_b_health:+ (health ${_b_health})}${_b_wh:+ (full ${_b_wh})}${_b_cycles:+ (${_b_cycles} cycles)}${_b_status:+ [${_b_status}]}"
+    done
+    SYS_BATTERY="$(printf '%s' "${_bat_list:-N/A}" | tr -d ',' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//')"
+}
+
+# Parse a raw 128-byte EDID blob into a compact panel description, e.g.
+# "AUO 1920x1080 13.3\" (2018)" — manufacturer (3-letter PNP ID), native
+# resolution from the preferred timing descriptor, physical diagonal size and
+# year of manufacture. Prints nothing when the blob is unreadable/too short.
+edid::parse() {
+    local f="$1"
+    [[ -r "$f" ]] || return 0
+    local -a _b
+    _b=( $(od -An -tu1 -N 128 "$f" 2>/dev/null) )
+    [[ ${#_b[@]} -ge 62 ]] || return 0
+
+    # Manufacturer: bytes 8-9 hold three 5-bit letters (A=1).
+    local _m1=$(( ( (_b[8] >> 2) & 0x1F ) + 64 ))
+    local _m2=$(( ( ((_b[8] & 0x03) << 3) | (_b[9] >> 5) ) + 64 ))
+    local _m3=$(( ( _b[9] & 0x1F ) + 64 ))
+    local _mfr
+    _mfr="$(printf '%b%b%b' "\\$(printf '%03o' "$_m1")" "\\$(printf '%03o' "$_m2")" "\\$(printf '%03o' "$_m3")")"
+
+    # Year of manufacture (byte 17 is offset from 1990).
+    local _year=$(( _b[17] + 1990 ))
+
+    # Physical size: bytes 21-22 are the screen dimensions in cm; diagonal in".
+    # Busybox awk lacks sqrt(), so compute it with pure integer math.
+    local _hc=${_b[21]} _vc=${_b[22]} _size=""
+    if [[ "$_hc" =~ ^[0-9]+$ && "$_vc" =~ ^[0-9]+$ && "$_hc" -gt 0 && "$_vc" -gt 0 ]]; then
+        local _dsq=$(( _hc*_hc + _vc*_vc ))
+        # Diagonal in tenths of cm = sqrt(100 * _dsq), via integer Newton sqrt.
+        local _n=$(( _dsq * 100 ))
+        local _r=$_n _y
+        while :; do
+            _y=$(( (_r + _n / _r) / 2 ))
+            [[ "$_y" -ge "$_r" ]] && break
+            _r=$_y
+        done
+        local _in10=$(( (_r * 100 + 127) / 254 ))   # inches, 1 decimal
+        _size="$(printf '%d.%d"' "$(( _in10 / 10 ))" "$(( _in10 % 10 ))")"
+    fi
+
+    # Native resolution: first detailed timing descriptor (bytes 54-71).
+    local _hact=$(( _b[56] + ((_b[58] & 0xF0) << 4) ))
+    local _vact=$(( _b[59] + ((_b[61] & 0xF0) << 4) ))
+    local _res=""
+    [[ "$_hact" -gt 0 && "$_vact" -gt 0 ]] && _res="${_hact}x${_vact}"
+
+    printf '%s' "${_mfr}${_res:+ ${_res}}${_size:+ ${_size}}${_year:+ (${_year})}"
+    return 0
+}
+
+# Internal display panel (eDP) or, on desktops, the first readable connector.
+display::capture() {
+    local _drm="${SYS_DRM_DIR:-/sys/class/drm}" _edid
+    SYS_DISPLAY=""
+    for _edid in "$_drm"/*eDP*/edid "$_drm"/card*/edid; do
+        [[ -r "$_edid" ]] || continue
+        SYS_DISPLAY="$(edid::parse "$_edid")"
+        [[ -n "$SYS_DISPLAY" ]] && break
+    done
+}
 
 system::gather_info() {
     # Try dmidecode first (requires root)
@@ -193,6 +324,21 @@ system::gather_info() {
         SYS_CPU_LIST="$(awk '/physical id/{pid=$NF} /model name/{if(!seen[pid]++) {sub(/^.*: /, ""); print}}' /proc/cpuinfo | nl -w1 -s'. ')"
     fi
 
+    # Core/thread count (resale grading) — physical cores vs logical threads.
+    SYS_CPU_SPEC=""
+    if command -v lscpu &>/dev/null; then
+        local _socks _cps _tpc _lcpu _cores _threads
+        _socks="$(lscpu 2>/dev/null | awk -F': *' '/^Socket\(s\):/{print $2}' | head -n1 | tr -d ' ')"
+        _cps="$(lscpu 2>/dev/null | awk -F': *' '/^Core\(s\) per socket:/{print $2}' | head -n1 | tr -d ' ')"
+        _tpc="$(lscpu 2>/dev/null | awk -F': *' '/^Thread\(s\) per core:/{print $2}' | head -n1 | tr -d ' ')"
+        _lcpu="$(lscpu 2>/dev/null | awk -F': *' '/^CPU\(s\):/{print $2}' | head -n1 | tr -d ' ')"
+        if [[ "$_socks" =~ ^[0-9]+$ && "$_cps" =~ ^[0-9]+$ ]]; then
+            _cores=$(( _socks * _cps ))
+            _threads="${_lcpu:-$(( _cores * _tpc ))}"
+            [[ "$_threads" =~ ^[0-9]+$ ]] && SYS_CPU_SPEC="${_cores}C/${_threads}T"
+        fi
+    fi
+
     if command -v lspci &>/dev/null; then
         SYS_GPU_LIST="$(lspci 2>/dev/null | awk '/VGA compatible controller|3D controller|Display controller/ {sub(/^[^ ]+ +/, ""); sub(/^[^:]+: /, ""); print}' | nl -w1 -s'. ')"
     elif command -v lshw &>/dev/null; then
@@ -201,6 +347,12 @@ system::gather_info() {
 
     if [[ -z "$SYS_GPU_LIST" ]]; then
         SYS_GPU_LIST="N/A"
+    fi
+
+    # Wi-Fi adapter model (resale grading) — PCIe wireless from lspci.
+    SYS_WIFI=""
+    if command -v lspci &>/dev/null; then
+        SYS_WIFI="$(lspci 2>/dev/null | awk '/Network controller/ {sub(/^[^ ]+ +/, ""); sub(/^[^:]+: /, ""); sub(/\(rev [0-9a-f]+\)[[:space:]]*$/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print}' | head -n1)"
     fi
 
     # RAM info: total rounded to nearest power-of-2 GB (matches marketing sizes).
@@ -271,38 +423,10 @@ system::gather_info() {
     fi
 
     # Battery (laptops) — model / serial / state-of-charge / health / cycles.
-    # Linux has no direct "health %" file: derive it as the ratio of the
-    # current full capacity (energy_full / charge_full) to the design capacity
-    # (energy_full_design / charge_full_design), matching what vendor tools
-    # report (BitRaser's "Capacity: 51.35%", Apple's "Maximum Capacity").
-    local _bat _b_model _b_serial _b_cap _b_status _b_cycles _b_full _b_design _b_health _bat_list=""
-    for _bat in /sys/class/power_supply/BAT*; do
-        [[ -d "$_bat" ]] || continue
-        _b_model="$(cat "$_bat/model_name" 2>/dev/null)"
-        _b_serial="$(cat "$_bat/serial_number" 2>/dev/null)"
-        _b_cap="$(cat "$_bat/capacity" 2>/dev/null)"
-        _b_status="$(cat "$_bat/status" 2>/dev/null)"
-        _b_cycles="$(cat "$_bat/cycle_count" 2>/dev/null)"
-        # cycle_count is only reported when the firmware exposes a meaningful
-        # value; the generic ACPI battery driver leaves it 0/absent on most
-        # laptops (Dell included), so omit it rather than print a misleading
-        # "0 cycles".
-        [[ "$_b_cycles" =~ ^[0-9]+$ && "$_b_cycles" -gt 0 ]] || _b_cycles=""
-        # Prefer energy_* (µWh), fall back to charge_* (µAh).
-        _b_full="$(cat "$_bat/energy_full" 2>/dev/null)"
-        _b_design="$(cat "$_bat/energy_full_design" 2>/dev/null)"
-        if [[ -z "$_b_full" || -z "$_b_design" ]]; then
-            _b_full="$(cat "$_bat/charge_full" 2>/dev/null)"
-            _b_design="$(cat "$_bat/charge_full_design" 2>/dev/null)"
-        fi
-        _b_health=""
-        if [[ "$_b_full" =~ ^[0-9]+$ && "$_b_design" =~ ^[0-9]+$ && "$_b_full" -gt 0 && "$_b_design" -gt 0 ]]; then
-            _b_health="$(( (_b_full * 100 + _b_design / 2) / _b_design ))%"
-        fi
-        _bat_list="${_bat_list}${_bat_list:+; }${_b_model:-Battery}${_b_serial:+ SN=$_b_serial}${_b_cap:+ @ ${_b_cap}%}"
-        _bat_list="${_bat_list}${_b_health:+ (health ${_b_health})}${_b_cycles:+ (${_b_cycles} cycles)}${_b_status:+ [${_b_status}]}"
-    done
-    SYS_BATTERY="$(printf '%s' "${_bat_list:-N/A}" | tr -d ',' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//')"
+    battery::capture
+
+    # Internal display panel (eDP) — manufacturer / resolution / size / year.
+    display::capture
 
     # Secure Boot state (UEFI). Best-effort; "N/A" when unavailable.
     local _sb _sbvar _sbraw
@@ -322,11 +446,11 @@ system::gather_info() {
     fi
     SYS_SECUREBOOT="${_sb:-N/A}"
 
-    # Per-DIMM inventory (size/type/speed/serial) — resale grading detail.
+    # Per-DIMM inventory (size/type/speed/part#/serial) — resale grading detail.
     local _dimm=""
     if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
         _dimm="$(dmidecode -t 17 2>/dev/null | awk '
-            /Memory Device$/        { size=""; stype=""; speed=""; sn="" }
+            /Memory Device$/        { size=""; stype=""; speed=""; sn=""; pn="" }
             /^[[:space:]]*Size:/ {
                 sub(/^[[:space:]]*Size:[[:space:]]*/,"")
                 if ($0 !~ /No Module/) size=$0
@@ -336,21 +460,24 @@ system::gather_info() {
             /^[[:space:]]*Configured Memory Speed:/ { sub(/^[[:space:]]*Configured Memory Speed:[[:space:]]*/,""); speed=$0; next }
             /^[[:space:]]*Speed:/    { if (speed=="") { sub(/^[[:space:]]*Speed:[[:space:]]*/,""); speed=$0 } ; next }
             /^[[:space:]]*Serial Number:/ { sub(/^[[:space:]]*Serial Number:[[:space:]]*/,""); sn=$0; next }
+            /^[[:space:]]*Part Number:/   { sub(/^[[:space:]]*Part Number:[[:space:]]*/,""); pn=$0; next }
             /^$/ && size!="" {
                 out=size
                 if (stype!="") out=out " " stype
                 if (speed!="" && speed!="Unknown") out=out " @ " speed
+                if (pn!="" && pn!="Unknown" && pn!="None" && pn!="Not Specified" && pn!="[Empty]") out=out " P/N=" pn
                 if (sn!="" && sn!="Unknown" && sn!="None" && sn!="Not Specified") out=out " SN=" sn
                 gsub(/,/, " ", out)
                 gsub(/[ \t]+/, " ", out)
                 print out
-                size=""; stype=""; speed=""; sn=""
+                size=""; stype=""; speed=""; sn=""; pn=""
             }
             END {
                 if (size!="") {
                     out=size
                     if (stype!="") out=out " " stype
                     if (speed!="" && speed!="Unknown") out=out " @ " speed
+                    if (pn!="" && pn!="Unknown" && pn!="None" && pn!="Not Specified" && pn!="[Empty]") out=out " P/N=" pn
                     if (sn!="" && sn!="Unknown" && sn!="None" && sn!="Not Specified") out=out " SN=" sn
                     gsub(/,/, " ", out)
                     gsub(/[ \t]+/, " ", out)

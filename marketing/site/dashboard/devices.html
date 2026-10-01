@@ -203,6 +203,8 @@
       var devices = [];
       var page = 1, per = 10;
       var expanded = {};
+      var histShown = {};   // expanded report rows shown per device
+      var histPer = 5;      // reports revealed per "Load more" press
       var animKey = null;
       var sortKey = 'status';   // initial sort: Status column
       var sortDir = -1;         // descending (Online first)
@@ -335,7 +337,7 @@
           var stTxt = el('span', 'text-xs font-semibold ' + (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'), dev.online ? 'Online' : 'Offline');
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
           if (dev.online && dev.lan_ip) {
-            var ipSpan = el('span', 'font-mono text-xs text-slate-500 dark:text-slate-400', dev.lan_ip);
+            var ipSpan = el('span', 'text-xs text-slate-400 dark:text-slate-500', dev.lan_ip);
             ipSpan.title = 'LAN IP reported by the appliance heartbeat — telnet/SSH target';
             stLine.appendChild(ipSpan);
           } else if (!dev.online && dev.last_seen) {
@@ -347,7 +349,13 @@
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
           var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 text-brand-700 dark:text-brand-400' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
           btn.title = 'Show every diagnostics report for this device';
-          btn.addEventListener('click', function () { expanded[key] = !expanded[key]; animKey = key; render(); });
+          btn.addEventListener('click', function () {
+            expanded[key] = !expanded[key];
+            if (expanded[key]) histShown[key] = histPer;
+            else delete histShown[key];
+            animKey = key;
+            render();
+          });
           tdv.appendChild(btn);
           var opBtn = el('button', 'ml-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Operations');
           opBtn.title = 'Remote operations for this device';
@@ -366,7 +374,10 @@
               shr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
             });
             st.appendChild(shr);
-            (dev.history || []).forEach(function (h) {
+            var hist = dev.history || [];
+            var hs = histShown[key] || histPer;
+            var shownHist = hist.slice(0, hs);
+            shownHist.forEach(function (h) {
               var htr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
               htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.biosversion ? h.biosversion + (h.biosdate ? ' (' + h.biosdate + ')' : '') : '—'));
@@ -374,13 +385,28 @@
               htdl.appendChild(lockBadge(h.bioslock) || document.createTextNode('—'));
               htr.appendChild(htdl);
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', typeof h.drive_count === 'number' ? h.drive_count : '—'));
-              var htdv = el('td', 'px-2 py-1.5 text-right');
+              var htdv = el('td', 'px-2 py-1.5 text-right whitespace-nowrap');
               var hvbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
               hvbtn.addEventListener('click', function () { openDevice(h); });
               htdv.appendChild(hvbtn);
+              if (h.pdf_id) {
+                var hpbtn = el('a', 'ml-1.5 inline-block rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
+                hpbtn.href = '/api/reports/' + h.pdf_id + '/download';
+                htdv.appendChild(hpbtn);
+              }
               htr.appendChild(htdv);
               st.appendChild(htr);
             });
+            if (hist.length > shownHist.length) {
+              var mtr = el('tr', '');
+              var mtd = el('td', 'px-2 py-2 text-center', '');
+              mtd.colSpan = 5;
+              var mbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + (hist.length - shownHist.length) + ' remaining)');
+              mbtn.addEventListener('click', function () { histShown[key] = (histShown[key] || histPer) + histPer; render(); });
+              mtd.appendChild(mbtn);
+              mtr.appendChild(mtd);
+              st.appendChild(mtr);
+            }
             var inner = el('div', key === animKey ? 'report-expand' : '');
             inner.appendChild(st);
             subtd.appendChild(inner);
@@ -468,7 +494,8 @@
           ['SKU', dev.sku], ['Asset tag', dev.asset_tag]
         ]));
         doc.appendChild(section('Hardware', [
-          ['CPU', dev.cpu], ['GPU', dev.gpu], ['RAM', dev.ram],
+          ['CPU', dev.cpu], ['Cores / threads', dev.cpu_spec], ['GPU', dev.gpu],
+          ['Display', dev.display], ['Wi-Fi', dev.wifi], ['RAM', dev.ram],
           ['TPM', dev.tpm], ['MAC address', dev.macs], ['Storage controllers', dev.storage_controllers],
           ['Battery', dev.battery], ['Memory modules', dev.dimms]
         ]));
@@ -520,7 +547,7 @@
         // Footer actions.
         var foot = document.getElementById('device-modal-footer');
         foot.innerHTML = '';
-        var dl = el('button', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download report');
+        var dl = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Download JSON');
         dl.addEventListener('click', function () { download('device-' + (dev.sysserial || 'report') + '.json', JSON.stringify(dev, null, 2)); });
         foot.appendChild(dl);
 

@@ -835,6 +835,55 @@ if ($method === 'POST' && $route === '/reports/diagnostics') {
     json_out(['ok' => true, 'report_type' => 'diagnostics', 'id' => $id, 'registered' => true]);
 }
 
+// GET /api/reports/{id}/download — renders the Device Diagnostics Report PDF
+// on the fly from the stored payload (owner or admin). Nothing is persisted.
+if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] === 'download') {
+    $u = auth_require();
+    $id = (int)$seg[1];
+    if ($id <= 0) {
+        fail(404, 'Report not found.');
+    }
+    $stmt = db()->prepare('SELECT * FROM reports WHERE id = ?');
+    $stmt->execute([$id]);
+    $r = $stmt->fetch();
+    if ($r === false || ((int)$r['user_id'] !== (int)$u['id'] && $u['role'] !== 'admin')) {
+        fail(404, 'Report not found.');
+    }
+    if (($r['report_type'] ?? 'erasure') !== 'diagnostics') {
+        fail(404, 'No diagnostics report available.');
+    }
+    $d = json_decode((string)($r['payload'] ?? ''), true);
+    if (!is_array($d)) {
+        fail(404, 'Report data unavailable.');
+    }
+
+    require_once __DIR__ . '/render_diag.php';
+    $owner = fetch_user_by_id((int)$r['user_id']);
+    $rendered = render_diagnostics_pdf(
+        diag_stored_to_raw($d),
+        certifier_details($owner ?? []),
+        owner_tier((int)$r['user_id']) !== 'free',
+        'none'
+    );
+
+    $sys = trim((string)($d['system'] ?? ''));
+    $sys = $sys !== '' ? trim(preg_replace('/[^A-Za-z0-9]+/', '_', $sys), '_') : 'device';
+    $sn = trim((string)($d['sysserial'] ?? $d['sysSerial'] ?? ''));
+    $sn = $sn !== '' ? trim(preg_replace('/[^A-Za-z0-9._-]+/', '_', $sn), '_') : 'nosn';
+
+    // "date and time in seconds": the report's UTC timestamp -> YYYYMMDD-HHMMSS.
+    $digits = preg_replace('/\D/', '', (string)($r['uploaded_at'] ?? ''));
+    $ts = strlen($digits) >= 14
+        ? substr($digits, 0, 4) . substr($digits, 4, 2) . substr($digits, 6, 2) . '-' . substr($digits, 8, 2) . substr($digits, 10, 2) . substr($digits, 12, 2)
+        : gmdate('Ymd-His');
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="tScrub-' . $sys . '-' . $sn . '-' . $ts . '.pdf"');
+    header('Content-Length: ' . strlen($rendered['data']));
+    echo $rendered['data'];
+    exit;
+}
+
 // POST /api/mdm/hash — stage a WinPE-captured authoritative 4K hash for the
 // device, so the appliance's MDM check (POST /api/mdm/autopilot) can use it.
 // API-token auth only, same token as the appliance.

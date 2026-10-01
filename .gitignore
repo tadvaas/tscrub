@@ -14,6 +14,10 @@ __pycache__/
 
 # Vendored PHP dependency (TCPDF) — sourced from the server, not committed.
 marketing/server/tcpdf/
+# PDF background + signing key — server-only assets, not committed.
+marketing/server/cert-bg.png
+marketing/server/sign.crt
+marketing/server/sign.key
 
 # Test harness: host config + generated test licence are environment-specific.
 tests/proxmox/config.sh
