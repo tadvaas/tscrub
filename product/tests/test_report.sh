@@ -23,6 +23,12 @@ SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
 SYS_CPU_LIST=$'1. Intel Xeon\n2. Intel Xeon'
 SYS_GPU_LIST='1. NVIDIA T4'
 SYS_RAM_GB='64 GB'
+SYS_SKU="SKU-001"; SYS_ASSET_TAG="AT-123"; SYS_BIOS_VENDOR="Dell Inc."; SYS_BOARD="Dell 0T7D40"
+SYS_TPM="2.0"; SYS_MAC_LIST="aa:bb:cc:dd:ee:ff; 11:22:33:44:55:66"
+SYS_STORAGE_CTRLS="1. Dell PERC HBA330; 2. Intel C610 SATA controller"
+SCRIPT_VERSION="9.9.9-test"
+OPERATOR_NAME="Jane Doe"; VALIDATOR_NAME="John Roe"
+ASSET_TAG="CUST-9001"; MEDIA_SOURCE="IT decommissioning"; MEDIA_DESTINATION="resale"
 BIOS_PASSWORD_STATUS="LOCKED"; BIOS_DETECTION_METHOD="SMBIOS Type 24 (Administrator Password Status)"
 REPORT_DIR="$(mktemp -d)/"
 REPORT_KEY_DIR="$(mktemp -d)"
@@ -44,13 +50,21 @@ t::check "report CSV exists" '[[ -f "$csv" ]]'
 t::check "CSV header includes machine columns" 'head -n1 "$csv" | grep -q "System,SystemSerial,BaseboardSerial,CPU,GPU,RAM"'
 t::check "CSV header includes BIOSLock column" 'head -n1 "$csv" | grep -q ",BIOSLock"'
 t::check "CSV header includes extended machine columns" 'head -n1 "$csv" | grep -q "ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod"'
+t::check "CSV header includes timing columns" 'head -n1 "$csv" | grep -q "StartTime,EndTime,DurationSecs"'
+t::check "CSV header includes drive-detail columns" 'head -n1 "$csv" | grep -q "Firmware,SectorSize,Sectors,HPA,DCO,SEDStatus,ReallocSectorsPost,SelfTest"'
+t::check "CSV header includes asset columns" 'head -n1 "$csv" | grep -q "SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion"'
+t::check "CSV header includes personnel columns" 'head -n1 "$csv" | grep -q "Operator,Validator,MediaSource,MediaDestination"'
 hdr_cols="$(head -n1 "$csv" | awk -F, '{print NF}')"
 row_cols="$(sed -n '2p' "$csv" | awk -F, '{print NF}')"
 t::check "CSV data row column count matches header ($hdr_cols)" '[ "$hdr_cols" = "$row_cols" ]'
 t::check "CSV row carries machine profile" 'grep -q "Dell PowerEdge" "$csv" && grep -q "1. Intel Xeon; 2. Intel Xeon" "$csv" && grep -q "NVIDIA T4" "$csv" && grep -q "64 GB" "$csv" && grep -q "CH123" "$csv" && grep -q "4C4C4544-0036-5710-8032-B5C04F433633" "$csv" && grep -q "Administrator Password Status" "$csv"'
+t::check "CSV row carries new system fields" 'grep -q "SKU-001" "$csv" && grep -q "CUST-9001" "$csv" && grep -q "Dell 0T7D40" "$csv" && grep -q "9.9.9-test" "$csv" && grep -q "aa:bb:cc:dd:ee:ff" "$csv"'
+t::check "CSV row carries personnel fields" 'grep -q "Jane Doe" "$csv" && grep -q "John Roe" "$csv" && grep -q "IT decommissioning" "$csv" && grep -q "resale" "$csv"'
 t::check "manifest JSON exists" '[[ -f "$manifest" ]]'
 t::check "manifest records bios_lock" 'grep -q "bios_lock" "$manifest"'
 t::check "manifest records extended profile" 'grep -q "system_uuid" "$manifest" && grep -q "bios_version" "$manifest" && grep -q "chassis_serial" "$manifest"'
+t::check "manifest records version + asset fields" 'grep -q "\"version\": \"9.9.9-test\"" "$manifest" && grep -q "\"sku\": \"SKU-001\"" "$manifest" && grep -q "\"tpm\": \"2.0\"" "$manifest" && grep -q "\"board\": \"Dell 0T7D40\"" "$manifest"'
+t::check "manifest records personnel fields" 'grep -q "\"operator\": \"Jane Doe\"" "$manifest" && grep -q "\"validator\": \"John Roe\"" "$manifest" && grep -q "\"media_source\": \"IT decommissioning\"" "$manifest" && grep -q "\"media_destination\": \"resale\"" "$manifest"'
 
 # The manifest must be strict-JSON-parseable (certify.php json_decode + the
 # harness's python3 json.load both reject the missing-comma bug this guards).
@@ -82,6 +96,18 @@ if (( have_ed25519 == 1 )); then
 else
     t::check "signing skipped (no Ed25519-capable openssl)" 'true'
 fi
+
+# --- CLI flags for the operator/validator/asset/media fields ---
+OPERATOR_NAME=""; parse_args --operator "Jane Doe"
+t::check "--operator sets OPERATOR_NAME" '[[ "$OPERATOR_NAME" == "Jane Doe" ]]'
+VALIDATOR_NAME=""; parse_args --validator="John Roe"
+t::check "--validator= sets VALIDATOR_NAME" '[[ "$VALIDATOR_NAME" == "John Roe" ]]'
+ASSET_TAG=""; parse_args --asset-tag "TAG-1"
+t::check "--asset-tag sets ASSET_TAG" '[[ "$ASSET_TAG" == "TAG-1" ]]'
+MEDIA_SOURCE=""; parse_args --media-source "dept A"
+t::check "--media-source sets MEDIA_SOURCE" '[[ "$MEDIA_SOURCE" == "dept A" ]]'
+MEDIA_DESTINATION=""; parse_args --media-destination "recycle"
+t::check "--media-destination sets MEDIA_DESTINATION" '[[ "$MEDIA_DESTINATION" == "recycle" ]]'
 
 rm -rf "${REPORT_DIR%/}"
 t::summary

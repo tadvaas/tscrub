@@ -660,6 +660,18 @@ ui::loop() {
                    [[ -z "${devrow[$_dev.wipe_start]}" ]]; then
                     devrow["$_dev.wipe_start"]="$(ts::now)"
                 fi
+                # Report timing: first RUNNING -> start, first terminal -> end.
+                if [[ "$_value" == "RUNNING" ]] && [[ -z "${devrow[$_dev.start_ts]}" ]]; then
+                    devrow["$_dev.start_ts"]="$(ts::now)"
+                    devrow["$_dev.start_at"]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                fi
+                case "$_value" in
+                    COMPLETED|FAILED|BLOCKED|FROZEN|SKIPPED|DRY-RUN)
+                        if [[ -z "${devrow[$_dev.end_ts]}" ]]; then
+                            devrow["$_dev.end_ts"]="$(ts::now)"
+                            devrow["$_dev.end_at"]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                        fi ;;
+                esac
                 table::render
             else
                 # Forward non-STATUS worker messages (LOG) to the log file.

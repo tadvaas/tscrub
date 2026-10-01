@@ -8,6 +8,16 @@ report::_csv_field() {
     printf '%s' "${s//\"/\"\"}"
 }
 
+# Emit one CSV data row from positional fields (quoted, RFC-4180-safe).
+report::_row() {
+    local sep="" f
+    for f in "$@"; do
+        printf '%s"%s"' "$sep" "$(report::_csv_field "$f")"
+        sep=","
+    done
+    printf '\n'
+}
+
 # Human-friendly destination for messages: a temp USB mountpoint reads as
 # "/tmp/tscrub-usb.XXXXXX", which looks like RAM — say "the USB stick" instead.
 report::_where() {
@@ -32,53 +42,58 @@ report::csv() {
 
     # Machine profile (one value per machine, repeated on every drive row so the
     # CSV is self-contained and the server can attribute each drive to its host).
-    local sys_system sys_cpu sys_gpu
+    local sys_system sys_cpu sys_gpu sys_sku sys_asset sys_bios_vendor sys_board sys_tpm sys_macs sys_ctrls sys_toolver sys_operator sys_validator sys_media_src sys_media_dst
     sys_system="$(printf '%s %s' "${SYS_MANUFACTURER:-N/A}" "${SYS_PRODUCT:-N/A}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [[ -n "$sys_system" ]] || sys_system="N/A"
     sys_cpu="${SYS_CPU_LIST:-N/A}"; sys_cpu="${sys_cpu//$'\n'/; }"
     sys_gpu="${SYS_GPU_LIST:-N/A}"; sys_gpu="${sys_gpu//$'\n'/; }"
+    sys_sku="${SYS_SKU:-N/A}"
+    sys_asset="${ASSET_TAG:-${SYS_ASSET_TAG:-N/A}}"
+    sys_bios_vendor="${SYS_BIOS_VENDOR:-N/A}"
+    sys_board="${SYS_BOARD:-N/A}"
+    sys_tpm="${SYS_TPM:-N/A}"
+    sys_macs="${SYS_MAC_LIST:-N/A}"
+    sys_ctrls="${SYS_STORAGE_CTRLS:-N/A}"; sys_ctrls="${sys_ctrls//$'\n'/; }"
+    sys_toolver="${SCRIPT_VERSION:-N/A}"
+    sys_operator="${OPERATOR_NAME:-N/A}"
+    sys_validator="${VALIDATOR_NAME:-N/A}"
+    sys_media_src="${MEDIA_SOURCE:-N/A}"
+    sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination"
         for dev in "${devices[@]}"; do
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
-                "$(report::_csv_field "$COCID")" \
-                "$now" \
-                "$(report::_csv_field "${devrow[$dev.model]}")" \
-                "$(report::_csv_field "${devrow[$dev.serial]}")" \
-                "$(report::_csv_field "${devrow[$dev.size]}")" \
-                "$(report::_csv_field "${devrow[$dev.bus]}")" \
-                "$(report::_csv_field "${devrow[$dev.type]}")" \
-                "$(report::_csv_field "${devrow[$dev.device]}")" \
-                "$(report::_csv_field "${devrow[$dev.class]}")" \
-                "$(report::_csv_field "${devrow[$dev.cert]}")" \
-                "$(report::_csv_field "${devrow[$dev.method]}")" \
-                "$(report::_csv_field "${devrow[$dev.status]}")" \
-                "$(report::_csv_field "${devrow[$dev.smart]}")" \
-                "$(report::_csv_field "${devrow[$dev.temp]}")" \
-                "$(report::_csv_field "${devrow[$dev.poh]}")" \
-                "$(report::_csv_field "${devrow[$dev.cycles]}")" \
-                "$(report::_csv_field "${devrow[$dev.realloc]}")" \
-                "$(report::_csv_field "${devrow[$dev.pct_used]}")" \
-                "$(report::_csv_field "${devrow[$dev.spare]}")" \
-                "$(report::_csv_field "${devrow[$dev.tbw]}")" \
-                "$(report::_csv_field "${devrow[$dev.smart_post]}")" \
-                "$(report::_csv_field "${devrow[$dev.temp_post]}")" \
-                "$(report::_csv_field "${devrow[$dev.poh_post]}")" \
-                "$(report::_csv_field "$sys_system")" \
-                "$(report::_csv_field "${SYS_SERIAL:-N/A}")" \
-                "$(report::_csv_field "${SYS_BASEBOARD_SERIAL:-N/A}")" \
-                "$(report::_csv_field "$sys_cpu")" \
-                "$(report::_csv_field "$sys_gpu")" \
-                "$(report::_csv_field "${SYS_RAM_GB:-N/A}")" \
-                "$(report::_csv_field "${MDM_VERDICT:-N/A}")" \
-                "$(report::_csv_field "${BIOS_PASSWORD_STATUS:-UNKNOWN}")" \
-                "$(report::_csv_field "${SYS_CHASSIS_SERIAL:-N/A}")" \
-                "$(report::_csv_field "${SYS_CHASSIS_TYPE:-N/A}")" \
-                "$(report::_csv_field "${SYS_BIOS_VERSION:-N/A}")" \
-                "$(report::_csv_field "${SYS_BIOS_DATE:-N/A}")" \
-                "$(report::_csv_field "${SYS_UUID:-N/A}")" \
-                "$(report::_csv_field "${BIOS_DETECTION_METHOD:-N/A}")"
+            local st en dur sed_status
+            st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
+            dur=""
+            [[ "$st" =~ ^[0-9]+$ && "$en" =~ ^[0-9]+$ ]] && dur=$(( en - st ))
+            case "${opal_locked[$dev]:-}" in
+                YES) sed_status="Locked" ;;
+                NO)  sed_status="Unlocked" ;;
+                *)   sed_status="N/A" ;;
+            esac
+            report::_row \
+                "$COCID" "$now" \
+                "${devrow[$dev.model]}" "${devrow[$dev.serial]}" "${devrow[$dev.size]}" \
+                "${devrow[$dev.bus]}" "${devrow[$dev.type]}" "${devrow[$dev.device]}" \
+                "${devrow[$dev.class]}" "${devrow[$dev.cert]}" "${devrow[$dev.method]}" \
+                "${devrow[$dev.status]}" "${devrow[$dev.smart]}" "${devrow[$dev.temp]}" \
+                "${devrow[$dev.poh]}" "${devrow[$dev.cycles]}" "${devrow[$dev.realloc]}" \
+                "${devrow[$dev.pct_used]}" "${devrow[$dev.spare]}" "${devrow[$dev.tbw]}" \
+                "${devrow[$dev.smart_post]}" "${devrow[$dev.temp_post]}" "${devrow[$dev.poh_post]}" \
+                "$sys_system" "${SYS_SERIAL:-N/A}" "${SYS_BASEBOARD_SERIAL:-N/A}" \
+                "$sys_cpu" "$sys_gpu" "${SYS_RAM_GB:-N/A}" \
+                "${MDM_VERDICT:-N/A}" "${BIOS_PASSWORD_STATUS:-UNKNOWN}" \
+                "${SYS_CHASSIS_SERIAL:-N/A}" "${SYS_CHASSIS_TYPE:-N/A}" \
+                "${SYS_BIOS_VERSION:-N/A}" "${SYS_BIOS_DATE:-N/A}" \
+                "${SYS_UUID:-N/A}" "${BIOS_DETECTION_METHOD:-N/A}" \
+                "${devrow[$dev.start_at]}" "${devrow[$dev.end_at]}" "$dur" \
+                "${devrow[$dev.firmware]}" "${secsize[$dev]:-}" "${sectors[$dev]:-}" \
+                "${hpa[$dev]:-}" "${dco[$dev]:-}" "$sed_status" \
+                "${devrow[$dev.realloc_post]}" "${devrow[$dev.selftest]}" \
+                "$sys_sku" "$sys_asset" "$sys_bios_vendor" "$sys_board" "$sys_tpm" \
+                "$sys_macs" "$sys_ctrls" "$sys_toolver" \
+                "$sys_operator" "$sys_validator" "$sys_media_src" "$sys_media_dst"
         done
     } > "$report_file"
 
@@ -220,6 +235,18 @@ report::sign() {
         printf '  "bios_version": "%s",\n' "$(report::_json_field "${SYS_BIOS_VERSION:-}")"
         printf '  "bios_date": "%s",\n' "$(report::_json_field "${SYS_BIOS_DATE:-}")"
         printf '  "system_uuid": "%s",\n' "$(report::_json_field "${SYS_UUID:-}")"
+        printf '  "version": "%s",\n' "$(report::_json_field "${SCRIPT_VERSION:-N/A}")"
+        printf '  "sku": "%s",\n' "$(report::_json_field "${SYS_SKU:-N/A}")"
+        printf '  "asset_tag": "%s",\n' "$(report::_json_field "${ASSET_TAG:-${SYS_ASSET_TAG:-N/A}}")"
+        printf '  "operator": "%s",\n' "$(report::_json_field "${OPERATOR_NAME:-N/A}")"
+        printf '  "validator": "%s",\n' "$(report::_json_field "${VALIDATOR_NAME:-N/A}")"
+        printf '  "media_source": "%s",\n' "$(report::_json_field "${MEDIA_SOURCE:-N/A}")"
+        printf '  "media_destination": "%s",\n' "$(report::_json_field "${MEDIA_DESTINATION:-N/A}")"
+        printf '  "bios_vendor": "%s",\n' "$(report::_json_field "${SYS_BIOS_VENDOR:-N/A}")"
+        printf '  "board": "%s",\n' "$(report::_json_field "${SYS_BOARD:-N/A}")"
+        printf '  "tpm": "%s",\n' "$(report::_json_field "${SYS_TPM:-N/A}")"
+        printf '  "macs": "%s",\n' "$(report::_json_field "${SYS_MAC_LIST:-N/A}")"
+        printf '  "storage_controllers": "%s",\n' "$(report::_json_field "${SYS_STORAGE_CTRLS:-N/A}")"
         printf '  "selected": %s,\n' "$(report::selected_count)"
         printf '  "skipped": %s\n' "$(report::skipped_count)"
         printf '}\n'
@@ -415,6 +442,11 @@ license::detect_usb() {
 #   tscrub_cocid=12345
 #   tscrub_license_url=http://host/license.lic
 #   tscrub_output=/path | ftp:host:path:user:pass | sftp:...
+#   tscrub_operator=<name>         (erasure technician on the report)
+#   tscrub_validator=<name>        (validation official on the report)
+#   tscrub_asset_tag=<tag>         (overrides the firmware chassis asset tag)
+#   tscrub_media_source=<where>    (e.g. "IT decommissioning")
+#   tscrub_media_destination=<where> (e.g. "resale", "recycle")
 # CLI flags always win; the file fills in only what isn't already set.
 config::load_usb() {
     local name type rm fstype dev mnt conf mounted pass line key val
@@ -507,6 +539,26 @@ config::load_usb() {
                                 [[ -z "${REPORT_OUTPUT:-}" ]] && REPORT_OUTPUT="$val"
                                 CONFIG_USB_DEBUG+="  tscrub_output: path set"$'\n'
                             fi
+                            ;;
+                        tscrub_operator)
+                            [[ -z "${OPERATOR_NAME:-}" ]] && OPERATOR_NAME="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_operator: set"$'\n'
+                            ;;
+                        tscrub_validator)
+                            [[ -z "${VALIDATOR_NAME:-}" ]] && VALIDATOR_NAME="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_validator: set"$'\n'
+                            ;;
+                        tscrub_asset_tag)
+                            [[ -z "${ASSET_TAG:-}" ]] && ASSET_TAG="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_asset_tag: set"$'\n'
+                            ;;
+                        tscrub_media_source)
+                            [[ -z "${MEDIA_SOURCE:-}" ]] && MEDIA_SOURCE="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_media_source: set"$'\n'
+                            ;;
+                        tscrub_media_destination)
+                            [[ -z "${MEDIA_DESTINATION:-}" ]] && MEDIA_DESTINATION="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_media_destination: set"$'\n'
                             ;;
                         *)
                             CONFIG_USB_DEBUG+="  ignored key: ${key}"$'\n'
@@ -795,6 +847,47 @@ report::parse_upload() {
     fi
 
     export TSCRUB_UPLOAD_URL TSCRUB_API_TOKEN
+}
+
+# Kernel command line: operator identity + asset metadata for the report.
+# Mirrors the tscrub.conf keys so a PXE fleet can be provisioned centrally;
+# cmdline values win over tscrub.conf (and over the firmware asset tag). Note
+# the kernel cmdline is space-delimited, so values with spaces belong in
+# tscrub.conf rather than on the cmdline.
+report::parse_identity() {
+    local param
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_operator=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"; param="${param%\"}"
+        OPERATOR_NAME="$param"
+    fi
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_validator=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"; param="${param%\"}"
+        VALIDATOR_NAME="$param"
+    fi
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_asset_tag=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"; param="${param%\"}"
+        ASSET_TAG="$param"
+    fi
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_media_source=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"; param="${param%\"}"
+        MEDIA_SOURCE="$param"
+    fi
+
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_media_destination=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        param="${param#\"}"; param="${param%\"}"
+        MEDIA_DESTINATION="$param"
+    fi
+
+    export OPERATOR_NAME VALIDATOR_NAME ASSET_TAG MEDIA_SOURCE MEDIA_DESTINATION
 }
 
 # Parse a network upload destination from the kernel command line.

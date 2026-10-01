@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.0] - 2026-10-01
+
+### Added
+
+- **Richer device & drive capture in reports** — the report CSV grew from 37 to
+  60 columns and the manifest now carries a fuller machine profile:
+  - Device: SKU, asset tag, BIOS vendor, motherboard, TPM status, network MAC
+    addresses, and storage controllers.
+  - Drive: firmware revision, logical sector size, total sectors, HPA/DCO
+    state, SED/OPAL lock state, and the most recent SMART self-test result.
+  - Timing: per-drive start/end timestamps and duration.
+- **Operator & asset metadata fields** — `tscrub_operator`, `tscrub_validator`,
+  `tscrub_asset_tag`, `tscrub_media_source` and `tscrub_media_destination` are
+  now recorded on the report. Accepted as kernel parameters (PXE), `tscrub.conf`
+  keys, or CLI flags (`--operator`, `--validator`, `--asset-tag`,
+  `--media-source`, `--media-destination`). The asset-tag value overrides the
+  firmware chassis asset tag.
+
+### Release
+
+- (populated after the appliance build)
+
 ## [v1.8.19] - 2026-09-30
 
 ### Changed

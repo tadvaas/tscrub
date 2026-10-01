@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.8.19"
+SCRIPT_VERSION="v1.9.0"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -81,6 +81,20 @@ SYS_BIOS_DATE=""
 SYS_CPU_LIST=""
 SYS_GPU_LIST=""
 SYS_RAM_GB=""
+SYS_SKU=""
+SYS_ASSET_TAG=""
+SYS_BIOS_VENDOR=""
+SYS_BOARD=""
+SYS_TPM=""
+SYS_MAC_LIST=""
+SYS_STORAGE_CTRLS=""
+
+# Operator / job metadata (configurable via CLI, tscrub.conf, or kernel cmdline).
+OPERATOR_NAME=""
+VALIDATOR_NAME=""
+ASSET_TAG=""
+MEDIA_SOURCE=""
+MEDIA_DESTINATION=""
 
 system::gather_info() {
     # Try dmidecode first (requires root)
@@ -94,6 +108,12 @@ system::gather_info() {
         SYS_CHASSIS_TYPE="$(dmidecode -s chassis-type 2>/dev/null | head -n1 || echo N/A)"
         SYS_BIOS_VERSION="$(dmidecode -s bios-version 2>/dev/null | head -n1 || echo N/A)"
         SYS_BIOS_DATE="$(dmidecode -s bios-release-date 2>/dev/null | head -n1 || echo N/A)"
+        SYS_SKU="$(dmidecode -s system-sku-number 2>/dev/null | head -n1 || echo N/A)"
+        SYS_ASSET_TAG="$(dmidecode -s chassis-asset-tag 2>/dev/null | head -n1 || echo N/A)"
+        SYS_BIOS_VENDOR="$(dmidecode -s bios-vendor 2>/dev/null | head -n1 || echo N/A)"
+        SYS_BOARD="$(printf '%s %s' \
+            "$(dmidecode -s baseboard-manufacturer 2>/dev/null | head -n1)" \
+            "$(dmidecode -s baseboard-product-name 2>/dev/null | head -n1)")"
     else
         # Fallback to /sys/class/dmi/id/ (works on most Linux, even non-root)
         SYS_MANUFACTURER="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || echo N/A)"
@@ -105,6 +125,12 @@ system::gather_info() {
         SYS_CHASSIS_TYPE="$(cat /sys/class/dmi/id/chassis_type 2>/dev/null || echo N/A)"
         SYS_BIOS_VERSION="$(cat /sys/class/dmi/id/bios_version 2>/dev/null || echo N/A)"
         SYS_BIOS_DATE="$(cat /sys/class/dmi/id/bios_date 2>/dev/null || echo N/A)"
+        SYS_SKU="$(cat /sys/class/dmi/id/product_sku 2>/dev/null || echo N/A)"
+        SYS_ASSET_TAG="$(cat /sys/class/dmi/id/chassis_asset_tag 2>/dev/null || echo N/A)"
+        SYS_BIOS_VENDOR="$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null || echo N/A)"
+        SYS_BOARD="$(printf '%s %s' \
+            "$(cat /sys/class/dmi/id/board_vendor 2>/dev/null)" \
+            "$(cat /sys/class/dmi/id/board_name 2>/dev/null)")"
     fi
 
     [[ -n "${SYS_SERIAL//[[:space:]]/}" ]] || SYS_SERIAL="N/A"
@@ -121,12 +147,21 @@ system::gather_info() {
     # "To Be Filled By O.E.M.", etc.) to a single "N/A" for a clean display.
     local _v _val
     for _v in SYS_SERIAL SYS_BASEBOARD_SERIAL SYS_CHASSIS_SERIAL SYS_MANUFACTURER \
-              SYS_PRODUCT SYS_CHASSIS_TYPE SYS_BIOS_VERSION SYS_BIOS_DATE; do
+              SYS_PRODUCT SYS_CHASSIS_TYPE SYS_BIOS_VERSION SYS_BIOS_DATE \
+              SYS_SKU SYS_ASSET_TAG SYS_BIOS_VENDOR SYS_BOARD; do
         _val="${!_v}"
         case "${_val,,}" in
             ""|"not specified"|"none"|"unknown"|"to be filled by o.e.m."|"default string"|"system product name"|"system manufacturer"|"0")
                 printf -v "$_v" "%s" "N/A" ;;
         esac
+    done
+
+    # Free-text identifiers (SKU, asset tag, board, BIOS vendor) must never
+    # break the report CSV: strip commas and collapse whitespace.
+    for _v in SYS_SKU SYS_ASSET_TAG SYS_BIOS_VENDOR SYS_BOARD; do
+        _val="${!_v//,/ }"
+        _val="$(printf '%s' "$_val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]][[:space:]]*/ /g')"
+        printf -v "$_v" "%s" "$_val"
     done
 
     # UUID: normalise missing/placeholder/sentinel values to "N/A" so the MDM
@@ -214,6 +249,44 @@ system::gather_info() {
     else
         SYS_RAM_GB="$_ram_total"
     fi
+
+    # TPM presence/version (best-effort; reported, never required for the wipe).
+    if [[ -d /sys/class/tpm/tpm0 ]]; then
+        local _tpm_maj
+        _tpm_maj="$(cat /sys/class/tpm/tpm0/tpm_version_major 2>/dev/null || true)"
+        if [[ -n "$_tpm_maj" ]]; then
+            SYS_TPM="${_tpm_maj}.0"
+        else
+            SYS_TPM="Present"
+        fi
+    else
+        SYS_TPM="N/A"
+    fi
+
+    # Network adapters (MAC addresses are a stable asset identifier).
+    local _if _addr _macs=""
+    for _if in /sys/class/net/*/address; do
+        [[ -r "$_if" ]] || continue
+        _addr="$(tr -d '\n' < "$_if" 2>/dev/null)"
+        [[ -n "$_addr" ]] || continue
+        _macs="${_macs}${_macs:+; }${_addr}"
+    done
+    SYS_MAC_LIST="${_macs:-N/A}"
+
+    # Storage controllers (RAID/SAS/FC/HBA) — helps identify a wiped host.
+    if command -v lspci >/dev/null 2>&1; then
+        SYS_STORAGE_CTRLS="$(lspci 2>/dev/null | awk '
+            /SATA controller|RAID|SAS|Fibre Channel|HBA|SCSI storage|NVMe|NVM Express/ {
+                sub(/^[^ ]+ +/, "")
+                sub(/^[^:]+: /, "")
+                gsub(/,/, " ")
+                gsub(/^[ \t]+|[ \t]+$/, "")
+                printf "%s%d. %s", sep, ++n, $0
+                sep = "; "
+            }
+        ')"
+    fi
+    [[ -n "$SYS_STORAGE_CTRLS" ]] || SYS_STORAGE_CTRLS="N/A"
 }
 
 # =============================================================================
@@ -318,8 +391,48 @@ parse_args() {
                     *)             AUTONUKE=0 ;;
                 esac
                 ;;
+            --operator=*)
+                OPERATOR_NAME="${arg#*=}"
+                ;;
+            --operator)
+                shift
+                [[ $# -gt 0 ]] || { echo "--operator requires a name"; exit 1; }
+                OPERATOR_NAME="$1"
+                ;;
+            --validator=*)
+                VALIDATOR_NAME="${arg#*=}"
+                ;;
+            --validator)
+                shift
+                [[ $# -gt 0 ]] || { echo "--validator requires a name"; exit 1; }
+                VALIDATOR_NAME="$1"
+                ;;
+            --asset-tag=*)
+                ASSET_TAG="${arg#*=}"
+                ;;
+            --asset-tag)
+                shift
+                [[ $# -gt 0 ]] || { echo "--asset-tag requires a value"; exit 1; }
+                ASSET_TAG="$1"
+                ;;
+            --media-source=*)
+                MEDIA_SOURCE="${arg#*=}"
+                ;;
+            --media-source)
+                shift
+                [[ $# -gt 0 ]] || { echo "--media-source requires a value"; exit 1; }
+                MEDIA_SOURCE="$1"
+                ;;
+            --media-destination=*)
+                MEDIA_DESTINATION="${arg#*=}"
+                ;;
+            --media-destination)
+                shift
+                [[ $# -gt 0 ]] || { echo "--media-destination requires a value"; exit 1; }
+                MEDIA_DESTINATION="$1"
+                ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
@@ -330,6 +443,11 @@ parse_args() {
                 echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
                 echo "  --cocid 12345        Set the Chain of Custody ID and run non-interactively (autonuke)."
                 echo "  --autonuke           Select every drive and start erasure without the selection screen."
+                echo "  --operator NAME      Record the erasure technician on the report."
+                echo "  --validator NAME     Record the validation official on the report."
+                echo "  --asset-tag TAG      Override the asset tag (default: firmware chassis asset tag)."
+                echo "  --media-source SRC   Record the media source (e.g. 'IT decommissioning')."
+                echo "  --media-destination DST  Record the media destination (e.g. 'resale', 'recycle')."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;

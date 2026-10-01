@@ -79,6 +79,9 @@ fn_main() {
     # boot-time device registration and presence heartbeat, both of which run
     # long before the final report upload. Cmdline wins over tscrub.conf.
     report::parse_upload
+    # Same for operator/validator/asset-tag/media-source/destination: parse them
+    # early so the report (and any boot-time snapshot) already carries them.
+    report::parse_identity
 
     # Enable attributable (vendor-signed) reports when a valid licence is present.
     # tScrub always requires a licence — even the free tier.

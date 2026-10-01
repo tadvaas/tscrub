@@ -60,6 +60,11 @@ device::discover() {
     declare -Ag size
     declare -Ag type
     declare -Ag opal_locked
+    declare -Ag firmware
+    declare -Ag secsize
+    declare -Ag sectors
+    declare -Ag hpa
+    declare -Ag dco
 
     # Allow tests to point discovery at a fake block-device tree.
     local block_dir="${SYS_BLOCK_DIR:-/sys/block}"
@@ -90,18 +95,31 @@ device::discover() {
             model[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^mn[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
             device::identity_fallback "$dev" "$block_dir"
             
-            # OPAL Lock Check
-            if sedutil-cli --query "$ctrl_dev" 2>/dev/null | grep -q "Locked = Y"; then
+            # OPAL/SED lock state (three-way: locked / not locked / unsupported).
+            local _sedout
+            _sedout="$(sedutil-cli --query "$ctrl_dev" 2>/dev/null)"
+            if grep -q "Locked = Y" <<<"$_sedout"; then
                 opal_locked[$dev]="YES"
-            else
+            elif grep -q "Locked = N" <<<"$_sedout"; then
                 opal_locked[$dev]="NO"
+            else
+                opal_locked[$dev]="NA"
             fi
+
+            # Firmware revision (NVMe: `fr`), logical sector size, total sectors.
+            firmware[$dev]=$(nvme id-ctrl /dev/$dev 2>/dev/null | awk -F': *' '/^fr[[:space:]]*:/{print $2}' | xargs | tr -d '\000-\037\177')
+            secsize[$dev]="$(blockdev --getss /dev/$dev 2>/dev/null)"
+            [[ "$secsize[$dev]" =~ ^[0-9]+$ ]] || secsize[$dev]=""
+            hpa[$dev]="N/A"
+            dco[$dev]="N/A"
 
             bytes=$(blockdev --getsize64 /dev/$dev 2>/dev/null)
             if [[ -n "$bytes" && "$bytes" =~ ^[0-9]+$ ]]; then
                 size[$dev]=$(( bytes / 1000000000 ))" GB"
+                sectors[$dev]=$(( bytes / 512 ))
             else
                 size[$dev]="N/A"
+                sectors[$dev]=""
             fi
 
         # --- SATA/SCSI DISCOVERY ---
@@ -145,18 +163,48 @@ device::discover() {
                 model[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Model Number/ {print $2}' | xargs | tr -d '\000-\037\177')
                 device::identity_fallback "$dev" "$block_dir"
                 
-                # OPAL Lock Check for SATA
-                if sedutil-cli --query "/dev/$dev" 2>/dev/null | grep -q "Locked = Y"; then
+                # OPAL/SED lock state (three-way).
+                local _sedout _hpa _dco
+                _sedout="$(sedutil-cli --query "/dev/$dev" 2>/dev/null)"
+                if grep -q "Locked = Y" <<<"$_sedout"; then
                     opal_locked[$dev]="YES"
-                else
+                elif grep -q "Locked = N" <<<"$_sedout"; then
                     opal_locked[$dev]="NO"
+                else
+                    opal_locked[$dev]="NA"
+                fi
+
+                # Firmware revision + logical sector size, and ATA hidden-area
+                # state (HPA via `hdparm -N`, DCO via `--dco-identify`).
+                firmware[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Firmware Revision/ {print $2}' | xargs | tr -d '\000-\037\177')
+                secsize[$dev]="$(blockdev --getss /dev/$dev 2>/dev/null)"
+                [[ "$secsize[$dev]" =~ ^[0-9]+$ ]] || secsize[$dev]=""
+
+                _hpa="$(hdparm -N /dev/$dev 2>/dev/null)"
+                if [[ "$_hpa" == *"HPA is enabled"* ]]; then
+                    hpa[$dev]="Enabled"
+                elif [[ "$_hpa" == *"HPA is disabled"* ]]; then
+                    hpa[$dev]="Disabled"
+                else
+                    hpa[$dev]="N/A"
+                fi
+
+                _dco="$(hdparm --dco-identify /dev/$dev 2>/dev/null)"
+                if [[ "$_dco" == *"DCO Revision"* ]]; then
+                    dco[$dev]="Present"
+                elif [[ "$_dco" == *"not supported"* || -z "$_dco" ]]; then
+                    dco[$dev]="Doesn't exist"
+                else
+                    dco[$dev]="N/A"
                 fi
 
                 bytes=$(blockdev --getsize64 /dev/$dev 2>/dev/null)
                 if [[ -n "$bytes" && "$bytes" =~ ^[0-9]+$ ]]; then
                     size[$dev]=$(( bytes / 1000000000 ))" GB"
+                    sectors[$dev]=$(( bytes / 512 ))
                 else
                     size[$dev]="N/A"
+                    sectors[$dev]=""
                 fi
             else
                 continue

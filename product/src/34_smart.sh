@@ -130,6 +130,23 @@ smart::capture_ata() {
         devrow["$dev.smart${sfx}"]="UNSUP"
     fi
 
+    # Most recent self-test result (description + status), from the self-test
+    # log embedded in `smartctl -a`. Stops at the numeric remaining% column.
+    devrow["$dev.selftest${sfx}"]="$(awk '
+        /SMART Self-test log structure/ { f=1; next }
+        f && /^# *1 / {
+            $1=""
+            sub(/^ +/, "")
+            out=""
+            for (i=1; i<=NF; i++) {
+                if ($i ~ /^[0-9]+%?$/) break
+                out = (out=="" ? $i : out " " $i)
+            }
+            print out
+            exit
+        }
+    ' <<<"$out")"
+
     attrs="$(smart::ata_attr_table "$out")"
     [[ -n "$attrs" ]] || return
 

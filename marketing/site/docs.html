@@ -275,8 +275,13 @@ umount /mnt/iso</pre>
 tscrub_autopilotcheck=true
 tscrub_cocid=12345
 tscrub_license_url=http://192.168.1.10/Acme-ITAD-Ltd-2027-09-12.lic
-tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_autopilotcheck=true</code> opts in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
+tscrub_output=ftp:backup.example.com:incoming/tscrub:itad:s3cret
+tscrub_operator=Jane Doe
+tscrub_validator=John Roe
+tscrub_asset_tag=IT-2041
+tscrub_media_source=IT decommissioning
+tscrub_media_destination=resale</pre>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Keys mirror the kernel parameters: <code class="font-mono">tscrub_api_token</code> pushes reports to your dashboard, <code class="font-mono">tscrub_cocid</code> enables unattended runs (no prompt), <code class="font-mono">tscrub_autopilotcheck=true</code> opts in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection), <code class="font-mono">tscrub_license_url</code> fetches the licence over the LAN, and <code class="font-mono">tscrub_output</code> points reports at a local path or an <code class="font-mono">ftp:</code> / <code class="font-mono">sftp:</code> server. The report metadata keys — <code class="font-mono">tscrub_operator</code>, <code class="font-mono">tscrub_validator</code>, <code class="font-mono">tscrub_asset_tag</code>, <code class="font-mono">tscrub_media_source</code> and <code class="font-mono">tscrub_media_destination</code> — record who performed and validated the erasure and where the media came from / is going; unlike the kernel command line, <code class="font-mono">tscrub.conf</code> values may contain spaces. Editing the GRUB entry on the stick also works when the boot partition is writable (Rufus ISO mode or Ventoy), but <code class="font-mono">tscrub.conf</code> works however you wrote the stick.</p>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Full details and examples are in <a href="#report" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 8, The report</a>.</p>
             </div>
           </div>
@@ -424,6 +429,11 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_upload=&lt;url&gt;</td><td class="px-6 py-3">Optional — overrides the built-in dashboard endpoint (https://tscrub.com/api/reports).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_api_token=&lt;64-hex&gt;</td><td class="px-6 py-3">Appliance token from the Licences page — pushes the report to your dashboard.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_autopilotcheck=true</td><td class="px-6 py-3">Opt in to the Windows Autopilot MDM check (requires <code class="font-mono">tscrub_api_token</code> and a network connection).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_operator=NAME</td><td class="px-6 py-3">Erasure technician recorded on the report (single token — use <code class="font-mono">tscrub.conf</code> for names with spaces).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_validator=NAME</td><td class="px-6 py-3">Validation official recorded on the report (single token — use <code class="font-mono">tscrub.conf</code> for names with spaces).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_asset_tag=TAG</td><td class="px-6 py-3">Asset tag recorded on the report (overrides the firmware chassis asset tag).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_media_source=WHERE</td><td class="px-6 py-3">Media source recorded on the report (e.g. <code class="font-mono">IT decommissioning</code>).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_media_destination=WHERE</td><td class="px-6 py-3">Media destination recorded on the report (e.g. <code class="font-mono">resale</code>, <code class="font-mono">recycle</code>).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">shredos_output=ftp:host:path:user:pass</td><td class="px-6 py-3"><em>Deprecated</em> — former name for <code class="font-mono">tscrub_output=ftp:…</code>. Still accepted for backwards compatibility.</td></tr>
                   </tbody>
                 </table>
