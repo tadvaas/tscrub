@@ -54,6 +54,8 @@ register::json_body() {
         "$(report::_json_field "${SYS_BATTERY:-}")" \
         "$(report::_json_field "${SYS_SECUREBOOT:-}")" \
         "$(report::_json_field "${SYS_DIMM_LIST:-}")"
+    printf ',"selftest_cpu":"%s"' \
+        "$(report::_json_field "${SELFTEST_CPU:-}")"
     printf ',"operator":"%s","validator":"%s","media_source":"%s","media_destination":"%s"' \
         "$(report::_json_field "${OPERATOR_NAME:-}")" \
         "$(report::_json_field "${VALIDATOR_NAME:-}")" \
@@ -62,7 +64,7 @@ register::json_body() {
     printf ',"drives":['
     for dev in "${devices[@]}"; do
         [[ "$first" -eq 1 ]] && first=0 || printf ','
-        printf '{"device":"%s","model":"%s","serial":"%s","size":"%s","bus":"%s","type":"%s","capability":"%s","class":"%s","firmware":"%s","sector_size":"%s","sectors":"%s","smart":"%s","selftest":"%s","realloc":"%s","opal_locked":%s}' \
+        printf '{"device":"%s","model":"%s","serial":"%s","size":"%s","bus":"%s","type":"%s","capability":"%s","class":"%s","firmware":"%s","sector_size":"%s","sectors":"%s","smart":"%s","selftest":"%s","realloc":"%s","selftest_run":"%s","opal_locked":%s}' \
             "$(report::_json_field "${devrow[$dev.device]:-$dev}")" \
             "$(report::_json_field "${devrow[$dev.model]:-}")" \
             "$(report::_json_field "${devrow[$dev.serial]:-}")" \
@@ -77,6 +79,7 @@ register::json_body() {
             "$(report::_json_field "${devrow[$dev.smart]:-}")" \
             "$(report::_json_field "${devrow[$dev.selftest]:-}")" \
             "$(report::_json_field "${devrow[$dev.realloc]:-}")" \
+            "$(report::_json_field "${devrow[$dev.selftest_run]:-}")" \
             "$([[ "${opal_locked[$dev]:-}" == "YES" ]] && printf 'true' || printf 'false')"
     done
     printf ']}\n'

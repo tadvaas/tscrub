@@ -473,7 +473,8 @@
           ['BIOS vendor', dev.bios_vendor],
           ['Motherboard', dev.board],
           ['BIOS lock method', dev.bioslockmethod],
-          ['Secure Boot', dev.secure_boot]
+          ['Secure Boot', dev.secure_boot],
+          ['CPU self-test', dev.selftest_cpu]
         ]));
         doc.appendChild(section('Report', [
           ['Report ID', dev.report_id], ['Digital identifier', dev.digital_identifier],
@@ -487,7 +488,7 @@
           drvSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Drives'));
           var dtbl = el('table', 'mt-2 w-full border-collapse text-sm');
           var dhead = el('tr', 'bg-slate-100 dark:bg-ink-800');
-          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type', 'Firmware', 'SED lock', 'SMART'].forEach(function (h) {
+          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type', 'Firmware', 'SED lock', 'SMART', 'Self-test'].forEach(function (h) {
             dhead.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
           });
           dtbl.appendChild(dhead);
@@ -502,6 +503,7 @@
             dtr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.firmware || '—'));
             dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.opal_locked ? 'Yes' : '—'));
             dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.smart || '—'));
+            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.selftest_run || '—'));
             dtbl.appendChild(dtr);
           });
           drvSec.appendChild(dtbl);

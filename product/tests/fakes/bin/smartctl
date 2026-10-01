@@ -3,6 +3,26 @@
 # synthetic attribute table, driven by FAKE_SMART_* env vars.
 mode="${FAKE_SMART_MODE:-pass}"
 
+# Self-test subcommands (for selftest::storage_ata).
+case "$1" in
+    -t)
+        printf 'Self-test initiated\n'
+        exit "${FAKE_SMART_T_RC:-0}"
+        ;;
+    -c)
+        printf 'Self-test execution status: ( 0)\tThe previous self-test routine completed without error or no self-test has ever been run.\n'
+        exit 0
+        ;;
+    -l)
+        if [[ "$2" == "selftest" ]]; then
+            printf 'SMART Self-test log structure revision number 1\n'
+            printf 'Num  Test_Description    Status                  Remaining  LifeTime(hours)  LBA_of_first_error\n'
+            printf '# 1  Short offline       %s\n' "${FAKE_SMART_SELFTEST:-Completed without error       00%}"
+        fi
+        exit 0
+        ;;
+esac
+
 case "$mode" in
     unsupported)
         printf 'SMART support is: Unavailable - device lacks SMART capability\n'

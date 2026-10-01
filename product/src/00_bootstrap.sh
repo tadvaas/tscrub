@@ -15,6 +15,8 @@ COCID=""
 CONFIG_USB_DEBUG=""
 NON_INTERACTIVE=0
 AUTONUKE=0
+SELFTEST=0
+SELFTEST_CPU=""
 LOG_FILE="/$SCRIPT_NAME.log"
 DRY_RUN=0
 DRY_RUN_SIM_ETA_MINS=0
@@ -414,6 +416,15 @@ parse_args() {
             --dry-run|-n)
                 DRY_RUN=1
                 ;;
+            --selftest)
+                SELFTEST=1
+                ;;
+            --selftest=*)
+                case "${arg#*=}" in
+                    true|1|yes|on) SELFTEST=1 ;;
+                    *)             SELFTEST=0 ;;
+                esac
+                ;;
             --autopilotcheck)
                 TSCRUB_AUTOPILOTCHECK=1
                 ;;
@@ -561,6 +572,19 @@ parse_args() {
 cmdline::autonuke() {
     local param
     param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_autonuke=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    case "${param//\"/}" in
+        true|1|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Hardware self-tests can also be forced from the kernel command line
+# (tscrub_selftest=1) — useful for PXE fleets that want a tested-before-wipe
+# run without re-baking the flag into the boot config.
+cmdline::selftest() {
+    local param
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_selftest=//p' | head -n 1)"
     [[ -n "$param" ]] || return 1
     case "${param//\"/}" in
         true|1|yes|on) return 0 ;;

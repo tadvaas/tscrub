@@ -171,6 +171,18 @@ fn_main() {
 
     ui::spinner_start "Preparing..."
     device::detect
+    ui::spinner_stop
+
+    # Optional hardware self-tests (opt-in: --selftest / tscrub_selftest=1).
+    # Storage short self-tests take ~2 min/drive, so they only run on request
+    # and their PASS/FAIL verdicts land in the diagnostics snapshot below.
+    if [[ "$SELFTEST" -eq 1 ]] || cmdline::selftest; then
+        SELFTEST=1
+        ui::spinner_start "Running hardware self-tests..."
+        selftest::run
+        ui::spinner_stop
+    fi
+
     table::build
     ui::spinner_stop
 

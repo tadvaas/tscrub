@@ -36,5 +36,11 @@ case "$sub" in
         printf 'power_cycles                        : %s\n' "${FAKE_NVME_CYCLES:-55}"
         printf 'power_on_hours                      : %s\n' "${FAKE_NVME_POH:-8765}"
         ;;
+    device-self-test)
+        exit "${FAKE_NVME_SELFTEST_RC:-0}"
+        ;;
+    self-test-log)
+        printf 'Self test result[0]:\n  Operation result : %s\n' "${FAKE_NVME_SELFTEST_RESULT:-success}"
+        ;;
 esac
 exit 0
