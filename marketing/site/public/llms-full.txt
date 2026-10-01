@@ -68,7 +68,7 @@ Upload a tScrub report (CSV + JSON manifest + optional signature) on the dashboa
 
 ## SMART data reports
 
-Per-drive erasure and pre/post-wipe SMART data for every uploaded report are available at tscrub.com/dashboard/reports: device, type, model, serial, sanitisation method, certification, final status, and before/after SMART attributes (status, temperature, power-on hours, power cycles, wear, TBW).
+Per-drive erasure and pre/post-wipe SMART data for every uploaded report are available at tscrub.com/dashboard/drives: device, type, model, serial, sanitisation method, certification, final status, and before/after SMART attributes (status, temperature, power-on hours, power cycles, wear, TBW).
 
 ## Resources
 

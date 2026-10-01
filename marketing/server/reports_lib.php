@@ -67,13 +67,21 @@ function licence_pub_keys(int $userId): array {
  */
 function reports_ensure_schema(): void {
     try {
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports' AND COLUMN_NAME = 'report_type'"
+        );
+        $stmt->execute();
+        if ((int)$stmt->fetchColumn() > 0) {
+            return;   // column already present — nothing to do
+        }
         db()->exec(
             "ALTER TABLE reports
              ADD COLUMN report_type ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source"
         );
     } catch (Throwable $e) {
-        // Column already present (1060) or any other ALTER failure — the
-        // column is only an optimisation; ingestion falls back to erasure.
+        // Any real failure is non-fatal: the column is only a typed-report
+        // optimisation and ingestion otherwise falls back to erasure.
         error_log('reports ensure schema: ' . $e->getMessage());
     }
 }
@@ -906,6 +914,21 @@ function presence_is_online(string $serial, string $uuid, array $map, int $windo
     return false;
 }
 
+/** Latest heartbeat timestamp (unix seconds) for a device, or null if none. */
+function presence_last_seen(string $serial, string $uuid, array $map): ?int {
+    $s = strtolower(trim($serial));
+    $u = strtolower(trim($uuid));
+    $ts = null;
+    if ($s !== '' && isset($map['serial'][$s])) {
+        $ts = (int)$map['serial'][$s];
+    }
+    if ($u !== '' && isset($map['uuid'][$u])) {
+        $ut = (int)$map['uuid'][$u];
+        if ($ts === null || $ut > $ts) $ts = $ut;
+    }
+    return $ts;
+}
+
 /** Lazily create the device_registrations table (idempotent — mirrors schema.sql). */
 function register_ensure_schema(): void {
     try {
@@ -967,18 +990,19 @@ function load_registered_devices(int $userId): array {
 }
 
 /**
- * Aggregated machine (hardware/firmware) inventory across a user's reports —
- * one row per physical machine, keyed by system serial (fallback: baseboard
- * serial, then system UUID, then COCID). The serial is the stable ITAD
- * inventory key; UUIDs are frequently absent from older reports or
- * vendor-garbage, and serial-first keeps the same machine from appearing twice
- * when one report carried a UUID and another did not. The most recent report's
- * profile wins; report counts and the wiped window are accumulated. This feeds
+ * Aggregated machine (hardware/firmware) inventory across a user's boot-time
+ * diagnostics reports — one row per physical machine, keyed by system serial
+ * (fallback: baseboard serial, then system UUID). The serial is the stable
+ * ITAD inventory key; UUIDs are frequently absent or vendor-garbage, and
+ * serial-first keeps the same machine from appearing twice when one report
+ * carried a UUID and another did not. The most recent report's profile and
+ * attached-drive inventory win; every diagnostics snapshot is kept in
+ * `history` (newest first) and first/last seen are accumulated. This feeds
  * the dashboard "Devices" tab.
  */
 function load_devices(int $userId): array {
     reports_ensure_schema();
-    $stmt = db()->prepare("SELECT cocid, uploaded_at, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT uploaded_at, payload FROM reports WHERE user_id = ? AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute([$userId]);
 
     $devices = [];
@@ -990,7 +1014,10 @@ function load_devices(int $userId): array {
         foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
             if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
         }
-        if ($key === '') $key = 'cocid:' . strtolower((string)$r['cocid']);
+        if ($key === '') continue;   // diagnostics without identity can't be listed
+
+        $drives = is_array($g['drives'] ?? null) ? $g['drives'] : [];
+        $seen   = ts_local((string)$r['uploaded_at']);
 
         if (!isset($devices[$key])) {
             $devices[$key] = [
@@ -1008,17 +1035,19 @@ function load_devices(int $userId): array {
                 'gpu'           => (string)($g['gpu'] ?? ''),
                 'ram'           => (string)($g['ram'] ?? ''),
                 'mdm'           => (string)($g['enrollment'] ?? ''),
-                'reports'       => 0,
-                'cocids'        => [],
-                'history'       => [],
                 'first'         => (string)$r['uploaded_at'],
                 'last'          => (string)$r['uploaded_at'],
+                'drive_count'   => count($drives),
+                'drives'        => $drives,
+                'history'       => [],
             ];
         }
-        $snap = [
-            'cocid'          => (string)$r['cocid'],
-            'uploaded_at'    => ts_local((string)$r['uploaded_at']),
-            'ts'             => ts_local((string)($g['first'] ?? '')),
+
+        $d = &$devices[$key];
+        $d['history'][] = [
+            'uploaded_at'    => $seen,
+            'first'          => $seen,
+            'last'           => $seen,
             'system'         => (string)($g['system'] ?? ''),
             'sysserial'      => (string)($g['sysserial'] ?? $g['sysSerial'] ?? ''),
             'bbserial'       => (string)($g['bbserial'] ?? $g['bbSerial'] ?? ''),
@@ -1032,69 +1061,82 @@ function load_devices(int $userId): array {
             'cpu'            => (string)($g['cpu'] ?? ''),
             'gpu'            => (string)($g['gpu'] ?? ''),
             'ram'            => (string)($g['ram'] ?? ''),
-            'mdm'            => (string)($g['enrollment'] ?? ''),
+            'drive_count'    => count($drives),
+            'drives'         => $drives,
         ];
-        $d = &$devices[$key];
-        $d['reports']++;
-        if (!in_array((string)$r['cocid'], $d['cocids'], true)) $d['cocids'][] = (string)$r['cocid'];
-        $d['history'][] = $snap;
         if ((string)$r['uploaded_at'] < $d['first']) $d['first'] = (string)$r['uploaded_at'];
         if ((string)$r['uploaded_at'] > $d['last'])  $d['last']  = (string)$r['uploaded_at'];
         unset($d);
     }
+
     $out = array_values($devices);
     $presence = presence_map($userId);
     foreach ($out as $k => $dv) {
-        $out[$k]['online'] = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
-        $out[$k]['wiped']  = true;   // came from an uploaded report
+        $lastSeen = presence_last_seen((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
+        $out[$k]['online']    = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
+        $out[$k]['last_seen'] = $lastSeen !== null ? ts_rel($lastSeen) : null;
+        $out[$k]['last_seen_at'] = $lastSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $lastSeen)) : null;
+        $out[$k]['first']     = ts_local((string)$dv['first']);
+        $out[$k]['last']      = ts_local((string)$dv['last']);
     }
 
-    // Merge boot-time registrations (ITAD triage): a registration whose serial
-    // or UUID later uploaded a report upgrades that device to `wiped`;
-    // otherwise it appears as a live, not-yet-wiped triage entry.
+    // Merge legacy boot-time registrations (pre-v1.8.6 appliances POST to
+    // /api/devices/register): the same boot-time diagnostics snapshot, stored
+    // in the older table. A registration whose serial or UUID already has a
+    // typed diagnostics report is skipped; otherwise it appears as a device
+    // with a single synthesized history entry.
     foreach (load_registered_devices($userId) as $reg) {
         $p = $reg['payload'];
         $serial = strtolower(trim((string)($p['serial'] ?? $reg['serial'])));
         $uuid   = strtolower(trim((string)($p['uuid'] ?? $reg['uuid'])));
-        $drives = is_array($p['drives'] ?? null) ? $p['drives'] : [];
+
         $matched = false;
-        foreach ($out as $k => $dv) {
+        foreach ($out as $dv) {
             $mSerial = strtolower(trim((string)$dv['sysserial']));
             $mUuid   = strtolower(trim((string)$dv['systemuuid']));
             if (($serial !== '' && $serial === $mSerial) || ($uuid !== '' && $uuid === $mUuid)) {
-                $out[$k]['wiped'] = true;
-                $out[$k]['drive_count'] = count($drives);
-                $out[$k]['drives'] = $drives;
                 $matched = true;
                 break;
             }
         }
         if ($matched) continue;
 
-        $out[] = [
-            'system'        => trim((string)($p['manufacturer'] ?? '') . ' ' . (string)($p['product'] ?? '')),
-            'sysserial'     => (string)($p['serial'] ?? $reg['serial']),
-            'bbserial'      => '',
-            'chassisserial' => (string)($p['chassis_serial'] ?? ''),
-            'chassistype'   => (string)($p['chassis_type'] ?? ''),
-            'biosversion'   => (string)($p['bios_version'] ?? ''),
-            'biosdate'      => (string)($p['bios_date'] ?? ''),
-            'systemuuid'    => (string)($p['uuid'] ?? $reg['uuid']),
-            'bioslock'      => (string)($p['bios_lock'] ?? ''),
-            'bioslockmethod'=> (string)($p['bios_lock_method'] ?? ''),
-            'cpu'           => (string)($p['cpu'] ?? ''),
-            'gpu'           => (string)($p['gpu'] ?? ''),
-            'ram'           => (string)($p['ram'] ?? ''),
-            'mdm'           => '',
-            'reports'       => 0,
-            'cocids'        => [],
-            'history'       => [],
-            'first'         => ts_local((string)$reg['registered_at']),
-            'last'          => ts_local((string)$reg['registered_at']),
-            'online'        => presence_is_online((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
-            'wiped'         => false,
-            'drive_count'   => count($drives),
-            'drives'        => $drives,
+        $drives = is_array($p['drives'] ?? null) ? $p['drives'] : [];
+        $seen   = ts_local((string)$reg['registered_at']);
+        $profile = [
+            'system'         => trim((string)($p['manufacturer'] ?? '') . ' ' . (string)($p['product'] ?? '')),
+            'sysserial'      => (string)($p['serial'] ?? $reg['serial']),
+            'bbserial'       => '',
+            'chassisserial'  => (string)($p['chassis_serial'] ?? ''),
+            'chassistype'    => (string)($p['chassis_type'] ?? ''),
+            'biosversion'    => (string)($p['bios_version'] ?? ''),
+            'biosdate'       => (string)($p['bios_date'] ?? ''),
+            'systemuuid'     => (string)($p['uuid'] ?? $reg['uuid']),
+            'bioslock'       => (string)($p['bios_lock'] ?? ''),
+            'bioslockmethod' => (string)($p['bios_lock_method'] ?? ''),
+            'cpu'            => (string)($p['cpu'] ?? ''),
+            'gpu'            => (string)($p['gpu'] ?? ''),
+            'ram'            => (string)($p['ram'] ?? ''),
+        ];
+        $regSeen = presence_last_seen((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence);
+        $out[] = $profile + [
+            'mdm'         => '',
+            'first'       => $seen,
+            'last'        => $seen,
+            'online'      => presence_is_online((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
+            'last_seen'   => $regSeen !== null ? ts_rel($regSeen) : null,
+            'last_seen_at' => $regSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $regSeen)) : null,
+            'drive_count' => count($drives),
+            'drives'      => $drives,
+            'history'     => [
+                $profile + [
+                    'uploaded_at' => $seen,
+                    'first'       => $seen,
+                    'last'        => $seen,
+                    'drive_count' => count($drives),
+                    'drives'      => $drives,
+                ],
+            ],
         ];
     }
 
@@ -1135,16 +1177,10 @@ function load_drives(int $userId): array {
                 $drives[$key]['history'] = [$entry];
                 $lastUpload[$key] = (string)$r['uploaded_at'];
             } else {
-                $cur = &$drives[$key];
-                $cur['history'][] = $entry;
-                // Summary shows the best erasure outcome; the per-report
-                // history stays in `history` for the expander.
-                if (drive_status_rank((string)($d['status'] ?? '')) > drive_status_rank((string)($cur['status'] ?? ''))) {
-                    foreach ($entry as $k => $v) {
-                        if ($k !== 'history') $cur[$k] = $v;
-                    }
-                }
-                unset($cur);
+                // Reports are read newest-first, so the first entry for a drive
+                // is its most recent report — the drives table shows that row
+                // verbatim; older reports stay in `history` for the expander.
+                $drives[$key]['history'][] = $entry;
             }
         }
     }

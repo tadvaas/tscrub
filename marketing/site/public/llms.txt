@@ -11,8 +11,8 @@
 - [Docs](https://tscrub.com/docs): Building the appliance, booting from USB (Windows/macOS/Linux) or over the network (PXE), choosing a report destination (USB, FTP, or the tScrub dashboard), and verifying signed reports.
 - [Resources](https://tscrub.com/resources): Data erasure guides — standards, drive types, wipe methods, certificates of destruction, and a buyer's guide.
 - [FAQ](https://tscrub.com/faq): Certification, running on your own hardware, and edge-case drive handling.
-- [Certificates](https://tscrub.com/dashboard/certificates): Upload reports on the Reports page, then select a Chain of Custody ID to generate one consolidated, printable Certificate of Destruction per job, and manage every certificate on your account.
-- [Reports](https://tscrub.com/dashboard/reports): Upload reports and view erasure and pre/post-wipe SMART data for every report — uploaded manually or pushed from an appliance.
+- [Certificates](https://tscrub.com/dashboard/certificates): Upload reports on the Drives page, then select a Chain of Custody ID to generate one consolidated, printable Certificate of Destruction per job, and manage every certificate on your account.
+- [Drives](https://tscrub.com/dashboard/drives): Upload reports and view erasure and pre/post-wipe SMART data for every drive — each drive's reports are listed under it, uploaded manually or pushed from an appliance.
 - [Contact](https://tscrub.com/contact): Sales, support, and compliance enquiries.
 
 ## Resources

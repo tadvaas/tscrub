@@ -4,7 +4,6 @@
   if (!root) return;
 
   const links = [
-    { href: '/dashboard/reports', label: 'Reports', side: 'left' },
     { href: '/dashboard/devices', label: 'Devices', side: 'left' },
     { href: '/dashboard/drives', label: 'Drives', side: 'left' },
     { href: '/dashboard/certificates', label: 'Certificates', side: 'left' },
