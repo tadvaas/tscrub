@@ -16,8 +16,9 @@ register::endpoint() {
     printf '%s/api/reports/diagnostics' "$url"
 }
 
-# Build the registration JSON (one line). Pure string builder — unit-testable.
-register::json() {
+# Build the registration JSON body (one line, WITHOUT the report_id /
+# digital_identifier audit fields). Pure string builder — unit-testable.
+register::json_body() {
     local dev first=1
     printf '{"serial":"%s","uuid":"%s"' \
         "$(report::_json_field "${SYS_SERIAL:-}")" \
@@ -38,11 +39,12 @@ register::json() {
         "$(report::_json_field "${SYS_CPU_LIST:-}")" \
         "$(report::_json_field "${SYS_GPU_LIST:-}")" \
         "$(report::_json_field "${SYS_RAM_GB:-}")"
-    printf ',"sku":"%s","asset_tag":"%s","bios_vendor":"%s","board":"%s","tpm":"%s"' \
+    printf ',"sku":"%s","asset_tag":"%s","bios_vendor":"%s","board":"%s","board_serial":"%s","tpm":"%s"' \
         "$(report::_json_field "${SYS_SKU:-}")" \
         "$(report::_json_field "${ASSET_TAG:-${SYS_ASSET_TAG:-}}")" \
         "$(report::_json_field "${SYS_BIOS_VENDOR:-}")" \
         "$(report::_json_field "${SYS_BOARD:-}")" \
+        "$(report::_json_field "${SYS_BASEBOARD_SERIAL:-}")" \
         "$(report::_json_field "${SYS_TPM:-}")"
     printf ',"macs":"%s","storage_controllers":"%s","tool_version":"%s"' \
         "$(report::_json_field "${SYS_MAC_LIST:-}")" \
@@ -60,7 +62,7 @@ register::json() {
     printf ',"drives":['
     for dev in "${devices[@]}"; do
         [[ "$first" -eq 1 ]] && first=0 || printf ','
-        printf '{"device":"%s","model":"%s","serial":"%s","size":"%s","bus":"%s","type":"%s","capability":"%s","class":"%s","opal_locked":%s}' \
+        printf '{"device":"%s","model":"%s","serial":"%s","size":"%s","bus":"%s","type":"%s","capability":"%s","class":"%s","firmware":"%s","sector_size":"%s","sectors":"%s","smart":"%s","selftest":"%s","realloc":"%s","opal_locked":%s}' \
             "$(report::_json_field "${devrow[$dev.device]:-$dev}")" \
             "$(report::_json_field "${devrow[$dev.model]:-}")" \
             "$(report::_json_field "${devrow[$dev.serial]:-}")" \
@@ -69,9 +71,36 @@ register::json() {
             "$(report::_json_field "${devrow[$dev.type]:-}")" \
             "$(report::_json_field "${devrow[$dev.capability]:-}")" \
             "$(report::_json_field "${devrow[$dev.class]:-}")" \
+            "$(report::_json_field "${firmware[$dev]:-}")" \
+            "$(report::_json_field "${secsize[$dev]:-}")" \
+            "$(report::_json_field "${sectors[$dev]:-}")" \
+            "$(report::_json_field "${devrow[$dev.smart]:-}")" \
+            "$(report::_json_field "${devrow[$dev.selftest]:-}")" \
+            "$(report::_json_field "${devrow[$dev.realloc]:-}")" \
             "$([[ "${opal_locked[$dev]:-}" == "YES" ]] && printf 'true' || printf 'false')"
     done
     printf ']}\n'
+}
+
+# Wrap the body with a per-run report identity: a UUID + a SHA-256 over the
+# body (audit fields excluded, so the hash is deterministic). REPORT_ID is
+# generated once and reused, so the portal POST and the USB snapshot carry the
+# same id + hash. Pure string builder — unit-testable.
+register::json() {
+    local body inner sha id
+    [[ -n "${REPORT_ID:-}" ]] || {
+        id="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || true)"
+        if [[ -z "$id" ]] && command -v uuidgen >/dev/null 2>&1; then
+            id="$(uuidgen 2>/dev/null || true)"
+        fi
+        REPORT_ID="${id:-n/a}"
+    }
+    body="$(register::json_body)"
+    inner="${body#\{}"
+    inner="${inner%\}}"
+    sha="$(printf '%s' "$body" | sha256sum 2>/dev/null | awk '{print $1}')"
+    [[ -n "$sha" ]] || sha="$(printf '%s' "$body" | openssl dgst -sha256 2>/dev/null | awk '{print $NF}')"
+    printf '{"report_id":"%s","digital_identifier":"%s",%s}\n' "$REPORT_ID" "$sha" "$inner"
 }
 
 # POST the snapshot to the portal (best-effort — a failed push never fails the

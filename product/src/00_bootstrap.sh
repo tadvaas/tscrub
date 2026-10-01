@@ -98,6 +98,8 @@ VALIDATOR_NAME=""
 ASSET_TAG=""
 MEDIA_SOURCE=""
 MEDIA_DESTINATION=""
+# Per-run report identity (generated once; shared by the portal POST + USB snapshot).
+REPORT_ID=""
 
 system::gather_info() {
     # Try dmidecode first (requires root)
