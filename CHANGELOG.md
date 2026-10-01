@@ -18,7 +18,10 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Release
 
-- (populated after the appliance build)
+- Appliance ISO `tscrub-v1.9.1_2025.11_30_x86-64_v0.41_20261001-d81e28e5.iso`
+  (157,622,272 B, sha256 `d687f7de38e1dd55a5a791acccc534fabd5ce2d8b652a3c2527c75b09f4fe0dc`);
+- standalone script v1.9.1 sha256 `53c8789561da943fa0292d77f5fbd1b904b70b7d557d55a0069fb2453c699c03` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `4da5966d5b9f72262abbe1fcc5583c0fa6f6aefbbb42ad161f7a5217be884ef4`.
 
 ## [v1.9.0] - 2026-10-01
 
