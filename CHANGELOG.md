@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.2] - 2026-10-01
+
+### Added
+
+- **Battery, Secure Boot & per-DIMM inventory in diagnostics** — the boot-time
+  device snapshot now also records:
+  - Battery (model / serial / charge% / health) from `sysfs` on laptops;
+  - Secure Boot state (Enabled/Disabled) via `mokutil` or the UEFI `SecureBoot`
+    efivar;
+  - Per-DIMM memory modules (size / type / speed / serial) from
+    `dmidecode -t memory`.
+  These surface on the dashboard Devices tab (Hardware & Firmware sections).
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.2_2025.11_30_x86-64_v0.41_20261001-49569a5c.iso`
+  (157,622,272 B, sha256 `614459cbe53b9f644c03e0a3097d5ddd5198baa53c0007bc007cd593c3009ae8`);
+- standalone script v1.9.2 sha256 `41eaf4a911bfe53ca8ccfb2fc358c55bbbb303862f9005e7f3df22288059693c` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `b9f04ab365d3a05ccf40cb4fa699a939ae4d046529bb18db30d03651288471d7`.
+
 ## [v1.9.1] - 2026-10-01
 
 ### Changed
