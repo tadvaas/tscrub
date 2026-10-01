@@ -283,6 +283,11 @@ system::gather_info() {
         _b_cap="$(cat "$_bat/capacity" 2>/dev/null)"
         _b_status="$(cat "$_bat/status" 2>/dev/null)"
         _b_cycles="$(cat "$_bat/cycle_count" 2>/dev/null)"
+        # cycle_count is only reported when the firmware exposes a meaningful
+        # value; the generic ACPI battery driver leaves it 0/absent on most
+        # laptops (Dell included), so omit it rather than print a misleading
+        # "0 cycles".
+        [[ "$_b_cycles" =~ ^[0-9]+$ && "$_b_cycles" -gt 0 ]] || _b_cycles=""
         # Prefer energy_* (µWh), fall back to charge_* (µAh).
         _b_full="$(cat "$_bat/energy_full" 2>/dev/null)"
         _b_design="$(cat "$_bat/energy_full_design" 2>/dev/null)"
@@ -291,7 +296,7 @@ system::gather_info() {
             _b_design="$(cat "$_bat/charge_full_design" 2>/dev/null)"
         fi
         _b_health=""
-        if [[ "$_b_full" =~ ^[0-9]+$ && "$_b_design" =~ ^[0-9]+$ && "$_b_design" -gt 0 ]]; then
+        if [[ "$_b_full" =~ ^[0-9]+$ && "$_b_design" =~ ^[0-9]+$ && "$_b_full" -gt 0 && "$_b_design" -gt 0 ]]; then
             _b_health="$(( (_b_full * 100 + _b_design / 2) / _b_design ))%"
         fi
         _bat_list="${_bat_list}${_bat_list:+; }${_b_model:-Battery}${_b_serial:+ SN=$_b_serial}${_b_cap:+ @ ${_b_cap}%}"
