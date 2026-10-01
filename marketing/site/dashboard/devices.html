@@ -334,7 +334,11 @@
           var stDot = el('span', 'inline-block h-2 w-2 shrink-0 rounded-full ' + (dev.online ? 'bg-emerald-500' : 'bg-transparent ring-1 ring-inset ring-slate-400 dark:ring-slate-500'));
           var stTxt = el('span', 'text-xs font-semibold ' + (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'), dev.online ? 'Online' : 'Offline');
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
-          if (!dev.online && dev.last_seen) {
+          if (dev.online && dev.lan_ip) {
+            var ipSpan = el('span', 'font-mono text-xs text-slate-500 dark:text-slate-400', dev.lan_ip);
+            ipSpan.title = 'LAN IP reported by the appliance heartbeat — telnet/SSH target';
+            stLine.appendChild(ipSpan);
+          } else if (!dev.online && dev.last_seen) {
             stLine.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'Seen ' + dev.last_seen));
           }
           stCell.appendChild(stLine);
@@ -458,7 +462,8 @@
         }
 
         doc.appendChild(section('Identity', [
-          ['System', dev.system], ['System serial', dev.sysserial], ['Baseboard serial', dev.bbserial],
+          ['System', dev.system], ['System serial', dev.sysserial], ['LAN IP', dev.lan_ip],
+          ['Baseboard serial', dev.bbserial],
           ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype], ['System UUID', dev.systemuuid],
           ['SKU', dev.sku], ['Asset tag', dev.asset_tag]
         ]));

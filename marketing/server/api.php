@@ -1023,6 +1023,7 @@ if ($method === 'POST' && $route === '/heartbeat') {
     $d = json_body();
     $serial = trim((string)($d['serial'] ?? ''));
     $uuid   = trim((string)($d['uuid'] ?? ''));
+    $lanIp  = trim((string)($d['ip'] ?? $d['lan_ip'] ?? ''));
 
     if ($serial === '' || $serial === 'N/A') {
         fail(400, 'Serial required.');
@@ -1030,9 +1031,12 @@ if ($method === 'POST' && $route === '/heartbeat') {
     if (strlen($serial) > 255 || strlen($uuid) > 64) {
         fail(400, 'Field too long.');
     }
+    if (strlen($lanIp) > 45) {
+        $lanIp = '';
+    }
 
     presence_ensure_schema();
-    presence_heartbeat((int)$owner['id'], $serial, $uuid);
+    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp);
     json_out(['ok' => true]);
 }
 

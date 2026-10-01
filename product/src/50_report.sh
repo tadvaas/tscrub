@@ -971,6 +971,21 @@ network::ensure() {
     return 0
 }
 
+# The machine's current LAN IPv4 address — the interface carrying the default
+# route first, then any non-loopback interface as a fallback. Printed on stdout
+# so callers can embed it in a JSON body or the System Info panel. Empty when
+# no IPv4 address is configured yet.
+network::lan_ip() {
+    local dev ip
+    dev="$(ip route 2>/dev/null | awk '/^default /{print $5; exit}')"
+    if [[ -n "$dev" ]]; then
+        ip="$(ip -4 -o addr show dev "$dev" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
+        [[ -n "$ip" ]] && { printf '%s' "$ip"; return 0; }
+    fi
+    ip -4 -o addr show 2>/dev/null | awk '$2 != "lo"{print $4}' | cut -d/ -f1 | head -n1
+    return 0
+}
+
 # Push a report to the tScrub dashboard (POST /api/reports). Requires curl for
 # multipart form upload.
 report::upload_http() {

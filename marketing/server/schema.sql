@@ -298,6 +298,7 @@ CREATE TABLE IF NOT EXISTS device_presence (
   user_id      BIGINT UNSIGNED NOT NULL,
   serial       VARCHAR(255)    NOT NULL DEFAULT '',
   uuid         VARCHAR(64)     NOT NULL DEFAULT '',
+  lan_ip       VARCHAR(45)     NOT NULL DEFAULT '',
   last_seen_ts INT UNSIGNED    NOT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_presence_device (user_id, serial, uuid),

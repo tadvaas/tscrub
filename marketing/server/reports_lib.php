@@ -954,42 +954,51 @@ function presence_ensure_schema(): void {
                user_id      BIGINT UNSIGNED NOT NULL,
                serial       VARCHAR(255)    NOT NULL DEFAULT "",
                uuid         VARCHAR(64)     NOT NULL DEFAULT "",
+               lan_ip       VARCHAR(45)     NOT NULL DEFAULT "",
                last_seen_ts INT UNSIGNED    NOT NULL,
                PRIMARY KEY (id),
                UNIQUE KEY uq_presence_device (user_id, serial, uuid),
                KEY idx_presence_seen (last_seen_ts)
             )'
         );
+        // Idempotent migration for tables created before lan_ip existed.
+        $stmt = db()->query("SHOW COLUMNS FROM device_presence LIKE 'lan_ip'");
+        if ($stmt->fetch() === false) {
+            db()->exec('ALTER TABLE device_presence ADD COLUMN lan_ip VARCHAR(45) NOT NULL DEFAULT "" AFTER uuid');
+        }
     } catch (Throwable $e) {
         error_log('presence ensure schema error: ' . $e->getMessage());
     }
 }
 
 /** Record a heartbeat from a booted appliance (keyed by serial + uuid). */
-function presence_heartbeat(int $userId, string $serial, string $uuid): void {
+function presence_heartbeat(int $userId, string $serial, string $uuid, string $lanIp = ''): void {
     try {
         db()->prepare(
-            'INSERT INTO device_presence (user_id, serial, uuid, last_seen_ts)
-             VALUES (?, ?, ?, UNIX_TIMESTAMP())
-             ON DUPLICATE KEY UPDATE last_seen_ts = UNIX_TIMESTAMP()'
-        )->execute([$userId, $serial, $uuid]);
+            'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, last_seen_ts)
+             VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE
+               lan_ip = IF(VALUES(lan_ip) = \'\', lan_ip, VALUES(lan_ip)),
+               last_seen_ts = UNIX_TIMESTAMP()'
+        )->execute([$userId, $serial, $uuid, $lanIp]);
     } catch (Throwable $e) {
         error_log('presence heartbeat error: ' . $e->getMessage());
     }
 }
 
-/** Map a user's presence rows to ['serial' => ts, 'uuid' => ts] (lowercased). */
+/** Map a user's presence rows to ['serial' => ts, 'uuid' => ts, 'ip' => ip] (lowercased). */
 function presence_map(int $userId): array {
-    $map = ['serial' => [], 'uuid' => []];
+    $map = ['serial' => [], 'uuid' => [], 'ip' => []];
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, last_seen_ts FROM device_presence WHERE user_id = ?');
+        $stmt = db()->prepare('SELECT serial, uuid, lan_ip, last_seen_ts FROM device_presence WHERE user_id = ?');
         $stmt->execute([$userId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $ts = (int)$r['last_seen_ts'];
+            $ip = trim((string)($r['lan_ip'] ?? ''));
             $s  = strtolower(trim((string)$r['serial']));
             $u  = strtolower(trim((string)$r['uuid']));
-            if ($s !== '') $map['serial'][$s] = $ts;
-            if ($u !== '') $map['uuid'][$u]  = $ts;
+            if ($s !== '') { $map['serial'][$s] = $ts; if ($ip !== '') $map['ip'][$s] = $ip; }
+            if ($u !== '') { $map['uuid'][$u]  = $ts; if ($ip !== '') $map['ip'][$u] = $ip; }
         }
     } catch (Throwable $e) {
         error_log('presence map error: ' . $e->getMessage());
@@ -1023,6 +1032,15 @@ function presence_last_seen(string $serial, string $uuid, array $map): ?int {
         if ($ts === null || $ut > $ts) $ts = $ut;
     }
     return $ts;
+}
+
+/** Latest heartbeat LAN IP for a device, or '' if none recorded. */
+function presence_lan_ip(string $serial, string $uuid, array $map): string {
+    $s = strtolower(trim($serial));
+    $u = strtolower(trim($uuid));
+    if ($s !== '' && isset($map['ip'][$s])) return (string)$map['ip'][$s];
+    if ($u !== '' && isset($map['ip'][$u])) return (string)$map['ip'][$u];
+    return '';
 }
 
 /** Lazily create the device_registrations table (idempotent — mirrors schema.sql). */
@@ -1206,6 +1224,7 @@ function load_devices(int $userId): array {
     foreach ($out as $k => $dv) {
         $lastSeen = presence_last_seen((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['online']    = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
+        $out[$k]['lan_ip']    = presence_lan_ip((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['last_seen'] = $lastSeen !== null ? ts_rel($lastSeen) : null;
         $out[$k]['last_seen_at'] = $lastSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $lastSeen)) : null;
         $out[$k]['first']     = ts_local((string)$dv['first']);
@@ -1274,6 +1293,7 @@ function load_devices(int $userId): array {
             'first'       => $seen,
             'last'        => $seen,
             'online'      => presence_is_online((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
+            'lan_ip'      => presence_lan_ip((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
             'last_seen'   => $regSeen !== null ? ts_rel($regSeen) : null,
             'last_seen_at' => $regSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $regSeen)) : null,
             'drive_count' => count($drives),

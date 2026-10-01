@@ -6,5 +6,7 @@ if [[ "${FAKE_IP_NO_ROUTE:-0}" == "1" ]]; then
 fi
 if [[ "${1:-}" == "route" ]]; then
     printf 'default via 192.168.0.1 dev eth0\n'
+elif [[ "${3:-}" == "addr" ]]; then
+    printf '2: eth0    inet 192.168.0.55/24 scope global eth0\n'
 fi
 exit 0

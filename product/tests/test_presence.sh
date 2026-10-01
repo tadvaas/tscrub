@@ -24,12 +24,13 @@ SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
 presence::ping
 t::check "presence: no ping without token" '[[ ! -s "$FAKE_MDM_CURL_LOG" ]]'
 
-# with a token, ping hits /api/heartbeat carrying serial + uuid.
+# with a token, ping hits /api/heartbeat carrying serial + uuid + lan IP.
 TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
 presence::ping
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "api/heartbeat" "presence: ping hits heartbeat endpoint"
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "SYSSN123" "presence: ping carries serial"
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "4C4C4544-0036-5710-8032-B5C04F433633" "presence: ping carries uuid"
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"ip\":\"192.168.0.55\"' "presence: ping carries lan ip"
 
 rm -rf "$tmpdir"
 t::summary

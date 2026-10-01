@@ -474,12 +474,10 @@ table::render() {
     local cpu_rows gpu_rows row
     local eta_base_row completion_base_row
     local sys_label_w sys_value_w runtime_label_w runtime_value_w
-    local mdm_colour bios_colour bios_method
+    local mdm_colour bios_colour
     now="$(ts::now)"
     mdm_colour=0; [[ -t 1 ]] && mdm_colour=1
     bios_colour=0; [[ -t 1 ]] && bios_colour=1
-    bios_method="${BIOS_DETECTION_METHOD:-NONE}"
-    [[ "$bios_method" == "NONE" ]] && bios_method=""
     rows="$(table::detect_terminal_height)"
     runtime_str="$(ui::format_runtime "$now") $(ui::spinner)"
 
@@ -545,7 +543,7 @@ table::render() {
         "$TABLE_INDENT" "$sys_label_w" "Chassis:" "$sys_value_w" "$sys_value_w" "$SYS_CHASSIS_TYPE" \
         "$runtime_label_w" "Expiry:" "$runtime_value_w" "$runtime_value_w" "${LICENSE_EXPIRY:-N/A}"
     printf "%s| %-*s %-*.*s |  | %-*s %s |\n" \
-        "$TABLE_INDENT" "$sys_label_w" "BIOS Lock:" "$sys_value_w" "$sys_value_w" "$bios_method" \
+        "$TABLE_INDENT" "$sys_label_w" "LAN IP:" "$sys_value_w" "$sys_value_w" "$(network::lan_ip)" \
         "$runtime_label_w" "BIOS Lock:" "$(ui::bios_render "$bios_colour")"
     printf "%s| %-*s %-*.*s |  | %-*s %s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "BIOS:" "$sys_value_w" "$sys_value_w" "$SYS_BIOS_VERSION ($SYS_BIOS_DATE)" \

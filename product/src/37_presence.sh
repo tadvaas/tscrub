@@ -20,9 +20,10 @@ presence::endpoint() {
 presence::ping() {
     local url body resp
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
-    body="$(printf '{"serial":"%s","uuid":"%s"}' \
+    body="$(printf '{"serial":"%s","uuid":"%s","ip":"%s"}' \
         "$(report::_json_field "${SYS_SERIAL:-}")" \
-        "$(report::_json_field "${SYS_UUID:-}")")"
+        "$(report::_json_field "${SYS_UUID:-}")" \
+        "$(report::_json_field "$(network::lan_ip)")")"
     url="$(presence::endpoint)"
     if ! resp="$(curl -fsS --connect-timeout 5 --max-time 10 \
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
