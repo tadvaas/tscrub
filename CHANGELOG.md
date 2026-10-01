@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.9.8] - 2026-10-01
+
+### Added
+
+- **Hardware capture (ITAD grading)** — the boot-time diagnostics now capture,
+  and the dashboard Devices tab shows: the internal display panel (manufacturer,
+  native resolution, diagonal size and manufacture year, parsed from EDID), the
+  Wi-Fi adapter model, the CPU core/thread count (`2C/4T`), and DIMM part
+  numbers alongside the existing serials.
+- **Battery full-charge capacity** — the battery line now reports the current
+  full capacity in watt-hours (`(full 33.4 Wh)`), the real wear signal that
+  works even on HP firmware that hides the design capacity. The misleading
+  "health 100%" is omitted when the firmware reports full == design.
+- **SBS battery support in the kernel** — `CONFIG_ACPI_SBS` and
+  `CONFIG_BATTERY_SBS` enabled so SBS/SMBus-battery laptops (many ThinkPads and
+  Dells) expose their real design capacity and cycle count.
+- **Diagnostics report PDF** — each device snapshot renders as a printable
+  two-page ITAD-triage report (summary + storage inventory), downloadable from
+  the Devices tab; a backfill regenerates existing snapshots.
+
+### Release
+
+- Appliance ISO `tscrub-v1.9.8_2025.11_30_x86-64_v0.41_20261001-276f7320.iso`
+  (157,622,272 B, sha256 `d6f2c44e0e12dd1051bb5f45b3b3641e93e2d7868a4baae28a885e4139ae4605`);
+- standalone script v1.9.8 sha256 `c8e68cb0801e1b2c0c5a7ccf755e5a6117d6c8c19753d42c790e00f7486b18af` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `54a5a7c225045c0a4df981cb1ab5c821b9fd04d87fc08922374dcbb45841572b`.
+
 ## [v1.9.7] - 2026-10-01
 
 ### Added
