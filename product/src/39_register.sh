@@ -48,6 +48,10 @@ register::json() {
         "$(report::_json_field "${SYS_MAC_LIST:-}")" \
         "$(report::_json_field "${SYS_STORAGE_CTRLS:-}")" \
         "$(report::_json_field "${SCRIPT_VERSION:-}")"
+    printf ',"battery":"%s","secure_boot":"%s","dimms":"%s"' \
+        "$(report::_json_field "${SYS_BATTERY:-}")" \
+        "$(report::_json_field "${SYS_SECUREBOOT:-}")" \
+        "$(report::_json_field "${SYS_DIMM_LIST:-}")"
     printf ',"operator":"%s","validator":"%s","media_source":"%s","media_destination":"%s"' \
         "$(report::_json_field "${OPERATOR_NAME:-}")" \
         "$(report::_json_field "${VALIDATOR_NAME:-}")" \

@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.9.1"
+SCRIPT_VERSION="v1.9.2"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -88,6 +88,9 @@ SYS_BOARD=""
 SYS_TPM=""
 SYS_MAC_LIST=""
 SYS_STORAGE_CTRLS=""
+SYS_BATTERY=""
+SYS_SECUREBOOT=""
+SYS_DIMM_LIST=""
 
 # Operator / job metadata (configurable via CLI, tscrub.conf, or kernel cmdline).
 OPERATOR_NAME=""
@@ -262,6 +265,75 @@ system::gather_info() {
     else
         SYS_TPM="N/A"
     fi
+
+    # Battery (laptops) — model / serial / charge% / health for grading.
+    local _bat _b_model _b_serial _b_cap _b_health _bat_list=""
+    for _bat in /sys/class/power_supply/BAT*; do
+        [[ -d "$_bat" ]] || continue
+        _b_model="$(cat "$_bat/model_name" 2>/dev/null)"
+        _b_serial="$(cat "$_bat/serial_number" 2>/dev/null)"
+        _b_cap="$(cat "$_bat/capacity" 2>/dev/null)"
+        _b_health="$(cat "$_bat/health" 2>/dev/null || cat "$_bat/status" 2>/dev/null)"
+        _bat_list="${_bat_list}${_bat_list:+; }${_b_model:-Battery}${_b_serial:+ SN=$_b_serial}${_b_cap:+ @ ${_b_cap}%}${_b_health:+ ($_b_health)}"
+    done
+    SYS_BATTERY="$(printf '%s' "${_bat_list:-N/A}" | tr -d ',' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//')"
+
+    # Secure Boot state (UEFI). Best-effort; "N/A" when unavailable.
+    local _sb _sbvar _sbraw
+    _sb=""
+    if command -v mokutil >/dev/null 2>&1; then
+        _sb="$(mokutil --sb-state 2>/dev/null | awk -F': *' '/SecureBoot/{print $2; exit}')"
+    fi
+    if [[ -z "$_sb" ]]; then
+        _sbvar=(/sys/firmware/efi/efivars/SecureBoot-*)
+        if [[ -e "${_sbvar[0]}" ]]; then
+            _sbraw="$(od -An -tu1 "${_sbvar[0]}" 2>/dev/null | tr -s ' ')"
+            case "$_sbraw" in
+                *" 1") _sb="Enabled" ;;
+                *" 0") _sb="Disabled" ;;
+            esac
+        fi
+    fi
+    SYS_SECUREBOOT="${_sb:-N/A}"
+
+    # Per-DIMM inventory (size/type/speed/serial) — resale grading detail.
+    local _dimm=""
+    if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
+        _dimm="$(dmidecode -t 17 2>/dev/null | awk '
+            /Memory Device$/        { size=""; stype=""; speed=""; sn="" }
+            /^[[:space:]]*Size:/ {
+                sub(/^[[:space:]]*Size:[[:space:]]*/,"")
+                if ($0 !~ /No Module/) size=$0
+                next
+            }
+            /^[[:space:]]*Type:/     { sub(/^[[:space:]]*Type:[[:space:]]*/,""); stype=$0; next }
+            /^[[:space:]]*Configured Memory Speed:/ { sub(/^[[:space:]]*Configured Memory Speed:[[:space:]]*/,""); speed=$0; next }
+            /^[[:space:]]*Speed:/    { if (speed=="") { sub(/^[[:space:]]*Speed:[[:space:]]*/,""); speed=$0 } ; next }
+            /^[[:space:]]*Serial Number:/ { sub(/^[[:space:]]*Serial Number:[[:space:]]*/,""); sn=$0; next }
+            /^$/ && size!="" {
+                out=size
+                if (stype!="") out=out " " stype
+                if (speed!="" && speed!="Unknown") out=out " @ " speed
+                if (sn!="" && sn!="Unknown" && sn!="None" && sn!="Not Specified") out=out " SN=" sn
+                gsub(/,/, " ", out)
+                gsub(/[ \t]+/, " ", out)
+                print out
+                size=""; stype=""; speed=""; sn=""
+            }
+            END {
+                if (size!="") {
+                    out=size
+                    if (stype!="") out=out " " stype
+                    if (speed!="" && speed!="Unknown") out=out " @ " speed
+                    if (sn!="" && sn!="Unknown" && sn!="None" && sn!="Not Specified") out=out " SN=" sn
+                    gsub(/,/, " ", out)
+                    gsub(/[ \t]+/, " ", out)
+                    print out
+                }
+            }
+        ' | awk '{ sub(/^ /,""); sub(/ $/,""); if (NF) { printf "%s%s", sep, $0; sep="; " } }')"
+    fi
+    SYS_DIMM_LIST="${_dimm:-N/A}"
 
     # Network adapters (MAC addresses are a stable asset identifier).
     local _if _addr _macs=""
