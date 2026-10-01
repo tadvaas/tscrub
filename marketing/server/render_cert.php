@@ -305,139 +305,6 @@ function tscrub_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $c
     }
 }
 
-function smart_fmt(string $v): string {
-    $v = trim($v);
-    if ($v === '') return '';
-    if (strtoupper($v) === 'UNSUP') return 'N/S';
-    return $v;
-}
-
-function tscrub_render_smart(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives): void {
-    $smartKeys = ['smart', 'tempc', 'poweronhours', 'powercycles', 'reallocsectors', 'pctused', 'availspare', 'tbw_tb', 'smartpost', 'tempcpost', 'poweronhourspost'];
-
-    // Only render when at least one drive carries SMART data (legacy CSVs have none).
-    $hasData = false;
-    foreach ($drives as $d) {
-        foreach ($smartKeys as $k) {
-            $v = trim((string)($d[$k] ?? ''));
-            if ($v !== '' && strtoupper($v) !== 'UNSUP') { $hasData = true; break 2; }
-        }
-    }
-    if (!$hasData) return;
-
-    $cols = [
-        'device'           => ['label' => 'Device',            'w' => 22, 'align' => 'L'],
-        'serial'           => ['label' => 'Serial',            'w' => 40, 'align' => 'L'],
-        'smart'            => ['label' => 'SMART',             'w' => 16, 'align' => 'C'],
-        'tempc'            => ['label' => 'Temp °C',           'w' => 15, 'align' => 'C'],
-        'poweronhours'     => ['label' => 'Power-on h',        'w' => 18, 'align' => 'C'],
-        'powercycles'      => ['label' => 'Power cycles',      'w' => 18, 'align' => 'C'],
-        'reallocsectors'   => ['label' => 'Realloc sectors',   'w' => 20, 'align' => 'C'],
-        'pctused'          => ['label' => 'Used %',            'w' => 14, 'align' => 'C'],
-        'availspare'       => ['label' => 'Avail spare',       'w' => 18, 'align' => 'C'],
-        'tbw_tb'           => ['label' => 'TBW (TB)',          'w' => 16, 'align' => 'C'],
-        'smartpost'        => ['label' => 'SMART (post)',      'w' => 22, 'align' => 'C'],
-        'tempcpost'        => ['label' => 'Temp °C (post)',    'w' => 22, 'align' => 'C'],
-        'poweronhourspost' => ['label' => 'Power-on h (post)', 'w' => 24, 'align' => 'C'],
-    ];
-
-    // Drop columns that are empty for every drive.
-    foreach (array_keys($cols) as $key) {
-        if ($key === 'device' || $key === 'serial') continue;
-        $allEmpty = true;
-        foreach ($drives as $d) {
-            $v = trim((string)($d[$key] ?? ''));
-            if ($v !== '' && strtoupper($v) !== 'UNSUP') { $allEmpty = false; break; }
-        }
-        if ($allEmpty) unset($cols[$key]);
-    }
-    if (count($cols) <= 2) return;
-
-    // Scale the remaining widths to fill the usable page width.
-    $total = 0.0;
-    foreach ($cols as $c) { $total += $c['w']; }
-    $usable = $W - 2 * $x;
-    foreach ($cols as $k => $c) { $cols[$k]['w'] = round($c['w'] * $usable / $total, 2); }
-
-    $keys = array_keys($cols);
-    $nCols = count($cols);
-
-    $pdf->AddPage();
-    $pdf->setCellPaddings(1.2, 0.8, 1.2, 0.8);
-
-    $pdf->SetFont('helvetica', 'B', 18);
-    $pdf->SetTextColor(11, 18, 32);
-    $pdf->SetXY($x, 10);
-    $pdf->Cell($W - 2 * $x, 10, 'ANNEX B - SMART CAPTURE', 0, 1, 'C');
-    $pdf->SetFont('helvetica', '', 10);
-    $pdf->SetTextColor(71, 85, 105);
-    $pdf->SetXY($x, 21);
-    $pdf->Cell($W - 2 * $x, 5, 'Pre- and post-wipe SMART health recorded for each device in Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
-
-    $drawHeader = function (float $y) use ($pdf, $cols, $keys, $nCols, $x, $W, $H, $certId) {
-        $pdf->SetFont('helvetica', '', 7.5);
-        $pdf->SetTextColor(90, 90, 90);
-        $pdf->SetXY($W - 175, $H - 12);
-        $pdf->Cell(165, 4, 'Certificate ID: ' . $certId . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
-
-        $pdf->SetFont('helvetica', 'B', 7.5);
-        $headerH = 0.0;
-        foreach ($keys as $key) {
-            $h = $pdf->getStringHeight($cols[$key]['w'] - 1.2, $cols[$key]['label'], false, true);
-            if ($h > $headerH) $headerH = $h;
-        }
-        $headerH += 0.8;
-
-        $pdf->SetXY($x, $y);
-        $pdf->SetFillColor(11, 18, 32);
-        $pdf->SetTextColor(255, 255, 255);
-        $i = 0;
-        foreach ($keys as $key) {
-            $i++;
-            $pdf->MultiCell($cols[$key]['w'], $headerH, $cols[$key]['label'], 1, 'C', true, ($i === $nCols) ? 1 : 0, '', '', true);
-        }
-        $pdf->SetTextColor(11, 18, 32);
-        $pdf->SetFont('helvetica', '', 7.5);
-    };
-
-    $drawHeader(30);
-
-    foreach ($drives as $d) {
-        $row = [];
-        foreach ($keys as $key) {
-            $row[] = ($key === 'device' || $key === 'serial')
-                ? (string)($d[$key] ?? '')
-                : smart_fmt((string)($d[$key] ?? ''));
-        }
-
-        $required = 5.0;
-        foreach ($keys as $ci => $key) {
-            $h = $pdf->getStringHeight($cols[$key]['w'] - 1.2, (string)$row[$ci], false, true);
-            if ($h > $required) $required = $h;
-        }
-        $required += 0.8;
-
-        if ($pdf->GetY() + $required > $H - 16) {
-            $pdf->AddPage();
-            $drawHeader(12);
-        }
-
-        $pdf->SetX($x);
-        foreach ($keys as $ci => $key) {
-            $pdf->MultiCell($cols[$key]['w'], $required, (string)$row[$ci], 'LTR', $cols[$key]['align'], false, ($ci === $nCols - 1) ? 1 : 0, '', '', true);
-        }
-
-        $rightX = $x + array_sum(array_column($cols, 'w'));
-        $y = $pdf->GetY();
-        $pdf->SetLineWidth(0.2);
-        $pdf->SetDrawColor(203, 213, 225);
-        $pdf->Line($x, $y, $rightX, $y);
-        $pdf->SetDrawColor(0, 0, 0);
-    }
-
-    $pdf->setCellPaddings(0, 0, 0, 0);
-}
-
 /**
  * Render one certificate (one Chain of Custody ID) into its own PDF.
  * Returns the PDF bytes, its SHA-256, the computed counts, and the sorted
@@ -685,9 +552,8 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetXY(30, 194);
     $pdf->Cell($W - 60, 5, 'Prepared with tScrub — verifiable disk sanitisation  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'C');
 
-    // --- Annex A + Annex B ---
+    // --- Annex A ---
     tscrub_render_annex($pdf, $tableX, $W, $H, $certId, $cocid, $drives, $g['reports']);
-    tscrub_render_smart($pdf, $tableX, $W, $H, $certId, $cocid, $drives);
 
     $data = $pdf->Output('', 'S');
     return [
