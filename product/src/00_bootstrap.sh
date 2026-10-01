@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.9.2"
+SCRIPT_VERSION="v1.9.3"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -268,15 +268,32 @@ system::gather_info() {
         SYS_TPM="N/A"
     fi
 
-    # Battery (laptops) — model / serial / charge% / health for grading.
-    local _bat _b_model _b_serial _b_cap _b_health _bat_list=""
+    # Battery (laptops) — model / serial / state-of-charge / health / cycles.
+    # Linux has no direct "health %" file: derive it as the ratio of the
+    # current full capacity (energy_full / charge_full) to the design capacity
+    # (energy_full_design / charge_full_design), matching what vendor tools
+    # report (BitRaser's "Capacity: 51.35%", Apple's "Maximum Capacity").
+    local _bat _b_model _b_serial _b_cap _b_status _b_cycles _b_full _b_design _b_health _bat_list=""
     for _bat in /sys/class/power_supply/BAT*; do
         [[ -d "$_bat" ]] || continue
         _b_model="$(cat "$_bat/model_name" 2>/dev/null)"
         _b_serial="$(cat "$_bat/serial_number" 2>/dev/null)"
         _b_cap="$(cat "$_bat/capacity" 2>/dev/null)"
-        _b_health="$(cat "$_bat/health" 2>/dev/null || cat "$_bat/status" 2>/dev/null)"
-        _bat_list="${_bat_list}${_bat_list:+; }${_b_model:-Battery}${_b_serial:+ SN=$_b_serial}${_b_cap:+ @ ${_b_cap}%}${_b_health:+ ($_b_health)}"
+        _b_status="$(cat "$_bat/status" 2>/dev/null)"
+        _b_cycles="$(cat "$_bat/cycle_count" 2>/dev/null)"
+        # Prefer energy_* (µWh), fall back to charge_* (µAh).
+        _b_full="$(cat "$_bat/energy_full" 2>/dev/null)"
+        _b_design="$(cat "$_bat/energy_full_design" 2>/dev/null)"
+        if [[ -z "$_b_full" || -z "$_b_design" ]]; then
+            _b_full="$(cat "$_bat/charge_full" 2>/dev/null)"
+            _b_design="$(cat "$_bat/charge_full_design" 2>/dev/null)"
+        fi
+        _b_health=""
+        if [[ "$_b_full" =~ ^[0-9]+$ && "$_b_design" =~ ^[0-9]+$ && "$_b_design" -gt 0 ]]; then
+            _b_health="$(( (_b_full * 100 + _b_design / 2) / _b_design ))%"
+        fi
+        _bat_list="${_bat_list}${_bat_list:+; }${_b_model:-Battery}${_b_serial:+ SN=$_b_serial}${_b_cap:+ @ ${_b_cap}%}"
+        _bat_list="${_bat_list}${_b_health:+ (health ${_b_health})}${_b_cycles:+ (${_b_cycles} cycles)}${_b_status:+ [${_b_status}]}"
     done
     SYS_BATTERY="$(printf '%s' "${_bat_list:-N/A}" | tr -d ',' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//')"
 
