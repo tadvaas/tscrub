@@ -1,6 +1,6 @@
-# tScrub — Open ITAD Triage, Grading & Verifiable Erasure
+# tScrub — Compliance-Grade Erasure, Triage & Grading
 
-tScrub is an open ITAD (IT asset disposition) platform. One boot on a machine captures its full hardware profile — display panel, battery health and capacity, CPU spec, memory modules, storage, firmware, and MDM or BIOS lock status — grades it for resale, redeployment, or recycling, then erases its NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels. Every run produces a printable two-page ITAD diagnostics report plus a signed chain-of-custody report you can turn into a Certificate of Destruction. The bootable appliance image is open and inspectable — your security team can read every line of what runs. Boot it from USB or PXE on hardware you already own. No locked-down vendor box required.
+tScrub is an open ITAD (IT asset disposition) platform built for compliance. One boot erases its NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels and produces a signed chain-of-custody report you can turn into a Certificate of Destruction — while it also captures the machine's full hardware profile (display panel, battery health and capacity, CPU spec, memory modules, storage, firmware, and MDM or BIOS lock status) and grades it for resale, redeployment, or recycling, with a printable two-page ITAD diagnostics report. The bootable appliance image is open and inspectable — your security team can read every line of what runs. Boot it from USB or PXE on hardware you already own. No locked-down vendor box required.
 
 ## What it does
 
@@ -61,6 +61,7 @@ nwipe and DBAN are a different class: free, ad-hoc overwrite tools with no signe
 - **Pay-as-you-go** — £3 per device for attributable reports (signed and licence-verified).
 - **Team** — £99 one-off for 100 credits, attributable reports (signed and licence-verified) and support.
 - **Enterprise** — £399 one-off for 500 credits, for regulated fleets.
+- The Windows Autopilot (MDM) lock check is a paid feature — one credit per live check, from the same balance.
 
 See pricing at https://tscrub.com/pricing and download the appliance image at https://tscrub.com/download. Free licences are self-serve; paid tiers are issued by the tScrub team.
 

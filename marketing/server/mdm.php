@@ -27,6 +27,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/http.php';
+require_once __DIR__ . '/stripe.php';
 
 // ---- configuration --------------------------------------------------------
 
@@ -45,6 +46,13 @@ function mdm_configured(): bool {
         && (($s['client_secret'] ?? '') !== '');
 }
 
+/** Shared secret for the tenant-agnostic WinPE hash-report ingest. Not a user
+ *  API token — it only authenticates the upload; the hash itself is staged
+ *  unassigned and claimed by whichever tenant uploads the device's report. */
+function mdm_ingest_key(): string {
+    return (string)(db_config()['mdm_ingest_key'] ?? '');
+}
+
 function mdm_authority(): string {
     return rtrim((string)(mdm_settings()['authority'] ?? 'https://login.microsoftonline.com'), '/');
 }
@@ -59,12 +67,15 @@ function mdm_graph(): string {
  * appliance renders `label` verbatim in its Runtime panel instead of mapping
  * verdicts itself, so the wording can change server-side without an appliance
  * release. Keep the labels short enough for the runtime panel's value column.
+ * Labels MUST be ASCII: the appliance's sed-based JSON parser does not decode
+ * \uXXXX escapes (a Unicode "…" would render as the literal "Checking\u2026"
+ * on the console).
  */
 function mdm_status_label(string $status, string $verdict): string {
     $st = strtolower($status);
     $v  = strtolower($verdict);
 
-    if ($st === 'checking') return 'Checking…';
+    if ($st === 'checking') return 'Checking...';
     if ($st === 'queued')   return 'Queued';
     if ($st === 'failed')   return 'Failed';
     if ($st === 'na')       return 'No hash';
@@ -72,7 +83,7 @@ function mdm_status_label(string $status, string $verdict): string {
     switch ($v) {
         case 'unlocked':     return 'Unlocked';
         case 'locked_this':  return 'Locked (this)';
-        case 'locked_other': return 'Locked (other)';
+        case 'locked_other': return 'Locked';
         case 'hash_invalid': return 'Invalid hash';
         case 'ms_error':     return 'MS error';
         case 'offline':      return 'Offline';
@@ -80,8 +91,41 @@ function mdm_status_label(string $status, string $verdict): string {
         case 'unknown':      return 'Pending';
         case 'skipped':      return 'Skipped';
         case 'na':           return 'No hash';
+        case 'paid_only':    return 'Paid only';
+        case 'insufficient_credits': return 'No credits';
     }
     return 'Unknown';
+}
+
+/** The user's most recent licence tier (free when none). Mirrors owner_tier()
+ *  in api.php so the MDM worker (which does not load api.php) can gate too. */
+function mdm_user_tier(int $userId): string {
+    try {
+        $stmt = db()->prepare('SELECT tier FROM licences WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1');
+        $stmt->execute([$userId]);
+        $t = $stmt->fetch();
+        return ($t !== false && isset($t['tier']) && $t['tier'] !== null) ? (string)$t['tier'] : 'free';
+    } catch (Throwable $e) {
+        return 'free';
+    }
+}
+
+/**
+ * MDM billing gate. MDM is a paid feature: the free tier cannot check, and paid
+ * tiers spend one credit per live Graph probe. Returns the decision plus the
+ * current balance so callers can render a precise status ("Paid only" /
+ * "No credits").
+ */
+function mdm_gate(int $userId): array {
+    $tier = mdm_user_tier($userId);
+    if ($tier === 'free') {
+        return ['allowed' => false, 'reason' => 'free_tier', 'balance' => credit_balance($userId)];
+    }
+    $balance = credit_balance($userId);
+    if ($balance < 1) {
+        return ['allowed' => false, 'reason' => 'insufficient_credits', 'balance' => 0];
+    }
+    return ['allowed' => true, 'reason' => 'ok', 'balance' => $balance];
 }
 
 // ---- OAv3 4K hardware hash (base mode) ------------------------------------
@@ -573,12 +617,16 @@ function mdm_purge_serial(string $token, string $serial): void {
  * oa3tool output — a generated base hash can't match an enrolled device
  * (autopilot-report.md §26).
  */
-function mdm_stage_hash(int $userId, string $serial, string $uuid, string $model, string $hash): void {
+function mdm_stage_hash(?int $userId, string $serial, string $uuid, string $model, string $hash): void {
     try {
         db()->prepare(
             'INSERT INTO mdm_staged_hash (user_id, serial, uuid, model, hardware_identifier)
              VALUES (?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE model = VALUES(model), hardware_identifier = VALUES(hardware_identifier), created_at = UTC_TIMESTAMP()'
+             ON DUPLICATE KEY UPDATE
+               user_id = COALESCE(user_id, VALUES(user_id)),
+               model = VALUES(model),
+               hardware_identifier = VALUES(hardware_identifier),
+               created_at = UTC_TIMESTAMP()'
         )->execute([$userId, $serial, $uuid, $model, $hash]);
     } catch (Throwable $e) {
         error_log('mdm stage hash error: ' . $e->getMessage());
@@ -608,19 +656,65 @@ function mdm_unstage_hash(int $userId, string $serial, string $uuid): void {
     }
 }
 
+/** Owner (user_id) of the diagnostics report for a device, or null if none.
+ *  A diagnostics report is the device's ownership claim; a staged hash stays
+ *  unassigned until one arrives. Matches the payload's sysserial/systemuuid. */
+function mdm_report_owner(string $serial, string $uuid): ?int {
+    try {
+        $stmt = db()->prepare(
+            'SELECT user_id FROM reports
+             WHERE report_type = "diagnostics"
+               AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(payload, "$.sysserial"))) = LOWER(?)
+               AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(payload, "$.systemuuid"))) = LOWER(?)
+             ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute([$serial, $uuid]);
+        $row = $stmt->fetch();
+        return ($row !== false) ? (int)$row['user_id'] : null;
+    } catch (Throwable $e) {
+        error_log('mdm report owner error: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** Claim an unassigned staged hash for a user; true if a hash was claimed. */
+function mdm_claim_hash_for_user(int $userId, string $serial, string $uuid): bool {
+    try {
+        $stmt = db()->prepare('UPDATE mdm_staged_hash SET user_id = ? WHERE serial = ? AND uuid = ? AND user_id IS NULL');
+        $stmt->execute([$userId, $serial, $uuid]);
+        return $stmt->rowCount() > 0;
+    } catch (Throwable $e) {
+        error_log('mdm claim hash error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** True if a hash is staged for the device but not yet claimed by a user. */
+function mdm_has_unassigned_hash(string $serial, string $uuid): bool {
+    try {
+        $stmt = db()->prepare('SELECT COUNT(*) FROM mdm_staged_hash WHERE serial = ? AND uuid = ? AND user_id IS NULL');
+        $stmt->execute([$serial, $uuid]);
+        return (int)$stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 // ---- MDM check queue (mdm_jobs) -------------------------------------------
 // The check runs in the background (mdm-worker.php) so neither the WinPE
 // upload nor the web request waits on Microsoft's async import queue. Jobs
 // move queued -> checking -> done|failed.
 
 /** Enqueue a fresh check for a device; returns the job id (0 on error).
- *  Skips a duplicate while one is already queued/checking for the same device,
- *  UNLESS $force is set (the dashboard Re-check button) — a forced check always
- *  creates a new job and bypasses the verdict cache in the worker. */
+ *  Idempotent per device: a job is only ever created the FIRST time. If any
+ *  job already exists for the device (queued/checking/done/failed) its id is
+ *  returned and no new job is created — so re-booting the appliance never
+ *  re-triggers a Graph probe. $force (the dashboard Re-check button) bypasses
+ *  this and always creates a new job (which also skips the verdict cache). */
 function mdm_enqueue_job(int $userId, string $serial, string $uuid, bool $force = false): int {
     try {
         if (!$force) {
-            $stmt = db()->prepare('SELECT id FROM mdm_jobs WHERE user_id = ? AND serial = ? AND uuid = ? AND status IN ("queued","checking") ORDER BY id DESC LIMIT 1');
+            $stmt = db()->prepare('SELECT id FROM mdm_jobs WHERE user_id = ? AND serial = ? AND uuid = ? ORDER BY id DESC LIMIT 1');
             $stmt->execute([$userId, $serial, $uuid]);
             $existing = $stmt->fetch();
             if ($existing !== false) {
@@ -792,6 +886,7 @@ function mdm_devices(int $userId): array {
                 'captured_at' => (string)$h['captured_at'],
                 'status' => $j['status'] ?? 'na',
                 'verdict' => $j['verdict'] ?? '',
+                'label' => mdm_status_label((string)($j['status'] ?? 'na'), (string)($j['verdict'] ?? '')),
                 'started_at' => $j['created_at'] ?? null,
                 'last_checked_at' => $j['updated_at'] ?? null,
             ];
@@ -939,17 +1034,54 @@ function mdm_ensure_schema(): void {
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_staged_hash (
                id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-               user_id             BIGINT UNSIGNED NOT NULL,
+               user_id             BIGINT UNSIGNED NULL,
                serial              VARCHAR(255)    NOT NULL DEFAULT "",
                uuid                VARCHAR(64)     NOT NULL DEFAULT "",
                model               VARCHAR(255)    NOT NULL DEFAULT "",
                hardware_identifier TEXT            NOT NULL,
                created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
                PRIMARY KEY (id),
-               UNIQUE KEY uq_mdm_staged_device (user_id, serial, uuid),
+               UNIQUE KEY uq_mdm_staged_device (serial, uuid),
+               KEY idx_mdm_staged_user (user_id),
                CONSTRAINT fk_mdm_staged_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
+        // Existing-table migration: a staged hash is now a GLOBAL unassigned pool
+        // (keyed by serial+uuid; user_id NULL until a diagnostics report claims
+        // the device). MySQL 8 has no ALTER ... IF EXISTS, so probe first. The FK
+        // keeps an index via idx_mdm_staged_user once the per-user unique key is
+        // replaced.
+        $hashUserIdx = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
+               AND INDEX_NAME = 'idx_mdm_staged_user'"
+        )->fetchColumn();
+        if ($hashUserIdx === 0) {
+            db()->exec('ALTER TABLE mdm_staged_hash ADD KEY idx_mdm_staged_user (user_id)');
+        }
+        $hashUqHasUser = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
+               AND INDEX_NAME = 'uq_mdm_staged_device' AND COLUMN_NAME = 'user_id'"
+        )->fetchColumn();
+        if ($hashUqHasUser > 0) {
+            db()->exec('ALTER TABLE mdm_staged_hash DROP INDEX uq_mdm_staged_device');
+        }
+        $hashNullable = db()->query(
+            "SELECT IS_NULLABLE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash' AND COLUMN_NAME = 'user_id'"
+        )->fetchColumn();
+        if ($hashNullable !== 'YES') {
+            db()->exec('ALTER TABLE mdm_staged_hash MODIFY user_id BIGINT UNSIGNED NULL');
+        }
+        $hashUq = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
+               AND INDEX_NAME = 'uq_mdm_staged_device'"
+        )->fetchColumn();
+        if ($hashUq === 0) {
+            db()->exec('ALTER TABLE mdm_staged_hash ADD UNIQUE KEY uq_mdm_staged_device (serial, uuid)');
+        }
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_jobs (
                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -982,7 +1114,7 @@ function mdm_ensure_schema(): void {
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_ingest_log (
                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-               user_id    BIGINT UNSIGNED NOT NULL,
+               user_id    BIGINT UNSIGNED NULL,
                serial     VARCHAR(255)    NOT NULL DEFAULT "",
                uuid       VARCHAR(64)     NOT NULL DEFAULT "",
                hash_len   INT UNSIGNED    NOT NULL DEFAULT 0,
@@ -993,6 +1125,15 @@ function mdm_ensure_schema(): void {
                CONSTRAINT fk_mdm_ingest_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
+        // Ingest is now tenant-agnostic (shared ingest key, not a per-user
+        // token) — make the audit column nullable for pre-existing tables.
+        $ingestNullable = db()->query(
+            "SELECT IS_NULLABLE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_ingest_log' AND COLUMN_NAME = 'user_id'"
+        )->fetchColumn();
+        if ($ingestNullable !== 'YES') {
+            db()->exec('ALTER TABLE mdm_ingest_log MODIFY user_id BIGINT UNSIGNED NULL');
+        }
     } catch (Throwable $e) {
         error_log('mdm schema ensure error: ' . $e->getMessage());
     }
@@ -1010,7 +1151,7 @@ function mdm_log_probe(int $userId, string $serial, string $uuid, string $verdic
 
 /** Record every WinPE hash-upload attempt (before validation) so a failed
  *  upload is diagnosable server-side even when the device's screen is gone. */
-function mdm_log_ingest(int $userId, string $serial, string $uuid, int $hashLen, string $ip): void {
+function mdm_log_ingest(?int $userId, string $serial, string $uuid, int $hashLen, string $ip): void {
     try {
         db()->prepare('INSERT INTO mdm_ingest_log (user_id, serial, uuid, hash_len, ip) VALUES (?, ?, ?, ?, ?)')
             ->execute([$userId, $serial, $uuid, $hashLen, $ip]);

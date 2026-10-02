@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>Billing — tScrub Dashboard</title>
   <meta name="robots" content="noindex" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +15,7 @@
     <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
-        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
         <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
       <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
@@ -190,6 +190,10 @@
             var left = el('div');
             var label = ev.type === 'credit' ? '+' + ev.units + ' credits' : '−' + ev.units + ' credits';
             left.appendChild(el('span', 'text-sm font-semibold ' + (ev.type === 'credit' ? 'text-brand-700 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300'), label));
+            var what = '';
+            if (ev.ref && ev.ref.indexOf('mdm:') === 0) { what = 'MDM check'; }
+            else if (ev.ref && ev.ref.indexOf('report:') === 0) { what = 'report upload'; }
+            if (what) { left.appendChild(el('span', 'ml-2 text-xs text-slate-400 dark:text-slate-500', what)); }
             left.appendChild(el('span', 'ml-2 text-xs text-slate-400 dark:text-slate-500', fmtDate(ev.created_at)));
             row.appendChild(left);
             row.appendChild(el('span', 'font-mono text-xs text-slate-400 dark:text-slate-500', ev.ref));

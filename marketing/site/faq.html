@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>FAQ — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/faq" />
   <meta name="description" content="Answers about tScrub certification, running tScrub on your own hardware, and how edge-case drives are handled." />
@@ -16,7 +16,7 @@
         <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
-        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
         <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
       <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
@@ -77,6 +77,25 @@
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">What if a drive can't be wiped?</h3>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Frozen drives are flagged FROZEN for physical destruction; Block SID-locked drives get a BLOCKED status (recoverable — clear the SID and re-run); anything that fails is recorded NOT SANITISED — so every outcome is documented in the chain of custody.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ITAD & hardware triage -->
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">ITAD &amp; hardware triage</h2>
+        <div class="mt-2 divide-y divide-slate-100 dark:divide-ink-800">
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">Is tScrub only for erasing drives?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">No. One boot captures the machine's full hardware profile — display panel, battery health and capacity, CPU spec, memory modules, storage, and firmware — along with Windows Autopilot MDM and BIOS lock status. You get a printable two-page ITAD diagnostics report per machine, plus the chain-of-custody erasure report.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">Can tScrub tell me if a laptop is MDM-locked?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Yes. With the Autopilot check enabled, tScrub reports a Locked/Unlocked MDM verdict in the dashboard, alongside BIOS password lock detection — so a locked laptop is flagged before it goes to a buyer, and BIOS unlocks can be dispatched remotely.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">What does the diagnostics report show?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">A machine summary (system and board serials, BIOS, TPM, Secure Boot, CPU, RAM, display, battery) and a storage inventory (per-drive firmware, sector size, SMART health, self-test result, reallocated sectors). Each device snapshot renders as a printable PDF from the Devices tab.</p>
           </div>
         </div>
       </div>

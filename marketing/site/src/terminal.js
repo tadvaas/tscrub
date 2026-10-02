@@ -22,8 +22,7 @@ const SPINNER = ['|', '/', '-', '\\']
 // table drops SMART/TEMP/BUS/CLASS (they only appear on wide terminals).
 const DRIVES = [
   { device: 'nvme0n1', model: 'Samsung 990 PRO', serial: 'S4A1B2C3', type: 'NVMe', method: 'Crypto Purge',   cls: 'PURGE', remain: 240 },
-  { device: 'sda',     model: 'Seagate EXOS',    serial: 'WDE1234',  type: 'SATA', method: 'Enhanced Erase', cls: 'PURGE', remain: 540 },
-  { device: 'sdb',     model: 'Toshiba KPM5',    serial: 'X7Y8Z9',   type: 'SAS',  method: 'nwipe Quick',    cls: 'CLEAR', remain: 360 }
+  { device: 'sda',     model: 'Samsung 870 EVO', serial: 'WDE1234',  type: 'SATA', method: 'Enhanced Erase', cls: 'PURGE', remain: 360 }
 ]
 
 // Column widths for the device table (MODEL/SERIAL truncate with "…" like the
@@ -47,6 +46,20 @@ function ell(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s }
 function dash(n) { return '─'.repeat(n) }
 
 function line(text, cls) { return el(cls || '', text) }
+
+// Render a line from text segments, so a single value can carry its own
+// colour (e.g. a red "Locked" MDM/BIOS verdict) while the row stays aligned.
+function seg(parts) {
+  const node = document.createElement('div')
+  for (const p of parts) {
+    if (p.t == null || p.t === '') continue
+    if (p.c) { const s = document.createElement('span'); s.className = p.c; s.textContent = p.t; node.appendChild(s) }
+    else node.appendChild(document.createTextNode(p.t))
+  }
+  output.appendChild(node)
+  output.scrollTop = output.scrollHeight
+  return node
+}
 
 function clear() {
   output.innerHTML = ''
@@ -101,15 +114,32 @@ function panels(elapsed, spinner) {
   line('| ' + pad('System Info', pw - 4) + ' |  ' + '| ' + pad('Runtime', pw - 4) + ' |')
   line(bar + '  ' + bar)
   const rows = [
-    ['System:', 'Dell R740', 'Elapsed:', fmtElapsed(elapsed) + ' ' + spinner],
-    ['System SN:', '7X2A3B4C5', 'COCID:', COCID],
-    ['CPUs:', '2× Xeon 4214', 'Licence:', 'Acme ITAD'],
-    ['RAM:', '64 GB', 'Tier:', 'Enterprise']
+    ['System:', 'Dell Latitude 5420', 'Elapsed:', fmtElapsed(elapsed) + ' ' + spinner, null],
+    ['System SN:', '7X2A3B4C5', 'COCID:', COCID, null],
+    ['CPU:', 'i5-1145G7 · 4C/8T', 'Licence:', 'Acme ITAD', null],
+    ['RAM:', '16 GB · 2 DIMMs', 'Tier:', 'Enterprise', null],
+    ['Display:', 'BOE 14" 1920×1080', 'BIOS:', 'Locked', 't-lock'],
+    ['Battery:', '33.4 Wh · 91%', 'MDM:', 'Locked', 't-lock']
   ]
   for (const r of rows) {
-    line('| ' + pad(r[0], 10) + pad(r[1], pw - 14) + ' |  ' + '| ' + pad(r[2], 10) + pad(r[3], pw - 14) + ' |')
+    if (r[4]) {
+      seg([
+        { t: '| ' + pad(r[0], 10) + pad(r[1], pw - 14) + ' |  ' },
+        { t: '| ' + pad(r[2], 10) },
+        { t: r[3], c: r[4] },
+        { t: pad('', pw - 14 - r[3].length) + ' |' }
+      ])
+    } else {
+      line('| ' + pad(r[0], 10) + pad(r[1], pw - 14) + ' |  ' + '| ' + pad(r[2], 10) + pad(r[3], pw - 14) + ' |')
+    }
   }
   line(bar + '  ' + bar)
+}
+
+function statusClass(s) {
+  if (s === 'COMPLETED' || s === 'DRY-RUN') return 't-ok'
+  if (s === 'RUNNING' || s === 'PLANNED') return 't-warn'
+  return 't-err' // BLOCKED, FROZEN, FAILED, UNKNOWN
 }
 
 function table(drives) {
@@ -120,7 +150,12 @@ function table(drives) {
       ell(d.model, COLS[0]), ell(d.serial, COLS[1]), pad(d.type, COLS[2]), pad(d.device, COLS[3]),
       pad(d.method, COLS[4]), pad(d.status, COLS[5]), pad(etaText(d), COLS[6])
     ]
-    line(cells.map((c, i) => pad(c, COLS[i])).join(' ').trimEnd())
+    const parts = []
+    cells.forEach((c, i) => {
+      if (i > 0) parts.push({ t: ' ' })
+      parts.push({ t: c, c: i === 5 ? statusClass(d.status) : null })
+    })
+    seg(parts)
   }
   line(dash(W))
 }
@@ -141,7 +176,7 @@ function paintScreen(drives, elapsed, spinner, phase, finish, dryRun) {
   table(drives)
   line('')
   if (finish) {
-    line('✓ Complete. Report written to /tScrub_48213_20260927T103000Z.csv')
+    line('✓ Complete. Diagnostics & erasure reports written to dashboard')
     line('  Chain of custody ID: ' + COCID)
     line('')
   }
@@ -158,7 +193,7 @@ async function runDemo(dryRun = false) {
   // Boot.
   theme('boot')
   line('tScrub started at boot', 't-info')
-  line(`tScrub — verifiable disk sanitisation`, 't-muted')
+  line('tScrub — ITAD triage, grading & erasure', 't-muted')
   line('')
   await sleep(500)
 
@@ -206,6 +241,8 @@ function showReport() {
     line('  ' + pad(d.device, 10) + '  ' + pad(d.method, 18) + '  ' + pad(d.cls, 12) + '  COMPLETED')
   }
   line('')
+  seg([{ t: '  BIOS: ' }, { t: 'Locked', c: 't-lock' }, { t: '    MDM: ' }, { t: 'Locked', c: 't-lock' }])
+  line('')
   footer()
 }
 
@@ -222,8 +259,9 @@ function help() {
 }
 
 function about() {
-  el('', 'tScrub erases NVMe, SATA, and SCSI drives to NIST 800-88')
-  el('', 'Clear, Purge, and Destroy — then writes a chain-of-custody')
+  el('', 'tScrub grades hardware, detects MDM and BIOS locks, and')
+  el('', 'erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear,')
+  el('', 'Purge, and Destroy — then writes the chain-of-custody')
   el('', 'report your auditors can actually read.')
 }
 
@@ -256,7 +294,7 @@ function handle(raw) {
     case 'report': case 'cert': case 'certificate': showReport(); break
     case 'about': about(); break
     case 'whoami': el('', 'operator'); break
-    case 'ls': el('', 'tscrub.lic   report.csv   tscrub.sh'); break
+    case 'ls': el('', 'tscrub.lic   report.csv   device_diagnostics.json   tscrub.sh'); break
     case 'clear': case 'cls': clear(); break
     case 'wipe --all': case 'wipe all': askConfirm(); break
     default: el('t-err', `command not found: ${cmd} — type 'help'`)

@@ -139,7 +139,7 @@ license::fetch() {
     return 1
 }
 LICENSE_SOURCE_SET=1
-LICENSE_URL="http://192.168.0.26/tScrub/test.lic"
+LICENSE_URL="http://192.168.0.6:8080/ipxe/tscrub/test.lic"
 LICENSE_FILE=""
 license::detect
 t::check "licence fetch retried until it succeeds" '[[ "$fetch_calls" -eq 3 && -n "$LICENSE_FILE" ]]'

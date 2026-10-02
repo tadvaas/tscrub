@@ -674,7 +674,12 @@ ui::loop() {
                         if [[ -z "${devrow[$_dev.end_ts]}" ]]; then
                             devrow["$_dev.end_ts"]="$(ts::now)"
                             devrow["$_dev.end_at"]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-                        fi ;;
+                        fi
+                        # Publish the live erasure state (Wiping -> Complete /
+                        # Failed) to the dashboard heartbeat on each terminal
+                        # drive transition.
+                        status::drive_terminal
+                        ;;
                 esac
                 table::render
             else
@@ -954,12 +959,17 @@ triage::run() {
         if (( rc > 128 )); then
             # Timeout — refresh the elapsed timer in place; re-render only when
             # the MDM verdict label changes. On the finish screen (the result
-            # view after an erasure) never re-render — that would erase the
-            # report summary + drive guidance; just keep ticking the timer.
+            # view after an erasure) re-render via ui::paint_finish so the
+            # completion colour is kept while the Runtime panel (MDM, elapsed,
+            # LAN IP) keeps updating instead of freezing.
             prev_status="${MDM_STATUS:-}"
             mdm::sync_state
-            if [[ "$on_finish" -eq 0 && "${MDM_STATUS:-}" != "$prev_status" ]]; then
-                table::render
+            if [[ "${MDM_STATUS:-}" != "$prev_status" ]]; then
+                if [[ "$on_finish" -eq 1 ]]; then
+                    ui::paint_finish
+                else
+                    table::render
+                fi
             else
                 ui::tick_inplace || true
             fi
@@ -984,9 +994,10 @@ triage::run() {
                 TRIAGE_MODE=0
                 erasure::run
                 # erasure::run leaves either the result view (finish screen,
-                # theme 1/2/3 — keep it up, never re-render) or, after a
-                # selection abort (return 2), the re-rendered triage screen —
-                # resume normal MDM re-renders in that case.
+                # theme 1/2/3 — kept up, re-rendered only when the MDM cell
+                # changes so the panel stays live) or, after a selection abort
+                # (return 2), the re-rendered triage screen — resume normal
+                # MDM re-renders in that case.
                 if [[ $? -eq 2 ]]; then
                     on_finish=0
                 else

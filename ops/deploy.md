@@ -2,6 +2,24 @@
 
 There are three things that get deployed, each with its own path.
 
+## Signing keys (overview)
+
+There are several distinct signing operations, each with its own key. The deploy
+steps below touch only the first two; the rest live in dedicated runbooks.
+
+| Operation | Key | Where |
+|---|---|---|
+| Release signing — `tscrub.sh` → `tscrub.sh.sig` (Ed25519) + `tscrub.pub` | `vendor.key` (Ed25519) | §2 + `host-download.sh` |
+| PXE kernel signing — network-boot `bzImage` (Secure Boot) | `~/ipxe-sb/vendor.key` ("My iPXE Vendor Key") | §2 (Appliance) |
+| Secure Boot (shim + MOK) — ISO's `shim → grub → bzImage` chain | `~/.tscrub-mok/mok.key` | `secure-boot-mok.md` |
+| Report signing — chain-of-custody CSV → `.sig` (Ed25519) | report key (free = self-signed ephemeral; paid = licence-bound) | `report-verification.md` |
+| Licence + vendor root-of-trust | `vendor.key` (Ed25519) | `vendor-key-rotation.md` |
+| Certificate / diagnostics PDF signing (X.509) | `sign.key` / `sign.crt` | `certificate-pdf-signing.md` |
+
+Two keys are easy to confuse: the **Secure Boot MOK key** (`~/.tscrub-mok/mok.key`,
+signs the ISO's shim chain) is **not** the **PXE iPXE vendor key**
+(`~/ipxe-sb/vendor.key`, signs the network-boot kernel).
+
 ## 1. Marketing site (`marketing/`)
 
 Static Vite build, rsync'd to the web docroot.
@@ -48,7 +66,7 @@ Notes:
 
 ### Host the signed script artifact
 
-The signed script is still built and served at `https://tscrub.com/downloads/tscrub.sh` — it backs the `verify` toolchain and the appliance build, but it is **not** surfaced on the Download page (tScrub ships as the appliance ISO). One command rebuilds, re-hosts, **signs the release** (Ed25519, with the vendor key), updates the published checksum, and redeploys the site:
+The signed script is still built and served at `https://tscrub.com/downloads/tscrub.sh` — it backs the `verify` toolchain and the appliance build, but it is **not** surfaced on the Download page (tScrub ships as the appliance ISO). One command rebuilds, re-hosts, **signs the release** (Ed25519, with the vendor key), updates the published checksum in the manifest's `script` block, and deploys the backend (which refreshes the manifest under `/downloads/`):
 
 ```bash
 bash ops/host-download.sh
@@ -56,7 +74,7 @@ bash ops/host-download.sh
 
 Served files under `/downloads/`: `tscrub.sh` (the script), `tscrub.sh.sha256` (checksum), `tscrub.sh.sig` (Ed25519 signature), `tscrub.pub` (vendor public key for verification).
 
-**Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a `## [vX.Y.Z]` entry to `CHANGELOG.md` (the manifest and Download page are updated by `host-download.sh`).
+**Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a `## [vX.Y.Z]` entry to `CHANGELOG.md`. Note `host-download.sh` only updates the manifest's **script** block; the **appliance** block and the Download page `FALLBACK` are updated in the appliance section below.
 
 Manual equivalent (upload only, no site redeploy):
 
@@ -74,15 +92,25 @@ The marketing deploy excludes `downloads/` (`--exclude downloads/`) so `--delete
 The appliance is a Buildroot/ShredOS fork on `oxwet@192.168.0.6:~/shredos.x86_64`. After a `SCRIPT_VERSION` bump and `bash ops/host-download.sh`, stage the slim script into the overlay, commit, and rebuild:
 
 ```bash
-# 1. Push the slim build into the overlay and commit on the build host
+# 1. Build the SLIM script. host-download.sh just ran `make build`, so
+#    product/build/tscrub.sh is currently the FULL build — rebuild slim
+#    (sedutil comes from the image, not the script).
+make -C product build-slim
+
+# 2. Push the slim build into the overlay and commit on the build host.
+#    `git checkout --` restores the bootloaders the ISO build clobbers
+#    (bootx64.efi shrinks 1,060,864 -> 966,664 bytes). `git add -A` commits the
+#    overlay plus the WinPE payload (board/shredos/winpe/); unstage the transient
+#    build log so it never lands in git.
 scp -o BatchMode=yes product/build/tscrub.sh \
   oxwet@192.168.0.6:~/shredos.x86_64/board/shredos/fsoverlay/usr/bin/tscrub.sh
 ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
   chmod 755 board/shredos/fsoverlay/usr/bin/tscrub.sh && \
   git checkout -- board/shredos/bootx64.efi board/shredos/shimx64.efi board/shredos/mmx64.efi board/shredos/grubx64.efi && \
-  git add -A && git commit -m "tscrub vX.Y.Z"'
+  git add -A && git reset -q build_winpe.log && \
+  git commit -m "tscrub vX.Y.Z"'
 
-# 2. Rebuild under tmux (survives SSH drop); ISO + bzImage land in output/images/
+# 3. Rebuild under tmux (survives SSH drop); ISO + bzImage land in output/images/
 ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
   rm -f build_tscrub.log && \
   tmux new-session -d -s tscrub "make 2>&1 | tee -a build_tscrub.log; echo TSCRUB_BUILD_DONE >> build_tscrub.log"'
@@ -99,21 +127,46 @@ The build produces two artifacts in `~/shredos.x86_64/output/images/`:
 > the served `bzImage` must be signed with the operator's own enrolled key —
 > the same "My iPXE Vendor Key" that signs ShredOS's kernel.
 
-**Publish the PXE kernel** to the PXE host (`oxwet@192.168.0.26`, served at
-`/tScrub/boot/bzImage`). The Mac can SSH to both hosts; the build host has no
-direct key to `.26`, so relay through the Mac, then sign it on `.26` with the
-operator's iPXE vendor key:
+**Publish the appliance ISO** to `~/webs/tscrub/downloads/` (nginx serves it at
+`https://tscrub.com/downloads/…`). Copy the ISO, write its `.sha256`, and repoint
+the `tscrub-appliance.iso` symlink:
 
 ```bash
-scp -o BatchMode=yes oxwet@192.168.0.6:~/shredos.x86_64/output/images/bzImage /tmp/bzImage
-ssh -o BatchMode=yes oxwet@192.168.0.26 'mkdir -p ~/html/tScrub/boot'
-scp -o BatchMode=yes /tmp/bzImage oxwet@192.168.0.26:~/html/tScrub/boot/bzImage
-rm -f /tmp/bzImage
+ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/webs/tscrub/downloads && \
+  ISO=tscrub-v<VER>_…_<hash>.iso && \
+  cp ~/shredos.x86_64/output/images/"$ISO" ./"$ISO" && \
+  sha256sum "$ISO" > "$ISO.sha256" && \
+  ln -sfn "$ISO" tscrub-appliance.iso && \
+  printf "%s  tscrub-appliance.iso\n" "$(sha256sum "$ISO" | awk "{print \$1}")" > tscrub-appliance.iso.sha256'
+```
 
-# Sign it on the PXE host with the enrolled key (else shim rejects it under
-# Secure Boot: "Failed to load image: Security Policy Violation").
-ssh -o BatchMode=yes oxwet@192.168.0.26 'cd ~/html/tScrub/boot && \
-  sbsign --key /home/oxwet/ipxe-sb/vendor.key --cert /home/oxwet/ipxe-sb/vendor.crt --output bzImage.signed bzImage && \
+Then update the three places that surface the ISO (the Download page reads
+`/downloads/manifest.json` at runtime and falls back to an in-page `FALLBACK`,
+so both must change):
+
+1. `marketing/server/download-manifest.json` → `appliance` block: `version`,
+   `filename`, `url`, `sha256`, and `size_mb` (MiB = bytes ÷ 1048576).
+2. `marketing/site/download.html` → the `FALLBACK` object (same fields).
+3. Deploy the backend (manifest) and the site:
+
+```bash
+cd marketing
+npm run deploy:server
+ssh -o BatchMode=yes oxwet@192.168.0.6 'cp ~/webs/tscrub-form/download-manifest.json ~/webs/tscrub/downloads/manifest.json'
+npm run build && npm run deploy
+```
+
+**Publish the PXE kernel** to the LAN file server on `.6`
+(`~/webs/lan/ipxe/tscrub/bzImage`, served at
+`http://192.168.0.6:8080/ipxe/tscrub/bzImage`). The build already runs on `.6`,
+so there is no Mac relay — copy straight from the build output and sign in place
+with the operator's iPXE vendor key (`sbsign`; keys live in `~/ipxe-sb/` on `.6`):
+
+```bash
+ssh -o BatchMode=yes oxwet@192.168.0.6 'mkdir -p ~/webs/lan/ipxe/tscrub && \
+  cp ~/shredos.x86_64/output/images/bzImage ~/webs/lan/ipxe/tscrub/bzImage && \
+  cd ~/webs/lan/ipxe/tscrub && \
+  sbsign --key ~/ipxe-sb/vendor.key --cert ~/ipxe-sb/vendor.crt --output bzImage.signed bzImage && \
   mv -f bzImage.signed bzImage && sbverify --list bzImage'
 ```
 
@@ -121,8 +174,13 @@ Verify the signature shows the enrolled issuer (`/CN=My iPXE Vendor Key`), then
 the iPXE `kernel` line fetches it directly — no `initrd` line is needed:
 
 ```
-kernel ${base-url}/tScrub/boot/bzImage console=tty3 loglevel=3
+kernel ${base-url}/tscrub/bzImage console=tty3 loglevel=3
 ```
+
+**PXE payloads** live in `~/webs/lan/ipxe/` on `.6` (nginx `lan.conf`,
+`autoindex on`, port 8080). The boot menu itself stays on `.26`
+(`~/html/boot.ipxe` — DHCP chains to it); its `tScrub` and `hashreport` entries
+were repointed to `http://192.168.0.6:8080/ipxe/…` (hard IP).
 
 ## 3. Backend + database (`~/webs/tscrub-form/` on the server)
 
@@ -135,7 +193,16 @@ cd marketing
 npm run deploy:server
 ```
 
-What it copies (no `--delete`): `api.php auth.php db.php http.php mail.php reports_lib.php render_cert.php stripe.php migrate.php seed-admin.php schema.sql submit.php verify.php sendmail.py issue_licence.py config.example.json`.
+What it copies: `deploy-server.sh` first propagates `site/public/logo.png` into
+`server/logo.png`, then rsyncs the **entire** `marketing/server/` directory —
+`api.php`, `auth.php`, `bios_unlock.php`, `db.php`, `download-manifest.json`,
+`http.php`, `mail.php`, `mdm.php`, `mdm-worker.php`, `migrate.php`,
+`render_cert.php`, `render_diag.php`, `render_drive.php`, `reports_lib.php`,
+`schema.sql`, `seed-admin.php`, `stripe.php`, `submit.php`, `verify.php`,
+`sendmail.py`, `issue_licence.py`, `config.example.json`, `nginx-location.conf`,
+`cert-bg.png`, and `tcpdf/`. Deliberately **no `--delete`**; it excludes the
+runtime-only files `config.json`, `certificates/`, `sign.crt`, `sign.key`,
+`vendor.key`, and `__pycache__/`.
 
 ### One-time DB setup (already done on this server)
 
@@ -229,14 +296,21 @@ Flow: dashboard "Top up" → `POST /api/checkout` → Stripe hosted Checkout →
 `POST /api/stripe/webhook` (signature-verified, idempotent) credits the wallet and
 issues a `payg` licence on first purchase. Report uploads debit 1 credit per newly
 ungested drive (idempotent by CSV SHA) — a shortfall is reported in the JSON
-response, never a block. Test with Stripe test keys + `stripe listen`; the
-webhook endpoint returns 200 to duplicate deliveries.
+response, never a block. The MDM (Windows Autopilot) check is a paid feature that
+spends 1 credit per live Graph probe (idempotent by job id, `mdm:live:<jobId>`)
+and is refused for free accounts and zero-balance paid accounts (`mdm_gate()` in
+`mdm.php` returns `free_tier` / `insufficient_credits`); the erasure pre-flight
+signal (`credits` + `can_erase`) rides on `POST /api/reports/diagnostics`. Test
+with Stripe test keys + `stripe listen`; the webhook endpoint returns 200 to
+duplicate deliveries.
 
-What NOT to overwrite:
-- `config.json` — live SMTP + DB credentials. Only edit on the server.
+What NOT to overwrite (`deploy-server.sh` excludes these, so they are never touched):
+- `config.json` — live SMTP + DB + Stripe credentials. Only edit on the server.
 - `vendor.key` — the vendor private key (640, group www-data — php-fpm signs licences). Never copy it off the server.
-- `tcpdf/`, `cert-bg.png`, `sign.crt`, `sign.key` — runtime assets for PDF generation.
-- `certs/` — persisted certificate PDFs (writable by www-data). `deploy-server.sh` has no `--delete`, so it's never wiped, but back it up alongside the DB (`certificates.pdf_path` points into it).
+- `sign.crt` / `sign.key` — the report-signing certificate + key.
+- `certificates/` — persisted certificate records/PDFs (writable by www-data). `deploy-server.sh` has no `--delete`, so nothing is ever wiped, but back this up alongside the DB.
+
+`tcpdf/` and `cert-bg.png` are versioned in `marketing/server/` and ship with every deploy — they are not runtime-only.
 
 Permissions on the server (set once):
 

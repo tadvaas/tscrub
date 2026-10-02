@@ -1,12 +1,12 @@
 # tScrub
 
-> tScrub is an open ITAD (IT asset disposition) platform. It triages and grades every machine it boots on — hardware profile, battery health, display, and MDM or BIOS lock status — then erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels when you start the job (Shift+T). Every run produces a printable hardware diagnostics report plus a verifiable, signed chain-of-custody report. Boot the ready-to-go tScrub appliance image from USB or PXE on hardware you already own.
+> tScrub is an open ITAD (IT asset disposition) platform built for compliance. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels and produces a verifiable, signed chain-of-custody report — while triaging and grading every machine it boots on (hardware profile, battery health, display, and MDM or BIOS lock status) with a printable diagnostics report. Boot the ready-to-go appliance image from USB or PXE on hardware you already own.
 
 ## Pages
 
 - [Home](https://tscrub.com/): Overview, value proposition, features, and audiences.
 - [Compliance](https://tscrub.com/compliance): How each wipe method maps to NIST 800-88 Clear, Purge, and Destroy, with GDPR/HIPAA/ISO 27001 reporting.
-- [Pricing](https://tscrub.com/pricing): Free licence, Pay-as-you-go £3/device, Team £99 (100 credits), Enterprise £399 (500 credits) — free licences are self-serve; paid licences are issued by tScrub.
+- [Pricing](https://tscrub.com/pricing): Free licence, Pay-as-you-go £3/device, Team £99 (100 credits), Enterprise £399 (500 credits); the Windows Autopilot (MDM) check is a paid feature (1 credit per check) — free licences are self-serve; paid licences are issued by tScrub.
 - [Download](https://tscrub.com/download): The bootable appliance ISO, with a SHA-256 checksum for verification.
 - [Docs](https://tscrub.com/docs): Building the appliance, booting from USB (Windows/macOS/Linux) or over the network (PXE), choosing a report destination (USB, FTP, or the tScrub dashboard), and verifying signed reports.
 - [Resources](https://tscrub.com/resources): Data erasure guides — standards, drive types, wipe methods, certificates of destruction, and a buyer's guide.

@@ -126,8 +126,8 @@ ui::show_finish_green() {
         UI_COMPLETE_THEME=1
     fi
     UI_INPLACE=0
-    table::render
-    [[ -n "$msg" ]] && printf "\033[K%s%s\n" "$TABLE_INDENT" "$msg"
+    FINISH_MSG="$msg"
+    ui::paint_finish
 }
 
 # Amber finish: the wipe completed but no report destination succeeded (USB,
@@ -141,8 +141,24 @@ ui::show_finish_orange() {
 
     UI_COMPLETE_THEME=3
     UI_INPLACE=0
+    FINISH_MSG="$msg"
+    ui::paint_finish
+}
+
+# Full finish-screen paint: theme + table + the post-erasure footer (result
+# message, per-drive guidance, skipped count, report-delivery summary).
+# Idempotent — called once by ui::show_finish_* and again by the triage loop
+# whenever the MDM cell changes, so the completion screen stays live instead
+# of freezing after the last full render.
+ui::paint_finish() {
     table::render
-    [[ -n "$msg" ]] && printf "\033[K%s%s\n" "$TABLE_INDENT" "$msg"
+    [[ -n "${FINISH_MSG:-}" ]] && printf "\033[K%s%s\n" "$TABLE_INDENT" "$FINISH_MSG"
+    ui::print_drive_guidance
+    if [[ "$(report::skipped_count)" -gt 0 ]]; then
+        printf "\033[K%sWiped %s of %d drive(s); %d skipped (not selected).\n" \
+            "$TABLE_INDENT" "$(report::selected_count)" "${#devices[@]}" "$(report::skipped_count)"
+    fi
+    report::print_summary
 }
 
 # Returns success (0) if at least one drive ended in a non-success state

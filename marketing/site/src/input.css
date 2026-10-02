@@ -114,3 +114,4 @@ code {
 .t-warn  { color: #fbbf24; }
 .t-err   { color: #f87171; }
 .t-muted { color: #64748b; }
+.t-lock  { color: #fff; background: #b91c1c; border-radius: 2px; }

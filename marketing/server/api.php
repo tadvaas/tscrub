@@ -142,7 +142,9 @@ function load_cert_drives(int $certId): array {
     $stmt = db()->prepare(
         'SELECT id, certificate_id, ts, device, type, model, serial, size, bus, class, method, certification, final_status,
                 system_name AS `system`, system_serial, baseboard_serial,
-                smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost
+                smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
+                firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
+                tool_version, operator, validator, media_source, media_destination
          FROM certificate_drives WHERE certificate_id = ? ORDER BY id'
     );
     $stmt->execute([$certId]);
@@ -832,7 +834,32 @@ if ($method === 'POST' && $route === '/reports/diagnostics') {
     device_register((int)$owner['id'], $serial, $uuid, $d);
     $id = store_diagnostics_report((int)$owner['id'], $d, $serial, $uuid);
 
-    json_out(['ok' => true, 'report_type' => 'diagnostics', 'id' => $id, 'registered' => true]);
+    // The diagnostics report is the device's ownership claim: attach any
+    // unassigned hash captured for it and start the MDM check. MDM is a paid
+    // feature (one credit per live check), so the check only enqueues for an
+    // account that can afford it — the hash is still claimed so it is not left
+    // dangling in the global unassigned pool.
+    mdm_ensure_schema();
+    $mdmGate = mdm_gate((int)$owner['id']);
+    if (mdm_claim_hash_for_user((int)$owner['id'], $serial, $uuid) && $mdmGate['allowed']) {
+        mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
+    }
+
+    // Erasure pre-flight (the appliance reads this before wiping): a paid
+    // account with a zero balance reports can_erase=false; the appliance decides
+    // whether to block (fail-open offline — if this response can't be fetched,
+    // erasure proceeds). Free accounts are always allowed.
+    $diagTier = owner_tier((int)$owner['id']);
+    $diagBalance = credit_balance((int)$owner['id']);
+
+    json_out([
+        'ok' => true,
+        'report_type' => 'diagnostics',
+        'id' => $id,
+        'registered' => true,
+        'credits' => ['balance' => $diagBalance],
+        'can_erase' => $diagTier === 'free' || $diagBalance > 0,
+    ]);
 }
 
 // GET /api/reports/{id}/download — renders the Device Diagnostics Report PDF
@@ -884,23 +911,71 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     exit;
 }
 
+// GET /api/drives/{id}/pdf — renders a comprehensive per-drive health report
+// PDF on the fly from one stored report + drive serial (owner or admin).
+if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'drives' && $seg[2] === 'pdf') {
+    $u = auth_require();
+    $id = (int)$seg[1];
+    if ($id <= 0) {
+        fail(404, 'Drive report not found.');
+    }
+    $stmt = db()->prepare('SELECT * FROM reports WHERE id = ?');
+    $stmt->execute([$id]);
+    $r = $stmt->fetch();
+    if ($r === false || ((int)$r['user_id'] !== (int)$u['id'] && $u['role'] !== 'admin')) {
+        fail(404, 'Drive report not found.');
+    }
+    if (($r['report_type'] ?? 'erasure') === 'diagnostics') {
+        fail(404, 'No drive report available for this report.');
+    }
+    $g = json_decode((string)($r['payload'] ?? ''), true);
+    if (!is_array($g)) {
+        fail(404, 'Report data unavailable.');
+    }
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '') {
+        fail(400, 'Missing drive serial.');
+    }
+    $drive = null;
+    foreach (($g['drives'] ?? []) as $d) {
+        if (is_array($d) && strcasecmp(trim((string)($d['serial'] ?? '')), $serial) === 0) {
+            $drive = $d;
+            break;
+        }
+    }
+    if ($drive === null) {
+        fail(404, 'Drive not found in this report.');
+    }
+    $drive['cocid']       = (string)$g['cocid'];
+    $drive['uploaded_at'] = ts_local((string)$r['uploaded_at']);
+
+    require_once __DIR__ . '/render_drive.php';
+    $owner = fetch_user_by_id((int)$r['user_id']);
+    $rendered = render_drive_pdf(
+        $drive,
+        owner_tier((int)$r['user_id']) !== 'free',
+        certifier_details($owner ?? [])
+    );
+
+    $sn = trim(preg_replace('/[^A-Za-z0-9._-]+/', '_', $serial));
+    $sn = $sn !== '' ? $sn : 'drive';
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="Drive-Health-' . $sn . '.pdf"');
+    header('Content-Length: ' . strlen($rendered['data']));
+    echo $rendered['data'];
+    exit;
+}
+
 // POST /api/mdm/hash — stage a WinPE-captured authoritative 4K hash for the
 // device, so the appliance's MDM check (POST /api/mdm/autopilot) can use it.
-// API-token auth only, same token as the appliance.
+// Tenant-agnostic ingest: authenticated by a shared secret (X-Ingest-Key), not
+// a per-user API token. The hash is staged unassigned and claimed later by
+// whichever tenant uploads the device's diagnostics report.
 if ($method === 'POST' && $route === '/mdm/hash') {
-    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
-    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
-        fail(401, 'Invalid API token.');
-    }
-    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
-    $stmt->execute([$token]);
-    $tok = $stmt->fetch();
-    if ($tok === false) {
-        fail(401, 'Invalid API token.');
-    }
-    $owner = fetch_user_by_id((int)$tok['user_id']);
-    if ($owner === null || $owner['status'] !== 'active') {
-        fail(403, 'Account inactive.');
+    $ingestKey = $_SERVER['HTTP_X_INGEST_KEY'] ?? '';
+    $expected  = mdm_ingest_key();
+    if ($expected === '' || !is_string($ingestKey) || !hash_equals($expected, $ingestKey)) {
+        fail(401, 'Invalid ingest key.');
     }
 
     rate_limit('mdm', 30);
@@ -914,7 +989,7 @@ if ($method === 'POST' && $route === '/mdm/hash') {
     // Log the attempt BEFORE validation so a rejected upload is still visible
     // in mdm_ingest_log (WinPE cannot easily retry, and the screen is gone).
     mdm_ensure_schema();
-    mdm_log_ingest((int)$owner['id'], $serial, $uuid, strlen($hash), (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    mdm_log_ingest(null, $serial, $uuid, strlen($hash), (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
     if ($serial === '' || $serial === 'N/A') {
         fail(400, 'Serial number required.');
@@ -934,9 +1009,22 @@ if ($method === 'POST' && $route === '/mdm/hash') {
         fail(400, 'Invalid hardware hash.');
     }
 
-    mdm_stage_hash((int)$owner['id'], $serial, $uuid, $model, $hash);
-    $jobId = mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
-    json_out(['ok' => true, 'staged' => true, 'queued' => $jobId > 0, 'job_id' => $jobId]);
+    // Hash intake enters a GLOBAL unassigned pool; the device is attributed to
+    // a user only once a diagnostics report for the same serial+uuid is uploaded
+    // (that upload claims the hash and starts the check). If a report already
+    // exists (hash captured after the report), claim + enqueue now.
+    $reportOwner = mdm_report_owner($serial, $uuid);
+    mdm_stage_hash($reportOwner, $serial, $uuid, $model, $hash);
+    $jobId = 0;
+    // Start the check ONLY on the first hash collection for this device. If a
+    // job already exists (any status), re-booting WinPE and re-uploading the
+    // hash must not trigger another Graph probe — it just refreshes the staged
+    // hash. mdm_enqueue_job() is idempotent per device as a second line of
+    // defence; the explicit mdm_latest_job() guard keeps `queued` truthful.
+    if ($reportOwner !== null && mdm_latest_job($reportOwner, $serial, $uuid) === null && mdm_gate($reportOwner)['allowed']) {
+        $jobId = mdm_enqueue_job($reportOwner, $serial, $uuid);
+    }
+    json_out(['ok' => true, 'staged' => true, 'queued' => $jobId > 0, 'job_id' => $jobId, 'assigned' => $reportOwner !== null]);
 }
 
 // POST /api/mdm/autopilot — machine MDM check (Autopilot enrolment).
@@ -988,19 +1076,43 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     // enqueues or reads a job instead of blocking on Microsoft's async queue.
     $staged = mdm_staged_hash((int)$owner['id'], $serial, $uuid);
     if ($staged === null) {
+        // A hash may exist but not yet be claimed by a diagnostics report (the
+        // report upload moments later claims it and starts the check). Report
+        // "queued" so the appliance polls instead of a misleading "No hash".
+        if (mdm_has_unassigned_hash($serial, $uuid)) {
+            json_out(['ok' => true, 'status' => 'queued', 'verdict' => '', 'source' => 'none', 'label' => 'Queued']);
+        }
         mdm_log_probe((int)$owner['id'], $serial, $uuid, 'na', 'none', $ip);
         json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na', 'label' => 'No hash']);
+    }
+
+    // MDM is a paid feature: free accounts can't check, and paid accounts spend
+    // one credit per live probe. Gate here (before any enqueue) so a blocked
+    // account never creates a job the worker would have to skip.
+    $mdmGate = mdm_gate((int)$owner['id']);
+    if (!$mdmGate['allowed']) {
+        $verdict = $mdmGate['reason'] === 'free_tier' ? 'paid_only' : 'insufficient_credits';
+        mdm_log_probe((int)$owner['id'], $serial, $uuid, $verdict, 'gate', $ip);
+        json_out([
+            'ok' => true,
+            'status' => 'done',
+            'verdict' => $verdict,
+            'label' => mdm_status_label('done', $verdict),
+            'source' => 'gate',
+            'credits' => ['balance' => $mdmGate['balance']],
+        ]);
     }
 
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid);
     $status  = (string)($job['status'] ?? '');
     $verdict = (string)($job['verdict'] ?? '');
-    // No useful result yet, a failed attempt, or an inconclusive 'unknown'
-    // (the import's poll window closed while Microsoft was still processing)
-    // → re-probe so the appliance's re-poll can resolve to a real verdict
-    // instead of freezing on "Pending". mdm_enqueue_job dedupes a job that is
-    // already queued/checking for the same device.
-    if ($status === '' || $status === 'failed' || ($status === 'done' && $verdict === 'unknown')) {
+    // Enqueue only when NO check exists yet for this device. The Graph probe
+    // (import → poll → delete) must run once, on the first boot. Re-booting
+    // the appliance must not re-trigger it: a completed real verdict is
+    // returned as-is, and even failed or inconclusive ('unknown') checks are
+    // surfaced as their stored state rather than re-probed (the dashboard
+    // Re-check button is the explicit re-probe path).
+    if ($status === '') {
         mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
         $status = 'queued';
         $verdict = '';
@@ -1035,9 +1147,32 @@ if ($method === 'GET' && $route === '/mdm/status') {
         fail(400, 'Serial required.');
     }
 
+    // Mirror the paid-only gate so a poll never reports a checkable state for a
+    // gated account (defensive — /mdm/autopilot returns a terminal verdict).
+    $mdmGate = mdm_gate((int)$owner['id']);
+    if (!$mdmGate['allowed']) {
+        $verdict = $mdmGate['reason'] === 'free_tier' ? 'paid_only' : 'insufficient_credits';
+        json_out([
+            'ok' => true,
+            'serial' => $serial,
+            'uuid' => $uuid,
+            'status' => 'done',
+            'verdict' => $verdict,
+            'label' => mdm_status_label('done', $verdict),
+            'source' => 'gate',
+            'credits' => ['balance' => $mdmGate['balance']],
+        ]);
+    }
+
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid !== '' ? $uuid : null);
     $status  = (string)($job['status'] ?? 'na');
     $verdict = (string)($job['verdict'] ?? '');
+    // No job yet, but a hash is staged and waiting for its diagnostics report —
+    // keep the appliance polling (the report claims + enqueues during this boot).
+    if ($status === 'na' && mdm_has_unassigned_hash($serial, $uuid)) {
+        $status = 'queued';
+        $verdict = '';
+    }
     json_out([
         'ok' => true,
         'serial' => $serial,
@@ -1084,8 +1219,20 @@ if ($method === 'POST' && $route === '/heartbeat') {
         $lanIp = '';
     }
 
+    // Erasure indicator (optional; only newer appliances send it). When the
+    // key is absent (older appliance) we leave any previously stored phase
+    // untouched; when present (even empty) we apply it — empty clears it.
+    $touchPhase = array_key_exists('phase', $d);
+    $phase = (string)($d['phase'] ?? '');
+    if ($phase !== '' && !in_array($phase, ['idle', 'wiping', 'done', 'failed'], true)) {
+        $phase = '';
+    }
+    $drivesTotal  = max(0, (int)($d['drives_total'] ?? 0));
+    $drivesDone   = max(0, (int)($d['drives_done'] ?? 0));
+    $drivesFailed = max(0, (int)($d['drives_failed'] ?? 0));
+
     presence_ensure_schema();
-    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp);
+    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $touchPhase);
     json_out(['ok' => true]);
 }
 
@@ -1219,6 +1366,12 @@ if ($method === 'POST' && $route === '/mdm/recheck') {
     }
     if (mdm_staged_hash((int)$u['id'], $serial, $uuid) === null) {
         fail(404, 'No captured hash for that device.');
+    }
+    $mdmGate = mdm_gate((int)$u['id']);
+    if (!$mdmGate['allowed']) {
+        fail(402, $mdmGate['reason'] === 'free_tier'
+            ? 'MDM check is a paid feature — upgrade your licence on the Billing page.'
+            : 'Insufficient credits — top up on the Billing page.');
     }
     mdm_ensure_schema();
     $jobId = mdm_enqueue_job((int)$u['id'], $serial, $uuid, true);

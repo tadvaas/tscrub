@@ -18,6 +18,8 @@ marketing/server/tcpdf/
 marketing/server/cert-bg.png
 marketing/server/sign.crt
 marketing/server/sign.key
+# Logo copied into server/ at deploy time from site/public/logo.png (single source).
+marketing/server/logo.png
 
 # Test harness: host config + generated test licence are environment-specific.
 tests/proxmox/config.sh

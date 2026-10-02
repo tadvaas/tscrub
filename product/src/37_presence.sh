@@ -18,12 +18,18 @@ presence::endpoint() {
 
 # Send one heartbeat (best-effort — a failed ping never fails the run).
 presence::ping() {
-    local url body resp
+    local url body resp phase _total _done _failed
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
-    body="$(printf '{"serial":"%s","uuid":"%s","ip":"%s"}' \
+    phase="$(status::field phase)"
+    _total="$(status::field drives_total)";   [[ "$_total"  =~ ^[0-9]+$ ]] || _total=0
+    _done="$(status::field drives_done)";     [[ "$_done"   =~ ^[0-9]+$ ]] || _done=0
+    _failed="$(status::field drives_failed)"; [[ "$_failed" =~ ^[0-9]+$ ]] || _failed=0
+    body="$(printf '{"serial":"%s","uuid":"%s","ip":"%s","phase":"%s","drives_total":%s,"drives_done":%s,"drives_failed":%s}' \
         "$(report::_json_field "${SYS_SERIAL:-}")" \
         "$(report::_json_field "${SYS_UUID:-}")" \
-        "$(report::_json_field "$(network::lan_ip)")")"
+        "$(report::_json_field "$(network::lan_ip)")" \
+        "$(report::_json_field "$phase")" \
+        "$_total" "$_done" "$_failed")"
     url="$(presence::endpoint)"
     if ! resp="$(curl -fsS --connect-timeout 5 --max-time 10 \
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
@@ -50,4 +56,83 @@ presence::loop() {
         presence::ping
         sleep "$PRESENCE_PING_SECONDS"
     done
+}
+
+# =============================================================================
+# ERASURE STATUS — a tiny state file the heartbeat reads so the dashboard can
+# show a live "Wiping / Complete / Failed" indicator. The wipe workers are
+# subshells that report over the fd-3 IPC pipe; ui::loop (the parent) is the
+# single consumer and updates this file. presence::ping includes it in every
+# heartbeat, and status::ping_now sends an immediate ping on the important
+# transitions (start, each drive terminal, finish) — the 30s loop remains the
+# reconciliation safety net if an event ping is lost.
+# =============================================================================
+
+STATUS_STATE_FILE="/tmp/tscrub-erasure-state"
+STATUS_LAST_PING_TS=""
+
+status::field() {  # <key> -> value (empty when the file/key is absent)
+    sed -n "s/^$1=//p" "$STATUS_STATE_FILE" 2>/dev/null | head -1
+}
+
+status::write() {  # <phase> <total> <done> <failed>
+    {
+        printf 'phase=%s\n' "$1"
+        printf 'drives_total=%s\n' "$2"
+        printf 'drives_done=%s\n' "$3"
+        printf 'drives_failed=%s\n' "$4"
+    } > "$STATUS_STATE_FILE" 2>/dev/null || true
+}
+
+status::clear() {
+    rm -f "$STATUS_STATE_FILE" 2>/dev/null || true
+    STATUS_LAST_PING_TS=""
+}
+
+# Fire-and-forget immediate heartbeat (debounced ~2s so a burst of terminal
+# lines does not spawn a pile of curls). fds 3/4 are closed so the background
+# ping can never hold the UI IPC pipe open (ui::loop must EOF when workers end).
+status::ping_now() {
+    local now
+    now="$(ts::now 2>/dev/null || true)"
+    [[ "$now" =~ ^[0-9]+$ ]] || now=0
+    if [[ -z "$STATUS_LAST_PING_TS" || $now -ge $((STATUS_LAST_PING_TS + 2)) ]]; then
+        STATUS_LAST_PING_TS=$now
+        { presence::ping; } 3>&- 4<&- >/dev/null 2>&1 &
+    fi
+}
+
+# A real wipe begins: N selected drives, none finished yet.
+status::erase_start() {
+    local dev n=0
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && n=$((n+1))
+    done
+    status::write wiping "$n" 0 0
+    status::ping_now
+}
+
+# Recompute counts from devrow and flip the phase when every drive is terminal.
+# Called by ui::loop on each terminal STATUS line and by erasure::run at the end
+# (to catch a worker that died without reporting, which erasure::run marks
+# UNKNOWN).
+status::drive_terminal() {
+    local dev total=0 dcount=0 fcount=0 finished=1 phase=wiping
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
+        total=$((total+1))
+        case "${devrow[$dev.status]:-}" in
+            COMPLETED|DRY-RUN|SKIPPED) dcount=$((dcount+1)) ;;
+            FAILED|BLOCKED|FROZEN|UNKNOWN) fcount=$((fcount+1)) ;;
+            *) finished=0 ;;   # still RUNNING/PLANNED
+        esac
+    done
+    # UNKNOWN is the "worker died without reporting" marker — terminal for the
+    # dashboard (shown as Failed), even though ui::all_drives_terminal
+    # deliberately excludes it so an incomplete run never produces a report.
+    if [[ $finished -eq 1 ]]; then
+        if [[ $fcount -gt 0 ]]; then phase=failed; else phase=done; fi
+    fi
+    status::write "$phase" "$total" "$dcount" "$fcount"
+    status::ping_now
 }

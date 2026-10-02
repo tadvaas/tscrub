@@ -62,6 +62,7 @@ mdm::status_endpoint() {
 mdm::http_get() {
     local url="$1" resp rc
     resp="$(curl -fsS --get --connect-timeout 10 --max-time 20 \
+        --retry 2 --retry-delay 2 --retry-connrefused \
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
         --data-urlencode "serial=${SYS_SERIAL:-}" \
         --data-urlencode "uuid=${SYS_UUID:-}" \
@@ -69,6 +70,7 @@ mdm::http_get() {
     rc=$?
     if [[ $rc -ne 0 ]] && [[ "$resp" == *"curl: (60)"* ]]; then
         resp="$(curl -k -fsS --get --connect-timeout 10 --max-time 20 \
+            --retry 2 --retry-delay 2 --retry-connrefused \
             -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
             --data-urlencode "serial=${SYS_SERIAL:-}" \
             --data-urlencode "uuid=${SYS_UUID:-}" \
@@ -159,7 +161,7 @@ mdm::sync_state() {
 # POLLS GET /api/mdm/status (bounded) so the Runtime panel resolves to the
 # dashboard's exact `label` instead of sticking at "Queued"/"Checking…".
 mdm::detect() {
-    local url body resp rc verdict status label man prod status_url poll=0
+    local url body resp rc verdict status label man prod status_url poll=0 consecutive=0
 
     mdm::parse_cmdline
 
@@ -229,12 +231,20 @@ mdm::detect() {
             sleep "$MDM_POLL_SECONDS"
             poll=$((poll + 1))
             if ! resp="$(mdm::http_get "$status_url")"; then
-                # The server became unreachable mid-check — stop polling.
-                verdict="offline"
-                label="Offline"
-                mdm::publish "$verdict" "$label"
-                break
+                # A single failed GET is usually transient (a blip or TLS
+                # timeout) — tolerate a few before declaring the server
+                # unreachable, so a one-off failure doesn't freeze the panel at
+                # "Offline" while the check still resolves server-side.
+                consecutive=$((consecutive + 1))
+                if [[ $consecutive -ge 3 ]]; then
+                    verdict="offline"
+                    label="Offline"
+                    mdm::publish "$verdict" "$label"
+                    break
+                fi
+                continue
             fi
+            consecutive=0
             status="$(printf '%s' "$resp" | mdm::json_field status)"
             verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
             label="$(printf '%s' "$resp" | mdm::json_field label)"

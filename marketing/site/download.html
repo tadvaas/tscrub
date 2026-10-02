@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>Download — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/download" />
   <meta name="description" content="Download the tScrub bootable appliance image — hardware triage and grading, MDM and BIOS lock detection, and verifiable drive erasure, with a SHA-256 checksum and dd write instructions." />
@@ -16,7 +16,7 @@
         <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
-        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
         <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
       <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
@@ -51,7 +51,7 @@
         <span id="iso-meta" class="text-sm text-slate-500 dark:text-slate-400">Loading…</span>
         <a id="iso-sha-link" href="#" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Checksum (.sha256)</a>
       </div>
-      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Write the image to a USB stick with <code class="font-mono">dd</code> (Rufus in ISO mode also works). Place your <code class="font-mono">.lic</code> on the USB stick — where the licence goes, your reports follow. tScrub starts automatically on the console.</p>
+      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Write the image to a USB stick with <code class="font-mono">dd</code> (or Rufus in <strong>DD image mode</strong> — ISO mode can't partition the combined image). Place your <code class="font-mono">.lic</code> on the writable partition of the stick — where the licence goes, your reports follow. tScrub starts automatically on the console.</p>
     </div>
 
     <!-- Create a bootable USB -->
@@ -178,11 +178,11 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
     (function () {
       var FALLBACK = {
         appliance: {
-          version: 'v1.10.1',
-          filename: 'tscrub-v1.10.1_2025.11_30_x86-64_v0.41_20261001-2a660fcb.iso',
-          url: '/downloads/tscrub-v1.10.1_2025.11_30_x86-64_v0.41_20261001-2a660fcb.iso',
-          sha256: 'ddf3add21856eb6361281df2d7ddfccb850894d2a3dfd725730481724f9b006d',
-          size_mb: 150
+          version: 'v1.10.6',
+          filename: 'tscrub-v1.10.6_2025.11_30_x86-64_v0.41_20261002-e7286648.iso',
+          url: '/downloads/tscrub-v1.10.6_2025.11_30_x86-64_v0.41_20261002-e7286648.iso',
+          sha256: '690a87ae87ea7149e35117c6e3b5797c3eb8c83d374d90268c6d2a97167e8e2b',
+          size_mb: 1000
         }
       };
 

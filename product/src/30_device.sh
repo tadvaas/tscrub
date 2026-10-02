@@ -431,12 +431,15 @@ device::detect() {
                     continue
                 fi
 
-                if grep -q "SECURITY ERASE UNIT" <<<"$features"; then
-                    capability[$device]="CAP_ATA_CLEAR"
-                    continue
-                fi
-
-                capability[$device]="CAP_NONE"
+                # Security Mode feature set is "supported" (checked above), the
+                # drive is not frozen, and enhanced erase is not advertised.
+                # SECURITY ERASE UNIT is a mandatory command of the Security
+                # Mode feature set, so a normal Secure Erase (Clear) is always
+                # available here. Do NOT key on the "Nmin for SECURITY ERASE
+                # UNIT" timing line — hdparm omits it when the drive reports
+                # word 89 as 0 (e.g. old Seagate Momentus drives), which
+                # previously misclassified such drives as CAP_NONE -> FAILED.
+                capability[$device]="CAP_ATA_CLEAR"
             fi
 
     done

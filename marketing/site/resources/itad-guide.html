@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>ITAD &amp; Refurbishment: A Data Erasure Guide — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/resources/itad-guide" />
-  <meta name="description" content="ITAD and refurbishment shops need a repeatable, certifiable wipe process. How to erase drives for resale and prove they were healthy at erase time." />
+  <meta name="description" content="ITAD and refurbishment: grade hardware, detect MDM and BIOS locks, and erase drives for resale — with printable diagnostics and certificates to prove it." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -15,9 +15,9 @@
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "ITAD & Refurbishment: A Data Erasure Guide",
-    "description": "ITAD and refurbishment shops need a repeatable, certifiable wipe process. How to erase drives for resale and prove they were healthy at erase time.",
+    "description": "ITAD and refurbishment: grade hardware, detect MDM and BIOS locks, and erase drives for resale — with printable diagnostics and certificates to prove it.",
     "datePublished": "2026-09-22",
-    "dateModified": "2026-09-22",
+    "dateModified": "2026-10-01",
     "author": {"@type": "Organization", "name": "tScrub"},
     "publisher": {"@type": "Organization", "name": "tScrub", "url": "https://tscrub.com"},
     "mainEntityOfPage": "https://tscrub.com/resources/itad-guide"
@@ -30,7 +30,7 @@
     <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
-        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
         <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
       <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
@@ -92,14 +92,17 @@
       <h2>Why SMART data matters for refurbishers</h2>
       <p>When you resell a drive, a later dispute about whether it was healthy is expensive. Capturing <a href="/resources/smart-audit-evidence">pre- and post-wipe SMART data</a> proves the drive was functioning at the moment of erasure — protecting you in warranty and quality disputes. It's supporting evidence that costs nothing to collect.</p>
 
+      <h2>Grading devices, not just wiping drives</h2>
+      <p>Resale value depends on far more than a clean drive. In the same boot, tScrub captures a machine's full hardware profile — display panel, battery health and capacity, CPU spec, memory modules, storage, and firmware — plus Windows Autopilot MDM and BIOS lock status. One pass grades the device (does the screen work? how worn is the battery? is it MDM-locked?) and erases its drives, producing a printable two-page ITAD diagnostics report alongside the chain-of-custody report.</p>
+
       <h2>A repeatable process</h2>
       <ol>
-        <li>Log each drive at intake with its serial number.</li>
+        <li>Boot each device once and capture its hardware profile, MDM/BIOS lock status, and drive inventory.</li>
         <li>Assign a Chain of Custody ID per job or client batch.</li>
         <li>Run the wipe, capturing SMART before and after.</li>
-        <li>Generate a certificate per batch and file it alongside the source reports.</li>
+        <li>Generate a certificate per batch and file it alongside the source reports and diagnostics.</li>
       </ol>
-      <p>tScrub fits this flow directly: the appliance handles erasure, SMART capture, and the chain-of-custody report, and the dashboard turns reports into certificates.</p>
+      <p>tScrub fits this flow directly: the appliance handles triage and grading, erasure, SMART capture, and the chain-of-custody report, and the dashboard turns reports into certificates and printable diagnostics PDFs.</p>
 
       <h2>FAQ</h2>
       <h3>Can I brand the certificate with my own company?</h3>

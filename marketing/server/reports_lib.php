@@ -486,8 +486,10 @@ function rewrite_certificate_details(int $dbCertId, array $reports, array $drive
     $dq = db()->prepare(
         'INSERT INTO certificate_drives
          (certificate_id, ts, device, type, model, serial, size, bus, class, method, certification, final_status, system_name, system_serial, baseboard_serial,
-          smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+          smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
+          firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
+          tool_version, operator, validator, media_source, media_destination)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     );
     foreach ($drives as $d) {
         $dq->execute([
@@ -517,6 +519,22 @@ function rewrite_certificate_details(int $dbCertId, array $reports, array $drive
             (string)($d['smartpost'] ?? ''),
             (string)($d['tempcpost'] ?? ''),
             (string)($d['poweronhourspost'] ?? ''),
+            (string)($d['firmware'] ?? ''),
+            (string)($d['sector_size'] ?? ''),
+            (string)($d['sectors'] ?? ''),
+            (string)($d['hpa'] ?? ''),
+            (string)($d['dco'] ?? ''),
+            (string)($d['sed_status'] ?? ''),
+            (string)($d['reallocsectorspost'] ?? ''),
+            (string)($d['selftest'] ?? ''),
+            (string)($d['start_time'] ?? ''),
+            (string)($d['end_time'] ?? ''),
+            (string)($d['duration_secs'] ?? ''),
+            (string)($d['tool_version'] ?? ''),
+            (string)($d['operator'] ?? ''),
+            (string)($d['validator'] ?? ''),
+            (string)($d['media_source'] ?? ''),
+            (string)($d['media_destination'] ?? ''),
         ]);
     }
 }
@@ -557,6 +575,33 @@ function db_drive_to_group(array $d): array {
         'smartpost' => (string)($d['smartpost'] ?? ''),
         'tempcpost' => (string)($d['tempcpost'] ?? ''),
         'poweronhourspost' => (string)($d['poweronhourspost'] ?? ''),
+        'firmware' => (string)($d['firmware'] ?? ''),
+        'sector_size' => (string)($d['sector_size'] ?? ''),
+        'sectors' => (string)($d['sectors'] ?? ''),
+        'hpa' => (string)($d['hpa'] ?? ''),
+        'dco' => (string)($d['dco'] ?? ''),
+        'sed_status' => (string)($d['sed_status'] ?? ''),
+        'reallocsectorspost' => (string)($d['reallocsectorspost'] ?? ''),
+        'selftest' => (string)($d['selftest'] ?? ''),
+        'start_time' => (string)($d['start_time'] ?? ''),
+        'end_time' => (string)($d['end_time'] ?? ''),
+        'duration_secs' => (string)($d['duration_secs'] ?? ''),
+        'sku' => (string)($d['sku'] ?? ''),
+        'asset_tag' => (string)($d['asset_tag'] ?? ''),
+        'bios_vendor' => (string)($d['bios_vendor'] ?? ''),
+        'board' => (string)($d['board'] ?? ''),
+        'tpm' => (string)($d['tpm'] ?? ''),
+        'macs' => (string)($d['macs'] ?? ''),
+        'storage_controllers' => (string)($d['storage_controllers'] ?? ''),
+        'tool_version' => (string)($d['tool_version'] ?? ''),
+        'operator' => (string)($d['operator'] ?? ''),
+        'validator' => (string)($d['validator'] ?? ''),
+        'media_source' => (string)($d['media_source'] ?? ''),
+        'media_destination' => (string)($d['media_destination'] ?? ''),
+        'cpu' => (string)($d['cpu'] ?? ''),
+        'gpu' => (string)($d['gpu'] ?? ''),
+        'ram' => (string)($d['ram'] ?? ''),
+        'enrollment' => (string)($d['enrollment'] ?? ''),
     ];
 }
 
@@ -608,7 +653,7 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
     foreach (($g['drives'] ?? []) as $nd) {
         $s = strtolower(trim((string)($nd['serial'] ?? '')));
         if ($s !== '' && isset($bySerial[$s])) {
-            if (drive_status_rank($nd['status'] ?? '') > drive_status_rank($drives[$bySerial[$s]]['status'] ?? '')) {
+            if (drive_status_rank($nd['status'] ?? '') >= drive_status_rank($drives[$bySerial[$s]]['status'] ?? '')) {
                 $drives[$bySerial[$s]] = $nd;
             }
             continue;
@@ -651,6 +696,34 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
         'last' => $last,
         'shaState' => $shaState,
         'sigState' => $sigState,
+        // Carry the machine profile through so the certificate summary survives
+        // a multi-payload merge (merge_group's output replaces $g in POST /api/certs).
+        'system' => (string)($g['system'] ?? ''),
+        'sysserial' => (string)($g['sysserial'] ?? ''),
+        'bbserial' => (string)($g['bbserial'] ?? ''),
+        'sku' => (string)($g['sku'] ?? ''),
+        'asset_tag' => (string)($g['asset_tag'] ?? ''),
+        'bios_vendor' => (string)($g['bios_vendor'] ?? ''),
+        'board' => (string)($g['board'] ?? ''),
+        'tpm' => (string)($g['tpm'] ?? ''),
+        'macs' => (string)($g['macs'] ?? ''),
+        'storage_controllers' => (string)($g['storage_controllers'] ?? ''),
+        'tool_version' => (string)($g['tool_version'] ?? ''),
+        'operator' => (string)($g['operator'] ?? ''),
+        'validator' => (string)($g['validator'] ?? ''),
+        'media_source' => (string)($g['media_source'] ?? ''),
+        'media_destination' => (string)($g['media_destination'] ?? ''),
+        'cpu' => (string)($g['cpu'] ?? ''),
+        'gpu' => (string)($g['gpu'] ?? ''),
+        'ram' => (string)($g['ram'] ?? ''),
+        'enrollment' => (string)($g['enrollment'] ?? ''),
+        'chassisserial' => (string)($g['chassisserial'] ?? ''),
+        'chassistype' => (string)($g['chassistype'] ?? ''),
+        'biosversion' => (string)($g['biosversion'] ?? ''),
+        'biosdate' => (string)($g['biosdate'] ?? ''),
+        'systemuuid' => (string)($g['systemuuid'] ?? ''),
+        'bioslock' => (string)($g['bioslock'] ?? ''),
+        'bioslockmethod' => (string)($g['bioslockmethod'] ?? ''),
     ];
 }
 
@@ -973,16 +1046,29 @@ function presence_ensure_schema(): void {
                serial       VARCHAR(255)    NOT NULL DEFAULT "",
                uuid         VARCHAR(64)     NOT NULL DEFAULT "",
                lan_ip       VARCHAR(45)     NOT NULL DEFAULT "",
+               phase        VARCHAR(16)     NOT NULL DEFAULT "",
+               drives_total INT UNSIGNED    NOT NULL DEFAULT 0,
+               drives_done  INT UNSIGNED    NOT NULL DEFAULT 0,
+               drives_failed INT UNSIGNED   NOT NULL DEFAULT 0,
                last_seen_ts INT UNSIGNED    NOT NULL,
                PRIMARY KEY (id),
                UNIQUE KEY uq_presence_device (user_id, serial, uuid),
                KEY idx_presence_seen (last_seen_ts)
             )'
         );
-        // Idempotent migration for tables created before lan_ip existed.
-        $stmt = db()->query("SHOW COLUMNS FROM device_presence LIKE 'lan_ip'");
-        if ($stmt->fetch() === false) {
-            db()->exec('ALTER TABLE device_presence ADD COLUMN lan_ip VARCHAR(45) NOT NULL DEFAULT "" AFTER uuid');
+        // Idempotent migrations for tables created before these columns existed.
+        $cols = [
+            'lan_ip'        => 'ADD COLUMN lan_ip VARCHAR(45) NOT NULL DEFAULT "" AFTER uuid',
+            'phase'         => 'ADD COLUMN phase VARCHAR(16) NOT NULL DEFAULT "" AFTER lan_ip',
+            'drives_total'  => 'ADD COLUMN drives_total INT UNSIGNED NOT NULL DEFAULT 0 AFTER phase',
+            'drives_done'   => 'ADD COLUMN drives_done INT UNSIGNED NOT NULL DEFAULT 0 AFTER drives_total',
+            'drives_failed' => 'ADD COLUMN drives_failed INT UNSIGNED NOT NULL DEFAULT 0 AFTER drives_done',
+        ];
+        foreach ($cols as $col => $ddl) {
+            $stmt = db()->query("SHOW COLUMNS FROM device_presence LIKE '$col'");
+            if ($stmt->fetch() === false) {
+                db()->exec("ALTER TABLE device_presence $ddl");
+            }
         }
     } catch (Throwable $e) {
         error_log('presence ensure schema error: ' . $e->getMessage());
@@ -990,33 +1076,53 @@ function presence_ensure_schema(): void {
 }
 
 /** Record a heartbeat from a booted appliance (keyed by serial + uuid). */
-function presence_heartbeat(int $userId, string $serial, string $uuid, string $lanIp = ''): void {
+function presence_heartbeat(int $userId, string $serial, string $uuid, string $lanIp = '', string $phase = '', int $drivesTotal = 0, int $drivesDone = 0, int $drivesFailed = 0, bool $touchPhase = false): void {
     try {
-        db()->prepare(
-            'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, last_seen_ts)
-             VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())
-             ON DUPLICATE KEY UPDATE
-               lan_ip = IF(VALUES(lan_ip) = \'\', lan_ip, VALUES(lan_ip)),
-               last_seen_ts = UNIX_TIMESTAMP()'
-        )->execute([$userId, $serial, $uuid, $lanIp]);
+        if ($touchPhase) {
+            db()->prepare(
+                'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, last_seen_ts)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())
+                 ON DUPLICATE KEY UPDATE
+                   lan_ip = IF(VALUES(lan_ip) = \'\', lan_ip, VALUES(lan_ip)),
+                   phase = IF((phase IN (\'done\',\'failed\')) AND VALUES(phase) = \'wiping\', phase, VALUES(phase)),
+                   drives_total  = IF(VALUES(phase) = \'\', 0, VALUES(drives_total)),
+                   drives_done   = IF(VALUES(phase) = \'\', 0, VALUES(drives_done)),
+                   drives_failed = IF(VALUES(phase) = \'\', 0, VALUES(drives_failed)),
+                   last_seen_ts = UNIX_TIMESTAMP()'
+            )->execute([$userId, $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed]);
+        } else {
+            db()->prepare(
+                'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, last_seen_ts)
+                 VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())
+                 ON DUPLICATE KEY UPDATE
+                   lan_ip = IF(VALUES(lan_ip) = \'\', lan_ip, VALUES(lan_ip)),
+                   last_seen_ts = UNIX_TIMESTAMP()'
+            )->execute([$userId, $serial, $uuid, $lanIp]);
+        }
     } catch (Throwable $e) {
         error_log('presence heartbeat error: ' . $e->getMessage());
     }
 }
 
-/** Map a user's presence rows to ['serial' => ts, 'uuid' => ts, 'ip' => ip] (lowercased). */
+/** Map a user's presence rows to ['serial' => ts, 'uuid' => ts, 'ip' => ip, 'erasure' => state] (lowercased). */
 function presence_map(int $userId): array {
-    $map = ['serial' => [], 'uuid' => [], 'ip' => []];
+    $map = ['serial' => [], 'uuid' => [], 'ip' => [], 'erasure' => []];
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, lan_ip, last_seen_ts FROM device_presence WHERE user_id = ?');
+        $stmt = db()->prepare('SELECT serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, last_seen_ts FROM device_presence WHERE user_id = ?');
         $stmt->execute([$userId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $ts = (int)$r['last_seen_ts'];
             $ip = trim((string)($r['lan_ip'] ?? ''));
+            $erasure = [
+                'phase'         => (string)($r['phase'] ?? ''),
+                'drives_total'  => (int)($r['drives_total'] ?? 0),
+                'drives_done'   => (int)($r['drives_done'] ?? 0),
+                'drives_failed' => (int)($r['drives_failed'] ?? 0),
+            ];
             $s  = strtolower(trim((string)$r['serial']));
             $u  = strtolower(trim((string)$r['uuid']));
-            if ($s !== '') { $map['serial'][$s] = $ts; if ($ip !== '') $map['ip'][$s] = $ip; }
-            if ($u !== '') { $map['uuid'][$u]  = $ts; if ($ip !== '') $map['ip'][$u] = $ip; }
+            if ($s !== '') { $map['serial'][$s] = $ts; if ($ip !== '') $map['ip'][$s] = $ip; $map['erasure'][$s] = $erasure; }
+            if ($u !== '') { $map['uuid'][$u]  = $ts; if ($ip !== '') $map['ip'][$u] = $ip; $map['erasure'][$u] = $erasure; }
         }
     } catch (Throwable $e) {
         error_log('presence map error: ' . $e->getMessage());
@@ -1059,6 +1165,15 @@ function presence_lan_ip(string $serial, string $uuid, array $map): string {
     if ($s !== '' && isset($map['ip'][$s])) return (string)$map['ip'][$s];
     if ($u !== '' && isset($map['ip'][$u])) return (string)$map['ip'][$u];
     return '';
+}
+
+/** Erasure state (phase/total/done/failed) for a device, or null if none. */
+function presence_erasure(string $serial, string $uuid, array $map): ?array {
+    $s = strtolower(trim($serial));
+    $u = strtolower(trim($uuid));
+    if ($s !== '' && isset($map['erasure'][$s])) return $map['erasure'][$s];
+    if ($u !== '' && isset($map['erasure'][$u])) return $map['erasure'][$u];
+    return null;
 }
 
 /** Lazily create the device_registrations table (idempotent — mirrors schema.sql). */
@@ -1251,6 +1366,7 @@ function load_devices(int $userId): array {
         $lastSeen = presence_last_seen((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['online']    = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['lan_ip']    = presence_lan_ip((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
+        $out[$k]['erasure']   = presence_erasure((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['last_seen'] = $lastSeen !== null ? ts_rel($lastSeen) : null;
         $out[$k]['last_seen_at'] = $lastSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $lastSeen)) : null;
         $out[$k]['first']     = ts_local((string)$dv['first']);
@@ -1323,6 +1439,7 @@ function load_devices(int $userId): array {
             'last'        => $seen,
             'online'      => presence_is_online((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
             'lan_ip'      => presence_lan_ip((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
+            'erasure'     => presence_erasure((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
             'last_seen'   => $regSeen !== null ? ts_rel($regSeen) : null,
             'last_seen_at' => $regSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $regSeen)) : null,
             'drive_count' => count($drives),
@@ -1351,7 +1468,7 @@ function load_devices(int $userId): array {
  */
 function load_drives(int $userId): array {
     reports_ensure_schema();
-    $stmt = db()->prepare("SELECT cocid, uploaded_at, devices, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute([$userId]);
 
     $drives = [];
@@ -1366,6 +1483,7 @@ function load_drives(int $userId): array {
             if ($key === '') continue;
 
             $entry = $d;
+            $entry['report_id']      = (int)$r['id'];
             $entry['cocid']          = (string)$r['cocid'];
             $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
             $entry['ts']             = ts_local((string)($d['ts'] ?? ''));

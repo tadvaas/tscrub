@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
-  <title>tScrub — Verifiable Disk Sanitisation</title>
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
+  <title>tScrub — ITAD Triage, Grading &amp; Verifiable Erasure</title>
   <link rel="canonical" href="https://tscrub.com/" />
-  <meta name="description" content="Open, auditable data erasure for NVMe, SATA, and SCSI drives. Chain-of-custody reports that align with NIST 800-88 Clear and Purge, and flag drives for destruction." />
+  <meta name="description" content="The open ITAD platform: grade and record every device you process — hardware, battery, display, MDM and BIOS locks — then erase drives to NIST 800-88 and hand back verifiable diagnostics and chain-of-custody reports." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -17,7 +17,7 @@
         <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
       <a href="/" class="flex items-center gap-2">
-        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white">t</span>
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
         <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
       </a>
       <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
@@ -44,13 +44,13 @@
       <div>
         <span class="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400">
           <span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
-          Open &amp; auditable data erasure
+          Compliance-grade erasure &amp; ITAD triage
         </span>
         <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white sm:text-5xl">
-          Verifiable disk sanitisation for regulated IT.
+          Erase, grade, and unlock every device — with the evidence your auditors need.
         </h1>
         <p class="mt-4 max-w-xl text-lg text-slate-600 dark:text-slate-400">
-          tScrub erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear and Purge levels, and flags every drive it couldn't sanitise — then hands you a verifiable, audit-ready chain-of-custody report you can turn into a Certificate of Destruction.
+          One boot erases every drive to NIST 800-88 Clear and Purge and produces a verifiable chain-of-custody report — while also capturing the machine's full hardware profile (display, battery, CPU, memory, storage, MDM and BIOS lock status) and grading it for resale or recycling. You get a printable diagnostics report in the same pass.
         </p>
         <div class="mt-8 flex flex-wrap gap-4">
           <a href="download" class="inline-flex items-center rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
@@ -62,10 +62,10 @@
           </a>
         </div>
         <ul class="mt-8 space-y-2 text-sm text-slate-600 dark:text-slate-400">
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Open, inspectable code — read exactly what tScrub does</li>
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Boot our ready-to-go ISO from USB or PXE</li>
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Chain of custody with per-drive final status &amp; certification</li>
-          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Erase to reuse — reclaim drives for redeployment, resale, or recycling</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Hardware grading at boot — display, battery, CPU, RAM, storage, and firmware</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> One-touch MDM check, BIOS lock report &amp; remote unlock before you resell a laptop</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> A printable ITAD diagnostics report per machine, plus a chain-of-custody erasure report</li>
+          <li class="flex items-start gap-2"><span class="mt-0.5 text-brand-600 dark:text-brand-400">✓</span> Open, inspectable code — boot from USB or PXE and read exactly what tScrub does</li>
         </ul>
       </div>
 
@@ -77,7 +77,7 @@
             <span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
             <span class="h-2.5 w-2.5 rounded-full bg-brand-500"></span>
           </div>
-          <span id="term-title" class="font-mono text-xs text-slate-400 dark:text-slate-500">tscrub — sanitise session</span>
+          <span id="term-title" class="font-mono text-xs text-slate-400 dark:text-slate-500">tscrub — triage &amp; erase session</span>
           <button id="term-rerun" type="button" class="font-mono text-xs text-slate-400 dark:text-slate-500 hover:text-white">↻ run again</button>
         </div>
         <div id="term" class="cursor-text p-4 font-mono text-[13px] leading-relaxed text-slate-200">
@@ -94,7 +94,7 @@
   <!-- ============ TRUST STRIP ============ -->
   <section class="border-b border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-4 py-10 text-sm font-semibold text-slate-500 dark:text-slate-400">
-      <span>Aligns with</span>
+      <span>Maps to</span>
       <span class="uppercase tracking-widest">NIST 800-88</span>
       <span class="uppercase tracking-widest">GDPR</span>
       <span class="uppercase tracking-widest">HIPAA</span>
@@ -108,8 +108,8 @@
       <div class="lg:col-span-4">
         <div class="lg:sticky lg:top-24">
           <span class="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-400">Capabilities</span>
-          <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Built for the drives your auditors ask about</h2>
-          <p class="mt-3 text-slate-600 dark:text-slate-400">Every capability maps to a defensible Clear, Purge, or Destroy outcome — with a report to prove it.</p>
+          <h2 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Compliance-grade erasure for every device that crosses your bench</h2>
+          <p class="mt-3 text-slate-600 dark:text-slate-400">Erase its drives, capture the evidence, grade the machine, and detect its locks — all in a single boot.</p>
           <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">See compliance mapping →</a>
         </div>
       </div>
@@ -162,6 +162,42 @@
           </div>
           <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
             <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-ink-900 dark:text-white">Hardware triage &amp; grading</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Boot once and tScrub records the machine — display panel, battery health and capacity, CPU spec, DIMM part numbers, board serial, and per-drive SMART — so you can grade it for resale, redeployment, or recycling.</p>
+            </div>
+          </div>
+          <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-ink-900 dark:text-white">MDM check &amp; BIOS lock, report &amp; unlock</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">One boot runs a Windows Autopilot MDM check, reports BIOS password locks, and lets you dispatch a remote BIOS unlock from the dashboard — so a locked laptop is flagged and freed before it reaches a buyer.</p>
+            </div>
+          </div>
+          <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-ink-900 dark:text-white">Printable diagnostics report</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Every device snapshot renders as a two-page ITAD triage report — machine summary plus storage inventory — downloadable from the Devices tab for your own records or your client's.</p>
+            </div>
+          </div>
+          <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-ink-900 dark:text-white">Live device dashboard</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Every machine that boots tScrub shows up in your Devices tab with its full hardware profile, online status, and LAN IP — opt in to hardware self-tests for a CPU and per-drive health check.</p>
+            </div>
+          </div>
+          <div class="flex gap-5 py-6 first:pt-0 last:pb-0">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             </div>
             <div>
@@ -194,7 +230,7 @@
       <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Financial services</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">Evidence for decommissioned systems subject to FCA, PRA, and contractual data-handling rules.</p></div>
         <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Healthcare</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">A verifiable trail for media holding patient data, supporting UK GDPR and NHS requirements.</p></div>
-        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">ITAD &amp; refurbishers</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">A repeatable, branded wipe process you can show to your own clients.</p></div>
+        <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">ITAD &amp; refurbishers</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">Grade hardware, detect MDM and BIOS locks, and hand clients a branded wipe and diagnostics record.</p></div>
         <div class="lift rounded-2xl bg-ink-800 p-6"><h3 class="font-bold text-white">Data centres</h3><p class="mt-2 text-sm text-slate-400 dark:text-slate-500">PXE-boot tScrub across fleets and keep a per-machine record on decommission.</p></div>
       </div>
     </div>
@@ -217,8 +253,8 @@
           </li>
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">2</div>
-            <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Discover &amp; classify</h3>
-            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Every drive is detected across NVMe, SATA, and SCSI — each mapped to its strongest Purge or Clear capability.</p>
+            <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Grade &amp; discover</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">tScrub captures the machine's full hardware profile — display, battery, CPU, RAM, storage, MDM and BIOS lock status — while every drive is detected and mapped to its strongest Purge or Clear capability.</p>
           </li>
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">3</div>
@@ -228,7 +264,7 @@
           <li class="text-center">
             <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 font-mono text-sm font-bold text-white ring-4 ring-white">4</div>
             <h3 class="mt-4 font-bold text-ink-900 dark:text-white">Report</h3>
-            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">A chain-of-custody report tied to one COCID — upload it to generate a Certificate of Destruction.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">A printable ITAD diagnostics report plus a chain-of-custody report tied to one COCID — upload them to generate a Certificate of Destruction.</p>
           </li>
         </ol>
       </div>
@@ -248,6 +284,9 @@
                 <tr><td class="px-4 py-3">Certification</td><td class="px-4 py-3 font-mono text-xs">DESTRUCTION</td></tr>
                 <tr><td class="px-4 py-3">Final status</td><td class="px-4 py-3 font-mono text-xs">COMPLETED</td></tr>
                 <tr><td class="px-4 py-3">SMART (pre / post)</td><td class="px-4 py-3 font-mono text-xs">health, temp, hours, wear</td></tr>
+                <tr><td class="px-4 py-3">System / board serial</td><td class="px-4 py-3 font-mono text-xs">machine identity</td></tr>
+                <tr><td class="px-4 py-3">BIOS &amp; firmware</td><td class="px-4 py-3 font-mono text-xs">vendor, version, TPM, Secure Boot</td></tr>
+                <tr><td class="px-4 py-3">Display / battery / RAM</td><td class="px-4 py-3 font-mono text-xs">panel, capacity, DIMMs</td></tr>
               </tbody>
             </table>
           </div>

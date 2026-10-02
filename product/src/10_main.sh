@@ -58,6 +58,7 @@ fn_main() {
     REPORT_NET_REASON=""
     MDM_STATUS=""
     MDM_VERDICT=""
+    FINISH_MSG=""
     BIOS_PASSWORD_STATUS=""
     BIOS_DETECTION_METHOD=""
     mdm_pid=""
@@ -183,6 +184,9 @@ fn_main() {
     # an honest ASCII "Pending" (NOT "Checking…", and NOT the Unicode "…" which
     # the appliance console renders as a single dot) so a not-yet-published
     # state can't be mistaken for the server's own "checking".
+    # A fresh boot starts with no erasure state; clear any stale marker so the
+    # first heartbeat reports "not wiping" (the server resets its phase).
+    status::clear
     MDM_STATUS="Pending"
     { mdm::detect; } 3>&- 4<&- &
     mdm_pid=$!
@@ -354,6 +358,7 @@ erasure::run() {
         # Blue background while the wipe is in progress; the outcome colour
         # (green/red/amber) is painted only once everything has finished.
         UI_COMPLETE_THEME=4
+        status::erase_start
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
             device::execute "$dev" &
@@ -394,6 +399,13 @@ erasure::run() {
     # Make the report honest: drives that didn't complete must not carry the
     # optimistic class/cert/method they were classified for.
     device::normalize_outcome
+
+    # Publish the final erasure state (a worker that died without reporting is
+    # UNKNOWN above; ui::loop may already have published done/failed on the
+    # last terminal line — this call is idempotent).
+    if [[ "$DRY_RUN" -eq 0 ]]; then
+        status::drive_terminal
+    fi
 
     smart::capture_all post
 
@@ -466,15 +478,6 @@ erasure::run() {
             ui::show_finish_green "Sanitization process finished"
         fi
     fi
-
-    ui::print_drive_guidance
-
-    if [[ "$(report::skipped_count)" -gt 0 ]]; then
-        printf "\033[K%sWiped %s of %d drive(s); %d skipped (not selected).\n" \
-            "$TABLE_INDENT" "$(report::selected_count)" "${#devices[@]}" "$(report::skipped_count)"
-    fi
-
-    report::print_summary
 
     # Consume this erasure's IPC channel so the next erasure (or the triage
     # screen) can open a fresh one. The long-lived telemetry workers are

@@ -1,11 +1,11 @@
 # tScrub Roadmap
 
 Future plans for the project, kept here so they survive between sessions. Current
-state as of v1.4.54 (appliance image shipped; free reports self-signed; dashboard
-upload, certificates, customer-as-certifier, and Stripe billing/PAYG licences all
-shipped).
+state as of v1.10.1 (triage-first boot, hardware grading, MDM/BIOS-lock detection,
+self-signed/attributed reports, dashboard, certificates, customer-as-certifier, and
+Stripe PAYG billing all shipped).
 
-## 0. Triage-first conversion — IMPLEMENTED (2026-10-01, working tree; not yet released)
+## 0. Triage-first conversion — IMPLEMENTED (2026-10-01) — released as v1.10.0
 
 The appliance is now a **triage tool first, erasure tool second** (see
 `triage-conversion.md` for the full plan + TODO):
@@ -275,6 +275,11 @@ internal links) to every gap-closing page. Known quick wins:
 - [ ] Rewrite `<title>` + meta description on top pages to match the exact money
       query.
 - [ ] Link money pages ↔ decision guides ↔ proof/tool in both directions.
+- [ ] **"Wipe an SSD from BIOS" coverage page** — high-volume money-term query
+      with no page (D-Secure ranks on it). Port the vendor menu table
+      (Dell/HP/Lenovo/ASUS paths) + the frozen-drive fix into a
+      `resources/wipe-ssd-from-bios.html` that ends on the tScrub comparison
+      (verification + signed certificate), mirroring `ssd-erase.html`.
 
 ### 4.7 Phase 8 — paid (Google Ads), gated
 
@@ -319,7 +324,7 @@ subscriptions, and close the last trust/coverage gaps.
 - [ ] Organisations & seats — a lightweight workspace layer (email-invite + role,
       shared certs/COCID history) so a Team licence covers several operators.
       No SSO/portal.
-- [ ] SAS/SCSI erase-path proof — exercise the `nwipe` SCSI fallback on real SAS
+- [x] SAS/SCSI erase-path proof — exercise the `nwipe` SCSI fallback on real SAS
       hardware and add a Proxmox SCSI scenario (the last untested wipe path).
 - [ ] Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net`
       for faster VM testing, quiet `sedutil-cli` SG_IO noise on QEMU disks.
@@ -406,11 +411,11 @@ rejected `802` because types 7/8 disk/MAC are unvalidated). Full detail:
 collects UUID + serial and posts them to the dashboard; the dashboard holds the
 tenant/app secret server-side and runs the Graph probe, returning the verdict.
 
-- [ ] Server: port the Graph probe to PHP (`POST /api/mdm/autopilot` in
+- [x] Server: port the Graph probe to PHP (`POST /api/mdm/autopilot` in
       `api.php`, creds in `config.json`, reuse the token-auth + reports plumbing)
       and cache verdicts by (serial, UUID). Returns
       `{verdict: unlocked|locked_this|locked_other}`.
-- [ ] Appliance: `product/src/35_mdm.sh` — the MDM worker + UI state. Runs as a
+- [x] Appliance: `product/src/35_mdm.sh` — the MDM worker + UI state. Runs as a
       background job exactly like the per-drive wipe workers, feeding the UI over
       the existing IPC channel (`fd 3` → `ui::loop`). Lifecycle in `fn_main`:
       after `system::gather_info` + `config::load_usb`, set `MDM_STATUS=CHECKING`
@@ -423,18 +428,18 @@ tenant/app secret server-side and runs the Graph probe, returning the verdict.
       maps the JSON verdict, and writes `mdm STATUS <value>` to fd 3. The
       appliance never holds an Azure secret — it only sends serial+uuid and
       receives a verdict.
-- [ ] UI: add an `MDM:` row to the Runtime panel (`40_table.sh`, right-hand
+- [x] UI: add an `MDM:` row to the Runtime panel (`40_table.sh`, right-hand
       table next to Elapsed/COCID/Licence/Tier/Expiry). `ui::loop` special-cases
       `_dev == "mdm"` → updates `MDM_STATUS` and repaints the row in-place (like
       the elapsed tick). States + colours: `Checking…` (spinner),
       `Unlocked` (green), `Locked` (red), `Offline` (amber), `Skipped` (grey, no
       dashboard/identifiers configured). Verdict wording per §24-D2
       (`Unlocked`/`Locked`).
-- [ ] Report: add `enrollment`/`mdm_locked` to `report::csv` + the JSON manifest
+- [x] Report: add `enrollment`/`mdm_locked` to `report::csv` + the JSON manifest
       (the server parser is name-based, so add columns by name).
-- [ ] Validate `--collect` on one real machine end-to-end (a VM can't exercise a
+- [x] Validate `--collect` on one real machine end-to-end (a VM can't exercise a
       real disk/NIC); run the C1–C5 register/unregister test matrix.
-- [ ] (Optional) full hash: boot the capture ISO on physical hardware to grab
+- [x] (Optional) full hash: boot the capture ISO on physical hardware to grab
       reference type 7/8 encodings for byte-exact reporting / re-enrollment.
 
 Out of scope until the above ships: Apple DEP/Activation Lock and ChromeOS
@@ -475,3 +480,163 @@ before it is production-trustworthy:
       (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most other
       vendors report `unsupported`, and power-on passwords are usually not
       clearable via this path.
+
+## 9. BitRaser-vs-Blancco feature gaps — backlog
+
+Source: `research/BitRaser vs Blancco Compariso1.pdf` (Stellar, Rev3/02_2026,
+26-row feature sheet; BitRaser V3 = 26, Blancco V7 = 23). Every row where tScrub
+trails is queued here with the shortest credible path to parity. Items already
+covered by §5/§6/§8 are cross-referenced, not duplicated. Guardrail: keep the
+comparison page honest — never claim a feature or certification we don't hold.
+
+### 9.1 Multi-platform & media
+
+- [ ] **Mac (Intel + Apple Silicon) erase** — ship it as a pull-the-drive
+      workflow, not a Mac boot: document removing the SSD and wiping it in a
+      caddy on any tScrub host. Apple Silicon internal storage is encrypted and
+      only wipeable through macOS Recovery → *Erase All Content & Settings*
+      (Apple's own tool) — out of scope for a Linux boot; declare this on
+      `compare.html` so the gap is explicit rather than silent.
+- [ ] **Chromebook erase** — most ChromeOS devices can boot Linux via
+      developer mode / SeaBIOS. Add a Chromebook section to `docs.html`
+      (enable dev mode → boot tScrub USB → wipe eMMC/NVMe) and capture ChromeOS
+      GBB/VPD enrolment flags (overlaps §6 MDM/enrolment-lock detection).
+- [ ] **RAID dismantling** — detect RAID members in `gather_info` (`mdadm -E`
+      superblocks, Intel VMD / `mpt3sas` controllers) and mark them "RAID
+      member — dismantle in controller BIOS" on the triage screen; record a
+      per-drive RAID flag in the report. Never auto-break an array.
+- [ ] **SED (OPAL) unlock + erase** — `sedutil-cli` already ships in the image;
+      add an OPAL path alongside the NVMe/ATA paths: `--query` → PSID revert
+      (`--yesIreallywanttoERASEALLmydatausingthePSID`) when there's no LBA
+      unlock, and surface the existing 3-state SED status as an explicit method.
+
+### 9.2 Erasure methods & verification
+
+- [ ] **Global standards catalogue** — nwipe already implements a catalogue of
+      overwrite patterns (DoD 5220.22-M, Gutmann, HMG IS5, PRNG, zero, verify).
+      Expose `--method <standard>` on the triage screen, map standard→nwipe
+      pattern for the SCSI fallback, and add a `Standard` column to
+      `report::csv` (the server parser is name-based, so it picks the column up
+      automatically).
+- [ ] **IEEE 2883 awareness** — competitors (D-Secure) advertise IEEE 2883
+      alongside NIST 800-88 / DoD. tScrub's compliance copy only cites NIST
+      800-88 Rev 1 / NCSC / UK GDPR. Audit `compliance.html` + `docs.html` and
+      either map our methods to IEEE 2883 terminology or state the NIST 800-88
+      target explicitly — never claim a standard we don't verify.
+- [ ] **Random & Total verification** — after the firmware erase, run a
+      read-back pass (sampled blocks via `dd`+`sha256` by default, full when the
+      operator opts in) and record verification type + result. Start sampled so
+      8 TB mechanical runs stay sane.
+- [ ] **HexViewer-equivalent** — a full interactive hex viewer is overkill; ship
+      the audit-relevant subset: a `verify --sample N` mode that re-reads N
+      random LBAs post-wipe and reports raw bytes vs expected. Fold into §6
+      "Forensic erasure verification" when that ships.
+- [ ] **HPA/DCO removal & erasure** — before wiping, reset HPA to native size
+      (`hdparm -N p<max>`) and clear DCO (`hdparm --dco-restore`), then re-read
+      to confirm both are gone. Detection is already captured as CSV columns;
+      only the removal step + a before/after pair in the report is missing.
+
+### 9.3 Enterprise ITAD ecosystem
+
+- [ ] **Fleet / network erasure** — extend the BIOS-unlock request/result
+      pattern (§8) into a wipe job queue: dashboard queues a job per serial →
+      appliance polls `GET /api/jobs/pending` → runs an autonuke → posts the
+      report back. Cross-ref §6 "Fleet Management Console".
+- [ ] **ITSM/ERP integrations** — first document the REST API (OpenAPI) and add
+      webhooks (`report.uploaded`, `certificate.ready`); then ship one reference
+      ServiceNow inbound-webhook script. Cross-ref §6 "Integration API +
+      webhooks". Native Makor/RazorERP connectors are partner work, not code
+      here.
+- [ ] **Pooled licence allocation** — add a seat/pool concept to licences: an
+      org admin (see §5 "Organisations & seats") issues sub-tokens against a
+      pooled `team`/`enterprise` licence with a per-pool usage counter.
+- [ ] **Customized erasure report** — account-level report template (logo, extra
+      header fields, column visibility) stored on the dashboard and applied in
+      `render_cert.php` at generation time; the CSV stays fixed for
+      machine-readability.
+- [ ] **Customer-customized ISO** — a `make branded-iso CUSTOMER=…` target in
+      the build fork that bakes a customer logo + GRUB title (already possible
+      via the open build); ship a one-page how-to rather than a UI.
+- [ ] **Non-expiring licences** — add a "perpetual-until-activated" flag for
+      paid licences (activation = first report upload) alongside the current
+      dated expiry, and make PAYG credits non-expiring.
+
+### 9.4 Trust, certification & support
+
+- [ ] **Third-party testing / approval** (the "NIST & DHS tested & approved",
+      ADISA row) — not a code task: prepare a certification submission (the
+      erasure engine + signed-report/QR evidence chain are already certifiable)
+      and write the application runbook as `ops/certification.md`. Guardrail:
+      never claim a certification we don't hold.
+- [ ] **Free technical support** — publish a tiered support SLA on the pricing
+      page and link it from the dashboard; Team/Enterprise get named support,
+      free tier gets docs/FAQ/community.
+- [ ] **Legacy IDE/PATA** — not planned (pre-2005 hardware); state "SATA and
+      newer" explicitly on `compare.html` so the gap is declared.
+- [ ] (Not actionable) **"30-year data recovery company"** — a brand/trust
+      claim, not a feature; answer it with the open-source + verifiable-evidence
+      story instead of trying to match vendor pedigree.
+
+## 10. PXE image serving — move tScrub + Hashreport to .6 (2026-10-02, done)
+
+Today the PXE server (`.26`) serves the tScrub bzImage, the WinPE media and the
+Autopilot hashreport payload, while the ISO is built and published from `.6`.
+Consolidate the two tScrub-owned PXE images onto `.6` so it is the single source
+of truth, leaving `.26` as the iPXE/TFTP bootstrap only.
+
+**Status: done 2026-10-02** — payloads moved to `.6` (`~/webs/lan/ipxe/…`),
+`.26` boot.ipxe `tScrub`/`hashreport` entries repointed to `.6` (hard IP),
+deploy flow repointed off `.26` (see Remaining below).
+
+### Scope
+
+Move **only** these two PXE entries' payloads from `.26` → `.6` (~790 MB total;
+everything else — Windows-install `winpem*`, `shredos_0.4x`, `clonezilla`,
+`hirens`, `tails`, `ubuntu` — stays on `.26`):
+
+- **tScrub** — `tScrub/boot/bzImage` (signed) + `tScrub/tom-vance-2027-09-25.lic`.
+- **hashreport** — `winpe/wimboot`, `winpe/media/{bootmgr,bootmgfw.efi}`,
+  `winpe/media/Boot/{BCD,boot.sdi}`,
+  `winpe/media/sources/boot_inc_drivers.wim` (786 MB), and the whole `autopilot/`
+  dir (7 files: hashreport.ini/vbs, winpe.jpg, oa3tool.exe, PCPKsp.dll, OA3.cfg,
+  input.xml).
+
+### Serving on .6
+
+- New docroot `~/webs/lan/` — outside `~/webs/tscrub/` so `npm run deploy`
+  (`rsync --delete`) can never wipe it.
+- New nginx server block `lan.conf`: `listen 8080 default_server` +
+  `autoindex on` (HTML directory index). Staged at `~/lan.conf`; the user applies
+  the sudo step (`cp` into `/etc/nginx/sites-available/` + `ln -s` into
+  `sites-enabled/` + `nginx -t && systemctl reload nginx`).
+
+### boot.ipxe changes (on .26)
+
+- The DHCP/iPXE entry point stays on `.26` (`~/tftp/autoexec.ipxe` chains to
+  `http://192.168.0.26/boot.ipxe`); the full menu (Windows install, ShredOS, …)
+  remains there.
+- Only the `tScrub` and `hashreport` entries are repointed, with hard IPs:
+  - `tScrub` = `shim http://192.168.0.6:8080/ipxe/shim.efi` +
+    `kernel http://192.168.0.6:8080/ipxe/tscrub/bzImage` +
+    `tscrub_license_url=http://192.168.0.6:8080/ipxe/tscrub/tom-vance-2027-09-25.lic`.
+  - `hashreport` = `wimboot` + `media/…` + the `autopilot/` payload, all under
+    `http://192.168.0.6:8080/ipxe/winpe/`. The hashreport POST still targets
+    `https://tscrub.com/api/mdm/hash` (unchanged).
+
+### Deployment-flow changes (done)
+
+- bzImage: sign on `.6` (`sbsign`) → copy to `~/webs/lan/ipxe/tscrub/bzImage`
+  (Mac relay to `.26` dropped). Pending: move `ipxe-sb/vendor.{key,crt}` from
+  `.26` to `.6`.
+- `product/.config` now deploys the script to `.6`
+  (`TSCRUB_DEPLOY_HOST=192.168.0.6`, docroot `~/webs/lan`, URL `192.168.0.6:8080`)
+  — no more uploads to `.26`.
+- WIM re-bake (only when the payload changes): `apt install wimtools` on `.6`,
+  bake there, publish to `~/webs/lan/ipxe/winpe/media/sources/boot_inc_drivers.wim`
+  and the ISO overlay `board/shredos/winpe/sources/boot.wim`.
+- `ops/deploy.md` updated.
+
+### Remaining
+
+- None. ShredOS pre-wipe staleness on `.26` accepted; `ipxe-sb` keys moved to
+  `.6` (`sbsign` runs on `.6`).

@@ -33,6 +33,18 @@ if [[ "$1" == "-I" ]]; then
             printf '\tnot\tfrozen\n'
             printf '\t120min for SECURITY ERASE UNIT.\n'
             ;;
+        clear_notime)
+            # Real-drive shape: security supported, enhanced erase NOT
+            # supported, and NO "Nmin for SECURITY ERASE UNIT" line (word 89
+            # = 0, e.g. old Seagate Momentus 5400.3). Reproduces the bug where
+            # this was misclassified CAP_NONE -> FAILED.
+            printf '\t\tsupported\n'
+            printf '\tnot\tenabled\n'
+            printf '\tnot\tlocked\n'
+            printf '\tnot\tfrozen\n'
+            printf '\tnot\texpired: security count\n'
+            printf '\tnot\tsupported: enhanced erase\n'
+            ;;
         *)
             printf '\t\tsupported\n'
             printf '\tnot\tenabled\n'

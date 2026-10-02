@@ -53,6 +53,20 @@ function diag_grp(string $v): string {
     return preg_replace('/\B(?=(\d{3})+(?!\d))/', ',', $v);
 }
 
+/**
+ * The tScrub brand mark — the single shared logo asset (site/public/logo.png:
+ * the green rounded square + white "t" used by the website and favicon).
+ * deploy-server.sh copies that PNG into the server dir at deploy time, so the
+ * PDF embeds the exact same artwork instead of re-drawing the mark.
+ */
+function diag_logo_mark(TCPDF $pdf, float $x, float $y, float $size = 12.0): void {
+    $logo = __DIR__ . '/logo.png';
+    if (!is_file($logo)) {
+        return; // asset missing (partial deploy) — skip rather than fail the report
+    }
+    $pdf->Image($logo, $x, $y, $size, $size, 'PNG');
+}
+
 /** Rebuild the appliance-shaped payload from the stored (transformed) one. */
 function diag_stored_to_raw(array $p): array {
     $sys = (string)($p['system'] ?? '');
@@ -70,6 +84,7 @@ function diag_stored_to_raw(array $p): array {
         'serial'             => (string)($p['sysserial'] ?? $p['sysSerial'] ?? ''),
         'uuid'               => (string)($p['systemuuid'] ?? ''),
         'board_serial'       => (string)($p['bbserial'] ?? $p['bbSerial'] ?? ''),
+        'board'              => (string)($p['board'] ?? ''),
         'chassis_serial'     => (string)($p['chassisserial'] ?? ''),
         'chassis_type'       => (string)($p['chassistype'] ?? ''),
         'sku'                => (string)($p['sku'] ?? ''),
@@ -82,9 +97,12 @@ function diag_stored_to_raw(array $p): array {
         'tpm'                => (string)($p['tpm'] ?? ''),
         'secure_boot'        => (string)($p['secure_boot'] ?? ''),
         'cpu'                => (string)($p['cpu'] ?? ''),
+        'cpu_spec'           => (string)($p['cpu_spec'] ?? ''),
         'gpu'                => (string)($p['gpu'] ?? ''),
         'ram'                => (string)($p['ram'] ?? ''),
         'dimms'              => (string)($p['dimms'] ?? ''),
+        'display'            => (string)($p['display'] ?? ''),
+        'wifi'               => (string)($p['wifi'] ?? ''),
         'battery'            => (string)($p['battery'] ?? ''),
         'macs'               => (string)($p['macs'] ?? ''),
         'storage_controllers' => (string)($p['storage_controllers'] ?? ''),
@@ -118,6 +136,7 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
     $pdf->AddPage();
     $bg();
     $pageLabel();
+    diag_logo_mark($pdf, 14, 10);
 
     $pdf->SetFont('helvetica', 'B', 18);
     $pdf->SetTextColor(11, 18, 32);
@@ -177,6 +196,7 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
             $pdf->AddPage();
             $bg();
             $pageLabel();
+            diag_logo_mark($pdf, 14, 10);
         }
 
         $y = $pdf->GetY() + 3.0;
@@ -291,6 +311,7 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
     // Plain off-white paper background (no decorative certificate frame).
     $pdf->SetFillColor(250, 249, 246);
     $pdf->Rect(0, 0, $W, $H, 'F');
+    diag_logo_mark($pdf, 14, 12);
 
     $pdf->SetFont('helvetica', 'B', 30);
     $pdf->SetTextColor(11, 18, 32);
@@ -321,27 +342,27 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         $pdf->SetFont('helvetica', '', 8.5);
         $pdf->SetTextColor(100, 116, 139);
         $pdf->SetXY($x, $y);
-        $pdf->Cell($labelW, 4.3, $label, 0, 0, 'L');
+        $pdf->Cell($labelW, 4.0, $label, 0, 0, 'L');
 
         $pdf->SetXY($x + $labelW, $y);
         if ($value === '') {
             $pdf->SetFont('helvetica', '', 8.5);
             $pdf->SetTextColor(148, 163, 184);
-            $pdf->Cell($valueW, 4.3, '—', 0, 0, 'L');
+            $pdf->Cell($valueW, 4.0, '—', 0, 0, 'L');
         } else {
             $pdf->SetFont('helvetica', 'B', 8.5);
             $pdf->SetTextColor($valueColor[0], $valueColor[1], $valueColor[2]);
-            $pdf->Cell($valueW, 4.3, diag_fit($pdf, $value, $valueW, 'B', 8.5), 0, 0, 'L');
+            $pdf->Cell($valueW, 4.0, diag_fit($pdf, $value, $valueW, 'B', 8.5), 0, 0, 'L');
         }
     };
 
     $section = function (float $x, float $y, float $w, string $title, array $fields) use ($pdf, $sectionHeader, $row): float {
         $sectionHeader($x, $y, $w, $title);
-        $yy = $y + 7.0;
+        $yy = $y + 6.2;
         $labelW = 42.0;
         foreach ($fields as $f) {
             $row($x, $yy, $labelW, $w - $labelW, $f[0], $f[1], $f[2] ?? [11, 18, 32]);
-            $yy += 4.3;
+            $yy += 4.0;
         }
         return $yy;
     };
@@ -353,6 +374,7 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         ['Chassis',          (string)($d['chassis_type'] ?? '')],
         ['SKU',              (string)($d['sku'] ?? '')],
         ['System serial',    (string)($d['serial'] ?? '')],
+        ['Board',            (string)($d['board'] ?? '')],
         ['Board serial',     (string)($d['board_serial'] ?? '')],
         ['Chassis serial',   (string)($d['chassis_serial'] ?? '')],
         ['System UUID',      (string)($d['uuid'] ?? '')],
@@ -368,18 +390,22 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         $biosVersion .= ' · ' . trim((string)$d['bios_date']);
     }
     $sec = [
-        ['BIOS lock',    $lockLabel, $lockColor],
-        ['TPM',          (string)($d['tpm'] ?? '')],
-        ['Secure Boot',  (string)($d['secure_boot'] ?? '')],
-        ['BIOS version', $biosVersion],
-        ['BIOS vendor',  (string)($d['bios_vendor'] ?? '')],
+        ['BIOS lock',        $lockLabel, $lockColor],
+        ['BIOS lock method', (string)($d['bios_lock_method'] ?? '')],
+        ['TPM',              (string)($d['tpm'] ?? '')],
+        ['Secure Boot',      (string)($d['secure_boot'] ?? '')],
+        ['BIOS version',     $biosVersion],
+        ['BIOS vendor',      (string)($d['bios_vendor'] ?? '')],
     ];
 
     $hw = [
         ['CPU',                 (string)($d['cpu'] ?? '')],
+        ['CPU spec',            (string)($d['cpu_spec'] ?? '')],
         ['Memory',              (string)($d['ram'] ?? '')],
         ['DIMMs',               (string)($d['dimms'] ?? '')],
         ['GPU',                 (string)($d['gpu'] ?? '')],
+        ['Display',             (string)($d['display'] ?? '')],
+        ['Wi-Fi',               (string)($d['wifi'] ?? '')],
         ['Battery',             (string)($d['battery'] ?? '')],
         ['MACs',                (string)($d['macs'] ?? '')],
         ['Storage controllers', (string)($d['storage_controllers'] ?? '')],
@@ -395,10 +421,10 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         $personnel[] = ['Customer', trim((string)$issuer['name'])];
     }
 
-    $section(20, 58, 125, 'ASSET IDENTITY', $asset);
-    $section(152, 58, 125, 'SECURITY STATE', $sec);
-    $section(20, 112, 125, 'HARDWARE INVENTORY', $hw);
-    $section(152, 112, 125, 'PERSONNEL & AUTHORITY', $personnel);
+    $section(20, 56, 155, 'ASSET IDENTITY', $asset);
+    $section(182, 56, 95, 'SECURITY STATE', $sec);
+    $section(20, 105, 155, 'HARDWARE INVENTORY', $hw);
+    $section(182, 105, 95, 'PERSONNEL & AUTHORITY', $personnel);
 
     // ---- diagnostics-type / self-test summary line ----
     $cpuTest = strtoupper(trim((string)($d['selftest_cpu'] ?? '')));

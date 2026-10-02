@@ -57,6 +57,20 @@ try {
             continue;
         }
 
+        // Billing gate (defensive): the endpoints refuse to enqueue for gated
+        // accounts, but a user can lapse (paid -> free / zero credits) between
+        // enqueue and the worker picking the job up. Record the gate as a
+        // terminal verdict; the dashboard Re-check button is the re-probe path
+        // after the account tops up or upgrades.
+        $gate = mdm_gate($userId);
+        if (!$gate['allowed']) {
+            $verdict = $gate['reason'] === 'free_tier' ? 'paid_only' : 'insufficient_credits';
+            mdm_log_probe($userId, $serial, $uuid, $verdict, 'gate', 'worker');
+            mdm_complete_job($jobId, $verdict, 'gate', json_encode($gate) ?: '');
+            echo 'job ' . $jobId . ' (' . $serial . '): gated (' . $gate['reason'] . ")\n";
+            continue;
+        }
+
         // Verdict cache: for a non-forced check, reuse the most recent real
         // verdict within TTL instead of re-importing the same hash (fewer
         // register→unregister cycles = less Microsoft abuse-flag exposure).
@@ -95,6 +109,15 @@ try {
         mdm_log_probe($userId, $serial, $uuid, $verdict, $source, 'worker');
 
         if (in_array($verdict, ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'unknown', 'ms_error'], true)) {
+            // Charge one credit per LIVE Graph probe (an import was actually
+            // made). Cached verdicts and transport-only failures (offline /
+            // ms_error) never reach here with source 'live', so they are free.
+            if ($source === 'live') {
+                $debit = credit_debit($userId, 1, 'mdm:live:' . $jobId);
+                if ($debit === -1) {
+                    error_log('mdm credit shortfall for job ' . $jobId . ' (' . $serial . ')');
+                }
+            }
             mdm_complete_job($jobId, $verdict, $source, $detail);
             echo 'job ' . $jobId . ' (' . $serial . '): ' . $verdict . "\n";
         } elseif ($verdict !== 'offline' && (int)($job['attempts'] ?? 0) + 1 >= MAX_ATTEMPTS) {

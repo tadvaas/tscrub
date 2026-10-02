@@ -6,7 +6,8 @@ t::source_src
 
 tmpdir="$(mktemp -d)"
 FAKE_MDM_CURL_LOG="$tmpdir/curl.log"
-export FAKE_MDM_CURL_LOG FAKE_MDM_VERDICT FAKE_MDM_RC FAKE_MDM_FAIL_FIRST FAKE_MDM_QUEUE
+STATUS_STATE_FILE="$tmpdir/state"
+export FAKE_MDM_CURL_LOG STATUS_STATE_FILE FAKE_MDM_VERDICT FAKE_MDM_RC FAKE_MDM_FAIL_FIRST FAKE_MDM_QUEUE
 
 t::assert_eq "https://tscrub.com/api/heartbeat" \
     "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' presence::endpoint)" \
@@ -31,6 +32,21 @@ t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "api/heartbeat" "presence: ping
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "SYSSN123" "presence: ping carries serial"
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" "4C4C4544-0036-5710-8032-B5C04F433633" "presence: ping carries uuid"
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"ip\":\"192.168.0.55\"' "presence: ping carries lan ip"
+
+# An idle boot (no state file) reports an empty phase, which clears any stale
+# server-side erasure state.
+: > "$FAKE_MDM_CURL_LOG"
+status::clear
+presence::ping
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"phase\":\"\"' "presence: idle ping carries empty phase"
+
+# With a state file, the same ping carries the live erasure indicator.
+: > "$FAKE_MDM_CURL_LOG"
+status::write wiping 4 1 0
+presence::ping
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"phase\":\"wiping\"' "presence: ping carries wiping phase"
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"drives_total\":4' "presence: ping carries drives_total"
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"drives_done\":1' "presence: ping carries drives_done"
 
 rm -rf "$tmpdir"
 t::summary

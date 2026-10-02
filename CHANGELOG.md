@@ -6,6 +6,105 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.6] - 2026-10-02
+
+### Fixed
+
+- **MDM panel stuck on "Offline" after a transient network blip** — the
+  appliance's status poll now retries transient HTTP failures (curl-level retry)
+  and tolerates up to three consecutive failed polls before declaring the
+  dashboard unreachable, so a single blip during the poll window no longer
+  freezes the Runtime panel at "Offline" while the server-side check continues
+  and resolves.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.6_2025.11_30_x86-64_v0.41_20261002-e7286648.iso`
+  (1000 MB) sha256 `690a87ae87ea7149e35117c6e3b5797c3eb8c83d374d90268c6d2a97167e8e2b`.
+- Standalone script `tscrub.sh` (v1.10.6) sha256 `5621fb36c024c58c95bcf4132e68094d9f61e3369ff17dbe4d55c5e9f311a23d`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `80641a33b54e26d6592de1d4bcf8d8abd1cb6d4a25fb651e64b1ec2cb5bd71df`.
+
+## [v1.10.5] - 2026-10-02
+
+### Added
+
+- **MDM check billing + gating** — the Windows Autopilot (MDM) check is now a
+  paid feature: it spends **one credit per live Graph probe** from the same
+  device-credit wallet as erasure (idempotent, keyed by job). Free-tier accounts
+  can no longer run the check, and paid accounts with a zero balance are refused
+  (`No credits` / `Paid only`) instead of enqueuing a job. The worker debits only
+  when a real import ran (cached verdicts and offline/MS failures are free), and
+  a shortfall is logged without losing the verdict.
+- **Erasure pre-flight signal** — `POST /api/reports/diagnostics` now returns the
+  account's credit balance and `can_erase` (false only for a paid account with a
+  zero balance), so the appliance can gate erasure fail-open (the appliance-side
+  enforcement ships separately).
+
+### Fixed
+
+- **MDM status frozen on the finish screen** — the green/red/amber completion
+  screen is now live: as the background MDM worker's verdict settles, the Runtime
+  panel (MDM cell, elapsed timer, LAN IP) keeps updating instead of freezing at
+  the last value synced before the report was written. The report summary and
+  drive guidance are preserved across re-renders.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.5_2025.11_30_x86-64_v0.41_20261002-f28dc6a5.iso`
+  (1000 MB) sha256 `9083f651d9725cfee4edcef018e9fb68997c939d5cdb38c7957a3902814c534a`.
+- Standalone script `tscrub.sh` (v1.10.5) sha256 `f278a4aa2a2d7b32736df5ab42e7c1ce265954684f0d41eef42fe9b08b3286a0`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `e5a9f24a1c5215cd83ad6d3c12ff5f7ca99fc0e6f6fe2a291803446d8494e478`.
+
+## [v1.10.4] - 2026-10-02
+
+### Added
+
+- **Live erasure indicator on the dashboard** — the appliance heartbeat now
+  carries an erasure phase (`wiping` / `done` / `failed`) plus per-drive counts,
+  so the Devices tab status cell shows **Wiping n/m**, **Complete**, or
+  **Failed** instead of just "Online" while a wipe is in progress. The appliance
+  publishes the phase immediately on start, on each drive finishing, and at the
+  end (the 30s heartbeat remains the reconciliation fallback if an event ping is
+  lost); the server stores it on `device_presence` and `GET /api/devices`
+  exposes it as `erasure`. Offline still wins, and an empty phase clears stale
+  state on the next boot.
+
+### Changed
+
+- **PXE payloads served from `.6`** — the tScrub bzImage, WinPE/hashreport
+  payload and licence moved to `.6`'s LAN file server
+  (`http://192.168.0.6:8080/ipxe/…`, nginx `lan.conf` port 8080). The `.26` boot
+  menu keeps all other entries; only its `tScrub` and `hashreport` entries now
+  fetch from `.6` (hard IP). The deploy flow (script, bzImage, WIM) no longer
+  uploads to `.26`, and the iPXE signing keys now live in `~/ipxe-sb/` on `.6`.
+
+### Release
+
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `11e8308a3ccf1611233a75a0afbc31bedf4ffbcaeadee92949230c728c274354`.
+
+> PXE-only in this pass — the appliance ISO and standalone script are not yet
+> republished for v1.10.4.
+
+## [v1.10.3] - 2026-10-02
+
+### Fixed
+
+- **ATA Secure Erase misclassified as FAILED** — SATA drives that support the
+  Security Mode feature set but do **not** advertise enhanced erase, and that
+  report no `Nmin for SECURITY ERASE UNIT` timing line (identify word 89 = 0,
+  e.g. older Seagate Momentus drives), were classified `CAP_NONE` and failed
+  instantly instead of running a normal Secure Erase (Clear). Capability
+  detection now keys on the Security feature set being supported (with
+  enhanced erase absent) — SECURITY ERASE UNIT is a mandatory command of that
+  feature set.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.3_2025.11_30_x86-64_v0.41_20261002-d04bc7ba.iso`
+  (990,191,616 B, sha256 `8d2887767573fd2d89327e0bc95969476331c1dd0954fe14000c7dee17f5ae72`);
+- standalone script v1.10.3 sha256 `b0b00a16c39f30f33f155dd2be1089e616e57207b1bbee414cd1dfd45529e140` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `56e9827dd6c4471457c562b595e85bd2a40874ed754c19147c49e80c30a731d9`.
+
 ## [v1.10.2] - 2026-10-02
 
 ### Fixed
