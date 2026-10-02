@@ -123,8 +123,14 @@ mdm::publish() {
     # Best-effort publish to the UI IPC channel (fd 3) when it is open. The
     # result file above is the single source of truth — the worker is forked
     # DETACHED from the erasure IPC, so fd 3 is normally closed here.
-    echo "mdm VERDICT $verdict" >&3 2>/dev/null || true
-    echo "mdm STATUS $label" >&3 2>/dev/null || true
+    #
+    # Each write is wrapped in a group whose stderr is redirected, because a
+    # bare `... >&3 2>/dev/null` does NOT silence the redirection failure:
+    # bash reports the bad-fd error on the ORIGINAL stderr before the
+    # `2>/dev/null` is applied (left-to-right redirection order), so a closed
+    # fd 3 printed "Bad file descriptor" on the console every publish.
+    { echo "mdm VERDICT $verdict" >&3; } 2>/dev/null || true
+    { echo "mdm STATUS $label" >&3; } 2>/dev/null || true
 }
 
 # Pull the worker's latest published state back into the parent shell. The

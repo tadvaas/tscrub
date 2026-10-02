@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.2] - 2026-10-02
+
+### Fixed
+
+- **Console "Bad file descriptor" noise** — the detached MDM worker wrote to a
+  closed IPC fd (3), and the `... >&3 2>/dev/null` guard did not silence the
+  redirection error (bash reports it on the original stderr before `2>/dev/null`
+  is applied, left-to-right). `mdm::publish` now wraps the writes in a
+  stderr-redirected group, so the triage/wipe console stays clean.
+
+### Release
+
+- standalone script v1.10.2 sha256 `e442ced3d6a5d364dfa85bd8454f43da556401cbad301dc826c0f758d0cf2432` (signed);
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `3dfdd7adfd1ed7489677d6139db5f544088fb00e76c4aafd85e2935d2a0aa854`.
+
+> The appliance ISO for v1.10.2 is **not published** — deferred until the WinPE
+> Autopilot Capture ISO is finalised (see the v1.10.1 boot-menu change).
+
 ## [v1.10.1] - 2026-10-01
 
 ### Changed — appliance base (kernel)
@@ -14,10 +32,18 @@ and this project uses date-based versioning (`v1.x`).
   Management Device controllers (common on modern Intel platforms) are
   enumerated instead of appearing as "no supported drives".
 
+### Changed — boot menu (WinPE Autopilot Capture)
+
+- The ISO now boots to a menu offering **tScrub** (default) or
+  **Autopilot Capture (Windows PE)** — a WinPE that captures the authoritative
+  Windows Autopilot 4K hardware hash (`oa3tool`) and POSTs it to
+  `POST /api/mdm/hash`, then reboots. UEFI chainloads `bootmgfw.efi`; BIOS uses
+  `wimboot`. The hashreport payload is baked into `sources/boot.wim`.
+
 ### Release
 
-- Appliance ISO `tscrub-v1.10.1_2025.11_30_x86-64_v0.41_20261001-2a660fcb.iso`
-  (157,622,272 B, sha256 `ddf3add21856eb6361281df2d7ddfccb850894d2a3dfd725730481724f9b006d`);
+- Appliance ISO `tscrub-v1.10.1_2025.11_30_x86-64_v0.41_20261001-06cbaf3c.iso`
+  (990,191,616 B, sha256 `0e77f82d2325e633154a9ab792810cfe8b27731c4959eddd977a6cf7194d8303`);
 - standalone script v1.10.1 sha256 `8575554c8655f1353a6fac075f01edf3a0aba41b6906cf2d57cb394afa9a6237` (signed);
 - PXE bzImage signed (My iPXE Vendor Key) sha256 `83f3a6d5c2fe31c9fbb9fdbaa318bcb73e6aa519ac037b502ca51d18117b3cd3`.
 
