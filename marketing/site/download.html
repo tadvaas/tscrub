@@ -132,6 +132,8 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
         <li>• Printable ITAD diagnostics report per machine</li>
         <li>• Embedded sedutil-cli for SED/OPAL handling</li>
         <li>• Pre/post-wipe SMART capture for every drive</li>
+        <li>• Post-erasure verification — the wipe is confirmed by reading back sample sectors</li>
+        <li>• HPA/DCO hidden-area removal — the full native capacity is sanitised, not just the visible capacity</li>
         <li>• Chain-of-custody report + Certificate of Destruction generation</li>
         <li>• SHA-256 checksum for verification</li>
       </ul>

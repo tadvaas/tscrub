@@ -68,7 +68,7 @@
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">Which drive types are supported?</h3>
-            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">NVMe (crypto, block, and overwrite sanitize plus format), SATA/ATA (enhanced and standard security erase), and SCSI/SAS via nwipe. USB-attached drives are excluded by design.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">NVMe (crypto, block, and overwrite sanitize plus format), SATA/ATA (enhanced and standard security erase), and SCSI/SAS via nwipe. Before wiping, tScrub removes hidden HPA/DCO areas so the full native capacity is sanitised, and after the wipe it verifies the result by reading back sample sectors. USB-attached drives are excluded by design.</p>
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">Do I need an internet connection?</h3>

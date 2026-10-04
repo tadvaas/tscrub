@@ -120,6 +120,9 @@
       </ul>
       <p>Overwrite maps to NIST 800-88 <strong>Clear</strong>.</p>
 
+      <h2>Verifying the erase, and hidden areas</h2>
+      <p>Two things can quietly survive a wipe: sectors the controller keeps to itself (reallocated sectors, or HPA/DCO hidden areas), and a command that reports success without actually finishing. tScrub closes both — it resets HPA/DCO hidden areas to the native size before erasing, and after the erase it re-reads sample sectors written with a known sentinel to confirm the data is really gone. The result is recorded per drive in the report and certificate.</p>
+
       <h2>Degaussing and physical destruction</h2>
       <p>When erasure isn't possible — a drive has failed, is frozen, or is under Block SID lockdown — the last resort is destruction. <strong>Degaussing</strong> (a strong magnetic field) works on magnetic media but not SSDs. <strong>Physical destruction</strong> (shredding, disintegration) works on everything but is irreversible, so you lose the option to redeploy or resell the drive. The rule of thumb: <em>erase where you can, destroy where you must.</em></p>
 

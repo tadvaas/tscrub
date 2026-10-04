@@ -56,6 +56,7 @@
 ## Key facts
 
 - Supports NVMe (crypto, block, overwrite sanitise + format fallback), ATA (enhanced/standard secure erase), and SCSI sanitise.
+- Removes HPA/DCO hidden areas before erasing (full native capacity) and verifies the wipe by re-reading sample sectors (sampled by default, full read-back opt-in).
 - Handles SED/OPAL drives via PSID revert and detects BIOS Block SID lockdown (0x4286).
 - Hardware triage & grading at boot: display panel (EDID), battery health/capacity, CPU spec, DIMMs, board serial, BIOS, TPM, Secure Boot, MACs, and storage controllers.
 - One-touch Windows Autopilot MDM check, BIOS lock report, and remote BIOS unlock from the dashboard.

@@ -118,7 +118,7 @@
       </ol>
 
       <h2>Verifying the wipe actually worked</h2>
-      <p>A wiped NVMe drive should show no partition table and no readable data. More importantly, tScrub confirms completion at the <em>controller</em> level — it reads back the sanitize status, so a drive that reports success but never finished doesn't get marked clean. That's the difference between a green checkbox and genuine proof of erasure.</p>
+      <p>A wiped NVMe drive should show no partition table and no readable data. tScrub confirms completion two ways: at the <em>controller</em> level it reads back the sanitize status, so a drive that reports success but never finished doesn't get marked clean — and at the <em>media</em> level it re-reads sample sectors written with a known sentinel before the wipe to confirm they're gone. That's the difference between a green checkbox and genuine proof of erasure.</p>
 
       <h2>FAQ</h2>
       <h3>Can I just use <code>nvme format</code> from the command line?</h3>

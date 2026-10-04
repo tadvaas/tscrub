@@ -91,6 +91,8 @@
         <li><span class="font-semibold text-ink-900 dark:text-white">What outcome it achieved</span> — PURGE, CLEAR, or flagged for physical destruction.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">Where and when</span> — drive serials, Chain of Custody ID, and timestamp.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">Drive health before and after</span> — pre/post-wipe SMART (status, temperature, power-on hours, wear) recorded in the report and certificate.</li>
+        <li><span class="font-semibold text-ink-900 dark:text-white">Verification of the wipe</span> — sample sectors are re-read after erasure to confirm the data is gone, with the result recorded per drive.</li>
+        <li><span class="font-semibold text-ink-900 dark:text-white">Hidden-area handling</span> — HPA/DCO areas are removed before the erase so the full native capacity is sanitised.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">What failed</span> — frozen, locked, and blocked drives are recorded, never silently marked clean.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">The machine behind the drive</span> — system and board serials, BIOS, TPM, Secure Boot, CPU, RAM, display, and battery, so the evidence is tied to a specific device.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">Audit-proof identity</span> — every report carries a report_id and a SHA-256 digital identifier, so each report is individually identifiable and tamper-evident.</li>

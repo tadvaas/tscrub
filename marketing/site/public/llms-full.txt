@@ -10,6 +10,8 @@ tScrub is an open ITAD (IT asset disposition) platform built for compliance. One
 - **SED / OPAL unlock** — PSID revert for locked self-encrypting drives, plus detection of BIOS Block SID lockdown (0x4286).
 - **Chain of custody** — COCID, system serials, and per-drive final status in a single CSV report for the whole job.
 - **SMART capture** — pre/post-wipe SMART health (status, temperature, power-on hours, wear) recorded per drive.
+- **Post-erasure verification** — before erasing, a per-run sentinel is written to five fixed positions (start, 25%, 50%, 75%, end); after the wipe those sectors are re-read and must be gone (sampled by default, full re-read opt-in). The result is recorded per drive.
+- **HPA/DCO hidden-area removal** — Host Protected Area and Device Configuration Overlay hidden areas are reset to the native size before erasing, so the full native capacity is sanitised, not just the visible capacity.
 - **Verifiable proof of destruction** — reports can be signed (SHA-256 + Ed25519), producing a sidecar signature and manifest that auditors can independently verify.
 - **Hardware triage & grading** — boot-time capture of the display panel (manufacturer, resolution, diagonal size, year), battery (health and full-charge capacity in Wh, cycle count), CPU core/thread spec, DIMM part numbers, board serial, SKU/asset tag, BIOS vendor/version, TPM, Secure Boot, MAC addresses, and storage controllers.
 - **MDM check, BIOS lock report & unlock** — one boot runs a Windows Autopilot MDM check (Locked/Unlocked) and BIOS password-lock detection, surfaced in the dashboard; BIOS unlocks can be dispatched remotely from the dashboard.
