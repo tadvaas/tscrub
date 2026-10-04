@@ -37,6 +37,8 @@ for part in \
   "$SRC_DIR/39_register.sh" \
   "$SRC_DIR/40_table.sh" \
   "$SRC_DIR/41_selftest.sh" \
+  "$SRC_DIR/42_remote.sh" \
+  "$SRC_DIR/43_verify.sh" \
   "$SRC_DIR/50_report.sh"; do
   [[ -f "$part" ]] || {
     echo "Missing source part: $part" >&2

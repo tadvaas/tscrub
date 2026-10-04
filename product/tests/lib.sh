@@ -48,6 +48,8 @@ t::source_src() {
         "$ROOT_DIR/src/39_register.sh" \
         "$ROOT_DIR/src/40_table.sh" \
         "$ROOT_DIR/src/41_selftest.sh" \
+        "$ROOT_DIR/src/42_remote.sh" \
+        "$ROOT_DIR/src/43_verify.sh" \
         "$ROOT_DIR/src/50_report.sh"; do
         source "$f" || return 1
     done

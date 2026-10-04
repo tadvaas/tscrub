@@ -74,5 +74,31 @@ t::check "erasure: selection abort returns 2" '[[ "$rc" == "2" ]]'
 t::check "erasure: selection abort restores triage mode" '[[ "${TRIAGE_MODE:-0}" == "1" ]]'
 t::check "erasure: selection abort restores blue theme" '[[ "${UI_COMPLETE_THEME:-0}" == "4" ]]'
 
+# --- remote-initiated erasure: auto-select path ------------------------------
+# With REMOTE_ERASE set, erasure::run must NOT open the interactive selection
+# screen — it applies the requested drive list itself and wipes directly.
+AUTONUKE=0
+REMOTE_ERASE=1
+DRY_RUN=1
+DRY_RUN_SIM_ETA_MINS=0
+SELECT_CALLED=0
+select::run() { SELECT_CALLED=1; SELECT_MODE=0; SELECT_CURSOR=""; return 1; }
+REMOTE_ERASE_DRIVES="all"
+erasure::run >/dev/null 2>&1
+rc=$?
+t::check "remote erase: returns 0" '[[ "$rc" == "0" ]]'
+t::check "remote erase: never opens the selection screen" '[[ "$SELECT_CALLED" == "0" ]]'
+t::check "remote erase: all drives wiped (DRY-RUN)" '[[ "${devrow[nvme0n1.status]}" == "DRY-RUN" && "${devrow[sda.status]}" == "DRY-RUN" ]]'
+
+# Specific serial only → the other drive is recorded SKIPPED.
+REMOTE_ERASE_DRIVES="${devrow[nvme0n1.serial]}"
+erasure::run >/dev/null 2>&1
+rc=$?
+t::check "remote erase (specific): returns 0" '[[ "$rc" == "0" ]]'
+t::check "remote erase (specific): requested drive wiped" '[[ "${devrow[nvme0n1.status]}" == "DRY-RUN" ]]'
+t::check "remote erase (specific): other drive SKIPPED" '[[ "${devrow[sda.status]}" == "SKIPPED" ]]'
+REMOTE_ERASE=0
+REMOTE_ERASE_DRIVES=""
+
 rm -rf "$tmpdir"
 t::summary

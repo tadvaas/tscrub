@@ -57,5 +57,56 @@ if [[ "$1" == "-I" ]]; then
     esac
     exit 0
 fi
+# -N (read HPA / max visible sectors). Only emits real output when the test
+# configures FAKE_HPA_NATIVE, so the "no hdparm -N output" discovery path in
+# test_discover.sh keeps working.
+if [[ "$1" == "-N" && "$#" -eq 2 && "$2" != p* ]]; then
+    if [[ -n "${FAKE_HPA_NATIVE:-}" ]]; then
+        dev="${2:-/dev/sda}"
+        state="${FAKE_HPA_STATE:-disabled}"
+        # A successful `-N p<count>` reset records the cleared state for re-reads.
+        if [[ -n "${FAKE_HPA_STATE_FILE:-}" && -f "$FAKE_HPA_STATE_FILE" ]]; then
+            state="$(<"$FAKE_HPA_STATE_FILE")"
+        fi
+        printf '%s:\n' "$dev"
+        printf ' max sectors   = %s/%s, HPA is %s\n' "${FAKE_HPA_CUR:-$FAKE_HPA_NATIVE}" "$FAKE_HPA_NATIVE" "$state"
+    fi
+    exit 0
+fi
+
+# -N p<count> (temporary HPA reset — raise the max visible sectors to native)
+if [[ "$1" == "-N" && "$2" == p* ]]; then
+    [[ -n "${FAKE_HDPARM_LOG:-}" ]] && printf '%s\n' "-N $2" >> "$FAKE_HDPARM_LOG"
+    if [[ "${FAKE_HPA_SET_RC:-0}" == "0" ]]; then
+        [[ -n "${FAKE_HPA_STATE_FILE:-}" ]] && printf 'disabled\n' > "$FAKE_HPA_STATE_FILE"
+        exit 0
+    fi
+    exit "${FAKE_HPA_SET_RC}"
+fi
+
+# --dco-identify
+if [[ "$1" == "--dco-identify" ]]; then
+    present="${FAKE_DCO_PRESENT:-0}"
+    if [[ -n "${FAKE_DCO_STATE_FILE:-}" && -f "$FAKE_DCO_STATE_FILE" ]]; then
+        present="$(<"$FAKE_DCO_STATE_FILE")"
+    fi
+    if [[ "$present" == "1" ]]; then
+        printf 'DCO Revision: 1\n'
+    else
+        printf 'not supported\n'
+    fi
+    exit 0
+fi
+
+# --dco-restore
+if [[ "$1" == "--dco-restore" ]]; then
+    [[ -n "${FAKE_HDPARM_LOG:-}" ]] && printf '%s\n' "--dco-restore" >> "$FAKE_HDPARM_LOG"
+    if [[ "${FAKE_DCO_RESTORE_RC:-0}" == "0" ]]; then
+        [[ -n "${FAKE_DCO_STATE_FILE:-}" ]] && printf '0\n' > "$FAKE_DCO_STATE_FILE"
+        exit 0
+    fi
+    exit "${FAKE_DCO_RESTORE_RC}"
+fi
+
 # --user-master u --security-set-pass p | --security-erase(-enhanced) p
 exit 0

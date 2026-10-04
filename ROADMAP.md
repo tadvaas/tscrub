@@ -1,9 +1,69 @@
 # tScrub Roadmap
 
 Future plans for the project, kept here so they survive between sessions. Current
-state as of v1.10.1 (triage-first boot, hardware grading, MDM/BIOS-lock detection,
-self-signed/attributed reports, dashboard, certificates, customer-as-certifier, and
-Stripe PAYG billing all shipped).
+state as of **v1.10.14** (2026-10-03): triage-first boot, hardware grading, the
+Windows Autopilot MDM check (standalone 4K-hash, billing-gated, WinPE removed),
+remote power + remote erasure, the live erasure indicator, signed/attributed
+reports, dashboard, certificates, customer-as-certifier, and Stripe PAYG billing
+are all shipped.
+
+## Now — product first, then monetisation, then marketing (2026-10-04)
+
+Bias: ship a production-trustworthy product before spending on acquisition. Each
+item cross-references the detailed backlog section it lives in. Working copies to
+work off: `roadmap/product.md`, `roadmap/monetisation.md`, `roadmap/marketing.md`.
+
+**1. Product — make it trustworthy and feature-complete first**
+
+Erasure depth & verification (the biggest competitive gaps):
+- Post-erasure verification (sampled read-back) — prove unrecoverability rather
+  than assert it. (§9.2, §11.1)
+- HPA/DCO removal & erasure — reset to native size + clear DCO before wiping,
+  record a before/after pair. (§9.2, §11.1)
+- SAS firmware sanitise — `sg_sanitize --overwrite --zero` before falling back to
+  nwipe. (§11.1)
+- SED (OPAL) unlock + erase — PSID-revert / crypto-erase path alongside the
+  NVMe/ATA paths (sedutil-cli already ships). (§9.1)
+- RAID dismantling — detect members, mark "dismantle in controller BIOS", never
+  auto-break an array. (§9.1)
+
+Hardware capture → intelligence:
+- Diagnostics & refurb grading — collapse SMART capture into a drive grade
+  (A/B/C) + resale report. (§6)
+
+Robustness & ops:
+- Remote BIOS unlock robustness — JSON-safe passwords, dispatched TTL/requeue,
+  purge-on-supersede, explicit slot targeting, confirm the clear took effect.
+  (§8)
+- Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net` for
+  faster VM testing, quiet `sedutil-cli` SG_IO noise. (§5)
+- Organisations & seats — one Team licence covers several operators. (§5)
+
+**2. Monetisation — turn the product into revenue**
+- Stripe key rotation — `sk_live` + webhook secret were pasted into chat and must
+  be rotated before anything else. (§5)
+- Subscription billing — wire the reserved `subscriptions` table to Stripe
+  recurring prices (Team £99/mo → 100 erasures, Enterprise £399/mo → 500) so the
+  "contact us" plans become self-serve. Biggest single revenue unlock. (§5)
+- Pooled licence allocation + non-expiring PAYG credits — org admins issue
+  sub-tokens against a pooled licence; credits stop expiring. (§9.3)
+
+**3. Marketing — once the product is solid and money flows**
+- Marketing analytics + Search Console — Plausible/GA4 + GSC so the programme is
+  measurable. (§4.1, §5)
+- Directory & association listings — ADISA/NAID/G2/Capterra/SourceForge +
+  awesome-lists; real backlinks in an afternoon. (§4.3)
+- On-page gap closure — FAQPage JSON-LD, title/meta rewrite, the "wipe an SSD
+  from BIOS" coverage page. (§4.6)
+- Citation-magnet tools — compliance checker, erasure cost/carbon estimator,
+  device refurb grader. (§4.4)
+
+**4. Long tail** — the rest of §6/§9/§11 (fleet wipe job queue, machine-readable
+certificates, multi-pass overwrite, eMMC, hardware-diagnostics test suite,
+reporting polish) as milestone room allows.
+
+> Deliberately rejected (unchanged): auto-cert on upload and auto-licence-delivery
+> — certificate generation and licence download stay behind dashboard login.
 
 ## 0. Triage-first conversion — IMPLEMENTED (2026-10-01) — released as v1.10.0
 
@@ -391,25 +451,33 @@ Not scheduled — evaluated when a milestone has room.
       ToS-dependent). Record the result per device as an `mdm_locked` /
       `enrollment` field in the report JSON/manifest.
 
-## 7. Windows Autopilot MDM check — validated, integrate
+## 7. Windows Autopilot MDM check — SHIPPED (v1.10.5–v1.10.14)
 
-**Done (2026-09-28):** the "is this device Autopilot-enrolled?" check is fully
-researched and LIVE-TESTED against a real tenant. A pure-Linux **base hash**
-(UUID + serial + manufacturer + product — NO TPM/ODUID) is accepted by Microsoft
-Graph and yields the correct verdict: `806 ZtdDeviceAlreadyAssigned` = enrolled in
-this tenant, `806 ZtdDeviceAssignedToOtherTenant` = enrolled elsewhere, `complete
-code 0` = unenrolled, `802 InvalidZtdHardwareHash` = malformed hash. The Graph
-import is async (`POST` 201 "unknown" → poll `state` until complete/error).
-Prototype: `research/autopilot/autopilot_status.py` (Graph client) +
-`research/autopilot/oa3hash.py`
-(hash builder; defaults to the safe base fields — `--full` is opt-in and currently
-rejected `802` because types 7/8 disk/MAC are unvalidated). Full detail:
-`research/autopilot/autopilot-report.md` §25. **Detailed, ripple-aware build plan:**
-`research/autopilot/autopilot-build-plan.md` (phases, file-by-file, and 15 gotchas).
+**Shipped and live-verified end-to-end against a real tenant.** The verdict model:
+a pure-Linux OAv3 "4K" hardware hash is accepted by Microsoft Graph and yields
+`806 ZtdDeviceAlreadyAssigned` = enrolled in this tenant,
+`806 ZtdDeviceAssignedToOtherTenant` = enrolled elsewhere, `complete code 0` =
+unenrolled, `802 InvalidZtdHardwareHash` = malformed hash. The Graph import is
+async (`POST` 201 "unknown" → poll `state` until complete/error).
 
-**Architecture (decided):** the appliance never holds Azure credentials. It
-collects UUID + serial and posts them to the dashboard; the dashboard holds the
-tenant/app secret server-side and runs the Graph probe, returning the verdict.
+What shipped since the original plan:
+- **Full 4K hash from the appliance** (v1.10.8–v1.10.10): SMBIOS identity fields,
+  the TPM 2.0 EK modulus + descriptor, the TPM 1.2 `tpm_caps` descriptor, and the
+  OA3 ProductKeyId (hash type 24) derived from the MSDM product key — all
+  byte-identical to a WinPE `oa3tool` capture. The server can also build the hash
+  from a diagnostics report alone (`mdm_report_hash()` in `mdm.php`), so no
+  Windows PE capture is needed.
+- **WinPE removed from the ISO** (v1.10.12): the Autopilot Capture payload and its
+  boot menu are gone; the ISO boots straight into tScrub (165 MB).
+- **Billing + gating** (v1.10.5): one credit per live Graph probe; free tier
+  excluded; zero-balance paid accounts refused.
+- **Continuous polling** (v1.10.11/v1.10.12): the MDM worker retries boot-time
+  network/POST and polls `/api/mdm/status` for the whole session.
+- **Live-verified verdict matrix**: TPM 2.0 and TPM 1.2, locked and unlocked.
+
+**Architecture (kept):** the appliance never holds Azure credentials. It posts
+serial + UUID (or the full hardware fields); the dashboard holds the tenant/app
+secret server-side and runs the Graph probe, returning the verdict.
 
 - [x] Server: port the Graph probe to PHP (`POST /api/mdm/autopilot` in
       `api.php`, creds in `config.json`, reuse the token-auth + reports plumbing)
@@ -442,8 +510,8 @@ tenant/app secret server-side and runs the Graph probe, returning the verdict.
 - [x] (Optional) full hash: boot the capture ISO on physical hardware to grab
       reference type 7/8 encodings for byte-exact reporting / re-enrollment.
 
-Out of scope until the above ships: Apple DEP/Activation Lock and ChromeOS
-enrolment (still §6 north-star — different endpoints, ToS review).
+Remaining (north-star, §6): Apple DEP/Activation Lock and ChromeOS
+enrolment — different endpoints, ToS review.
 
 ## 8. Remote BIOS unlock — robustness backlog
 
@@ -483,7 +551,7 @@ before it is production-trustworthy:
 
 ## 9. BitRaser-vs-Blancco feature gaps — backlog
 
-Source: `research/BitRaser vs Blancco Compariso1.pdf` (Stellar, Rev3/02_2026,
+Source: `research/BitRaser vs Blancco Comparison.pdf` (Stellar, Rev3/02_2026,
 26-row feature sheet; BitRaser V3 = 26, Blancco V7 = 23). Every row where tScrub
 trails is queued here with the shortest credible path to parity. Items already
 covered by §5/§6/§8 are cross-referenced, not duplicated. Guardrail: keep the
@@ -640,3 +708,139 @@ everything else — Windows-install `winpem*`, `shredos_0.4x`, `clonezilla`,
 
 - None. ShredOS pre-wipe staleness on `.26` accepted; `ipxe-sb` keys moved to
   `.6` (`sbsign` runs on `.6`).
+
+## 11. BitRaser BDAD teardown — gaps (2026-10-04)
+
+Source: `research/bitraser/README.md` — reverse-engineered **BitRaser Drive
+Eraser && Diagnostics v3.0.1.1** (Cloud/Network/Offline ISOs). BitRaser is the
+direct commercial competitor; the items below are what it ships that tScrub does
+not. Items already queued in §9 are cross-referenced, not duplicated. Guardrail:
+keep `compare.html` honest — don't claim a feature until it ships. (For context,
+tScrub is already **ahead** on Autopilot hash completeness — we derive TPM EK +
+ODID, which BitRaser's Linux hash omits — and at parity on core
+NVMe/SATA/SED erasure + certificate generation.)
+
+### 11.1 Erasure depth
+
+- [ ] **Post-erasure verification (known-data read-back)** — BitRaser writes a
+      known pattern and reads it back to prove destruction; tScrub only asserts
+      command completion + SMART. Strategy: sampled-block read-back first
+      (`dd` + `sha256` over N random LBAs), full pass opt-in, record
+      `verify=<none|sampled|full>` + result in the report. (Queued in §9.2
+      "Random & Total verification".)
+- [ ] **RAID controller physical-drive erase** — BitRaser erases at the
+      controller level (`hpacucli ctrl slot=X pd Y modify erase
+      erasepattern=… forced`, `megacli`); tScrub only *detects* RAID hosts.
+      Strategy: bundle `megacli`/`hpacucli` in the image (redistributable), add
+      a `device::raid_erase` path mapping a drive to its controller erase
+      command, gated behind the existing "never auto-break an array" rule (§9.1).
+- [ ] **IEEE 2883-2022 Purge incl. TPM clearing** — BitRaser gates the method
+      on TPM presence and clears the chip (`TPM2_Clear` via physical-presence +
+      reboot) so chip-resident data is removed too. Strategy: add `tpm::clear`
+      (`tpm2_clear -c platform`, fallback to
+      `/sys/class/tpm/tpm0/ppi/request` + firmware confirmation at next boot),
+      expose an explicit "IEEE 2883 Purge" method = disk-erase + TPM-clear, and
+      record both on the certificate. (Note §9.2 "IEEE 2883 awareness" is
+      copy-only; this is the mechanism.)
+- [ ] **Multi-pass software overwrite (DoD 5220.22-M, Gutmann, HMG IS5, PRNG)** —
+      BitRaser offers these as first-class methods. (Queued in §9.2 "Global
+      standards catalogue": `--method <standard>` mapped to nwipe patterns.)
+- [ ] **HPA/DCO region erasure** — BitRaser erases the HPA; tScrub only detects
+      it. (Queued in §9.2 "HPA/DCO removal & erasure".)
+- [ ] **eMMC/MMC media** — BitRaser lists MMC as supported. Strategy: add
+      `mmcblk*` to `device::discover` (currently excluded) and erase via
+      `blkdiscard`, since eMMC usually lacks ATA/NVMe sanitise.
+- [ ] **SAS firmware sanitise** — BitRaser uses `sg_sanitize --overwrite --zero`
+      (sg3_utils) for SAS drives; tScrub falls back to nwipe software overwrite.
+      Strategy: add a `device::sas_sanitize` path that tries `sg_sanitize
+      --overwrite --zero` first, falling back to nwipe only when unsupported
+      (bundle `sg3_utils` — upstream Buildroot already ships it).
+- [ ] **Configurable write passes + custom erase algorithms** — BitRaser exposes
+      `Write Passes:` and user-defined patterns (`AlgoType`, `iCustomAlgoCount`).
+      Strategy: accept `--passes N` + `--pattern <zero|one|random|hex>` and map
+      to nwipe's custom-pattern support; record a `Custom` method in the report.
+- [ ] **NVMe namespace delete/recreate** — BitRaser runs `nvme delete-ns` /
+      `create-ns` (namespace management). Strategy: add guarded `nvme ns`
+      helpers behind an explicit "manage namespaces" toggle; low priority for
+      pure erasure (already covered by format/sanitise).
+- [ ] **Drive LED "locate"** — BitRaser blinks enclosure LEDs to physically
+      locate a drive in a rack (`Locate Drives`). Strategy: use `sg_ses` /
+      enclosure-services to set the locate LED for the selected drive;
+      server-fleet nicety.
+- [ ] **Drive-side niceties** (one small pass): SMR detection (flag
+      shingled/host-managed drives in the report), SED crypto-erase progress %,
+      an ATA **Device Unlock Password** utility (unlock password-protected ATA
+      drives before erasing), and **BitLocker volume detection** (mark encrypted
+      volumes on the triage screen, like BitRaser's "BitLocker Found").
+
+### 11.2 Hardware diagnostics — turn capture into tests (biggest gap)
+
+BitRaser's `_bpcdt/p_*` is an interactive test suite; tScrub only *captures*
+static hardware (EDID, battery, DIMMs, CPU spec) plus two opt-in self-tests (CPU
+sum-of-squares, drive self-test). Strategy: add `selftest::*` modules that write
+to a result file and are surfaced in the diagnostics report (`render_diag.php`):
+
+- [ ] **RAM stress** — `memtester` (tiny) or `stress-ng --vm` for a fixed
+      duration; PASS on no errors.
+- [ ] **Battery test** — charge/discharge delta over a short window via
+      `/sys/class/power_supply/BAT*` (we already read Wh/health); report
+      capacity drop/min as a health signal.
+- [ ] **Input tests** (keyboard/mouse/touchscreen) — `evtest`/`libinput
+      debug-events` + a TUI prompt "press every key / move the mouse / touch the
+      screen"; record which events were seen.
+- [ ] **Display pixel test** — full-screen solid-colour frames on the
+      framebuffer; operator eyeballs dead pixels and taps pass/fail.
+- [ ] **Audio / mic loopback** — `aplay` a tone + `arecord` a clip, check the
+      recorded level (alsa-utils already bundled); PASS on non-silent capture.
+- [ ] **Webcam** — `v4l2-ctl`/`ffplay -f v4l2 -i /dev/video0` frame grab +
+      operator confirm.
+- [ ] **USB ports** — udev monitor + `usbtest` (BitRaser's "USB Ports Checked");
+      report which ports see a device plug/unplug during the test window.
+- [ ] **Network** (WiFi/Bluetooth/Ethernet) — extend the existing
+      `network::ensure`/`unblock-wifi` with `iw scan` / `bluetoothctl scan on` /
+      `ip link` probes reporting link + device present.
+- [ ] **Fingerprint** — `fprintd-list` detection; report present/absent (skip
+      enrolment).
+- [ ] **CMOS / motherboard / accelerometer** — read `/sys/class/dmi` +
+      `/sys/bus/iio` and report presence (matches capture we already do).
+
+### 11.3 Autopilot robustness (minor)
+
+- [ ] **Per-device hash cache** — BitRaser persists the machine hash
+      (`Hash Exis on Disk`) so it isn't recomputed each boot. Strategy: cache the
+      hardware hash by serial/uuid next to the existing report-id cache; recompute
+      only when identity fields change.
+- [ ] **Rotating / cloud-issued Azure creds** — BitRaser fetches a fresh
+      client_secret per run (`GetAutopilotKey`). Strategy: the server already has
+      a multi-tenant pool; add a "rotate secret on abuse signal" + optional
+      short-TTL app credential, documented in `ops/` (not code-blocking).
+
+### 11.4 Reporting polish (minor)
+
+- [ ] **Captured signature images** — BitRaser embeds a drawn eraser/validator
+      signature image; tScrub uses typed name/date text blocks. Strategy: add an
+      optional signature-image upload to the certificate flow (PNG via the
+      dashboard) rendered by `render_cert.php` alongside the existing text
+      attestation; keep text as the default so nothing regresses.
+- [ ] **Arbitrary custom fields** — BitRaser adds operator-defined name/value
+      fields (up to ~19) to the report (`CustomFieldPanel`). Strategy: allow
+      `--field name=value` / `tscrub.conf` custom fields, carry them through to
+      the CSV + certificate; tScrub currently has fixed identity fields only.
+- [ ] **Barcode scan + label printing** — BitRaser validates asset barcodes
+      (`/api/ValidateBarcode`) and prints asset labels (`csfullLabel`,
+      wxPrinter). Strategy: accept a barcode/asset-id input, add a
+      "print label" action to the dashboard (server-side PDF label via TCPDF),
+      and validate barcodes against the device record.
+- [ ] **i18n + keyboard layout + network proxy** — BitRaser offers language +
+      keyboard-layout selection (`Keybord Language`, `CurrentLanguage`) and
+      proxy-aware networking. Strategy (low priority): add a language/locale
+      string table and a `tscrub_proxy=` config passthrough; defer until there
+      is a non-UK customer ask.
+
+> Not gaps (verified, so future sweeps don't re-raise them): BitRaser's
+> **virtual keyboard** (`wxVKGridView`) is an on-screen input for its X11 kiosk —
+> tScrub's console TUI doesn't need one. BitRaser's rescue image ships an **OPAL
+> Pre-Boot Authentication** (`linuxpba`) to *unlock* a SED at boot; tScrub's
+> PSID-revert path is the erasure-appropriate equivalent. BitRaser's report
+> `DigitalIdentifier` = tScrub's `digital_identifier`; remote wipe/power and
+> parallel multi-drive wipe are already shipped in v1.10.13/v1.10.14.

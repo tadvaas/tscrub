@@ -245,7 +245,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'cocid' => $cocid, 'drives' => [], 'reports' => [],
                 'shaState' => 'unverified', 'sigState' => 'none',
                 'system' => '', 'sysserial' => '', 'bbserial' => '',
-                'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '',
+                'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '', 'verify' => '',
                 'chassisserial' => '', 'chassistype' => '', 'biosversion' => '',
                 'biosdate' => '', 'systemuuid' => '', 'bioslock' => '', 'bioslockmethod' => '',
                 'sku' => '', 'asset_tag' => '', 'bios_vendor' => '', 'board' => '', 'tpm' => '',
@@ -318,6 +318,8 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'sectors' => clip_str($get($row, 'sectors'), 32),
                 'hpa' => clip_str($get($row, 'hpa'), 20),
                 'dco' => clip_str($get($row, 'dco'), 20),
+                'hpa_result' => clip_str($get($row, 'hparesult'), 20),
+                'dco_result' => clip_str($get($row, 'dcoresult'), 20),
                 'sed_status' => clip_str($get($row, 'sedstatus'), 20),
                 'reallocsectorspost' => clip_str($get($row, 'reallocsectorspost'), 32),
                 'selftest' => clip_str($get($row, 'selftest'), 128),
@@ -333,6 +335,8 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'validator' => clip_str($get($row, 'validator'), 128),
                 'media_source' => clip_str($get($row, 'mediasource'), 128),
                 'media_destination' => clip_str($get($row, 'mediadestination'), 128),
+                'verify_result' => clip_str($get($row, 'verifyresult'), 32),
+                'verify_sectors' => clip_str($get($row, 'verifysectors'), 16),
             ];
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
@@ -352,6 +356,9 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
             }
             if ($g['enrollment'] === '' && $enrollment !== '') {
                 $g['enrollment'] = clip_str($enrollment, 32);
+            }
+            if ($g['verify'] === '' && isset($map['verify'])) {
+                $g['verify'] = clip_str($get($row, 'verify'), 16);
             }
             if ($g['cpu'] === '' && isset($map['cpu'])) {
                 $g['cpu'] = clip_str($get($row, 'cpu'), 255);
@@ -424,6 +431,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
             if ($g['macs'] === '' && !empty($manifestData['macs'])) $g['macs'] = clip_str((string)$manifestData['macs'], 255);
             if ($g['storage_controllers'] === '' && !empty($manifestData['storage_controllers'])) $g['storage_controllers'] = clip_str((string)$manifestData['storage_controllers'], 255);
             if ($g['tool_version'] === '' && !empty($manifestData['version'])) $g['tool_version'] = clip_str((string)$manifestData['version'], 32);
+            if ($g['verify'] === '' && !empty($manifestData['verify'])) $g['verify'] = clip_str((string)$manifestData['verify'], 16);
             if ($g['operator'] === '' && !empty($manifestData['operator'])) $g['operator'] = clip_str((string)$manifestData['operator'], 128);
             if ($g['validator'] === '' && !empty($manifestData['validator'])) $g['validator'] = clip_str((string)$manifestData['validator'], 128);
             if ($g['media_source'] === '' && !empty($manifestData['media_source'])) $g['media_source'] = clip_str((string)$manifestData['media_source'], 128);
@@ -580,6 +588,8 @@ function db_drive_to_group(array $d): array {
         'sectors' => (string)($d['sectors'] ?? ''),
         'hpa' => (string)($d['hpa'] ?? ''),
         'dco' => (string)($d['dco'] ?? ''),
+        'hpa_result' => (string)($d['hpa_result'] ?? ''),
+        'dco_result' => (string)($d['dco_result'] ?? ''),
         'sed_status' => (string)($d['sed_status'] ?? ''),
         'reallocsectorspost' => (string)($d['reallocsectorspost'] ?? ''),
         'selftest' => (string)($d['selftest'] ?? ''),
@@ -602,6 +612,8 @@ function db_drive_to_group(array $d): array {
         'gpu' => (string)($d['gpu'] ?? ''),
         'ram' => (string)($d['ram'] ?? ''),
         'enrollment' => (string)($d['enrollment'] ?? ''),
+        'verify_result' => (string)($d['verify_result'] ?? ''),
+        'verify_sectors' => (string)($d['verify_sectors'] ?? ''),
     ];
 }
 
@@ -717,6 +729,7 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
         'gpu' => (string)($g['gpu'] ?? ''),
         'ram' => (string)($g['ram'] ?? ''),
         'enrollment' => (string)($g['enrollment'] ?? ''),
+        'verify' => (string)($g['verify'] ?? ''),
         'chassisserial' => (string)($g['chassisserial'] ?? ''),
         'chassistype' => (string)($g['chassistype'] ?? ''),
         'biosversion' => (string)($g['biosversion'] ?? ''),
@@ -778,6 +791,57 @@ function store_reports(array $groups, int $userId, string $source, string $repor
     return $ids;
 }
 
+/** Derive the 13-digit OA3 ProductKeyId (Autopilot hash type 24) from a
+ *  25-char Windows 8/10/11 (PKey2009) product key.
+ *
+ *  PKey2009 keys contain exactly one 'N' — a positional marker, not a base-24
+ *  char. Its 0-based position is the first base-24 digit; the other 24 chars
+ *  decode with 'BCDFGHJKMPQRTVWXY2346789'. Fields: Group = bits 0-19
+ *  (RefGroupID), Serial = bits 20-49. ProductKeyId = group + 9-digit serial.
+ *
+ *  Verified against 3 real MSDM keys and their oa3tool.exe captures:
+ *    NGHXG-H9FV3-9MX36-PB823-T6PKC -> 3305168038923
+ *    JMM6B-TTNC3-WJJ9K-FQPDJ-PKCKC -> 3305031854723
+ *    NCM8M-K26D6-J9XW9-2RTFM-K766P -> 3305012776346
+ */
+function product_key_id_from_key(string $key): string {
+    $key = strtoupper(str_replace('-', '', trim($key)));
+    if (strlen($key) !== 25 || strpos($key, 'N') === false) {
+        return '';
+    }
+    $alpha = 'BCDFGHJKMPQRTVWXY2346789';
+    $digits = [strpos($key, 'N')];
+    for ($i = 0; $i < 25; $i++) {
+        $c = $key[$i];
+        if ($c === 'N') continue;
+        $p = strpos($alpha, $c);
+        if ($p === false) return '';
+        $digits[] = $p;
+    }
+    if (count($digits) !== 25) return '';
+    // Big integer in 24-bit limbs (little-endian): num = num * 24 + digit.
+    $limbs = [0];
+    foreach ($digits as $d) {
+        $carry = $d;
+        $n = count($limbs);
+        for ($i = 0; $i < $n; $i++) {
+            $v = $limbs[$i] * 24 + $carry;
+            $limbs[$i] = $v & 0xFFFFFF;
+            $carry = $v >> 24;
+        }
+        while ($carry > 0) {
+            $limbs[] = $carry & 0xFFFFFF;
+            $carry >>= 24;
+        }
+    }
+    $l0 = $limbs[0];
+    $l1 = $limbs[1] ?? 0;
+    $l2 = $limbs[2] ?? 0;
+    $group  = $l0 & 0xFFFFF;                                   // bits 0-19
+    $serial = ((($l0 >> 20) & 0xF) | ($l1 << 4) | ($l2 << 28)) & 0x3FFFFFFF; // bits 20-49
+    return (string)$group . str_pad((string)$serial, 9, '0', STR_PAD_LEFT);
+}
+
 /**
  * Ingest a boot-time diagnostics report (identity + hardware + attached drive
  * inventory) into the `reports` table with report_type = 'diagnostics'. The
@@ -829,6 +893,15 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
         'product'        => (string)($d['product'] ?? ''),
         'sysserial'      => $serial,
         'systemuuid'     => $uuid,
+        'family'         => (string)($d['family'] ?? ''),
+        'board_product'  => (string)($d['board_product'] ?? ''),
+        'board_version'  => (string)($d['board_version'] ?? ''),
+        'system_version' => (string)($d['system_version'] ?? ''),
+        'tpm_ekpub'      => (string)($d['tpm_ekpub'] ?? ''),
+        'tpm_getcap'     => (string)($d['tpm_getcap'] ?? ''),
+        'tpm_caps'       => (string)($d['tpm_caps'] ?? ''),
+        'product_key'    => (string)($d['product_key'] ?? ''),
+        'product_key_id' => product_key_id_from_key((string)($d['product_key'] ?? '')),
         'report_id'      => (string)($d['report_id'] ?? ''),
         'digital_identifier' => (string)($d['digital_identifier'] ?? ''),
         'bbserial'       => (string)($d['board_serial'] ?? ''),
@@ -906,6 +979,7 @@ function report_row(array $r, ?array $payload): array {
         'gpu'         => is_array($payload) ? (string)($payload['gpu'] ?? '') : '',
         'ram'         => is_array($payload) ? (string)($payload['ram'] ?? '') : '',
         'enrollment'  => is_array($payload) ? (string)($payload['enrollment'] ?? '') : '',
+        'verify'      => is_array($payload) ? (string)($payload['verify'] ?? '') : '',
         'chassisserial' => is_array($payload) ? (string)($payload['chassisserial'] ?? '') : '',
         'chassistype'   => is_array($payload) ? (string)($payload['chassistype'] ?? '') : '',
         'biosversion'   => is_array($payload) ? (string)($payload['biosversion'] ?? '') : '',
@@ -1360,6 +1434,84 @@ function load_devices(int $userId): array {
         unset($d);
     }
 
+    // Fold erasure reports into the same machine history so the Devices tab
+    // shows when drives were wiped alongside the boot-time snapshots.
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute([$userId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $g = json_decode((string)$r['payload'], true);
+        if (!is_array($g) || empty($g['drives'])) continue;
+
+        $key = '';
+        foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
+            if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
+        }
+        if ($key === '' || !isset($devices[$key])) continue;   // only fold into a known machine
+
+        $drives = is_array($g['drives']) ? $g['drives'] : [];
+        $devices[$key]['history'][] = [
+            'report_type'    => 'erasure',
+            'id'             => (int)$r['id'],
+            'cocid'          => (string)$r['cocid'],
+            'uploaded_at'    => ts_local((string)$r['uploaded_at']),
+            'first'          => ts_local((string)($g['first'] ?? $r['uploaded_at'])),
+            'last'           => ts_local((string)($g['last'] ?? $r['uploaded_at'])),
+            'system'         => (string)($g['system'] ?? ''),
+            'sysserial'      => (string)($g['sysserial'] ?? $g['sysSerial'] ?? ''),
+            'bbserial'       => (string)($g['bbserial'] ?? $g['bbSerial'] ?? ''),
+            'biosversion'    => (string)($g['biosversion'] ?? ''),
+            'biosdate'       => (string)($g['biosdate'] ?? ''),
+            'bioslock'       => (string)($g['bioslock'] ?? ''),
+            'bioslockmethod' => (string)($g['bioslockmethod'] ?? ''),
+            'systemuuid'     => (string)($g['systemuuid'] ?? ''),
+            'drive_count'    => count($drives),
+            'drives'         => $drives,
+        ];
+        if ((string)$r['uploaded_at'] < $devices[$key]['first']) $devices[$key]['first'] = (string)$r['uploaded_at'];
+        if ((string)$r['uploaded_at'] > $devices[$key]['last'])  $devices[$key]['last']  = (string)$r['uploaded_at'];
+    }
+
+    // Fold completed MDM (Autopilot) checks into the same machine history so
+    // the Devices tab shows when each check ran and what it concluded,
+    // alongside the diagnostics snapshots and erasure reports. queued/running
+    // jobs are still live (shown in the MDM column), not history.
+    if (function_exists('mdm_ensure_schema')) mdm_ensure_schema();
+    try {
+        $stmt = db()->prepare("SELECT id, serial, uuid, status, verdict, source, detail, updated_at, created_at FROM mdm_jobs WHERE user_id = ? AND status IN ('done','failed','aborted') ORDER BY updated_at DESC, id DESC");
+        $stmt->execute([$userId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $j) {
+            $s = strtolower(trim((string)$j['serial']));
+            $u = strtolower(trim((string)$j['uuid']));
+            $key = ($s !== '' && isset($devices[$s])) ? $s : (($u !== '' && isset($devices[$u])) ? $u : '');
+            if ($key === '') continue;   // only fold into a known machine
+            $ts = (string)($j['updated_at'] ?? '');
+            if ($ts === '' || $ts === '0000-00-00 00:00:00') $ts = (string)$j['created_at'];
+            $devices[$key]['history'][] = [
+                'report_type' => 'mdm',
+                'id'          => (int)$j['id'],
+                'uploaded_at' => ts_local($ts),
+                'mdm_status'  => (string)$j['status'],
+                'mdm_verdict' => (string)$j['verdict'],
+                'mdm_source'  => (string)$j['source'],
+                'mdm_detail'  => (string)$j['detail'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('mdm fold history error: ' . $e->getMessage());
+    }
+
+    // Chronological, newest first (diagnostics + erasure + MDM interleaved).
+    foreach ($devices as &$d) {
+        usort($d['history'], function ($a, $b) {
+            $c = strcmp((string)($b['uploaded_at'] ?? ''), (string)($a['uploaded_at'] ?? ''));
+            if ($c !== 0) return $c;
+            $ia = (int)($a['id'] ?? $a['pdf_id'] ?? 0);
+            $ib = (int)($b['id'] ?? $b['pdf_id'] ?? 0);
+            return $ib - $ia;
+        });
+        unset($d);
+    }
+
     $out = array_values($devices);
     $presence = presence_map($userId);
     foreach ($out as $k => $dv) {
@@ -1408,6 +1560,15 @@ function load_devices(int $userId): array {
             'biosversion'    => (string)($p['bios_version'] ?? ''),
             'biosdate'       => (string)($p['bios_date'] ?? ''),
             'systemuuid'     => (string)($p['uuid'] ?? $reg['uuid']),
+            'family'         => (string)($p['family'] ?? ''),
+            'board_product'  => (string)($p['board_product'] ?? ''),
+            'board_version'  => (string)($p['board_version'] ?? ''),
+            'system_version' => (string)($p['system_version'] ?? ''),
+            'tpm_ekpub'      => (string)($p['tpm_ekpub'] ?? ''),
+            'tpm_getcap'     => (string)($p['tpm_getcap'] ?? ''),
+            'tpm_caps'       => (string)($p['tpm_caps'] ?? ''),
+            'product_key'    => (string)($p['product_key'] ?? ''),
+            'product_key_id' => product_key_id_from_key((string)($p['product_key'] ?? '')),
             'bioslock'       => (string)($p['bios_lock'] ?? ''),
             'bioslockmethod' => (string)($p['bios_lock_method'] ?? ''),
             'cpu'            => (string)($p['cpu'] ?? ''),

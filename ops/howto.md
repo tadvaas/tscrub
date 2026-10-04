@@ -270,19 +270,20 @@ UEFI firmware (Secure Boot ON)
 
 Key material (build host, never committed):
 
-- `~/.tscrub-mok/mok.key` — MOK private key (mode 600). Signs GRUB + kernel.
-- `~/.tscrub-mok/mok.crt` — MOK certificate (PEM).
-- `~/.tscrub-mok/ENROLL_THIS_KEY_IN_MOK_MANAGER.cer` — DER form, shipped **on the
+- `~/ipxe-sb/vendor.key` — MOK private key (mode 600). Signs GRUB + kernel — the
+  **same key that signs the PXE network-boot kernel**.
+- `~/ipxe-sb/vendor.crt` — MOK certificate (PEM, `CN=My iPXE Vendor Key`).
+- `~/ipxe-sb/ENROLL_THIS_KEY_IN_MOK_MANAGER.cer` — DER form, shipped **on the
   ISO** for first-boot enrolment.
 
-Generate once:
+Generate once (already exists — this is the PXE/ShredOS kernel signing key):
 
 ```sh
-mkdir -p ~/.tscrub-mok && cd ~/.tscrub-mok
-openssl genrsa -out mok.key 2048
-openssl req -x509 -new -nodes -key mok.key -subj "/CN=tScrub Secure Boot Key/" -days 3650 -out mok.crt
-openssl x509 -in mok.crt -outform DER -out ENROLL_THIS_KEY_IN_MOK_MANAGER.cer
-chmod 600 mok.key
+mkdir -p ~/ipxe-sb && cd ~/ipxe-sb
+openssl genrsa -out vendor.key 2048
+openssl req -x509 -new -nodes -key vendor.key -subj "/CN=My iPXE Vendor Key/" -days 3650 -out vendor.crt
+openssl x509 -in vendor.crt -outform DER -out ENROLL_THIS_KEY_IN_MOK_MANAGER.cer
+chmod 600 vendor.key
 ```
 
 This key is **separate** from the licence vendor key (`vendor.key`, Ed25519) and
@@ -527,7 +528,7 @@ hash matches, and the report is attributed.
 | Key | Location (server) | Purpose |
 |---|---|---|
 | Vendor licence key | `~/webs/tscrub-form/vendor.key` (+ `vendor-public-key.pem`) | Signs licence envelopes |
-| MOK key | `~/.tscrub-mok/mok.{key,crt}` | Signs appliance GRUB + kernel |
+| MOK key | `~/ipxe-sb/vendor.{key,crt}` (shared with PXE) | Signs appliance GRUB + kernel |
 | PDF signing key | `~/webs/tscrub-form/sign.{crt,key}` | X.509-signs paid certificate PDFs |
 | DB / SMTP creds | `~/webs/tscrub-form/config.json` | Backend secrets |
 

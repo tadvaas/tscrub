@@ -23,23 +23,29 @@ is automatic.
 
 ## Key material
 
-- **MOK private key:** `~/.tscrub-mok/mok.key` on the build host (mode 600). It
-  signs *code* (GRUB + kernel) — **never** ship or commit it. Losing it means
-  re-issuing + re-enrolling; leaking it lets anyone sign bootloaders trusted by
-  every enrolled machine.
-- **MOK certificate:** `~/.tscrub-mok/mok.crt` (PEM) + the DER form
-  `ENROLL_THIS_KEY_IN_MOK_MANAGER.cer` that ships **on the ISO** for enrollment.
+- **MOK private key:** `~/ipxe-sb/vendor.key` on the build host (mode 600) — the
+  **same key that signs the PXE network-boot kernel**. It signs *code*
+  (GRUB + kernel) — **never** ship or commit it. Losing it means re-issuing +
+  re-enrolling; leaking it lets anyone sign bootloaders trusted by every
+  enrolled machine.
+- **MOK certificate:** `~/ipxe-sb/vendor.crt` (PEM, `CN=My iPXE Vendor Key`) +
+  the DER form `ENROLL_THIS_KEY_IN_MOK_MANAGER.cer` (already present in
+  `~/ipxe-sb/`) that ships **on the ISO** for enrollment.
 - This key is **separate** from the licence vendor key (`vendor.key`, Ed25519)
   and the PDF signing key (`sign.key`, X.509).
+- **Retired:** the old dedicated `~/.tscrub-mok/mok.key` (`CN=tScrub Secure Boot
+  Key`). The ISO and PXE now share the iPXE vendor key, so a machine enrols a
+  single MOK for both boot paths.
 
-One-time generation (on the build host):
+One-time generation (on the build host) — only if `~/ipxe-sb/vendor.key` doesn't
+exist (it already does; it's the key that signs the PXE/ShredOS kernels):
 
 ```bash
-mkdir -p ~/.tscrub-mok && cd ~/.tscrub-mok
-openssl genrsa -out mok.key 2048
-openssl req -x509 -new -nodes -key mok.key -subj "/CN=tScrub Secure Boot Key/" -days 3650 -out mok.crt
-openssl x509 -in mok.crt -outform DER -out ENROLL_THIS_KEY_IN_MOK_MANAGER.cer
-chmod 600 mok.key
+mkdir -p ~/ipxe-sb && cd ~/ipxe-sb
+openssl genrsa -out vendor.key 2048
+openssl req -x509 -new -nodes -key vendor.key -subj "/CN=My iPXE Vendor Key/" -days 3650 -out vendor.crt
+openssl x509 -in vendor.crt -outform DER -out ENROLL_THIS_KEY_IN_MOK_MANAGER.cer
+chmod 600 vendor.key
 ```
 
 ## Build integration
@@ -72,7 +78,7 @@ prebuilt `grubx64.efi`. Refresh shim/MokManager only when they change (rare):
 ```bash
 cp -Lf /usr/lib/shim/shimx64.efi.signed ~/shredos.x86_64/board/shredos/shimx64.efi
 cp -f /usr/lib/shim/mmx64.efi ~/shredos.x86_64/board/shredos/mmx64.efi
-cp -f ~/.tscrub-mok/ENROLL_THIS_KEY_IN_MOK_MANAGER.cer ~/shredos.x86_64/board/shredos/
+cp -f ~/ipxe-sb/ENROLL_THIS_KEY_IN_MOK_MANAGER.cer ~/shredos.x86_64/board/shredos/
 ```
 
 > Gotcha: `sbsign` (and earlier in-place signing experiments) can silently strip
@@ -120,7 +126,7 @@ CSM/Legacy boot) — the BIOS path is unaffected by all of this.
 
 ## Key rotation
 
-If `mok.key` is compromised or expires, generate a new key/cert, rebuild, and
+If `vendor.key` is compromised or expires, generate a new key/cert, rebuild, and
 publish. Existing machines keep working (their enrolled MOK is not tied to this
 keypair's lifetime), but they should enrol the new cert on the next major image
 refresh. See `ops/vendor-key-rotation.md` for the analogous licence-key runbook.

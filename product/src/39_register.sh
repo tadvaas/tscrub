@@ -50,6 +50,15 @@ register::json_body() {
         "$(report::_json_field "${SYS_BOARD:-}")" \
         "$(report::_json_field "${SYS_BASEBOARD_SERIAL:-}")" \
         "$(report::_json_field "${SYS_TPM:-}")"
+    printf ',"family":"%s","board_product":"%s","board_version":"%s","system_version":"%s","tpm_ekpub":"%s","tpm_getcap":"%s","tpm_caps":"%s","product_key":"%s"' \
+        "$(report::_json_field "${SYS_FAMILY:-}")" \
+        "$(report::_json_field "${SYS_BOARD_PRODUCT:-}")" \
+        "$(report::_json_field "${SYS_BOARD_VERSION:-}")" \
+        "$(report::_json_field "${SYS_SYSTEM_VERSION:-}")" \
+        "$(report::_json_field "${SYS_TPM_EKPUB:-}")" \
+        "$(report::_json_field "${SYS_TPM_GETCAP:-}")" \
+        "$(report::_json_field "${SYS_TPM_CAPS:-}")" \
+        "$(report::_json_field "${SYS_MSDM_KEY:-}")"
     printf ',"macs":"%s","storage_controllers":"%s","tool_version":"%s"' \
         "$(report::_json_field "${SYS_MAC_LIST:-}")" \
         "$(report::_json_field "${SYS_STORAGE_CTRLS:-}")" \

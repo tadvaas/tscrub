@@ -51,13 +51,18 @@ smart::run() {
     else
         "$@" >"$tmp" 2>/dev/null &
         local pid=$!
-        ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) &
+        # Watchdog: after $secs, SIGKILL the command. Its own stdout/stderr are
+        # sent to /dev/null so a surviving `sleep` cannot keep the caller's
+        # command-substitution pipe open. The watchdog is reaped with SIGKILL
+        # (not SIGTERM) because bash defers SIGTERM while blocked on a
+        # foreground `sleep`, which would otherwise stall `wait` for $secs.
+        ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
         local wd=$!
         wait "$pid" 2>/dev/null
         rc=$?
         # 137 = killed by our watchdog -> timeout.
         [[ "$rc" == "137" ]] && rc=124
-        kill "$wd" 2>/dev/null
+        kill -9 "$wd" 2>/dev/null
         wait "$wd" 2>/dev/null
     fi
 

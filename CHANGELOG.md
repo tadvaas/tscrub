@@ -6,6 +6,263 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.16] - 2026-10-04
+
+### Added
+
+- **HPA/DCO hidden-area removal before erasure** — the appliance now resets the
+  ATA Host Protected Area (HPA) and Device Configuration Overlay (DCO) to
+  native size before the ATA security erase, so hidden sectors at the tail of
+  the drive are sanitised instead of surviving the wipe. `--dco-restore` runs
+  first (DCO caps the HPA ceiling), then `hdparm -N p<native>` raises the max
+  addressable sector, and both are re-read to confirm. On by default;
+  `--hpa off` / `tscrub_hpa=off` disables it. Result recorded per drive as
+  `HPAResult` / `DCOResult` in `removed | firmware-erased | none | failed` —
+  enhanced security erase and NVMe sanitize already erase the area at firmware
+  level, so a failed reset there is `firmware-erased` (data-safe), not a risk;
+  a `failed` result on a normal secure erase flags "data may remain" on the
+  finish screen, the dashboard Drives page, and the certificate PDF.
+  Best-effort — never aborts the wipe; dry runs never write.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.16_2025.11_30_x86-64_v0.41_20261004-da35fb8f.iso`
+  (165 MB) sha256 `cce333b8be75696dc4793244c480316c48355dded08a61979066199985f02a92`.
+- Standalone script `tscrub.sh` (v1.10.16) sha256 `2c0099295a0ed308186728bec7960b7b629bb2a2c0f9cd5132ad00be5f9f1c77`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `fcc147b4675270ef0f0ba42affd380be61a982072c4a2a8bc3eababed20e70d3`.
+
+## [v1.10.15] - 2026-10-04
+
+### Added
+
+- **Post-erasure verification (sampled read-back)** — the appliance now proves
+  the wipe reached the media instead of asserting it from command completion.
+  Before erasing, a per-run sentinel (nonce + LBA) is written to an 8-sector
+  window at 5 fixed positions (first, 25%, 50%, 75%, tail) and flushed; after
+  the wipe those sectors are re-read and the sentinel must be gone. Modes
+  `none` / `sampled` (default) / `full`, set via `--verify` or
+  `tscrub_verify=`. Only `COMPLETED` drives are scored — `FAILED`/`BLOCKED`/
+  `FROZEN` drives record `n/a` (their sentinel legitimately survives). Flows
+  through the report CSV (`Verify`, `VerifySectors`, `VerifyResult`), the signed
+  manifest (`verify`), the finish screen, the dashboard Drives page, and the
+  certificate PDF (page-1 "Verification" line + Annex A "Verified" column).
+  Honest claim: "N sectors re-read, sentinel not found" — never "entire drive
+  verified".
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.15_2025.11_30_x86-64_v0.41_20261004-72c38760.iso`
+  (165 MB) sha256 `3266353d3d3a8e9d8ce755ece3a98585c25d8b9cadb79f331f670257f21904a1`.
+- Standalone script `tscrub.sh` (v1.10.15) sha256 `06db2c8c8f559f5ff89996dea6fcc4e2ea50d772dc44309e8c8d3c999683c753`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `a0c4d68b3a094614b2d18fff2c3797a87308dc7536543c16f51028cbd982c64f`.
+
+## [v1.10.14] - 2026-10-03
+
+### Added
+
+- **Remote erasure** — the dashboard can now start an erasure on a booted
+  appliance remotely. The Operations modal gains a "Remote erasure" form
+  (dry-run toggle + all-drives or per-serial scope, with a destructive
+  confirm), which queues a `wipe` command through the same `device_commands`
+  pull queue as remote power. The appliance stages the request to a marker
+  file, shows a 5-second grace prompt on the console ("press any key to
+  cancel"), then runs the normal erasure workflow against the requested drives
+  (respecting the dry-run flag). The form is gated fail-closed to online
+  appliances on v1.10.14+ that are not already wiping.
+
+### Fixed
+
+- The SMART timeout watchdog could stall for its full timeout on hosts without
+  a `timeout` binary (macOS dev/test): `kill`ing the watchdog subshell with
+  SIGTERM is deferred by bash while it waits on the foreground `sleep`, so the
+  guard outlived the command. The watchdog now runs detached from the
+  caller's pipe and is reaped with SIGKILL, so a completed SMART read returns
+  immediately. (Test-suite runtime dropped from ~100 s to ~19 s.)
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.14_2025.11_30_x86-64_v0.41_20261003-7e82df9b.iso`
+  (165 MB) sha256 `77fcda25fa55caba85bfe36a5be332c7ae3aaeb59d5a11e5b79bd534a76bfff2`.
+- Standalone script `tscrub.sh` (v1.10.14) sha256 `243c3f64a05968388089a82984b758addcea9276eb5c850f3a12fc325c7bf2d9`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `2db002aa142b8699407f80289866a23a22477a3724ac572224c5507259c785ca`.
+
+## [v1.10.13] - 2026-10-03
+
+### Added
+
+- **Remote power** — the dashboard can now shut down or restart a booted
+  appliance. It follows the same pull model as remote BIOS unlock: the dashboard
+  stages a command (`POST /api/devices/commands`), and a new appliance worker
+  (`42_remote.sh`) polls `/api/devices/commands/pending` every 10 s and executes
+  it. A command is never run while a wipe is in progress — it stays staged (or
+  reports `deferred`) until the device is idle, so a remote power-off can never
+  brick a drive mid-sanitise or lose a report.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.13_2025.11_30_x86-64_v0.41_20261003-2eda3738.iso`
+  (165 MB) sha256 `7182f49bafff0096adb19980386a88933539688621896fa63db45a10af5d6890`.
+- Standalone script `tscrub.sh` (v1.10.13) sha256 `f7b6babbc96bde1f2721a5428fd41261571ecbae692c156b042fa6038d4249ba`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `8675564fe8dd44336d8be01156f9afa095104d69706e9307b45263d683d57f8d`.
+
+## [v1.10.12] - 2026-10-03
+
+### Changed
+
+- **Continuous MDM polling** — the MDM worker now polls `/api/mdm/status` for
+  the entire session (every 10 s) instead of stopping once the verdict settles,
+  so the Runtime panel tracks the dashboard in real time. A transient network
+  drop flips the panel to "Offline" and it recovers automatically when the link
+  returns.
+- **WinPE removed from the release ISO** — the Windows PE "Autopilot Capture"
+  payload, its boot-menu entries, and the BIOS chainload plumbing are gone. The
+  ISO no longer bundles a ~900 MB WinPE partition, and the appended writeable
+  FAT partition is now 64 MB (MOK cert + report/licence files only).
+- **Boots straight into tScrub** — GRUB and isolinux now use a zero timeout and
+  default straight to tScrub, so a written USB boots directly into the appliance
+  with no boot menu (memtest/nomodeset entries remain in the config files for
+  recovery).
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.12_2025.11_30_x86-64_v0.41_20261003-8b089d70.iso`
+  (165 MB) sha256 `aa1b3cefb80e3dee044a416cb3a7b3db572e3ee12d0b154edb4628c0031e7e3a`.
+- Standalone script `tscrub.sh` (v1.10.12) sha256 `c2677517924213a84e32c0e70891ea2668b0fedb72f31cf2f6cbb93d57362fff`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `40f44fde8e7e3b0d6509c9f9e0cf3d8ded99c59ba261def56e0773d16e2f26a9`.
+
+## [v1.10.11] - 2026-10-03
+
+### Fixed
+
+- **MDM panel frozen at "Offline" after a boot-time network blip** — the MDM
+  worker is forked before device discovery, so its first network/POST attempt
+  could race a USB NIC / DHCP that was still coming up; on failure it published
+  `Offline` and stopped permanently, even though the parallel diagnostics report
+  (forked later, with retries) reached the dashboard moments later and the
+  server-side check ran to a verdict. The worker now retries `network::ensure`
+  (up to 6 times) and the initial `/api/mdm/autopilot` POST (up to 3 times)
+  before giving up, so the panel tracks the real verdict instead of a stale
+  "Offline".
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.11_2025.11_30_x86-64_v0.41_20261003-10fb211f.iso`
+  (1001 MB) sha256 `ed0479c8697fd0aea5829f06442776f93cf6fae5a42e487b54a33b1ccd386b1f`.
+- Standalone script `tscrub.sh` (v1.10.11) sha256 `fe92b0c63cbeece766e1bfa220e4c7bd86c473b796ab1156ca9bf9c3fa35cba4`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `b4c8afa6d6671951faddea94477c8dabd6dc4b970317b7ebc0be42e1d73a286a`.
+
+## [v1.10.10] - 2026-10-03
+
+### Added
+
+- **TPM 1.2 identity fields** — the appliance now collects the raw TPM 1.2
+  sysfs caps (`tpm_caps`, from `/sys/class/tpm/tpm0/caps`) so the type-13 TPM
+  descriptor can be derived off-device for TPM 1.2 machines (previously only
+  TPM 2.0 could derive it, from `tpm_getcap`). Flows through the diagnostics
+  report and the signed report manifest.
+- **tScrub-standalone MDM hash** — a diagnostics report is now sufficient to
+  run the Windows Autopilot MDM check: the server builds the full OAv3 "4K"
+  hardware hash from the report's own hardware fields
+  (`mdm_report_hash()` in `mdm.php` — identity records 7/8/11/12/13/14/15/16/
+  17/18/19/21/22/23/24/25) and stages it, so no WinPE `oa3tool` capture is
+  needed. The WinPE hash remains the preferred, authoritative source and is
+  never overwritten. Live-verified against Microsoft Graph: the generated hash
+  returns the same `ZtdDeviceAssignedToOtherTenant` verdict as the WinPE hash.
+- **MDM "Unchecked" state** — a device with a captured/generated hash but no
+  MDM job yet now shows **Unchecked** (info acquired, check never initiated)
+  instead of "No hash". Devices with no hash at all show `---`.
+
+### Fixed
+
+- **Appliance MDM panel stuck on `---`** — the runtime panel's MDM cell stopped
+  at `---` because the worker posted `/api/mdm/autopilot` before the parallel
+  diagnostics report had staged the hash, received `{verdict:"na"}`, and did
+  not poll. `na` is now a pollable state: the worker keeps polling
+  `/api/mdm/status` until a real verdict (or `Offline` after failed polls).
+- **TPM 2.0 descriptor derivation** — the appliance's `tpm2_getcap` emits a
+  `raw:`-style output that the original regexes mis-parsed (the type-13
+  descriptor came out as `Revision:IFX`). The parser now handles both the
+  `raw:` and the older `0x`/decimal styles.
+- **Hash-builder hardening** — the EK modulus is now validated (exactly 256
+  bytes; a truncated value is dropped instead of emitted as a corrupt type
+  25/11); the disk serial is no longer whitespace-trimmed (its fixed-width
+  spaces are significant); and `/reports/diagnostics` rejects control
+  characters in serial/uuid (mirroring `/api/mdm/hash`).
+
+### Changed
+
+- The "No hash" MDM label is now `---` (server `mdm_status_label()`, the
+  appliance-facing endpoints, and the dashboard badge).
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.10_2025.11_30_x86-64_v0.41_20261003-b9657eaf.iso`
+  (1001 MB) sha256 `824fac814b2c7c81c5f999b7fa68f386d0480bca971a582fa09c0aa2088edc94`.
+- Standalone script `tscrub.sh` (v1.10.10) sha256 `92784b6221172cb3765843b37409fcc7539fca4e41de77e2ea87d147e2043dc0`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `79cc84e2d0e52bbd1ba2c4065b97486cb33d9661a23d52d75a76570726036a68`.
+
+## [v1.10.9] - 2026-10-03
+
+### Added
+
+- **Autopilot ProductKeyId (hash type 24)** — the appliance now collects the
+  OEM Windows product key from the MSDM ACPI table (`product_key`) so the
+  13-digit OA3 ProductKeyId can be derived off-device. The ProductKeyId is
+  computed with the PKey2009 algorithm (the key's single `N` is a positional
+  marker: its 0-based position is the first base-24 digit; the other 24 chars
+  decode with `BCDFGHJKMPQRTVWXY2346789`; Group = bits 0–19, Serial = bits
+  20–49; ProductKeyId = group + 9-digit serial). It is derived server-side
+  (`product_key_id_from_key()` in `reports_lib.php`, stored as
+  `product_key_id`) and by the off-device hash generator (`oa3hash_min.py`),
+  which now emits record type 24. Validated byte-exact against three real
+  MSDM keys and their `oa3tool.exe` captures.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.9_2025.11_30_x86-64_v0.41_20261003-05bb401c.iso`
+  (1001 MB) sha256 `4e28a42a41728914df79da5d2f5be6b2992d9e12863135676cf110b8f01a8d7b`.
+- Standalone script `tscrub.sh` (v1.10.9) sha256 `5a0d8203c0575bfa8ff5a1b443c536c49b1ad0736cc74fdd4ca808ccf48d8782`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `df9c770ef9528d256318f2937982e23b43130da70bac9e003fad24464ae69a2d`.
+
+## [v1.10.8] - 2026-10-03
+
+### Added
+
+- **Autopilot 4K-hash identity capture** — the appliance now collects the
+  hardware fields needed to build a Windows Autopilot "4K" hardware hash
+  off-device: SMBIOS `family`, `board_product`, `board_version` and
+  `system_version`, plus the TPM 2.0 endorsement-key modulus (`tpm_ekpub`) and
+  the raw `tpm2_getcap` output (`tpm_getcap`). These flow through the
+  diagnostics report and the signed report manifest. The kernel now ships TCG
+  TPM drivers and `tpm2-tools`/`tpm2-tss`, so the TPM fields populate on
+  TPM 2.0 machines (empty on TPM 1.2 / no-TPM, matching oa3tool).
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.8_2025.11_30_x86-64_v0.41_20261003-5e6202df.iso`
+  (1001 MB) sha256 `35c6bd436568d4b1027f63590fac27f13e8bb202a8024639486bbf8662143093`.
+- Standalone script `tscrub.sh` (v1.10.8) sha256 `bc1122f331e050bb709cabbcaa76f684907262dd375f830ca8dd6178d7842c1a`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ebca78c4d192e06e53a6d40577e597abe00405f02c4cdc7ad282cd6066d982e5`.
+
+## [v1.10.7] - 2026-10-02
+
+### Fixed
+
+- **Report upload lost on a transient TLS blip** — `report::upload_http` now
+  retries transient transport failures (`--retry 3 --retry-delay 2
+  --retry-connrefused --retry-all-errors`). A single mid-handshake reset
+  (`curl: (35) "unexpected eof while reading"`) previously failed the upload
+  immediately, and on a PXE boot (no writable USB fallback) the report stayed in
+  RAM — lost on reboot. Re-sends are safe: the dashboard dedups reports by CSV
+  SHA. The `curl: (60)` → `-k` clock-skew fallback is preserved.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.7_2025.11_30_x86-64_v0.41_20261002-21b268c0.iso`
+  (1000 MB) sha256 `f6222cd0881b24d764b46b7f4b5dee867cad05711be503bca353e28456b19cad`.
+- Standalone script `tscrub.sh` (v1.10.7) sha256 `f2a49efb7b4b5cc549cd86faa3caf5d1f6ba64e714ca7e4e950ed83b5f5712ea`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `70701e68bc33ca1a6466dc3954710093de796c0d069b8a6e948dec797d4bb9aa`.
+
 ## [v1.10.6] - 2026-10-02
 
 ### Fixed

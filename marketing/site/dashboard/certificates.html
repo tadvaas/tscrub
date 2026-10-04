@@ -61,6 +61,11 @@
     <div class="mt-8">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Certificates of destruction</h2>
       <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Every certificate on your account — one consolidated certificate per Chain of Custody ID.</p>
+      <div class="mt-4 flex items-center gap-2">
+        <input id="cert-search" type="text" placeholder="Search certificates — ID or Chain of Custody…" autocomplete="off"
+               class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
+        <button type="button" id="cert-search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
+      </div>
       <div class="mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
         <div id="cert-list"></div>
         <div id="cert-pager" class="mt-3"></div>
@@ -131,6 +136,21 @@
         loadCocids();
         loadCerts();
         loadSigningKey();
+      });
+
+      var certQ = '';
+      var certSearch = document.getElementById('cert-search');
+      var certClear = document.getElementById('cert-search-clear');
+      certSearch.addEventListener('input', function () {
+        certQ = certSearch.value;
+        certClear.classList.toggle('hidden', !certQ);
+        loadCerts(1);
+      });
+      certClear.addEventListener('click', function () {
+        certSearch.value = '';
+        certQ = '';
+        certClear.classList.add('hidden');
+        loadCerts(1);
       });
 
       function loadCocids() {
@@ -302,7 +322,8 @@
         page = page || 1;
         var list = document.getElementById('cert-list');
         list.classList.add('opacity-50');
-        fetch('/api/certs?page=' + page).then(function (r) {
+        var params = new URLSearchParams({ page: String(page), q: certQ });
+        fetch('/api/certs?' + params.toString()).then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
           return r.json();
         }).then(function (d) {

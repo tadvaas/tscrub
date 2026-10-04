@@ -29,7 +29,7 @@ report::_where() {
 }
 
 report::csv() {
-    local now report_file outdir rel
+    local now report_file outdir rel runid
     now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     # Group reports under reports/<COCID>/ so a busy stick stays tidy and each
     # Chain of Custody run is easy to find. COCID is validated to 5 digits.
@@ -38,7 +38,10 @@ report::csv() {
     if [[ ! -d "$outdir" ]]; then
         mkdir -p "$outdir" 2>/dev/null || outdir="$REPORT_DIR"
     fi
-    report_file="$outdir/${SCRIPT_NAME}_${COCID}_$(date -u +%Y%m%dT%H%M%SZ).csv"
+    # Sub-second uniqueness: two erasure cycles (or two dry-runs) can finish
+    # within the same second, which would otherwise overwrite the first report.
+    runid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null || printf '%s' "$$")"
+    report_file="$outdir/${SCRIPT_NAME}_${COCID}_$(date -u +%Y%m%dT%H%M%SZ)_${runid%%-*}.csv"
 
     # Machine profile (one value per machine, repeated on every drive row so the
     # CSV is self-contained and the server can attribute each drive to its host).
@@ -61,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult"
         for dev in "${devices[@]}"; do
             local st en dur sed_status
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -89,11 +92,14 @@ report::csv() {
                 "${SYS_UUID:-N/A}" "${BIOS_DETECTION_METHOD:-N/A}" \
                 "${devrow[$dev.start_at]}" "${devrow[$dev.end_at]}" "$dur" \
                 "${devrow[$dev.firmware]}" "${secsize[$dev]:-}" "${sectors[$dev]:-}" \
-                "${hpa[$dev]:-}" "${dco[$dev]:-}" "$sed_status" \
+                "${hpa[$dev]:-}" "${dco[$dev]:-}" \
+                "${devrow[$dev.hpa_result]:-n/a}" "${devrow[$dev.dco_result]:-n/a}" \
+                "$sed_status" \
                 "${devrow[$dev.realloc_post]}" "${devrow[$dev.selftest]}" \
                 "$sys_sku" "$sys_asset" "$sys_bios_vendor" "$sys_board" "$sys_tpm" \
                 "$sys_macs" "$sys_ctrls" "$sys_toolver" \
-                "$sys_operator" "$sys_validator" "$sys_media_src" "$sys_media_dst"
+                "$sys_operator" "$sys_validator" "$sys_media_src" "$sys_media_dst" \
+                "${VERIFY_MODE:-none}" "${devrow[$dev.verify_sectors]:-}" "${devrow[$dev.verify_result]:-n/a}"
         done
     } > "$report_file"
 
@@ -245,8 +251,18 @@ report::sign() {
         printf '  "bios_vendor": "%s",\n' "$(report::_json_field "${SYS_BIOS_VENDOR:-N/A}")"
         printf '  "board": "%s",\n' "$(report::_json_field "${SYS_BOARD:-N/A}")"
         printf '  "tpm": "%s",\n' "$(report::_json_field "${SYS_TPM:-N/A}")"
+        printf '  "family": "%s",\n' "$(report::_json_field "${SYS_FAMILY:-N/A}")"
+        printf '  "board_product": "%s",\n' "$(report::_json_field "${SYS_BOARD_PRODUCT:-N/A}")"
+        printf '  "board_version": "%s",\n' "$(report::_json_field "${SYS_BOARD_VERSION:-N/A}")"
+        printf '  "system_version": "%s",\n' "$(report::_json_field "${SYS_SYSTEM_VERSION:-N/A}")"
+        printf '  "tpm_ekpub": "%s",\n' "$(report::_json_field "${SYS_TPM_EKPUB:-}")"
+        printf '  "tpm_getcap": "%s",\n' "$(report::_json_field "${SYS_TPM_GETCAP:-}")"
+        printf '  "tpm_caps": "%s",\n' "$(report::_json_field "${SYS_TPM_CAPS:-}")"
+        printf '  "product_key": "%s",\n' "$(report::_json_field "${SYS_MSDM_KEY:-}")"
         printf '  "macs": "%s",\n' "$(report::_json_field "${SYS_MAC_LIST:-N/A}")"
         printf '  "storage_controllers": "%s",\n' "$(report::_json_field "${SYS_STORAGE_CTRLS:-N/A}")"
+        printf '  "verify": "%s",\n' "$(report::_json_field "${VERIFY_MODE:-none}")"
+        printf '  "hpa": "%s",\n' "$(report::_json_field "${HPA_MODE:-on}")"
         printf '  "selected": %s,\n' "$(report::selected_count)"
         printf '  "skipped": %s\n' "$(report::skipped_count)"
         printf '}\n'
@@ -559,6 +575,14 @@ config::load_usb() {
                         tscrub_media_destination)
                             [[ -z "${MEDIA_DESTINATION:-}" ]] && MEDIA_DESTINATION="$val"
                             CONFIG_USB_DEBUG+="  tscrub_media_destination: set"$'\n'
+                            ;;
+                        tscrub_verify)
+                            [[ -z "${VERIFY_MODE:-}" ]] && VERIFY_MODE="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_verify: set"$'\n'
+                            ;;
+                        tscrub_hpa)
+                            [[ -z "${HPA_MODE:-}" ]] && HPA_MODE="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_hpa: set"$'\n'
                             ;;
                         *)
                             CONFIG_USB_DEBUG+="  ignored key: ${key}"$'\n'
@@ -1005,7 +1029,13 @@ report::upload_http() {
     url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
     token="$TSCRUB_API_TOKEN"
 
-    args=(-fsS --connect-timeout 10 --max-time 60 -H "X-Api-Token: $token" -F "reports[]=@$file" -F "reports[]=@$manifest")
+    # Retry transient transport failures (TLS reset/timeout/5xx) before giving
+    # up: the upload is idempotent server-side (reports are deduped by CSV SHA),
+    # so a re-send is safe. `--retry-all-errors` is what catches curl (35)
+    # ("unexpected eof while reading") — a single mid-handshake reset that the
+    # default transient list does NOT retry, and which on a PXE boot (no USB
+    # fallback) would otherwise lose the report entirely.
+    args=(-fsS --connect-timeout 10 --max-time 60 --retry 3 --retry-delay 2 --retry-connrefused --retry-all-errors -H "X-Api-Token: $token" -F "reports[]=@$file" -F "reports[]=@$manifest")
     [[ -f "$sig" ]] && args+=(-F "reports[]=@$sig")
 
     printf "%sUploading report to %s...\n" "$TABLE_INDENT" "$url" >&5
@@ -1151,6 +1181,37 @@ report::print_summary() {
     fi
     if [[ -n "${TSCRUB_NET_PROTO:-}" ]]; then
         printf "%s  %-14s %s\n" "$TABLE_INDENT" "${netlabel}:" "$net"
+    fi
+
+    # Post-erasure verification outcome, so the operator sees it on the finish
+    # screen without opening the CSV. Shown only when verification actually ran.
+    if [[ "${VERIFY_MODE:-none}" != "none" ]]; then
+        local dev
+        printf "%sVerification:\n" "$TABLE_INDENT"
+        for dev in "${devices[@]}"; do
+            [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
+            printf "%s  %-10s %s (%s sectors)\n" "$TABLE_INDENT" "$dev:" \
+                "${devrow[$dev.verify_result]:-n/a}" "${devrow[$dev.verify_sectors]:-0}"
+        done
+    fi
+
+    # HPA/DCO hidden-area outcome — shown only when non-trivial (a detected
+    # area was removed, covered by firmware, or left behind as a residual risk).
+    local hpa_note=0 _r
+    for dev in "${devices[@]}"; do
+        for _r in "${devrow[$dev.hpa_result]:-}" "${devrow[$dev.dco_result]:-}"; do
+            case "$_r" in removed|firmware-erased|failed) hpa_note=1 ;; esac
+        done
+    done
+    if [[ "$hpa_note" -eq 1 ]]; then
+        printf "%sHPA/DCO:\n" "$TABLE_INDENT"
+        for dev in "${devices[@]}"; do
+            [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
+            local _hr="${devrow[$dev.hpa_result]:-n/a}" _dr="${devrow[$dev.dco_result]:-n/a}"
+            local _hint=""
+            [[ "$_hr" == "failed" || "$_dr" == "failed" ]] && _hint=" — data may remain"
+            printf "%s  %-10s HPA=%s DCO=%s%s\n" "$TABLE_INDENT" "$dev:" "$_hr" "$_dr" "$_hint"
+        done
     fi
 }
 

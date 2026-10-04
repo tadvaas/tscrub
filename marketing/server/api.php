@@ -45,6 +45,7 @@ require_once __DIR__ . '/reports_lib.php';
 require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/mdm.php';
 require_once __DIR__ . '/bios_unlock.php';
+require_once __DIR__ . '/remote.php';
 
 auth_start();
 
@@ -618,19 +619,33 @@ if ($method === 'POST' && $route === '/password/reset/confirm') {
     json_out(['ok' => true, 'message' => 'Password updated. Please sign in.']);
 }
 
-// GET /api/certs
+// GET /api/certs — search (q) over certificate ID / CoC ID, server-side paging.
 if ($method === 'GET' && $route === '/certs') {
     $u = auth_require();
+    $q = trim((string)($_GET['q'] ?? ''));
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = 20;
     $offset = ($page - 1) * $per;
-    $stmt = db()->prepare('SELECT COUNT(*) FROM certificates WHERE user_id = ?');
-    $stmt->execute([$u['id']]);
+
+    $where = 'user_id = ?';
+    $params = [(int)$u['id']];
+    $types = [PDO::PARAM_INT];
+    if ($q !== '') {
+        $where .= ' AND (LOWER(cert_id) LIKE ? OR LOWER(cocid) LIKE ?)';
+        $like = '%' . strtolower($q) . '%';
+        $params[] = $like; $types[] = PDO::PARAM_STR;
+        $params[] = $like; $types[] = PDO::PARAM_STR;
+    }
+
+    $stmt = db()->prepare("SELECT COUNT(*) FROM certificates WHERE $where");
+    foreach ($params as $i => $p) { $stmt->bindValue($i + 1, $p, $types[$i]); }
+    $stmt->execute();
     $total = (int)$stmt->fetchColumn();
-    $stmt = db()->prepare('SELECT * FROM certificates WHERE user_id = ? ORDER BY issued_at DESC LIMIT ? OFFSET ?');
-    $stmt->bindValue(1, $u['id'], PDO::PARAM_INT);
-    $stmt->bindValue(2, $per, PDO::PARAM_INT);
-    $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+
+    $stmt = db()->prepare("SELECT * FROM certificates WHERE $where ORDER BY issued_at DESC LIMIT ? OFFSET ?");
+    foreach ($params as $i => $p) { $stmt->bindValue($i + 1, $p, $types[$i]); }
+    $stmt->bindValue(count($params) + 1, $per, PDO::PARAM_INT);
+    $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
     $stmt->execute();
     $certs = array_map('cert_row', $stmt->fetchAll());
     json_out(['ok' => true, 'certs' => $certs, 'total' => $total, 'page' => $page, 'per' => $per]);
@@ -826,6 +841,11 @@ if ($method === 'POST' && $route === '/reports/diagnostics') {
     if (strlen($serial) > 255 || strlen($uuid) > 64) {
         fail(400, 'Field too long.');
     }
+    // Control characters would corrupt the OAv3 hash records (length framing)
+    // and log lines — reject up front, mirroring POST /api/mdm/hash.
+    if (preg_match('/[\x00-\x1f\x7f]/', $serial) === 1 || preg_match('/[\x00-\x1f\x7f]/', $uuid) === 1) {
+        fail(400, 'Invalid serial or uuid.');
+    }
 
     // Online now + legacy registration upsert (backward-compatible Devices-tab
     // triage merge), then the typed diagnostics report row.
@@ -834,14 +854,27 @@ if ($method === 'POST' && $route === '/reports/diagnostics') {
     device_register((int)$owner['id'], $serial, $uuid, $d);
     $id = store_diagnostics_report((int)$owner['id'], $d, $serial, $uuid);
 
-    // The diagnostics report is the device's ownership claim: attach any
-    // unassigned hash captured for it and start the MDM check. MDM is a paid
+    // The diagnostics report is the device's ownership claim and, with the
+    // tScrub-standalone strategy, also its MDM hash source. Two sources
+    // coexist: (1) a WinPE oa3tool hash uploaded via /api/mdm/hash (held in
+    // the global unassigned pool until this report claims it — authoritative,
+    // preferred, never overwritten), and (2) an OAv3 hash generated HERE from
+    // the report's own hardware fields (no WinPE needed). MDM is a paid
     // feature (one credit per live check), so the check only enqueues for an
-    // account that can afford it — the hash is still claimed so it is not left
-    // dangling in the global unassigned pool.
+    // account that can afford it; the hash is still staged either way.
     mdm_ensure_schema();
     $mdmGate = mdm_gate((int)$owner['id']);
-    if (mdm_claim_hash_for_user((int)$owner['id'], $serial, $uuid) && $mdmGate['allowed']) {
+    $haveHash = mdm_staged_hash((int)$owner['id'], $serial, $uuid) !== null
+             || mdm_claim_hash_for_user((int)$owner['id'], $serial, $uuid);
+    if (!$haveHash) {
+        $d['product_key_id'] = product_key_id_from_key((string)($d['product_key'] ?? ''));
+        $generated = mdm_report_hash($d);
+        if ($generated !== '') {
+            mdm_stage_hash((int)$owner['id'], $serial, $uuid, (string)($d['product'] ?? ''), $generated);
+            $haveHash = true;
+        }
+    }
+    if ($haveHash && $mdmGate['allowed'] && mdm_latest_job((int)$owner['id'], $serial, $uuid) === null) {
         mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
     }
 
@@ -1078,12 +1111,12 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
     if ($staged === null) {
         // A hash may exist but not yet be claimed by a diagnostics report (the
         // report upload moments later claims it and starts the check). Report
-        // "queued" so the appliance polls instead of a misleading "No hash".
+        // "queued" so the appliance polls instead of a misleading "---".
         if (mdm_has_unassigned_hash($serial, $uuid)) {
             json_out(['ok' => true, 'status' => 'queued', 'verdict' => '', 'source' => 'none', 'label' => 'Queued']);
         }
         mdm_log_probe((int)$owner['id'], $serial, $uuid, 'na', 'none', $ip);
-        json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na', 'label' => 'No hash']);
+        json_out(['ok' => true, 'verdict' => 'na', 'source' => 'none', 'status' => 'na', 'label' => '---']);
     }
 
     // MDM is a paid feature: free accounts can't check, and paid accounts spend
@@ -1350,6 +1383,144 @@ if ($method === 'POST' && $route === '/bios/unlock/cancel') {
     json_out(['ok' => true, 'cancelled' => unlock_cancel((int)$u['id'], $id)]);
 }
 
+// POST /api/devices/commands — stage a remote power command (dashboard). Session+CSRF.
+if ($method === 'POST' && $route === '/devices/commands') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $serial  = trim((string)($d['serial'] ?? ''));
+    $uuid    = trim((string)($d['uuid'] ?? ''));
+    $command = trim((string)($d['command'] ?? ''));
+
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+    if (!in_array($command, ['shutdown', 'reboot', 'wipe'], true)) {
+        fail(400, 'Command must be "shutdown", "reboot" or "wipe".');
+    }
+
+    $options = [];
+    if ($command === 'wipe') {
+        $raw = $d['options'] ?? null;
+        if ($raw !== null && !is_array($raw)) {
+            fail(400, 'Options must be an object.');
+        }
+        $options['dry_run'] = (bool)($raw['dry_run'] ?? false);
+        $drives = $raw['drives'] ?? 'all';
+        if ($drives === 'all') {
+            $options['drives'] = 'all';
+        } elseif (is_array($drives)) {
+            $clean = [];
+            foreach ($drives as $s) {
+                if (!is_string($s)) continue;
+                $s = trim($s);
+                if ($s === '' || strlen($s) > 255 || preg_match('/[\x00-\x1f\x7f]/', $s) === 1) continue;
+                $clean[] = $s;
+            }
+            if (count($clean) === 0) {
+                fail(400, 'No valid drives selected.');
+            }
+            $options['drives'] = $clean;
+        } else {
+            fail(400, 'Drives must be "all" or an array of serials.');
+        }
+    }
+
+    if (($command === 'shutdown' || $command === 'reboot') && remote_has_power_pending((int)$u['id'], $serial)) {
+        fail(409, 'A shutdown or restart is already pending for this device.');
+    }
+
+    $id = remote_enqueue((int)$u['id'], $serial, $uuid, $command, $options);
+    json_out(['ok' => true, 'id' => $id, 'staged' => true]);
+}
+
+// GET /api/devices/commands/pending?serial=&uuid= — appliance pulls a staged command.
+// API-token auth only.
+if ($method === 'GET' && $route === '/devices/commands/pending') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+
+    $cmd = remote_claim((int)$owner['id'], $serial);
+    if ($cmd === null) {
+        json_out(['ok' => true, 'pending' => false]);
+    }
+    json_out(['ok' => true, 'pending' => true, 'id' => $cmd['id'], 'command' => $cmd['command'], 'options' => $cmd['options']]);
+}
+
+// POST /api/devices/commands/result — appliance reports the outcome. API token.
+if ($method === 'POST' && $route === '/devices/commands/result') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $d = json_body();
+    $id     = (int)($d['id'] ?? 0);
+    $result = trim((string)($d['result'] ?? ''));
+    $detail = trim((string)($d['detail'] ?? ''));
+    if ($id <= 0) {
+        fail(400, 'Invalid command id.');
+    }
+    if (!in_array($result, ['done', 'failed', 'deferred'], true)) {
+        fail(400, 'Invalid result.');
+    }
+
+    remote_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255));
+    json_out(['ok' => true]);
+}
+
+// GET /api/devices/commands?serial= — latest command state (dashboard). Session auth.
+if ($method === 'GET' && $route === '/devices/commands') {
+    $u = auth_require();
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '') {
+        fail(400, 'Serial required.');
+    }
+    json_out(['ok' => true, 'command' => remote_latest((int)$u['id'], $serial)]);
+}
+
+// POST /api/devices/commands/cancel — cancel a still-pending command. Session+CSRF.
+if ($method === 'POST' && $route === '/devices/commands/cancel') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $id = (int)($d['id'] ?? 0);
+    if ($id <= 0) {
+        fail(400, 'Invalid command id.');
+    }
+    json_out(['ok' => true, 'cancelled' => remote_cancel((int)$u['id'], $id)]);
+}
+
 // POST /api/mdm/recheck — enqueue a fresh check for a captured device.
 // Session + CSRF (dashboard button).
 if ($method === 'POST' && $route === '/mdm/recheck') {
@@ -1396,10 +1567,69 @@ if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'reports' && $seg[1] =
 }
 
 // GET /api/devices — aggregated machine (hardware/firmware) inventory, with
-// the MDM (Autopilot) registry folded in per device.
+// the MDM (Autopilot) registry folded in per device. Search (q), sort (sort,
+// dir) and pagination (page, per) run server-side so the dashboard only ever
+// downloads the current page.
 if ($method === 'GET' && $route === '/devices') {
     $u = auth_require();
-    json_out(['ok' => true, 'devices' => mdm_fold_devices((int)$u['id'], load_devices((int)$u['id']))]);
+    $q = trim((string)($_GET['q'] ?? ''));
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per = min(100, max(1, (int)($_GET['per'] ?? 10)));
+    $sort = (string)($_GET['sort'] ?? 'status');
+    $dir = (($_GET['dir'] ?? '') === 'asc') ? 1 : -1;
+
+    $devices = remote_fold_devices((int)$u['id'], mdm_fold_devices((int)$u['id'], load_devices((int)$u['id'])));
+
+    // Free-text filter over the same fields the dashboard searches.
+    if ($q !== '') {
+        $needle = strtolower($q);
+        $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms'];
+        $devices = array_values(array_filter($devices, function ($d) use ($needle, $fields) {
+            foreach ($fields as $f) {
+                if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
+            }
+            return false;
+        }));
+    }
+
+    // Sort mirrors the dashboard: system/serial/bios are text, mdm/status are ranks.
+    $mdmRank = function (array $d): int {
+        $st = strtolower((string)($d['mdm_status'] ?? ''));
+        $v = strtolower((string)($d['mdm_verdict'] ?? ''));
+        $rep = strtolower((string)($d['mdm'] ?? ''));
+        $REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
+        if ($st === 'checking') return 90;
+        if ($st === 'queued') return 80;
+        if ($st === 'unchecked') return 10;
+        $verdict = in_array($v, $REAL, true) ? $v : (in_array($rep, $REAL, true) ? $rep : ($st === 'done' && $v === 'unknown' ? 'unknown' : ''));
+        $r = ['locked_other' => 70, 'locked_this' => 70, 'ms_error' => 60, 'hash_invalid' => 50, 'offline' => 40, 'unlocked' => 30, 'unknown' => 20];
+        return $r[$verdict] ?? 0;
+    };
+    $sortVal = function (array $d) use ($sort, $mdmRank) {
+        switch ($sort) {
+            case 'system': return strtolower((string)($d['system'] ?? $d['sysserial'] ?? ''));
+            case 'serial': return strtolower((string)($d['sysserial'] ?? ''));
+            case 'bios':   return strtolower((string)($d['bioslock'] ?? ''));
+            case 'mdm':    return $mdmRank($d);
+            case 'status': return !empty($d['online']) ? 1 : 0;
+        }
+        return '';
+    };
+    usort($devices, function ($a, $b) use ($sortVal, $dir) {
+        $va = $sortVal($a);
+        $vb = $sortVal($b);
+        $cmp = (is_int($va) && is_int($vb)) ? ($va <=> $vb) : strcmp((string)$va, (string)$vb);
+        return $dir * $cmp;
+    });
+
+    $total = count($devices);
+    json_out([
+        'ok'      => true,
+        'devices' => array_values(array_slice($devices, ($page - 1) * $per, $per)),
+        'total'   => $total,
+        'page'    => $page,
+        'per'     => $per,
+    ]);
 }
 
 // POST /api/devices/register — the appliance posts its identity + hardware +
@@ -1436,9 +1666,32 @@ if ($method === 'POST' && $route === '/devices/register') {
 }
 
 // GET /api/drives — aggregated storage-device inventory (erasure + SMART).
+// Search (q) and pagination (page, per) run server-side.
 if ($method === 'GET' && $route === '/drives') {
     $u = auth_require();
-    json_out(['ok' => true, 'drives' => load_drives((int)$u['id'])]);
+    $q = trim((string)($_GET['q'] ?? ''));
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per = min(100, max(1, (int)($_GET['per'] ?? 10)));
+
+    $drives = load_drives((int)$u['id']);
+    if ($q !== '') {
+        $needle = strtolower($q);
+        $fields = ['serial', 'model', 'size', 'type', 'status', 'method', 'bus', 'cocid', 'system', 'sysserial'];
+        $drives = array_values(array_filter($drives, function ($d) use ($needle, $fields) {
+            foreach ($fields as $f) {
+                if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
+            }
+            return false;
+        }));
+    }
+    $total = count($drives);
+    json_out([
+        'ok'     => true,
+        'drives' => array_values(array_slice($drives, ($page - 1) * $per, $per)),
+        'total'  => $total,
+        'page'   => $page,
+        'per'    => $per,
+    ]);
 }
 
 // GET /api/signing-key — vendor public key + fingerprint (authenticated only,
@@ -1498,16 +1751,27 @@ if ($method === 'GET' && $route === '/stripe/publishable-key') {
     json_out(['ok' => true, 'publishable_key' => (string)(stripe_settings()['publishable_key'] ?? '')]);
 }
 
-// GET /api/credits — device-credit balance + recent events.
+// GET /api/credits — device-credit balance + paged event history.
 if ($method === 'GET' && $route === '/credits') {
     $u = auth_require();
-    $stmt = db()->prepare('SELECT type, units, ref, created_at FROM credit_events WHERE user_id = ? ORDER BY id DESC LIMIT 20');
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per = min(100, max(1, (int)($_GET['per'] ?? 20)));
+    $offset = ($page - 1) * $per;
+
+    $stmt = db()->prepare('SELECT COUNT(*) FROM credit_events WHERE user_id = ?');
     $stmt->execute([(int)$u['id']]);
+    $total = (int)$stmt->fetchColumn();
+
+    $stmt = db()->prepare('SELECT type, units, ref, created_at FROM credit_events WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?');
+    $stmt->bindValue(1, (int)$u['id'], PDO::PARAM_INT);
+    $stmt->bindValue(2, $per, PDO::PARAM_INT);
+    $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $events = array_map(static function (array $ev): array {
         $ev['created_at'] = ts_local((string)($ev['created_at'] ?? ''));
         return $ev;
     }, $stmt->fetchAll());
-    json_out(['ok' => true, 'balance' => credit_balance((int)$u['id']), 'events' => $events]);
+    json_out(['ok' => true, 'balance' => credit_balance((int)$u['id']), 'events' => $events, 'total' => $total, 'page' => $page, 'per' => $per]);
 }
 
 // POST /api/stripe/webhook — Stripe event delivery (signature-verified, idempotent).

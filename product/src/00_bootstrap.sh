@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.10.6"
+SCRIPT_VERSION="v1.10.16"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -88,7 +88,15 @@ SYS_SKU=""
 SYS_ASSET_TAG=""
 SYS_BIOS_VENDOR=""
 SYS_BOARD=""
+SYS_FAMILY=""
+SYS_BOARD_PRODUCT=""
+SYS_BOARD_VERSION=""
+SYS_SYSTEM_VERSION=""
 SYS_TPM=""
+SYS_TPM_EKPUB=""
+SYS_TPM_GETCAP=""
+SYS_TPM_CAPS=""
+SYS_MSDM_KEY=""
 SYS_MAC_LIST=""
 SYS_STORAGE_CTRLS=""
 SYS_BATTERY=""
@@ -232,6 +240,46 @@ display::capture() {
     done
 }
 
+# TPM fields for off-device OAv3 4K hash building. The EK modulus (type 25) is
+# the raw RSA-2048 endorsement-key modulus; the raw tpm2_getcap output is used
+# to derive the type-13 "TPM-Version:..." descriptor off-device. Best-effort:
+# empty when tpm2-tools/openssl are absent (TPM 1.2 has no tpm2_readpublic EK
+# either, matching oa3tool's omission of type 25 for 1.2).
+system::tpm_ekpub() {
+    command -v tpm2_readpublic >/dev/null 2>&1 || return 1
+    command -v openssl >/dev/null 2>&1 || return 1
+    local _pem _handle _mod _ctx
+    _pem="$(mktemp /tmp/tscrub-ek.XXXXXX 2>/dev/null)" || return 1
+    for _handle in 0x81010001 0x81010003; do
+        tpm2_readpublic -c "$_handle" -f pem -o "$_pem" >/dev/null 2>&1 && break
+    done
+    if [[ ! -s "$_pem" ]] && command -v tpm2_createek >/dev/null 2>&1; then
+        _ctx="$(mktemp /tmp/tscrub-ekctx.XXXXXX 2>/dev/null)"
+        if [[ -n "$_ctx" ]] && tpm2_createek -c "$_ctx" -G rsa >/dev/null 2>&1; then
+            tpm2_readpublic -c "$_ctx" -f pem -o "$_pem" >/dev/null 2>&1 || true
+            rm -f "$_ctx"
+        fi
+    fi
+    _mod=""
+    if [[ -s "$_pem" ]]; then
+        _mod="$(openssl rsa -pubin -in "$_pem" -noout -modulus 2>/dev/null | sed 's/^Modulus=//')"
+    fi
+    rm -f "$_pem"
+    printf '%s' "${_mod,,}"
+}
+
+system::tpm_getcap_raw() {
+    command -v tpm2_getcap >/dev/null 2>&1 || return 1
+    tpm2_getcap properties-fixed 2>/dev/null | tr '\n' ';' | tr -d '\r'
+}
+
+system::msdm_key() {
+    local _msdm=/sys/firmware/acpi/tables/MSDM _key
+    [[ -r "$_msdm" ]] || return 1
+    _key="$(dd if="$_msdm" 2>/dev/null | grep -aoE '[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}' | head -n1)"
+    printf '%s' "$_key"
+}
+
 system::gather_info() {
     # Try dmidecode first (requires root)
     if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
@@ -250,6 +298,10 @@ system::gather_info() {
         SYS_BOARD="$(printf '%s %s' \
             "$(dmidecode -s baseboard-manufacturer 2>/dev/null | head -n1)" \
             "$(dmidecode -s baseboard-product-name 2>/dev/null | head -n1)")"
+        SYS_FAMILY="$(dmidecode -s system-family 2>/dev/null | head -n1 || echo N/A)"
+        SYS_BOARD_PRODUCT="$(dmidecode -s baseboard-product-name 2>/dev/null | head -n1 || echo N/A)"
+        SYS_BOARD_VERSION="$(dmidecode -s baseboard-version 2>/dev/null | head -n1 || echo N/A)"
+        SYS_SYSTEM_VERSION="$(dmidecode -s system-version 2>/dev/null | head -n1 || echo N/A)"
     else
         # Fallback to /sys/class/dmi/id/ (works on most Linux, even non-root)
         SYS_MANUFACTURER="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || echo N/A)"
@@ -267,6 +319,10 @@ system::gather_info() {
         SYS_BOARD="$(printf '%s %s' \
             "$(cat /sys/class/dmi/id/board_vendor 2>/dev/null)" \
             "$(cat /sys/class/dmi/id/board_name 2>/dev/null)")"
+        SYS_FAMILY="$(cat /sys/class/dmi/id/product_family 2>/dev/null || echo N/A)"
+        SYS_BOARD_PRODUCT="$(cat /sys/class/dmi/id/board_name 2>/dev/null || echo N/A)"
+        SYS_BOARD_VERSION="$(cat /sys/class/dmi/id/board_version 2>/dev/null || echo N/A)"
+        SYS_SYSTEM_VERSION="$(cat /sys/class/dmi/id/product_version 2>/dev/null || echo N/A)"
     fi
 
     [[ -n "${SYS_SERIAL//[[:space:]]/}" ]] || SYS_SERIAL="N/A"
@@ -284,7 +340,8 @@ system::gather_info() {
     local _v _val
     for _v in SYS_SERIAL SYS_BASEBOARD_SERIAL SYS_CHASSIS_SERIAL SYS_MANUFACTURER \
               SYS_PRODUCT SYS_CHASSIS_TYPE SYS_BIOS_VERSION SYS_BIOS_DATE \
-              SYS_SKU SYS_ASSET_TAG SYS_BIOS_VENDOR SYS_BOARD; do
+              SYS_SKU SYS_ASSET_TAG SYS_BIOS_VENDOR SYS_BOARD \
+              SYS_FAMILY SYS_BOARD_PRODUCT SYS_BOARD_VERSION SYS_SYSTEM_VERSION; do
         _val="${!_v}"
         case "${_val,,}" in
             ""|"not specified"|"none"|"unknown"|"to be filled by o.e.m."|"default string"|"system product name"|"system manufacturer"|"0")
@@ -294,7 +351,8 @@ system::gather_info() {
 
     # Free-text identifiers (SKU, asset tag, board, BIOS vendor) must never
     # break the report CSV: strip commas and collapse whitespace.
-    for _v in SYS_SKU SYS_ASSET_TAG SYS_BIOS_VENDOR SYS_BOARD; do
+    for _v in SYS_SKU SYS_ASSET_TAG SYS_BIOS_VENDOR SYS_BOARD \
+              SYS_FAMILY SYS_BOARD_PRODUCT SYS_BOARD_VERSION SYS_SYSTEM_VERSION; do
         _val="${!_v//,/ }"
         _val="$(printf '%s' "$_val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]][[:space:]]*/ /g')"
         printf -v "$_v" "%s" "$_val"
@@ -419,6 +477,19 @@ system::gather_info() {
     else
         SYS_TPM="N/A"
     fi
+
+    # TPM fields for off-device 4K hash building (type 25 EK modulus + raw
+    # tpm2_getcap output, from which the type-13 descriptor is derived
+    # off-device).  Best-effort: no tpm2-tools -> empty; TPM 1.2 -> no EK.
+    SYS_TPM_EKPUB="$(system::tpm_ekpub 2>/dev/null || true)"
+    SYS_TPM_GETCAP="$(system::tpm_getcap_raw 2>/dev/null || true)"
+    # TPM 1.2 sysfs caps (manufacturer / version / firmware) for the type-13
+    # descriptor; TPM 2.0 derives the descriptor from tpm_getcap instead.
+    SYS_TPM_CAPS="$(cat /sys/class/tpm/tpm0/caps 2>/dev/null | tr '\n' ';' | tr -d '\r')"
+
+    # OEM Windows product key from the MSDM ACPI table (for off-device
+    # ProductKeyId / hash type 24 derivation).
+    SYS_MSDM_KEY="$(system::msdm_key 2>/dev/null || true)"
 
     # Battery (laptops) — model / serial / state-of-charge / health / cycles.
     battery::capture
@@ -574,6 +645,22 @@ parse_args() {
                     *)             TSCRUB_AUTOPILOTCHECK=0 ;;
                 esac
                 ;;
+            --verify)
+                shift
+                [[ $# -gt 0 ]] || { echo "--verify requires none|sampled|full"; exit 1; }
+                VERIFY_MODE="$1"
+                ;;
+            --verify=*)
+                VERIFY_MODE="${arg#*=}"
+                ;;
+            --hpa)
+                shift
+                [[ $# -gt 0 ]] || { echo "--hpa requires on|off"; exit 1; }
+                HPA_MODE="$1"
+                ;;
+            --hpa=*)
+                HPA_MODE="${arg#*=}"
+                ;;
             --simulate-running-eta=*)
                 mins="${arg#*=}"
                 if [[ "$mins" =~ ^[0-9]+$ ]] && (( mins > 0 )); then
@@ -688,6 +775,8 @@ parse_args() {
                 echo "  --asset-tag TAG      Override the asset tag (default: firmware chassis asset tag)."
                 echo "  --media-source SRC   Record the media source (e.g. 'IT decommissioning')."
                 echo "  --media-destination DST  Record the media destination (e.g. 'resale', 'recycle')."
+                echo "  --verify MODE       Post-erasure verification: none|sampled|full (default sampled)."
+                echo "  --hpa MODE         Reset HPA/DCO hidden areas before erasure: on|off (default on)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;

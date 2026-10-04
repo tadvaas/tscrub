@@ -78,7 +78,7 @@
   <div id="ops-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="ops-modal-title">
     <div id="ops-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
-      <div class="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+      <div class="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
           <div class="min-w-0">
             <h2 id="ops-modal-title" class="truncate text-lg font-bold text-ink-900 dark:text-white">Operations</h2>
@@ -87,6 +87,22 @@
           <button id="ops-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
         </div>
         <div id="ops-modal-body" class="flex-1 overflow-y-auto p-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="erasure-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="erasure-modal-title">
+    <div id="erasure-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+      <div class="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
+          <div class="min-w-0">
+            <h2 id="erasure-modal-title" class="truncate text-lg font-bold text-ink-900 dark:text-white">Erasure report</h2>
+            <p id="erasure-modal-sub" class="truncate text-xs text-slate-500 dark:text-slate-400"></p>
+          </div>
+          <button id="erasure-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
+        </div>
+        <div id="erasure-modal-body" class="flex-1 overflow-y-auto p-5"></div>
       </div>
     </div>
   </div>
@@ -140,16 +156,17 @@
       function getCsrf() {
         return fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) { return (d && d.csrf) || ''; });
       }
-      function lockBadge(v) {
+      function lockBadge(v, prefix) {
+        var p = prefix || '';
         var m = {
-          LOCKED: ['bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', 'Locked'],
-          UNLOCKED: ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Unlocked']
+          LOCKED: ['bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', p + 'Locked'],
+          UNLOCKED: ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', p + 'Unlocked']
         };
         var s = String(v == null ? '' : v).trim().toUpperCase();
         var b = m[s];
         if (!b) {
           if (s === '') return null;           // no value at all → caller shows '—'
-          b = ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Unknown'];  // N/A, NONE, UNKNOWN, …
+          b = ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', p + 'Unknown'];  // N/A, NONE, UNKNOWN, …
         }
         var span = el('span', 'whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ' + b[0], b[1]);
         if (s !== 'LOCKED' && s !== 'UNLOCKED') span.title = 'No BIOS-lock signal captured';
@@ -172,6 +189,7 @@
         if (st === 'checking') return b('bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', L('Checking…'));
         if (st === 'queued') return b('bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', L('Queued'));
         if (st === 'failed') return b('bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400', L('Failed'));
+        if (st === 'unchecked') return b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', L('Unchecked'));
 
         // Prefer a real registry verdict, then the report's point-in-time
         // verdict (a stalled Microsoft import returns 'unknown', which is less
@@ -192,8 +210,17 @@
           s.title = map[verdict][2];
           return s;
         }
-        if (st === 'na' || st === 'done') return b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', L('No hash'));
+        if (st === 'na' || st === 'done') return b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', L('---'));
         return null;
+      }
+
+      // Verdict badge for a single completed MDM check in the device history.
+      function mdmHistoryBadge(h) {
+        var b = mdmBadge(h);
+        if (b) return b;
+        var st = String(h.mdm_status || '').toLowerCase();
+        var label = st === 'aborted' ? 'Aborted' : 'Unknown';
+        return el('span', 'whitespace-nowrap rounded-full bg-slate-200 dark:bg-ink-700 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400', label);
       }
 
       // Derived status title: while the device is online, an active erasure
@@ -226,6 +253,35 @@
         return null;
       }
 
+      // While a shutdown/restart command is running, or has just completed
+      // within the heartbeat window (90 s), surface it as the row's status —
+      // the machine is powering off/rebooting, not simply Online/Offline.
+      function poweringState(dev) {
+        var r = dev.remote;
+        if (!r || (r.command !== 'shutdown' && r.command !== 'reboot')) return null;
+        var restart = r.command === 'reboot';
+        var label = restart ? 'Restarting…' : 'Power off…';
+        var title = restart ? 'Restart command sent — the appliance is rebooting' : 'Shutdown command sent — the appliance is powering off';
+        if (r.status === 'dispatched') {
+          // Bound the badge: a shutdown/reboot the appliance claimed but never
+          // reported on (the result POST is lost as it powers off) must not
+          // show "Power off…"/"Restarting…" forever. After the window the row
+          // falls back to the normal Online/Offline status.
+          var dt = r.dispatched_at ? Date.parse(String(r.dispatched_at).replace(' ', 'T') + 'Z') : NaN;
+          if (isNaN(dt) || (Date.now() - dt) < 120000) {
+            return { dot: 'bg-sky-500 animate-pulse', txt: 'text-sky-700 dark:text-sky-400', label: label, title: title };
+          }
+          return null;
+        }
+        if (r.status === 'done' && r.resolved_at) {
+          var t = Date.parse(String(r.resolved_at).replace(' ', 'T') + 'Z');
+          if (!isNaN(t) && (Date.now() - t) < 90000) {
+            return { dot: 'bg-sky-500 animate-pulse', txt: 'text-sky-700 dark:text-sky-400', label: label, title: title };
+          }
+        }
+        return null;
+      }
+
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
         loadDevices();
@@ -237,6 +293,7 @@
       }
 
       var devices = [];
+      var total = 0;
       var page = 1, per = 10;
       var expanded = {};
       var histShown = {};   // expanded report rows shown per device
@@ -245,6 +302,7 @@
       var sortKey = 'status';   // initial sort: Status column
       var sortDir = -1;         // descending (Online first)
       var lastDevicesJson = '';
+      var devicesFetchSeq = 0;  // guards against out-of-order /api/devices responses
       var currentQ = '';
 
       function mdmRank(dev) {
@@ -254,6 +312,7 @@
         var REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
         if (st === 'checking') return 90;
         if (st === 'queued') return 80;
+        if (st === 'unchecked') return 10;
         var verdict = REAL.indexOf(v) !== -1 ? v : (REAL.indexOf(rep) !== -1 ? rep : (st === 'done' && v === 'unknown' ? 'unknown' : ''));
         var r = { locked_other: 70, locked_this: 70, ms_error: 60, hash_invalid: 50, offline: 40, unlocked: 30, unknown: 20 };
         return r[verdict] || 0;
@@ -290,14 +349,14 @@
         page = 1;
         expanded = {};
         histShown = {};
-        render();
+        loadDevices();
       });
       searchClear.addEventListener('click', function () {
         searchInput.value = '';
         currentQ = '';
         searchClear.classList.add('hidden');
         page = 1;
-        render();
+        loadDevices();
       });
 
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
@@ -305,50 +364,43 @@
         loadDevices();
       });
 
-      function loadDevices(preservePage) {
-        fetch('/api/devices').then(function (r) {
+      function loadDevices() {
+        var seq = ++devicesFetchSeq;
+        var params = new URLSearchParams({
+          page: String(page), per: String(per), q: currentQ,
+          sort: sortKey || '', dir: sortDir === 1 ? 'asc' : 'desc'
+        });
+        fetch('/api/devices?' + params.toString()).then(function (r) {
           if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
           return r.json();
         }).then(function (d) {
           if (!d) return;
-          var json = JSON.stringify(d.devices || []);
+          if (seq !== devicesFetchSeq) return;   // a newer request superseded this one
+          var json = JSON.stringify(d.devices || []) + '|' + (d.total || 0);
           if (json === lastDevicesJson) return;   // nothing changed — keep the current view
           lastDevicesJson = json;
           devices = d.devices || [];
-          if (!preservePage) page = 1;
+          total = d.total || 0;
+          var maxPage = Math.max(1, Math.ceil(total / per));
+          if (page > maxPage) { page = maxPage; loadDevices(); return; }
           render();
         });
       }
 
       // Auto-refresh: new diagnostics, BIOS/MDM results, and online/offline
-      // flips show up without a manual reload. Polling preserves sort/page
-      // state and skips re-rendering when nothing changed.
-      setInterval(function () { loadDevices(true); }, 10000);
+      // flips show up without a manual reload. Polling re-fetches only the
+      // current page (search/sort/pagination run server-side).
+      setInterval(function () { loadDevices(); }, 10000);
 
       function render() {
         var list = document.getElementById('device-list');
         list.innerHTML = '';
-        if (!devices.length) {
-          list.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', 'No devices yet. Boot an appliance with a dashboard token to record the first machine.'));
-          renderPager();
-          return;
-        }
-        var filtered = filteredDevices();
-        if (!filtered.length) {
-          list.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', 'No devices match "' + currentQ + '".'));
+        if (!total) {
+          list.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', currentQ ? 'No devices match "' + currentQ + '".' : 'No devices yet. Boot an appliance with a dashboard token to record the first machine.'));
           document.getElementById('device-pager').innerHTML = '';
           return;
         }
-        var start = (page - 1) * per;
-        var rows = filtered.slice();
-        if (sortKey) {
-          rows.sort(function (a, b) {
-            var av = sortValue(sortKey, a), bv = sortValue(sortKey, b);
-            if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sortDir;
-            return String(av).localeCompare(String(bv)) * sortDir;
-          });
-        }
-        var slice = rows.slice(start, start + per);
+        var slice = devices;
 
         var wrap = el('div', '');
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
@@ -378,7 +430,7 @@
               if (sortKey === c[2]) sortDir = -sortDir;
               else { sortKey = c[2]; sortDir = 1; }
               page = 1;
-              render();
+              loadDevices();
             });
           } else {
             th.textContent = c[0];
@@ -406,7 +458,7 @@
           tr.appendChild(mdmCell);
           var stCell = el('td', 'px-4 py-2.5');
           var stLine = el('div', 'flex items-center gap-1.5 whitespace-nowrap');
-          var sb = statusBadge(dev);
+          var sb = poweringState(dev) || statusBadge(dev);
           var stDot = el('span', 'inline-block h-2 w-2 shrink-0 rounded-full ' + (sb ? sb.dot : (dev.online ? 'bg-emerald-500' : 'bg-transparent ring-1 ring-inset ring-slate-400 dark:ring-slate-500')));
           var stTxt = el('span', 'text-xs font-semibold ' + (sb ? sb.txt : (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500')), sb ? sb.label : (dev.online ? 'Online' : 'Offline'));
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
@@ -431,8 +483,10 @@
             render();
           });
           tdv.appendChild(btn);
-          var opBtn = el('button', 'ml-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Operations');
+          var opBtn = el('button', 'relative ml-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Operations');
           opBtn.title = 'Remote operations for this device';
+          var rdot = remoteDot(dev);
+          if (rdot) opBtn.appendChild(rdot);
           opBtn.addEventListener('click', function () { openOperations(dev, !!dev.online); });
           tdv.appendChild(opBtn);
           tr.appendChild(tdv);
@@ -442,47 +496,21 @@
             var sub = el('tr', 'bg-slate-50 dark:bg-ink-800');
             var subtd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
             subtd.colSpan = 6;
-            var st = el('table', 'w-full border-collapse text-xs');
-            var shr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-            ['Submitted', 'BIOS', 'BIOS lock', 'Drives', ''].forEach(function (h) {
-              shr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
+            var hist = (dev.history || []).slice().sort(function (a, b) {
+              return String(b.uploaded_at || '').localeCompare(String(a.uploaded_at || ''));
             });
-            st.appendChild(shr);
-            var hist = dev.history || [];
             var hs = histShown[key] || histPer;
-            var shownHist = hist.slice(0, hs);
-            shownHist.forEach(function (h) {
-              var htr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
-              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.uploaded_at) || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.biosversion ? h.biosversion + (h.biosdate ? ' (' + h.biosdate + ')' : '') : '—'));
-              var htdl = el('td', 'px-2 py-1.5');
-              htdl.appendChild(lockBadge(h.bioslock) || document.createTextNode('—'));
-              htr.appendChild(htdl);
-              htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', typeof h.drive_count === 'number' ? h.drive_count : '—'));
-              var htdv = el('td', 'px-2 py-1.5 text-right whitespace-nowrap');
-              var hvbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
-              hvbtn.addEventListener('click', function () { openDevice(h); });
-              htdv.appendChild(hvbtn);
-              if (h.pdf_id) {
-                var hpbtn = el('a', 'ml-1.5 inline-block rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
-                hpbtn.href = '/api/reports/' + h.pdf_id + '/download';
-                htdv.appendChild(hpbtn);
-              }
-              htr.appendChild(htdv);
-              st.appendChild(htr);
-            });
-            if (hist.length > shownHist.length) {
-              var mtr = el('tr', '');
-              var mtd = el('td', 'px-2 py-2 text-center', '');
-              mtd.colSpan = 5;
-              var mbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + (hist.length - shownHist.length) + ' remaining)');
-              mbtn.addEventListener('click', function () { histShown[key] = (histShown[key] || histPer) + histPer; render(); });
-              mtd.appendChild(mbtn);
-              mtr.appendChild(mtd);
-              st.appendChild(mtr);
-            }
             var inner = el('div', key === animKey ? 'report-expand' : '');
-            inner.appendChild(st);
+
+            inner.appendChild(historyList(hist.slice(0, hs), historyRow));
+
+            if (hist.length > hs) {
+              var remaining = hist.length - hs;
+              var mbtn = el('button', 'mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + remaining + ' remaining)');
+              mbtn.addEventListener('click', function () { histShown[key] = (histShown[key] || histPer) + histPer; render(); });
+              inner.appendChild(mbtn);
+            }
+
             subtd.appendChild(inner);
             sub.appendChild(subtd);
             body.appendChild(sub);
@@ -498,16 +526,16 @@
       function renderPager() {
         var box = document.getElementById('device-pager');
         box.innerHTML = '';
-        var totalPages = Math.max(1, Math.ceil(filteredDevices().length / per));
+        var totalPages = Math.max(1, Math.ceil(total / per));
         var wrap = el('div', 'flex items-center justify-between gap-2');
         var prev = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
         prev.disabled = page <= 1;
-        prev.addEventListener('click', function () { if (page > 1) { page--; render(); } });
+        prev.addEventListener('click', function () { if (page > 1) { page--; loadDevices(); } });
         var next = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
         next.disabled = page >= totalPages;
-        next.addEventListener('click', function () { if (page < totalPages) { page++; render(); } });
+        next.addEventListener('click', function () { if (page < totalPages) { page++; loadDevices(); } });
         wrap.appendChild(prev);
-        wrap.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Page ' + page + ' of ' + totalPages + ' (' + filteredDevices().length + ' total)'));
+        wrap.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Page ' + page + ' of ' + totalPages + ' (' + total + ' total)'));
         wrap.appendChild(next);
         box.appendChild(wrap);
       }
@@ -633,6 +661,160 @@
       document.getElementById('device-modal-close').addEventListener('click', closeDevice);
       document.getElementById('device-modal-backdrop').addEventListener('click', closeDevice);
 
+      function reportTypeBadge(rt) {
+        if (rt === 'erasure') return el('span', 'rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-400', 'Erasure');
+        if (rt === 'mdm') return el('span', 'rounded-full bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-400', 'MDM');
+        return el('span', 'rounded-full bg-slate-200 dark:bg-ink-700 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400', 'Diagnostics');
+      }
+
+      // One report list inside the expanded device row — no header row, just
+      // the report rows `buildRow(h)` produces. Each row is a fixed timestamp,
+      // a type badge, self-describing labelled detail chips, then actions.
+      function historyList(rows, buildRow) {
+        var wrap = el('div', '');
+        rows.forEach(function (h) { wrap.appendChild(buildRow(h)); });
+        return wrap;
+      }
+
+      // A labelled detail chip: small-caps label + value (text or element).
+      // Inline so the whole row stays on one line and ellipsises when narrow.
+      function detail(label, value, title) {
+        var chip = el('span', 'mr-3 inline-block align-middle whitespace-nowrap');
+        chip.appendChild(el('span', 'mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', label));
+        if (value && typeof value === 'object') {
+          chip.appendChild(value);
+        } else {
+          chip.appendChild(el('span', 'text-slate-700 dark:text-slate-300', value == null || value === '' ? '—' : value));
+        }
+        if (title) chip.title = title;
+        return chip;
+      }
+
+      // A report row: fixed timestamp, type badge, single-line detail chips, actions.
+      function reportRow(h, badge, details, actions) {
+        var row = el('div', 'flex items-center gap-3 border-b border-slate-100 dark:border-ink-800 py-2');
+        var ts = el('div', 'w-32 shrink-0 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(h.uploaded_at) || '—');
+        ts.title = String(h.uploaded_at || '');
+        row.appendChild(ts);
+        var tb = el('div', 'shrink-0');
+        tb.appendChild(badge);
+        row.appendChild(tb);
+        var body = el('div', 'min-w-0 flex-1 truncate');
+        details.forEach(function (d) { body.appendChild(d); });
+        row.appendChild(body);
+        if (actions && actions.length) {
+          var act = el('div', 'shrink-0 flex items-center gap-1.5');
+          actions.forEach(function (a) { act.appendChild(a); });
+          row.appendChild(act);
+        }
+        return row;
+      }
+
+      // Erasure report row: size, drive type, method and outcome.
+      function erasureReportRow(h) {
+        var drives = Array.isArray(h.drives) ? h.drives : [];
+        var d0 = drives[0] || {};
+        var extra = drives.length > 1 ? ' (+' + (drives.length - 1) + ')' : '';
+        var multi = drives.length > 1;
+        var join = function (f) { return drives.map(function (d) { return d[f] || '—'; }).join(' · '); };
+        var statusEl = el('span', erasureStatusClass(d0.status), (d0.status || '—') + extra);
+        var v = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
+        v.addEventListener('click', function () { openErasureReport(h); });
+        return reportRow(h, reportTypeBadge('erasure'), [
+          detail('Size', (d0.size || '—') + extra, multi ? drives.map(function (d) { return (d.model || d.device || '?') + ' · ' + (d.size || '—'); }).join('\n') : ''),
+          detail('Drive', (d0.type || '—') + extra, multi ? join('type') : ''),
+          detail('Method', (d0.method || '—') + extra, multi ? join('method') : ''),
+          detail('Status', statusEl, multi ? join('status') : '')
+        ], [v]);
+      }
+
+      // Diagnostics report row: CPU, RAM, storage summary and BIOS lock state.
+      function diagReportRow(h) {
+        var drives = Array.isArray(h.drives) ? h.drives : [];
+        var storage = drives.map(function (d) { return ((d.type || '') + ' ' + (d.size || '')).trim(); }).filter(Boolean).join(' · ');
+        if (!storage && typeof h.drive_count === 'number' && h.drive_count) storage = h.drive_count + ' drive' + (h.drive_count === 1 ? '' : 's');
+        var v = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
+        v.addEventListener('click', function () { openDevice(h); });
+        var actions = [v];
+        if (h.pdf_id) {
+          var p = el('a', 'inline-block rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
+          p.href = '/api/reports/' + h.pdf_id + '/download';
+          actions.push(p);
+        }
+        return reportRow(h, reportTypeBadge('diagnostics'), [
+          detail('CPU', h.cpu || '', h.cpu || ''),
+          detail('RAM', h.ram || '', h.ram || ''),
+          detail('Storage', storage || '', drives.length ? drives.map(function (d) { return (d.model || d.device || '?') + ' · ' + (d.size || '—'); }).join('\n') : ''),
+          detail('BIOS', lockBadge(h.bioslock, 'BIOS ') || '—')
+        ], actions);
+      }
+
+      // MDM check row: verdict and source.
+      function mdmReportRow(h) {
+        return reportRow(h, reportTypeBadge('mdm'), [
+          detail('Verdict', mdmHistoryBadge(h)),
+          detail('Source', h.mdm_source || '')
+        ], []);
+      }
+
+      // One report row, dispatched by type (all interleaved newest-first).
+      function historyRow(h) {
+        if (h.report_type === 'erasure') return erasureReportRow(h);
+        if (h.report_type === 'mdm') return mdmReportRow(h);
+        return diagReportRow(h);
+      }
+
+      function erasureStatusClass(st) {
+        var s = String(st || '').toUpperCase();
+        if (s === 'COMPLETED') return 'font-semibold text-emerald-700 dark:text-emerald-400';
+        if (s === 'FAILED' || s === 'BLOCKED' || s === 'FROZEN') return 'font-semibold text-red-600 dark:text-red-400';
+        if (s === 'DRY-RUN' || s === 'SKIPPED') return 'text-amber-700 dark:text-amber-400';
+        return 'text-slate-600 dark:text-slate-400';
+      }
+
+      function closeErasure() {
+        document.getElementById('erasure-modal').classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+
+      function openErasureReport(h) {
+        document.getElementById('erasure-modal-title').textContent = 'Erasure report';
+        document.getElementById('erasure-modal-sub').textContent = 'CoC ' + (h.cocid || '—') + ' · ' + (h.drive_count || 0) + ' drive' + (h.drive_count === 1 ? '' : 's') + (h.first || h.uploaded_at ? ' · ' + fmtTsTime(h.first || h.uploaded_at) : '');
+        var body = document.getElementById('erasure-modal-body');
+        body.innerHTML = '';
+        var drives = Array.isArray(h.drives) ? h.drives : [];
+        if (!drives.length) {
+          body.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No drives recorded in this report.'));
+        } else {
+          var tbl = el('table', 'w-full border-collapse text-sm');
+          var thead = el('thead');
+          var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
+          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Status', 'Method', 'Class'].forEach(function (c) {
+            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', c));
+          });
+          thead.appendChild(hr);
+          tbl.appendChild(thead);
+          var tb = el('tbody');
+          drives.forEach(function (dv) {
+            var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
+            tr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.device || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.model || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.serial || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.size || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.bus || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 ' + erasureStatusClass(dv.status), dv.status || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.method || '—'));
+            tr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.cls || '—'));
+            tb.appendChild(tr);
+          });
+          tbl.appendChild(tb);
+          body.appendChild(tbl);
+        }
+        document.getElementById('erasure-modal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        document.getElementById('erasure-modal-close').focus();
+      }
+
       var opsModal = document.getElementById('ops-modal');
       var opsBody = document.getElementById('ops-modal-body');
       var opsSub = document.getElementById('ops-modal-sub');
@@ -644,6 +826,7 @@
         document.body.style.overflow = '';
         if (unlockPollTimer) { clearTimeout(unlockPollTimer); unlockPollTimer = null; }
         if (mdmPollTimer) { clearTimeout(mdmPollTimer); mdmPollTimer = null; }
+        if (remotePollTimer) { clearTimeout(remotePollTimer); remotePollTimer = null; }
       }
 
       function unlockStateFor(u) {
@@ -828,7 +1011,7 @@
           });
         } else {
           btn.disabled = true;
-          st.textContent = 'No captured hardware hash for this device — boot the WinPE hash reporter from the PXE menu first.';
+          st.textContent = 'No hardware hash for this device yet — boot the appliance to send a diagnostics report (a hash is generated automatically).';
         }
 
         card.appendChild(btn);
@@ -856,6 +1039,289 @@
         }, 4000);
       }
 
+      var remotePollTimer = null;
+
+      function remoteStateFor(c) {
+        var s = c && c.status ? c.status : 'none';
+        // A completed command is not "in flight" anymore — surface the action
+        // form (not a stale "powering back up" line) once it has finished.
+        if (s === 'done') return { kind: 'idle', data: c };
+        if (s === 'failed') return { kind: 'failed', data: c };
+        if (s === 'dispatched') return { kind: 'inprogress', data: c };
+        if (s === 'pending') {
+          return (c && c.result === 'deferred') ? { kind: 'deferred', data: c } : { kind: 'staged', data: c };
+        }
+        return { kind: 'idle', data: c };   // none / cancelled / superseded / expired
+      }
+
+      function remoteBadge(kind) {
+        switch (kind) {
+          case 'staged': return el('span', 'rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-semibold', 'Queued');
+          case 'inprogress': return el('span', 'rounded-full bg-sky-100 text-sky-700 px-2.5 py-1 text-xs font-semibold animate-pulse', 'Running…');
+          case 'done': return el('span', 'rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold', 'Done');
+          case 'failed': return el('span', 'rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold', 'Failed');
+          case 'deferred': return el('span', 'rounded-full bg-sky-100 text-sky-700 px-2.5 py-1 text-xs font-semibold', 'Deferred');
+          default: return null;
+        }
+      }
+
+      // Small corner dot on the row's Operations button while an action is in
+      // flight: a queued power/erase command (amber), a command the appliance
+      // has picked up (pulsing sky), or an erasure actively running (pulsing
+      // amber — the wipe command reaches "done" as soon as the appliance
+      // starts, so the erasure phase is what stays live for the duration). It
+      // is absolutely positioned so the button keeps the same width as one
+      // without an indicator.
+      function remoteDot(dev) {
+        var r = dev.remote;
+        var erasing = dev.erasure && dev.erasure.phase === 'wiping';
+        var active = r && (r.status === 'pending' || r.status === 'dispatched');
+        if (!active && !erasing) return null;
+
+        var cls, label;
+        if (erasing) {
+          cls = 'bg-amber-500 animate-pulse';
+          label = 'Erasure in progress';
+        } else if (r.status === 'dispatched') {
+          cls = 'bg-sky-500 animate-pulse';
+          label = (r.command === 'reboot' ? 'Restart' : (r.command === 'wipe' ? 'Erase' : 'Shutdown')) + ' — running';
+        } else {
+          cls = 'bg-amber-500';
+          label = (r.command === 'reboot' ? 'Restart' : (r.command === 'wipe' ? 'Erase' : 'Shutdown')) + ' — queued';
+        }
+        var dot = el('span', 'absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-ink-900 ' + cls);
+        dot.title = label;
+        return dot;
+      }
+
+      function loadRemoteState(dev, online, host) {
+        fetch('/api/devices/commands?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
+          .then(function (d) { renderRemoteCard(dev, online, remoteStateFor(d && d.command), host); })
+          .catch(function () { renderRemoteCard(dev, online, { kind: 'idle', data: null }, host); });
+      }
+
+      function scheduleRemotePoll(dev, online, state, host) {
+        if (remotePollTimer) { clearTimeout(remotePollTimer); remotePollTimer = null; }
+        if (state.kind === 'staged' || state.kind === 'inprogress' || state.kind === 'deferred') {
+          remotePollTimer = setTimeout(function () { loadRemoteState(dev, online, host); }, 4000);
+        }
+      }
+
+      function sendRemote(dev, online, host, command, st, options) {
+        st.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
+        st.textContent = 'Sending…';
+        var body = { serial: dev.sysserial, uuid: dev.systemuuid || '', command: command };
+        if (options) body.options = options;
+        getCsrf().then(function (csrf) {
+          return fetch('/api/devices/commands', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify(body)
+          });
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+          if (res.ok) {
+            loadRemoteState(dev, online, host);
+            loadDevices(true);   // show the queued dot on the Operations button
+          } else {
+            st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
+            st.textContent = res.data.error || 'Could not queue the command.';
+          }
+        }).catch(function () {
+          st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
+          st.textContent = 'Network error — try again.';
+        });
+      }
+
+      function cancelRemote(dev, online, host, id, btn, st) {
+        btn.disabled = true;
+        if (st) { st.textContent = 'Cancelling…'; }
+        getCsrf().then(function (csrf) {
+          return fetch('/api/devices/commands/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify({ id: id })
+          });
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+          if (res.ok) {
+            // Refresh regardless — if the appliance already claimed it, the
+            // cancel was a no-op and the fresh state shows Running/Done.
+            loadRemoteState(dev, online, host);
+            loadDevices(true);   // clear the dot once the command is cancelled
+          } else {
+            btn.disabled = false;
+            if (st) { st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400'; st.textContent = res.data.error || 'Could not cancel.'; }
+          }
+        }).catch(function () {
+          btn.disabled = false;
+          if (st) { st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400'; st.textContent = 'Network error — try again.'; }
+        });
+      }
+
+      // Parse "v1.10.14" into a comparable integer (major*10000+minor*100+patch);
+      // returns NaN when unparseable so version gates fail closed.
+      function toolVersionNum(v) {
+        var m = String(v || '').match(/^v?(\d+)\.(\d+)\.(\d+)/);
+        if (!m) return NaN;
+        return (+m[1]) * 10000 + (+m[2]) * 100 + (+m[3]);
+      }
+
+      function remoteCommandNoun(cmd) {
+        if (cmd === 'reboot') return 'a restart';
+        if (cmd === 'wipe') return 'an erasure';
+        return 'a shutdown';
+      }
+
+      // Builds the remote-erasure form shown while no command is in flight.
+      function buildEraseForm(dev, online, host) {
+        var box = el('div', 'mt-4 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800/40 p-4');
+        box.appendChild(el('div', 'text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400', 'Remote erasure'));
+
+        var st = el('p', 'mt-1.5 text-xs text-slate-500 dark:text-slate-400');
+
+        var scopeRow = el('div', 'mt-3 text-sm text-slate-700 dark:text-slate-300');
+        scopeRow.appendChild(el('div', 'mb-1.5 font-medium', 'Drives'));
+
+        var allLbl = el('label', 'flex items-center gap-2');
+        var allRad = el('input', 'h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500');
+        allRad.type = 'radio'; allRad.name = 'erase-scope'; allRad.checked = true;
+        allLbl.appendChild(allRad);
+        allLbl.appendChild(document.createTextNode('All drives'));
+        scopeRow.appendChild(allLbl);
+
+        var drives = Array.isArray(dev.drives) ? dev.drives.filter(function (dv) { return dv && dv.serial; }) : [];
+        var driveChecks = [];
+        var listBox = null;
+        if (drives.length) {
+          var someLbl = el('label', 'mt-1.5 flex items-center gap-2');
+          var someRad = el('input', 'h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500');
+          someRad.type = 'radio'; someRad.name = 'erase-scope';
+          someLbl.appendChild(someRad);
+          someLbl.appendChild(document.createTextNode('Selected drives'));
+          scopeRow.appendChild(someLbl);
+
+          listBox = el('div', 'mt-2 ml-6 hidden space-y-1');
+          drives.forEach(function (dv) {
+            var cl = el('label', 'flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400');
+            var cb = el('input', 'h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500');
+            cb.type = 'checkbox'; cb.value = dv.serial;
+            cl.appendChild(cb);
+            cl.appendChild(document.createTextNode((dv.device || dv.serial) + ' — ' + (dv.model || dv.serial)));
+            listBox.appendChild(cl);
+            driveChecks.push(cb);
+          });
+          scopeRow.appendChild(listBox);
+
+          var syncScope = function () { listBox.classList.toggle('hidden', !someRad.checked); };
+          allRad.addEventListener('change', syncScope);
+          someRad.addEventListener('change', syncScope);
+        }
+        box.appendChild(scopeRow);
+
+        var start = el('button', 'mt-4 shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50', 'Start erasure');
+        box.appendChild(start);
+        box.appendChild(st);
+
+        var supported = toolVersionNum(dev.tool_version) >= toolVersionNum('v1.10.14');
+        var wiping = dev.erasure && dev.erasure.phase === 'wiping';
+        if (!online) {
+          st.textContent = 'Machine is offline — a command would expire before it could be picked up.';
+          start.disabled = true;
+        } else if (wiping) {
+          st.textContent = 'A wipe is already in progress on this machine.';
+          start.disabled = true;
+        } else if (!supported) {
+          st.textContent = 'Requires appliance v1.10.14 or newer.';
+          start.disabled = true;
+        } else if (!drives.length) {
+          st.textContent = 'No drives reported by this machine.';
+          start.disabled = true;
+        } else {
+          st.textContent = 'Queues an erasure that starts automatically on the appliance.';
+        }
+
+        start.addEventListener('click', function () {
+          if (start.disabled) return;
+          var options = {};
+          if (drives.length && someRad && someRad.checked) {
+            var chosen = driveChecks.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+            if (!chosen.length) { st.textContent = 'Choose at least one drive.'; return; }
+            options.drives = chosen;
+          } else {
+            options.drives = 'all';
+          }
+          sendRemote(dev, online, host, 'wipe', st, options);
+        });
+
+        return box;
+      }
+
+      function renderRemoteCard(dev, online, state, host) {
+        host.innerHTML = '';
+
+        var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
+        var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
+        head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Remote commands'));
+        head.appendChild(remoteBadge(state.kind) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
+        card.appendChild(head);
+
+        var kind = state.kind;
+        var c = state.data;
+
+        if (kind === 'staged') {
+          var srow = el('div', 'mt-3 flex flex-wrap items-center gap-2');
+          var sbtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
+          srow.appendChild(sbtn);
+          card.appendChild(srow);
+          var smsg = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+          smsg.textContent = 'Queued — the appliance will run ' + remoteCommandNoun(c && c.command) + ' at its next poll.';
+          card.appendChild(smsg);
+          sbtn.addEventListener('click', function () { cancelRemote(dev, online, host, c.id, sbtn, smsg); });
+        } else if (kind === 'inprogress') {
+          card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'The appliance has picked up the command.'));
+        } else if (kind === 'deferred') {
+          var drow = el('div', 'mt-3 flex flex-wrap items-center gap-2');
+          var dbtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
+          drow.appendChild(dbtn);
+          card.appendChild(drow);
+          var dmsg = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+          dmsg.textContent = 'Deferred — a wipe is in progress; it will run when the device is idle.';
+          card.appendChild(dmsg);
+          dbtn.addEventListener('click', function () { cancelRemote(dev, online, host, c.id, dbtn, dmsg); });
+        } else {
+          // idle (nothing queued, or a completed command) — or a failed
+          // command. Completed commands read as "nothing queued" so the action
+          // form (including remote erasure) is front and centre; a failed
+          // command keeps its error line so the operator can retry.
+          if (kind === 'failed') {
+            card.appendChild(el('p', 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400', 'Command failed' + (c && c.detail ? ' — ' + c.detail : '') + '.'));
+          }
+
+          var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
+          var shut = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Shut down');
+          var rest = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Restart');
+          row.appendChild(shut); row.appendChild(rest);
+          card.appendChild(row);
+          var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+          var wiping = dev.erasure && dev.erasure.phase === 'wiping';
+          if (!online) {
+            st.textContent = 'Machine is offline — a command would expire before it could be picked up.';
+            shut.disabled = true; rest.disabled = true;
+          } else if (wiping) {
+            st.textContent = 'A wipe is in progress — the command will run once it finishes.';
+          } else {
+            st.textContent = 'Machine is online — executes within a few seconds.';
+          }
+          card.appendChild(st);
+          shut.addEventListener('click', function () { sendRemote(dev, online, host, 'shutdown', st); });
+          rest.addEventListener('click', function () { sendRemote(dev, online, host, 'reboot', st); });
+
+          card.appendChild(buildEraseForm(dev, online, host));
+        }
+
+        host.appendChild(card);
+        scheduleRemotePoll(dev, online, state, host);
+      }
+
       function openOperations(dev, online) {
         opsSub.textContent = (dev.system || 'Machine') + ' · ' + (dev.sysserial ? 'SN ' + dev.sysserial : 'no serial') + ' · ' + (online ? 'Online' : 'Offline');
         opsBody.innerHTML = '';
@@ -864,11 +1330,15 @@
         } else {
           var unlockHost = el('div', '');
           var mdmHost = el('div', 'mt-4');
+          var remoteHost = el('div', 'mt-4');
           opsBody.appendChild(unlockHost);
           opsBody.appendChild(mdmHost);
+          opsBody.appendChild(remoteHost);
           renderUnlockCard(dev, online, { kind: 'idle', data: null }, unlockHost);
           loadUnlockState(dev, online, unlockHost);
           renderMdmCard(dev, online, mdmHost);
+          renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost);
+          loadRemoteState(dev, online, remoteHost);
         }
         opsModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
@@ -877,10 +1347,13 @@
 
       document.getElementById('ops-modal-close').addEventListener('click', closeOps);
       document.getElementById('ops-modal-backdrop').addEventListener('click', closeOps);
+      document.getElementById('erasure-modal-close').addEventListener('click', closeErasure);
+      document.getElementById('erasure-modal-backdrop').addEventListener('click', closeErasure);
       document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
         if (!modal.classList.contains('hidden')) closeDevice();
         else if (!opsModal.classList.contains('hidden')) closeOps();
+        else if (!document.getElementById('erasure-modal').classList.contains('hidden')) closeErasure();
       });
     })();
   </script>

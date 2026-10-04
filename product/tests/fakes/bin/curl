@@ -38,7 +38,7 @@ for a in "$@"; do
             locked_this)  printf '{"ok":true,"status":"done","verdict":"locked_this","source":"live","label":"Locked (this)"}\n' ;;
             locked_other) printf '{"ok":true,"status":"done","verdict":"locked_other","source":"live","label":"Locked"}\n' ;;
             offline)      printf '{"ok":true,"status":"done","verdict":"offline","source":"error","label":"Offline"}\n' ;;
-            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"No hash"}\n' ;;
+            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"---"}\n' ;;
             *)            printf '{"ok":true,"status":"done","verdict":"unlocked","source":"live","label":"Unlocked"}\n' ;;
         esac
         exit 0
@@ -74,7 +74,7 @@ for a in "$@"; do
             fi
         fi
         case "${FAKE_MDM_VERDICT:-unlocked}" in
-            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"No hash","last_checked_at":null}\n' ;;
+            na)           printf '{"ok":true,"status":"na","verdict":"na","source":"none","label":"---","last_checked_at":null}\n' ;;
             locked_this)  printf '{"ok":true,"status":"done","verdict":"locked_this","source":"live","label":"Locked (this)","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
             locked_other) printf '{"ok":true,"status":"done","verdict":"locked_other","source":"live","label":"Locked","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;
             offline)      printf '{"ok":true,"status":"done","verdict":"offline","source":"error","label":"Offline","last_checked_at":"2026-09-29T14:11:52Z"}\n' ;;

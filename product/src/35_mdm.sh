@@ -158,10 +158,12 @@ mdm::sync_state() {
 #
 # The Graph probe resolves server-side in the background (mdm-worker.php, cron
 # every minute), so the initial POST returns queued/checking. The worker then
-# POLLS GET /api/mdm/status (bounded) so the Runtime panel resolves to the
-# dashboard's exact `label` instead of sticking at "Queued"/"Checking…".
+# POLLS GET /api/mdm/status for the WHOLE session (unbounded) so the Runtime
+# panel always tracks the dashboard's exact live `label` — and keeps tracking
+# it even after a verdict, so a later Re-check updates the panel too.
 mdm::detect() {
     local url body resp rc verdict status label man prod status_url poll=0 consecutive=0
+    local boot_attempt post_attempt
 
     mdm::parse_cmdline
 
@@ -178,72 +180,86 @@ mdm::detect() {
     # panel never lingers on the initial "Pending" while DHCP and the POST settle.
     mdm::publish "checking" "Queued"
 
-    if ! network::ensure; then
-        # No IPv4 route (and DHCP couldn't obtain one) — skip the probe rather
-        # than burning curl retries against an unreachable dashboard.
-        mdm::publish "offline" "Offline"
-        return 0
-    fi
+    # This worker is forked BEFORE device discovery, so its first attempt races
+    # a USB NIC / DHCP that is still coming up. Retry network::ensure (each call
+    # is a no-op once a default route exists). On total failure publish Offline
+    # but DO NOT exit — the poll loop below retries every tick and recovers when
+    # the link comes back.
+    boot_attempt=0
+    while ! network::ensure; do
+        boot_attempt=$((boot_attempt + 1))
+        if [[ $boot_attempt -ge 6 ]]; then
+            mdm::publish "offline" "Offline"
+            break
+        fi
+        sleep 10
+    done
 
-    man="${SYS_MANUFACTURER:-N/A}"; [[ "$man" == "N/A" ]] && man=""
-    prod="${SYS_PRODUCT:-N/A}";   [[ "$prod" == "N/A" ]] && prod=""
+    if [[ $boot_attempt -lt 6 ]]; then
+        man="${SYS_MANUFACTURER:-N/A}"; [[ "$man" == "N/A" ]] && man=""
+        prod="${SYS_PRODUCT:-N/A}";   [[ "$prod" == "N/A" ]] && prod=""
 
-    body="$(printf '{"serial":"%s","uuid":"%s","manufacturer":"%s","product":"%s"}' \
-        "$(report::_json_field "${SYS_SERIAL}")" \
-        "$(report::_json_field "${SYS_UUID}")" \
-        "$(report::_json_field "$man")" \
-        "$(report::_json_field "$prod")")"
-    url="$(mdm::endpoint)"
+        body="$(printf '{"serial":"%s","uuid":"%s","manufacturer":"%s","product":"%s"}' \
+            "$(report::_json_field "${SYS_SERIAL}")" \
+            "$(report::_json_field "${SYS_UUID}")" \
+            "$(report::_json_field "$man")" \
+            "$(report::_json_field "$prod")")"
+        url="$(mdm::endpoint)"
 
-    # POST /api/mdm/autopilot enqueues the check and returns immediately with
-    # {status: queued|checking|done|na, verdict, label}. The dashboard owns the
-    # wording via `label`; the Runtime panel renders it verbatim.
-    resp="$(mdm::http_post "$url" "$body")"
-    rc=$?
-    if [[ $rc -ne 0 ]]; then
-        mdm::publish "offline" "Offline"
-        return 0
-    fi
-
-    verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
-    status="$(printf '%s' "$resp" | mdm::json_field status)"
-    label="$(printf '%s' "$resp" | mdm::json_field label)"
-    if [[ -z "$verdict" ]]; then
-        case "$status" in
-            na)              verdict="na" ;;
-            queued|checking) verdict="checking" ;;
-            *)               verdict="unknown" ;;
-        esac
-    fi
-    # Defensive fallback only (older dashboard without `label`): show the
-    # machine verdict verbatim rather than mapping it locally.
-    [[ -z "$label" ]] && label="${verdict:-Unknown}"
-    mdm::publish "$verdict" "$label"
-
-    # Still unsettled → poll the status endpoint until the server settles on a
-    # verdict (or we hit the bound). Both "checking" and "unknown" mean the
-    # check hasn't produced a real answer yet; each poll re-publishes so the
-    # panel tracks the server's label (Queued → Checking… → Pending →
-    # Locked/Unlocked/MS error/…).
-    if [[ "$verdict" == "checking" || "$verdict" == "unknown" ]]; then
-        status_url="$(mdm::status_endpoint)"
-        while [[ $poll -lt "$MDM_POLL_MAX" ]]; do
-            sleep "$MDM_POLL_SECONDS"
-            poll=$((poll + 1))
-            if ! resp="$(mdm::http_get "$status_url")"; then
-                # A single failed GET is usually transient (a blip or TLS
-                # timeout) — tolerate a few before declaring the server
-                # unreachable, so a one-off failure doesn't freeze the panel at
-                # "Offline" while the check still resolves server-side.
-                consecutive=$((consecutive + 1))
-                if [[ $consecutive -ge 3 ]]; then
-                    verdict="offline"
-                    label="Offline"
-                    mdm::publish "$verdict" "$label"
-                    break
-                fi
-                continue
+        # POST /api/mdm/autopilot enqueues the check (idempotent) and returns the
+        # first status. The dashboard owns the wording via `label`; the Runtime
+        # panel renders it verbatim. Bounded retry (mdm::http_post also retries
+        # 2x internally); on failure publish Offline and let the poll loop recover.
+        post_attempt=0
+        rc=1
+        while :; do
+            resp="$(mdm::http_post "$url" "$body")"
+            rc=$?
+            [[ $rc -eq 0 ]] && break
+            post_attempt=$((post_attempt + 1))
+            if [[ $post_attempt -ge 3 ]]; then
+                mdm::publish "offline" "Offline"
+                break
             fi
+            sleep 5
+        done
+        if [[ $rc -eq 0 ]]; then
+            verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
+            status="$(printf '%s' "$resp" | mdm::json_field status)"
+            label="$(printf '%s' "$resp" | mdm::json_field label)"
+            if [[ -z "$verdict" ]]; then
+                case "$status" in
+                    na)              verdict="na" ;;
+                    queued|checking) verdict="checking" ;;
+                    *)               verdict="unknown" ;;
+                esac
+            fi
+            # Defensive fallback only (older dashboard without `label`): show the
+            # machine verdict verbatim rather than mapping it locally.
+            [[ -z "$label" ]] && label="${verdict:-Unknown}"
+            mdm::publish "$verdict" "$label"
+        fi
+    fi
+
+    # Poll GET /api/mdm/status for the WHOLE session so the panel always tracks
+    # the dashboard's live state (--- → Queued → Checking… → Locked/Unlocked/…,
+    # back to Offline on a dropped link, recovering when it returns). Unbounded
+    # in production (the worker is killed with the session); a terminal verdict
+    # does NOT stop the poll — a later Re-check from the dashboard updates the
+    # panel too. MDM_POLL_MAX caps the loop for the test harness only.
+    status_url="$(mdm::status_endpoint)"
+    consecutive=0
+    poll=0
+    while :; do
+        sleep "$MDM_POLL_SECONDS"
+        poll=$((poll + 1))
+        if ! resp="$(mdm::http_get "$status_url")"; then
+            # A single failed GET is usually transient (a blip or TLS timeout) —
+            # tolerate a few before declaring the server unreachable, so a one-off
+            # failure doesn't freeze the panel while the check resolves.
+            consecutive=$((consecutive + 1))
+            [[ $consecutive -ge 3 ]] && mdm::publish "offline" "Offline"
+        else
             consecutive=0
             status="$(printf '%s' "$resp" | mdm::json_field status)"
             verdict="$(printf '%s' "$resp" | mdm::json_field verdict)"
@@ -257,21 +273,7 @@ mdm::detect() {
             fi
             [[ -z "$label" ]] && label="${verdict:-Unknown}"
             mdm::publish "$verdict" "$label"
-            # Settled once the server returns a real verdict — keep polling
-            # through "checking" and the inconclusive "unknown" (import still
-            # processing) so the panel doesn't freeze on "Pending".
-            case "$verdict" in
-                checking|unknown) : ;;
-                *) break ;;
-            esac
-        done
-        if [[ "$verdict" == "checking" || "$verdict" == "unknown" ]]; then
-            # Poll window exhausted with the job still unsettled — show N/A
-            # rather than an indefinite "Checking…"/"Pending". The CSV keeps the
-            # honest verdict; the panel shows the no-answer marker.
-            label="N/A"
-            mdm::publish "$verdict" "$label"
         fi
-    fi
-    return 0
+        [[ -n "${MDM_POLL_MAX:-}" && $poll -ge "$MDM_POLL_MAX" ]] && break
+    done
 }

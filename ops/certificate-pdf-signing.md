@@ -27,7 +27,8 @@ This key is **separate** from:
 
 - the licence / report vendor key (`vendor.key`, Ed25519) — see
   `vendor-key-rotation.md`;
-- the Secure Boot MOK key (`~/.tscrub-mok/mok.key`) — see `secure-boot-mok.md`.
+- the Secure Boot MOK key (`~/ipxe-sb/vendor.key`, shared with PXE) — see
+  `secure-boot-mok.md`.
 
 ## One-time generation (on the server)
 

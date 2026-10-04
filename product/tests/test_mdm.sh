@@ -16,6 +16,9 @@ export FAKE_MDM_POLL_FILE FAKE_MDM_POLLS FAKE_MDM_UNKNOWN_POLLS FAKE_MDM_STATUS_
 
 # The poll loop sleeps between status checks; no-op it so tests run instantly.
 sleep() { :; }
+# The MDM worker polls /api/mdm/status for the WHOLE session (unbounded in
+# production); bound it so the synchronous run_detect() calls terminate.
+MDM_POLL_MAX=4
 
 # --- pure helpers -----------------------------------------------------------
 t::assert_eq "https://tscrub.com/api/mdm/autopilot" \
@@ -160,7 +163,22 @@ t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Locked (this)" "mdm: locked 
 FAKE_MDM_VERDICT="na"
 run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT na" "mdm: na verdict on IPC"
-t::assert_contains "$(cat "$ipc_file")" "mdm STATUS No hash" "mdm: na label on IPC"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS ---" "mdm: na label on IPC"
+
+# --- na on the POST → poll → resolve (the report stages the hash in parallel) --
+FAKE_MDM_VERDICT="locked_other"
+FAKE_MDM_QUEUE="na"
+FAKE_MDM_POLLS=1
+: > "$FAKE_MDM_POLL_FILE"
+: > "$FAKE_MDM_CURL_LOG"
+run_detect
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT na" "mdm: na POST publishes na verdict first"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Checking…" "mdm: na POST → poll shows Checking…"
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT locked_other" "mdm: na POST → poll resolves locked_other"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Locked" "mdm: na POST → poll resolves Locked label"
+t::check "mdm: na POST → status poll issued" 'grep -q "api/mdm/status" "$FAKE_MDM_CURL_LOG"'
+FAKE_MDM_QUEUE=""
+FAKE_MDM_POLLS=""
 
 # --- queued on the server: poll until the verdict settles -------------------
 FAKE_MDM_VERDICT="locked_this"
@@ -182,18 +200,17 @@ t::assert_eq "Locked (this)" "$(sed -n '2p' "$MDM_RESULT_FILE")" "mdm: result fi
 t::check "mdm: status poll issued" 'grep -q "api/mdm/status" "$FAKE_MDM_CURL_LOG"'
 FAKE_MDM_POLLS=""
 
-# --- poll window exhausted with no answer → N/A (not an indefinite Checking) --
+# --- the worker keeps polling after a terminal verdict (live tracking) ------
 FAKE_MDM_VERDICT="unlocked"
-FAKE_MDM_QUEUE="queued"
-FAKE_MDM_POLLS=99
-MDM_POLL_MAX=2
-: > "$FAKE_MDM_POLL_FILE"
-run_detect
-t::assert_contains "$(cat "$ipc_file")" "mdm STATUS N/A" "mdm: poll window exhausted → N/A label"
-t::assert_eq "checking" "$(sed -n '1p' "$MDM_RESULT_FILE")" "mdm: result file keeps honest checking verdict"
-t::assert_eq "N/A" "$(sed -n '2p' "$MDM_RESULT_FILE")" "mdm: result file label N/A"
-MDM_POLL_MAX=24
+FAKE_MDM_QUEUE=""
 FAKE_MDM_POLLS=""
+MDM_POLL_MAX=3
+: > "$FAKE_MDM_POLL_FILE"
+: > "$FAKE_MDM_CURL_LOG"
+run_detect
+t::check "mdm: status polled after a terminal verdict" '[[ $(grep -c "api/mdm/status" "$FAKE_MDM_CURL_LOG") -ge 3 ]]'
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT unlocked" "mdm: post-verdict poll keeps the unlocked verdict"
+MDM_POLL_MAX=4
 
 # --- unknown verdict re-polls until a real verdict resolves -----------------
 FAKE_MDM_VERDICT="ms_error"
@@ -238,7 +255,24 @@ run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT unlocked" "mdm: TLS retry succeeds → unlocked"
 t::check "mdm: TLS retry used -k" "grep -q -- '-k' '$FAKE_MDM_CURL_LOG'"
 
-# --- network down: worker skips the probe (no curl attempt) -----------------
+# --- network comes up on retry: worker recovers instead of freezing at Offline --
+NETWORK_CALLS=0
+network::ensure() { NETWORK_CALLS=$((NETWORK_CALLS + 1)); [[ $NETWORK_CALLS -ge 2 ]] && return 0; return 1; }
+FAKE_MDM_FAIL_FIRST=""
+FAKE_MDM_VERDICT="locked_other"
+TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
+TSCRUB_AUTOPILOTCHECK=1
+SYS_SERIAL="SYSSN123"
+SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
+SYS_MANUFACTURER="Fake Inc."
+SYS_PRODUCT="FakeStation"
+: > "$FAKE_MDM_CURL_LOG"
+run_detect
+t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT locked_other" "mdm: network comes up on retry → resolves locked_other"
+t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Locked" "mdm: network comes up on retry → Locked label"
+t::check "mdm: network::ensure was retried before resolving" '[[ $NETWORK_CALLS -ge 2 ]]'
+
+# --- network down: worker skips the POST but keeps polling ------------------
 FAKE_MDM_FAIL_FIRST=""
 FAKE_MDM_VERDICT="unlocked"
 TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
@@ -249,7 +283,7 @@ SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
 network::ensure() { return 1; }   # simulate no IPv4 route
 run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm VERDICT offline" "mdm: offline when network down"
-t::check "mdm: no curl attempt when network down" '[[ ! -s "$FAKE_MDM_CURL_LOG" ]]'
+t::check "mdm: no autopilot POST when network down" '! grep -q "api/mdm/autopilot" "$FAKE_MDM_CURL_LOG"'
 
 rm -rf "$tmpdir"
 t::summary

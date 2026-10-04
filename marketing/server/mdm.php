@@ -78,7 +78,8 @@ function mdm_status_label(string $status, string $verdict): string {
     if ($st === 'checking') return 'Checking...';
     if ($st === 'queued')   return 'Queued';
     if ($st === 'failed')   return 'Failed';
-    if ($st === 'na')       return 'No hash';
+    if ($st === 'unchecked') return 'Unchecked';
+    if ($st === 'na')       return '---';
 
     switch ($v) {
         case 'unlocked':     return 'Unlocked';
@@ -90,7 +91,7 @@ function mdm_status_label(string $status, string $verdict): string {
         case 'error':        return 'Error';
         case 'unknown':      return 'Pending';
         case 'skipped':      return 'Skipped';
-        case 'na':           return 'No hash';
+        case 'na':           return '---';
         case 'paid_only':    return 'Paid only';
         case 'insufficient_credits': return 'No credits';
     }
@@ -180,6 +181,201 @@ function mdm_base_hash(string $serial, string $uuid, string $manufacturer, strin
     if (strlen($payload) > 3000) {
         return '';
     }
+    $payload .= str_repeat("\0", 3000 - strlen($payload));
+    return base64_encode($payload);
+}
+
+/** Normalise a report string field for hash building: '' and 'N/A' both mean
+ *  "no value" (the appliance fills missing SMBIOS fields with 'N/A'). */
+function mdm_report_str(string $v): string {
+    $v = trim($v);
+    return ($v === '' || strcasecmp($v, 'N/A') === 0) ? '' : $v;
+}
+
+/** Disk serial/model normaliser: same ''/'N/A' rule but NO whitespace trim —
+ *  the fixed-width ATA/NVMe serial keeps its spaces verbatim (Windows does the
+ *  same), unlike the SMBIOS strings handled by mdm_report_str(). */
+function mdm_report_disk_str(string $v): string {
+    return ($v === '' || strcasecmp(trim($v), 'N/A') === 0) ? '' : $v;
+}
+
+/** Type-8 network record (22 bytes): u16 medium=14 + u16 0 + 6-byte MAC +
+ *  u32 length + "PCI\0" UTF-16LE. Returns '' for an invalid MAC. */
+function mdm_mac_record(string $mac): string {
+    $m = str_replace([':', '-', ' '], '', $mac);
+    if (preg_match('/^[0-9a-fA-F]{12}$/', $m) !== 1) {
+        return '';
+    }
+    $bin = hex2bin($m);
+    if ($bin === false) {
+        return '';
+    }
+    $utf16 = '';
+    foreach (str_split("PCI\0") as $c) {
+        $utf16 .= $c . "\0";
+    }
+    return mdm_u16le(14) . "\0\0" . $bin . pack('V', strlen($utf16)) . $utf16;
+}
+
+/** TPM 2.0 type-13 descriptor from raw `tpm2_getcap properties-fixed` output
+ *  (the appliance collapses newlines to ';'). Port of oa3hash_min.py.
+ *
+ *  Handles BOTH tpm2-tools output styles: the current Buildroot build emits
+ *  'TPM2_PT_X:;  raw: 0x..;  value: ...;' (value may be quoted or bare), and
+ *  older builds emit 'TPM2_PT_X: 0x..' / 'TPM2_PT_LEVEL: 0'. */
+function mdm_tpm_descriptor_20(string $getcap): string {
+    if ($getcap === '') return '';
+
+    $rawHex = function (string $prop) use ($getcap): ?string {
+        // Current 'raw: 0x..' style first (non-greedy -> the prop's OWN raw
+        // value, never crossing into the next property), then the old '0x..'.
+        if (preg_match('/' . $prop . ':.*?raw:\s*0x([0-9a-fA-F]+)/s', $getcap, $m) === 1) return $m[1];
+        if (preg_match('/' . $prop . ':\s*0x([0-9a-fA-F]+)/s', $getcap, $m) === 1) return $m[1];
+        return null;
+    };
+    $valueStr = function (string $prop, ?string $default = null) use ($getcap): ?string {
+        // value may be quoted ("2.0") or bare (1.16); non-greedy so a bare
+        // REVISION value can't swallow a later quoted MANUFACTURER value.
+        if (preg_match('/' . $prop . ':.*?value:\s*"?([^";]+)"?/s', $getcap, $m) === 1) return $m[1];
+        return $default;
+    };
+
+    $family = $valueStr('TPM2_PT_FAMILY_INDICATOR', '2.0') ?? '2.0';
+    $rev    = $valueStr('TPM2_PT_REVISION');
+    $mfrHex = $rawHex('TPM2_PT_MANUFACTURER');
+    $fw1Hex = $rawHex('TPM2_PT_FIRMWARE_VERSION_1');
+    $fw2Hex = $rawHex('TPM2_PT_FIRMWARE_VERSION_2');
+
+    // LEVEL's raw is DECIMAL in both styles ('raw: 0' / '0').
+    $level = 0;
+    if (preg_match('/TPM2_PT_LEVEL:.*?raw:\s*(\d+)/s', $getcap, $m) === 1) {
+        $level = (int)$m[1];
+    } elseif (preg_match('/TPM2_PT_LEVEL:\s*(\d+)/s', $getcap, $m) === 1) {
+        $level = (int)$m[1];
+    }
+
+    $vendor = '';
+    if ($mfrHex !== null) {
+        $bin = hex2bin(str_pad($mfrHex, 8, '0', STR_PAD_LEFT));
+        if ($bin !== false) $vendor = str_replace("\0", ' ', $bin);
+    }
+    $s = 'TPM-Version:' . $family . ' -Level:' . $level;
+    if ($rev !== null && $rev !== '') $s .= '-Revision:' . $rev;
+    if ($vendor !== '') $s .= "-VendorID:'" . $vendor . "'";
+    if ($fw1Hex !== null && $fw2Hex !== null) $s .= '-Firmware:' . hexdec($fw1Hex) . '.' . hexdec($fw2Hex);
+    return $s;
+}
+
+/** TPM 1.2 type-13 descriptor from the sysfs caps file (collapsed to ';').
+ *  SpecLevel/Errata are hardcoded 2/3 (constant across the TPM 1.2 spec). */
+function mdm_tpm_descriptor_12(string $caps): string {
+    if ($caps === '') return '';
+    $vendor = '';
+    if (preg_match('/Manufacturer:\s*0x([0-9a-fA-F]+)/', $caps, $m) === 1) {
+        $bin = hex2bin(str_pad($m[1], 8, '0', STR_PAD_LEFT));
+        if ($bin !== false) $vendor = str_replace("\0", ' ', $bin);
+    }
+    $fw1 = null; $fw2 = null;
+    if (preg_match('/Firmware version:\s*([\d.]+)/', $caps, $m) === 1) {
+        $parts = explode('.', $m[1]);
+        if (isset($parts[0]) && ctype_digit($parts[0])) $fw1 = str_pad($parts[0], 2, '0', STR_PAD_LEFT);
+        if (isset($parts[1]) && ctype_digit($parts[1])) $fw2 = $parts[1];
+    }
+    $s = 'TPM-Version:01.02-SpecLevel:2-Errata:3';
+    if ($vendor !== '') $s .= "-VendorID:'" . $vendor . "'";
+    if ($fw1 !== null && $fw2 !== null) $s .= '-Firmware:' . $fw1 . '.' . $fw2;
+    return $s;
+}
+
+/**
+ * Build the full OAv3 "4K" hardware hash from a diagnostics-report payload —
+ * the tScrub-standalone strategy (no WinPE oa3tool capture needed). Port of
+ * research/oa3hash_min.py hw_from_tscrub_report() + build_records() + encode():
+ * identity types 12 (UUID), 14 (serial), 15 (bios vendor), 16 (manufacturer),
+ * 17 (product), 18 (sku), 19 (family), 21 (board product), 22 (board version),
+ * 23 (system version), 24 (ProductKeyId), 13 (TPM descriptor), 25 (EkPub),
+ * 11 (OfflineDeviceId = SHA-256 of the EK), 7 (disk serial), 8 (MAC).
+ * Live-verified 2026-10-03: yields the same Microsoft verdict
+ * (ZtdDeviceAssignedToOtherTenant) as the WinPE oa3tool hash.
+ *
+ * $d may carry a pre-derived 'product_key_id'; callers with reports_lib loaded
+ * should set it (product_key_id_from_key()). Returns '' when the serial is
+ * absent (no hash can be built).
+ */
+function mdm_report_hash(array $d): string {
+    $serial = mdm_report_str((string)($d['serial'] ?? ''));
+    if ($serial === '') return '';
+
+    $tlv = '';
+    $add = function (int $t, string $data) use (&$tlv): void {
+        mdm_add_record($tlv, $t, $data);
+    };
+    $addStr = function (int $t, string $v) use (&$tlv): void {
+        if ($v !== '') mdm_add_record($tlv, $t, $v . "\0");
+    };
+
+    $uuid = mdm_report_str((string)($d['uuid'] ?? ''));
+    if ($uuid !== '') {
+        $add(12, mdm_uuid_wire($uuid)); // '' -> omitted (invalid GUID)
+    }
+    $addStr(14, $serial);
+    $addStr(15, mdm_report_str((string)($d['bios_vendor'] ?? '')));
+    $addStr(16, mdm_report_str((string)($d['manufacturer'] ?? '')));
+    $addStr(17, mdm_report_str((string)($d['product'] ?? '')));
+    $addStr(18, mdm_report_str((string)($d['sku'] ?? '')));
+    $addStr(19, mdm_report_str((string)($d['family'] ?? '')));
+    $addStr(21, mdm_report_str((string)($d['board_product'] ?? '')));
+    $addStr(22, mdm_report_str((string)($d['board_version'] ?? '')));
+    $addStr(23, mdm_report_str((string)($d['system_version'] ?? '')));
+    $addStr(24, mdm_report_str((string)($d['product_key_id'] ?? '')));
+
+    // TPM descriptor: supplied directly, else derived from tpm_getcap (2.0) or
+    // tpm_caps (1.2). EkPub (25) + OfflineDeviceId (11) are TPM 2.0 only — a
+    // TPM 1.2/no-TPM type 11 is a Windows-persisted random seed.
+    $tpmDesc = mdm_report_str((string)($d['tpm_descriptor'] ?? ''));
+    if ($tpmDesc === '') $tpmDesc = mdm_tpm_descriptor_20((string)($d['tpm_getcap'] ?? ''));
+    if ($tpmDesc === '') $tpmDesc = mdm_tpm_descriptor_12((string)($d['tpm_caps'] ?? ''));
+    $addStr(13, $tpmDesc);
+
+    // The EK is an RSA-2048 modulus: exactly 256 bytes (512 hex chars). Drop a
+    // truncated/malformed value rather than emit a corrupt type 25/11.
+    $ekHex = strtolower((string)($d['tpm_ekpub'] ?? ''));
+    if (strlen($ekHex) === 512 && preg_match('/^[0-9a-f]+$/', $ekHex) === 1) {
+        $ekBytes = hex2bin($ekHex);
+        if ($ekBytes !== false) {
+            $add(25, $ekBytes);
+            $add(11, "\x00\x00\x00\x00\x01\x00\x20\x00\x00\x00" . hash('sha256', $ekBytes, true));
+        }
+    }
+
+    // disk serial — '<serial>|<model>|' (NO trailing NUL), first drive wins.
+    // Spaces are significant (fixed-width ATA/NVMe), so no trimming here.
+    $disk = '';
+    foreach (($d['drives'] ?? []) as $dv) {
+        if (!is_array($dv)) continue;
+        $dsn = mdm_report_disk_str((string)($dv['serial'] ?? ''));
+        if ($dsn !== '') {
+            $disk = $dsn . '|' . mdm_report_disk_str((string)($dv['model'] ?? '')) . '|';
+            break;
+        }
+    }
+    $add(7, $disk);
+
+    // first physical MAC (skip the all-zero placeholder).
+    $firstMac = '';
+    foreach (explode(';', str_replace("\n", ';', (string)($d['macs'] ?? ''))) as $part) {
+        $part = trim($part);
+        if ($part !== '' && strtolower($part) !== '00:00:00:00:00:00') {
+            $firstMac = $part;
+            break;
+        }
+    }
+    $add(8, mdm_mac_record($firstMac));
+
+    $total  = 4 + strlen($tlv);
+    $prefix = 'OA' . mdm_u16le($total) . $tlv;
+    $payload = $prefix . 'CS' . mdm_u16le(36) . hash('sha256', $prefix, true);
+    if (strlen($payload) > 3000) return '';
     $payload .= str_repeat("\0", 3000 - strlen($payload));
     return base64_encode($payload);
 }
@@ -879,14 +1075,18 @@ function mdm_devices(int $userId): array {
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $h) {
             $j = mdm_latest_job($userId, (string)$h['serial'], (string)$h['uuid']);
+            // A staged hash with no job yet = info acquired but the check was
+            // never initiated — surfaced as 'unchecked' (Re-check runs it).
+            $status  = $j !== null ? (string)($j['status'] ?? '') : 'unchecked';
+            $verdict = $j !== null ? (string)($j['verdict'] ?? '') : '';
             $out[] = [
                 'serial' => (string)$h['serial'],
                 'uuid' => (string)$h['uuid'],
                 'model' => (string)$h['model'],
                 'captured_at' => (string)$h['captured_at'],
-                'status' => $j['status'] ?? 'na',
-                'verdict' => $j['verdict'] ?? '',
-                'label' => mdm_status_label((string)($j['status'] ?? 'na'), (string)($j['verdict'] ?? '')),
+                'status' => $status,
+                'verdict' => $verdict,
+                'label' => mdm_status_label($status, $verdict),
                 'started_at' => $j['created_at'] ?? null,
                 'last_checked_at' => $j['updated_at'] ?? null,
             ];

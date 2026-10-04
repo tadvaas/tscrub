@@ -347,6 +347,29 @@ CREATE TABLE IF NOT EXISTS bios_unlock (
   CONSTRAINT fk_unlock_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Remote power commands (dashboard stages, appliance executes on poll). status:
+-- pending -> dispatched -> done|failed (or superseded/cancelled/expired). The
+-- appliance reports "deferred" (a wipe started after the claim), which flips
+-- the row straight back to "pending" for the next poll.
+CREATE TABLE IF NOT EXISTS device_commands (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id       BIGINT UNSIGNED NOT NULL,
+  serial        VARCHAR(255)    NOT NULL DEFAULT '',
+  uuid          VARCHAR(64)     NOT NULL DEFAULT '',
+  command       VARCHAR(16)     NOT NULL DEFAULT '',
+  options       JSON            NULL,
+  status        VARCHAR(16)     NOT NULL DEFAULT 'pending',
+  result        VARCHAR(16)     NOT NULL DEFAULT '',
+  detail        VARCHAR(255)    NOT NULL DEFAULT '',
+  created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  dispatched_at DATETIME        NULL,
+  resolved_at   DATETIME        NULL,
+  PRIMARY KEY (id),
+  KEY idx_cmd_user_serial (user_id, serial, id),
+  KEY idx_cmd_status (status, id),
+  CONSTRAINT fk_cmd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Live device registration: the appliance posts its identity + hardware + drive
 -- inventory on boot (ITAD triage), BEFORE any wipe. Keyed + upserted by
 -- (user_id, serial, uuid); the JSON payload carries the full snapshot.

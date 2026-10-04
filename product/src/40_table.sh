@@ -929,7 +929,7 @@ triage::legend() {
 # presence / BIOS-unlock / MDM workers keep running the whole time, so the
 # machine stays "online" while it idles here.
 triage::run() {
-    local key k2 rc prev_status on_finish=0
+    local key k2 rc prev_status on_finish=0 marker cmd_id dry_run scope drv _saved_dry_run
 
     TRIAGE_MODE=1
     SELECT_MODE=0
@@ -957,6 +957,53 @@ triage::run() {
     while :; do
         IFS= read -t 0.5 -rsn1 key < /dev/tty 2>/dev/null; rc=$?
         if (( rc > 128 )); then
+            # Remote-initiated erase: the poll worker drops a marker file when
+            # the dashboard stages a wipe. Consume it, run the grace window,
+            # then enter erasure with the requested drive selection.
+            marker="$(remote::consume_erase_marker)"
+            if [[ -n "$marker" ]]; then
+                cmd_id="$(printf '%s' "$marker" | sed -n 's/^id=//p' | head -n 1)"
+                dry_run="$(printf '%s' "$marker" | sed -n 's/^dry_run=//p' | head -n 1)"
+                scope="$(printf '%s' "$marker" | sed -n 's/^scope=//p' | head -n 1)"
+                if [[ -n "$cmd_id" ]] && remote::grace_confirm; then
+                    REMOTE_ERASE_DRIVES=""
+                    if [[ "$scope" == "all" ]]; then
+                        REMOTE_ERASE_DRIVES="all"
+                    else
+                        while IFS= read -r drv; do
+                            for dev in "${devices[@]}"; do
+                                [[ "${devrow[$dev.serial]}" == "$drv" ]] && REMOTE_ERASE_DRIVES+="$drv"$'\n'
+                            done
+                        done < <(printf '%s' "$marker" | sed -n 's/^drive=//p')
+                        if [[ -z "$REMOTE_ERASE_DRIVES" ]]; then
+                            remote::report "$cmd_id" failed "no drives matched"
+                            continue
+                        fi
+                    fi
+                    REMOTE_ERASE=1
+                    _saved_dry_run="$DRY_RUN"
+                    [[ "$dry_run" == "1" ]] && DRY_RUN=1
+                    remote::report "$cmd_id" done "started"
+                    TRIAGE_MODE=0
+                    erasure::run
+                    if [[ $? -eq 2 ]]; then
+                        on_finish=0
+                    else
+                        on_finish=1
+                    fi
+                    if [[ -t 1 ]] && [[ -n "${TERM:-}" ]] && [[ "${TERM:-}" != "dumb" ]]; then
+                        UI_INPLACE=1
+                    fi
+                    ui::cursor_hide
+                    DRY_RUN="$_saved_dry_run"
+                    REMOTE_ERASE=0
+                    REMOTE_ERASE_DRIVES=""
+                elif [[ -n "$cmd_id" ]]; then
+                    remote::report "$cmd_id" failed "cancelled at the console"
+                fi
+                continue
+            fi
+
             # Timeout — refresh the elapsed timer in place; re-render only when
             # the MDM verdict label changes. On the finish screen (the result
             # view after an erasure) re-render via ui::paint_finish so the

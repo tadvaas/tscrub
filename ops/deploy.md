@@ -11,14 +11,16 @@ steps below touch only the first two; the rest live in dedicated runbooks.
 |---|---|---|
 | Release signing — `tscrub.sh` → `tscrub.sh.sig` (Ed25519) + `tscrub.pub` | `vendor.key` (Ed25519) | §2 + `host-download.sh` |
 | PXE kernel signing — network-boot `bzImage` (Secure Boot) | `~/ipxe-sb/vendor.key` ("My iPXE Vendor Key") | §2 (Appliance) |
-| Secure Boot (shim + MOK) — ISO's `shim → grub → bzImage` chain | `~/.tscrub-mok/mok.key` | `secure-boot-mok.md` |
+| Secure Boot (shim + MOK) — ISO's `shim → grub → bzImage` chain | `~/ipxe-sb/vendor.key` ("My iPXE Vendor Key", shared with PXE) | `secure-boot-mok.md` |
 | Report signing — chain-of-custody CSV → `.sig` (Ed25519) | report key (free = self-signed ephemeral; paid = licence-bound) | `report-verification.md` |
 | Licence + vendor root-of-trust | `vendor.key` (Ed25519) | `vendor-key-rotation.md` |
 | Certificate / diagnostics PDF signing (X.509) | `sign.key` / `sign.crt` | `certificate-pdf-signing.md` |
 
-Two keys are easy to confuse: the **Secure Boot MOK key** (`~/.tscrub-mok/mok.key`,
-signs the ISO's shim chain) is **not** the **PXE iPXE vendor key**
-(`~/ipxe-sb/vendor.key`, signs the network-boot kernel).
+The Secure Boot MOK key and the PXE kernel key are now the **same key**
+(`~/ipxe-sb/vendor.key`, `CN=My iPXE Vendor Key`): it signs both the ISO's shim
+chain and the network-boot kernel, so a machine enrols one MOK for both boot
+paths. The old dedicated `~/.tscrub-mok/mok.key` (`CN=tScrub Secure Boot Key`) is
+retired.
 
 ## 1. Marketing site (`marketing/`)
 
@@ -122,10 +124,10 @@ The build produces two artifacts in `~/shredos.x86_64/output/images/`:
 - `bzImage` — the self-contained kernel (embedded initramfs) used for **PXE** boots; it has no separate `initrd`.
 
 > **The build-output `bzImage` is UNSIGNED.** The ISO's `/boot/bzImage` is the
-> MOK-signed copy (for the ISO's own shim→grub chain). For a **network** boot
-> that uses `shim` + Secure Boot (the iPXE `shim` command verifies the kernel),
-> the served `bzImage` must be signed with the operator's own enrolled key —
-> the same "My iPXE Vendor Key" that signs ShredOS's kernel.
+> signed copy (for the ISO's own shim→grub chain, signed with the shared
+> "My iPXE Vendor Key"). For a **network** boot that uses `shim` + Secure Boot
+> (the iPXE `shim` command verifies the kernel), the served `bzImage` must be
+> signed with the same key — `~/ipxe-sb/vendor.key`.
 
 **Publish the appliance ISO** to `~/webs/tscrub/downloads/` (nginx serves it at
 `https://tscrub.com/downloads/…`). Copy the ISO, write its `.sha256`, and repoint

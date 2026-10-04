@@ -29,7 +29,7 @@ dryrun::simulate_running_eta() {
 # would keep heartbeating as orphans while getty respawns a fresh tScrub.
 session::teardown() {
     local p
-    for p in "${presence_pid:-}" "${bios_unlock_pid:-}" "${mdm_pid:-}" "${register_pid:-}"; do
+    for p in "${presence_pid:-}" "${bios_unlock_pid:-}" "${remote_pid:-}" "${mdm_pid:-}" "${register_pid:-}"; do
         [[ -n "$p" ]] || continue
         kill "$p" 2>/dev/null || true
     done
@@ -64,6 +64,10 @@ fn_main() {
     mdm_pid=""
     presence_pid=""
     bios_unlock_pid=""
+    remote_pid=""
+    REMOTE_ERASE=0
+    REMOTE_ERASE_DRIVES=""
+    rm -f "${REMOTE_ERASE_MARKER:-/tmp/tscrub-remote-erase}" 2>/dev/null || true
     register_pid=""
     devrow=()
     ui_eta_row=()
@@ -176,7 +180,8 @@ fn_main() {
     fi
 
     # Long-lived background workers — the presence heartbeat, the remote
-    # BIOS-unlock poll and (opt-in) the MDM/Autopilot check. They are forked
+    # BIOS-unlock poll, the remote power poll and (opt-in) the MDM/Autopilot
+    # check. They are forked
     # DETACHED (IPC fds closed) and run for the WHOLE session; the erasure
     # workflow must never kill them. The MDM verdict travels via its result
     # file and is re-read by the triage + wipe screens (mdm::sync_state).
@@ -194,6 +199,8 @@ fn_main() {
     presence_pid=$!
     { bios_unlock::loop; } 3>&- 4<&- &
     bios_unlock_pid=$!
+    { remote::loop; } 3>&- 4<&- &
+    remote_pid=$!
     device::install_sedutil
     ui::spinner_start "Discovering devices..."
     if ! device::discover; then
@@ -266,7 +273,15 @@ fn_main() {
 # → finish cycle, then returns to the caller (the triage screen re-renders).
 # =============================================================================
 erasure::run() {
-    local dev
+    local dev initiated
+
+    # Record who triggered this erasure cycle (remote dashboard vs local keys).
+    if [[ "${REMOTE_ERASE:-0}" -eq 1 ]]; then
+        initiated="remote"
+    else
+        initiated="local"
+    fi
+    printf 'erasure initiated: %s\n' "$initiated" >&5
 
     # A repeat erasure starts clean. Rebuild the drive table (re-runs
     # device::classify, resetting status→PLANNED and clearing the timing
@@ -279,6 +294,10 @@ erasure::run() {
         devrow["$dev.selected"]=0
         devrow["$dev.start_ts"]=""
         devrow["$dev.end_ts"]=""
+        devrow["$dev.verify_result"]=""
+        devrow["$dev.verify_sectors"]=""
+        devrow["$dev.hpa_result"]=""
+        devrow["$dev.dco_result"]=""
     done
     ui_eta_row=()
     pids=()
@@ -303,6 +322,19 @@ erasure::run() {
 
     if [[ "$AUTONUKE" -eq 1 ]]; then
         select::all
+        table::render
+    elif [[ "${REMOTE_ERASE:-0}" -eq 1 ]]; then
+        # Remote-initiated: the triage loop set REMOTE_ERASE_DRIVES ("all", or a
+        # newline-separated serial list). Apply it after the per-cycle reset.
+        if [[ "${REMOTE_ERASE_DRIVES:-}" == "all" ]]; then
+            select::all
+        else
+            while IFS= read -r drv; do
+                for dev in "${devices[@]}"; do
+                    [[ "${devrow[$dev.serial]}" == "$drv" ]] && devrow["$dev.selected"]=1
+                done
+            done <<< "$REMOTE_ERASE_DRIVES"
+        fi
         table::render
     else
         # The interactive selection screen renders itself (blue, with markers)
@@ -358,6 +390,7 @@ erasure::run() {
         # Blue background while the wipe is in progress; the outcome colour
         # (green/red/amber) is painted only once everything has finished.
         UI_COMPLETE_THEME=4
+        verify::plant_all
         status::erase_start
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
@@ -408,9 +441,12 @@ erasure::run() {
     fi
 
     smart::capture_all post
+    verify::check_all
 
     # A dry-run report is not evidence of a real wipe — never vendor-sign it.
     if [[ "$DRY_RUN" -eq 1 ]]; then
+        VERIFY_MODE="none"
+        HPA_MODE="off"
         unset REPORT_KEY
     fi
 

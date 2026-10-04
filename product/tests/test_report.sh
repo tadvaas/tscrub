@@ -51,9 +51,10 @@ t::check "CSV header includes machine columns" 'head -n1 "$csv" | grep -q "Syste
 t::check "CSV header includes BIOSLock column" 'head -n1 "$csv" | grep -q ",BIOSLock"'
 t::check "CSV header includes extended machine columns" 'head -n1 "$csv" | grep -q "ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod"'
 t::check "CSV header includes timing columns" 'head -n1 "$csv" | grep -q "StartTime,EndTime,DurationSecs"'
-t::check "CSV header includes drive-detail columns" 'head -n1 "$csv" | grep -q "Firmware,SectorSize,Sectors,HPA,DCO,SEDStatus,ReallocSectorsPost,SelfTest"'
+t::check "CSV header includes drive-detail columns" 'head -n1 "$csv" | grep -q "Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest"'
 t::check "CSV header includes asset columns" 'head -n1 "$csv" | grep -q "SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion"'
 t::check "CSV header includes personnel columns" 'head -n1 "$csv" | grep -q "Operator,Validator,MediaSource,MediaDestination"'
+t::check "CSV header includes verify columns" 'head -n1 "$csv" | grep -q "Verify,VerifySectors,VerifyResult"'
 hdr_cols="$(head -n1 "$csv" | awk -F, '{print NF}')"
 row_cols="$(sed -n '2p' "$csv" | awk -F, '{print NF}')"
 t::check "CSV data row column count matches header ($hdr_cols)" '[ "$hdr_cols" = "$row_cols" ]'
