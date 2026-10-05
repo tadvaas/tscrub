@@ -179,6 +179,31 @@ the iPXE `kernel` line fetches it directly — no `initrd` line is needed:
 kernel ${base-url}/tscrub/bzImage console=tty3 loglevel=3
 ```
 
+### Verify packaged binaries actually run (before publishing)
+
+Buildroot only proves a package *compiled*, not that it will *execute* at boot.
+A dynamically-linked binary can ship into the image while a shared library (or
+the dynamic linker) is missing — and then it fails at runtime with
+`error while loading shared libraries`, which is easy to miss because the ISO
+build still "succeeds". Do this for any new binary added to the image (e.g.
+`flashrom`, `mdadm`, `tpm2_*`):
+
+```bash
+ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
+  bin=output/target/usr/sbin/flashrom && \
+  readelf -l "$bin" | grep -i interpreter && \
+  readelf -d "$bin" | grep NEEDED && \
+  for l in $(readelf -d "$bin" | sed -n "s/.*\[\(.*\)\]/\1/p"); do \
+    p=$(find output/target -name "$l" 2>/dev/null | head -1); \
+    [ -n "$p" ] && echo "OK   $l" || echo "MISS $l"; done'
+```
+
+- `interpreter` (e.g. `/lib64/ld-linux-x86-64.so.2`) must exist under
+  `output/target/`.
+- Every `NEEDED` library must resolve to a file under `output/target/`.
+- Note: running the binary *on the build host* is NOT a valid check — the host
+  lacks the target libc/interpreter, so it fails even when the image is fine.
+
 **PXE payloads** live in `~/webs/lan/ipxe/` on `.6` (nginx `lan.conf`,
 `autoindex on`, port 8080). The boot menu itself stays on `.26`
 (`~/html/boot.ipxe` — DHCP chains to it); its `tScrub` and `hashreport` entries
