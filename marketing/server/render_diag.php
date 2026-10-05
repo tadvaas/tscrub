@@ -411,12 +411,23 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         ['Storage controllers', (string)($d['storage_controllers'] ?? '')],
     ];
 
-    $personnel = [
-        ['Operator',          (string)($d['operator'] ?? '')],
-        ['Validator',         (string)($d['validator'] ?? '')],
-        ['Media source',      (string)($d['media_source'] ?? '')],
-        ['Media destination', (string)($d['media_destination'] ?? '')],
-    ];
+    // Normalise the appliance "N/A" sentinel and omit the validator entirely
+    // when none was supplied (mirrors the certificate's personnel strategy).
+    $pNorm = function (string $v): string {
+        $t = trim($v);
+        return ($t === '' || strcasecmp($t, 'N/A') === 0) ? '' : $t;
+    };
+    $operator   = $pNorm((string)($d['operator'] ?? ''));
+    $validator  = $pNorm((string)($d['validator'] ?? ''));
+    $mediaSrc   = $pNorm((string)($d['media_source'] ?? ''));
+    $mediaDst   = $pNorm((string)($d['media_destination'] ?? ''));
+
+    $personnel = [['Operator', $operator]];
+    if ($validator !== '') {
+        $personnel[] = ['Validator', $validator];
+    }
+    $personnel[] = ['Media source', $mediaSrc];
+    $personnel[] = ['Media destination', $mediaDst];
     if (trim((string)($issuer['name'] ?? '')) !== '') {
         $personnel[] = ['Customer', trim((string)$issuer['name'])];
     }
