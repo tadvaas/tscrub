@@ -421,8 +421,13 @@
           roleSel.innerHTML = '<option value="member">Member</option><option value="admin">Admin</option>';
           var inviteBtn = document.createElement('button');
           inviteBtn.type = 'submit';
-          inviteBtn.className = 'rounded-lg border border-brand-600 px-4 py-2.5 font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30';
+          inviteBtn.className = 'inline-flex items-center justify-center gap-2 min-w-[120px] rounded-lg border border-brand-600 px-4 py-2.5 font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 disabled:opacity-50 disabled:cursor-not-allowed';
           inviteBtn.textContent = 'Invite';
+          var SPINNER = '<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
+          function setInviteBusy(busy) {
+            inviteBtn.disabled = busy;
+            inviteBtn.innerHTML = busy ? SPINNER + '<span>Inviting…</span>' : 'Invite';
+          }
           inv.appendChild(emailIn); inv.appendChild(roleSel); inv.appendChild(inviteBtn);
           var st = document.createElement('p');
           st.className = 'mt-2 w-full hidden text-xs font-semibold';
@@ -430,8 +435,14 @@
           inv.addEventListener('submit', function (e) {
             e.preventDefault();
             var em = emailIn.value.trim();
-            if (!em) return;
+            if (!em) {
+              st.className = 'mt-2 w-full text-xs font-semibold text-red-600 dark:text-red-400';
+              st.textContent = 'Enter an email address.';
+              return;
+            }
+            setInviteBusy(true);
             post('/api/org/invites', { email: em, role: roleSel.value }).then(function (res) {
+              setInviteBusy(false);
               if (res.ok) {
                 st.className = 'mt-2 w-full text-xs font-semibold text-brand-700 dark:text-brand-400';
                 st.textContent = 'Invite sent to ' + em + ' (expires in 7 days).';
@@ -440,6 +451,10 @@
                 st.className = 'mt-2 w-full text-xs font-semibold text-red-600 dark:text-red-400';
                 st.textContent = res.data.error || 'Could not invite.';
               }
+            }).catch(function () {
+              setInviteBusy(false);
+              st.className = 'mt-2 w-full text-xs font-semibold text-red-600 dark:text-red-400';
+              st.textContent = 'Could not invite — please try again.';
             });
           });
           root.appendChild(inv);

@@ -2022,7 +2022,7 @@ if ($method === 'POST' && $route === '/org/invites') {
     $link = db_base_url() . '/dashboard/account?org_invite=' . $inv['token'];
     $sender = (string)($u['name'] ?? '');
     if ($sender === '') { $sender = (string)($u['email'] ?? ''); }
-    mail_send(
+    mail_send_async(
         'Join ' . $orgName . ' on tScrub',
         "Hi,\n\n{$sender} has invited you to join the {$orgName} organisation on tScrub as a {$inv['role']}.\n\n"
         . "Open this link to accept (it expires in 7 days):\n\n{$link}\n\n"
