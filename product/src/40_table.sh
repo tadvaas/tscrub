@@ -540,31 +540,31 @@ ui::repaint_changed() {
 }
 
 table::render() {
-    if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
-        case "$UI_COMPLETE_THEME" in
-            2)
-                # Red background: one or more drives failed/blocked.
-                printf "\033[0;41;37m\033[2J\033[H"
-                ;;
-            3)
-                # Amber background: wipe finished but report save/upload failed.
-                # 43 is the closest 16-colour console shade to orange.
-                printf "\033[0;43;30m\033[2J\033[H"
-                ;;
-            4)
-                # Blue background: wipe in progress.
-                printf "\033[0;44;37m\033[2J\033[H"
-                ;;
-            *)
-                # Green background: all drives completed successfully.
-                printf "\033[0;42;30m\033[2J\033[H"
-                ;;
-        esac
-        # Leading blank line = top margin on every coloured screen, matching the
-        # normal running screen and keeping the absolute tick rows aligned.
-        printf "\n"
-    elif [[ -t 1 ]]; then
-        clear
+    # btop-style repaint: never blank the whole screen on a same-theme re-render
+    # — that blank is the visible "reflow" flash. Only fill the screen when the
+    # theme (background colour) actually changed or this is the first paint;
+    # otherwise home the cursor and overwrite in place (stale lines below the
+    # table are cleared with \033[J after the bottom separator).
+    if [[ -t 1 ]]; then
+        if [[ -z "${UI_THEME_LAST:-}" || "$UI_THEME_LAST" != "$UI_COMPLETE_THEME" ]]; then
+            case "$UI_COMPLETE_THEME" in
+                2) printf "\033[0;41;37m\033[2J\033[H" ;;   # red: a drive failed/blocked
+                3) printf "\033[0;43;30m\033[2J\033[H" ;;   # amber: report delivery failed
+                4) printf "\033[0;44;37m\033[2J\033[H" ;;   # blue: wipe in progress
+                1) printf "\033[0;42;30m\033[2J\033[H" ;;   # green: all completed
+                0) clear ;;
+            esac
+        else
+            case "$UI_COMPLETE_THEME" in
+                2) printf "\033[0;41;37m\033[H" ;;
+                3) printf "\033[0;43;30m\033[H" ;;
+                4) printf "\033[0;44;37m\033[H" ;;
+                1) printf "\033[0;42;30m\033[H" ;;
+                0) printf "\033[H" ;;
+            esac
+        fi
+        # Leading blank line = top margin on every screen, matching the normal
+        # running screen and keeping the absolute tick rows aligned.
         printf "\n"
     fi
 
@@ -717,6 +717,11 @@ table::render() {
     table::print_raid_warning
 
     printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
+
+    # Clear from just below the table to the bottom of the screen so any stale
+    # rows/legend from a previous screen don't linger (the footer repaints on
+    # top afterwards). \033[J erases with the active background colour.
+    [[ -t 1 ]] && printf "\033[J"
 
     if [[ "$UI_COMPLETE_THEME" -ne 0 && "$UI_COMPLETE_THEME" -ne 4 ]] && [[ -t 1 ]]; then
         printf "\033[%d;1H" "$((completion_base_row + cpu_rows + gpu_rows + ${#devices[@]}))"
