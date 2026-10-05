@@ -6,6 +6,16 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Post-erasure verification sector count** — a drive whose erase was
+  `BLOCKED`/`FAILED`/`FROZEN` (not `COMPLETED`) kept the pre-erase sentinel
+  plant count in `VerifySectors`, so the report and dashboard showed `n/a`
+  alongside a misleading "40 sectors" figure. The count is now cleared for
+  non-completed drives, so `n/a` carries no sector count.
+
 ## [v1.10.16] - 2026-10-04
 
 ### Added
