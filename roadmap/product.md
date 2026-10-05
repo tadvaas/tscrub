@@ -25,9 +25,13 @@ first. Tick items off as they ship and note the release that carries each.
       → **Shipped v1.10.17** (2026-10-05). Plan: `research/sas-sanitize/README.md`
       (`device::scsi_sanitize_supported` + `device::exec_scsi_sanitize` in
       `product/src/32_device_scsi.sh`; tests `product/tests/test_scsi_sanitize.sh`).
-- [ ] **SED (OPAL) unlock + erase** — add an OPAL path alongside NVMe/ATA:
+- [x] **SED (OPAL) unlock + erase** — add an OPAL path alongside NVMe/ATA:
       `sedutil-cli --query` → PSID revert when there's no LBA unlock, and surface
       the 3-state SED status as an explicit method. (§9.1)
+      → **Implemented (2026-10-05), awaiting release** — `device::exec_opal` in
+      `product/src/44_device_sed.sh` (`--initialSetup` → `--enableLockingRange 0`
+      → `--setLockingRange 0 LK` → `--revertTPer`); plan
+      `research/sed-opal/README.md`; tests `product/tests/test_sed.sh`.
 - [ ] **RAID dismantling** — detect members in `gather_info` (`mdadm -E`
       superblocks, Intel VMD / `mpt3sas` controllers), mark "RAID member —
       dismantle in controller BIOS" on the triage screen, record a per-drive RAID
@@ -38,6 +42,15 @@ first. Tick items off as they ship and note the release that carries each.
 - [ ] **Diagnostics & refurb grading** — collapse SMART pre/post capture into a
       drive grade (A/B/C) + resale health report (power-on hours, TBW,
       reallocated sectors) for ITAD resale. (§6)
+- [ ] **Windows key (DPK) injection into NVRAM** — write a new Windows product
+      key into the firmware MSDM ACPI table so the device boots pre-licensed for
+      resale. Researched via SMART DPK's WinPE client, which does it with
+      OA3Tool `/Assemble` → flash MSDM → device-marker report (see
+      `research/autopilot/smartdpk-client-forensics.md`); we do the same from
+      Linux: build the MSDM/`OA3.bin` blob (PKey2009 encoding already shipped
+      v1.10.9), flash it through the vendor SPI/WMI path — or `flashrom` on the
+      bench, alongside `research/bios-unlock` — then verify by re-reading
+      `/sys/firmware/acpi/tables/MSDM`.
 
 ## 3. Robustness & ops
 

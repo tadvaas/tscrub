@@ -7,6 +7,31 @@ case "$1" in
             printf 'Locked = N\n'
         fi
         printf 'LockingEnabled = N\n'
+        exit 0
+        ;;
+    --initialSetup)
+        if [[ "${FAKE_SEDUTIL_INITIALSETUP_RC:-0}" == "0" ]]; then
+            printf 'takeOwnership complete\n'
+        else
+            printf 'takeOwnership failed unable to retrieve MSID\n'
+        fi
+        exit "${FAKE_SEDUTIL_INITIALSETUP_RC:-0}"
+        ;;
+    --enableLockingRange)
+        printf 'LockingRange0 enabled ReadLocking WriteLocking\n'
+        exit 0
+        ;;
+    --setLockingRange)
+        printf 'LockingRange0 set to LK\n'
+        exit 0
+        ;;
+    --revertTPer)
+        if [[ "${FAKE_SEDUTIL_REVERT_RC:-0}" == "0" ]]; then
+            printf 'revertTper completed successfully\n'
+        else
+            printf 'revertTper failed\n'
+        fi
+        exit "${FAKE_SEDUTIL_REVERT_RC:-0}"
         ;;
     *)
         printf 'revertTper completed\n'

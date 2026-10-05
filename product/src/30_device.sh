@@ -12,6 +12,7 @@ device::capability_label() {
         CAP_ATA_CLEAR)               echo "ATA Clear (Secure Erase)" ;;
         CAP_SCSI_SANITIZE)           echo "SCSI Sanitize (Overwrite)" ;;
         CAP_SCSI_NWIPE)              echo "SCSI Clear (nwipe Quick)" ;;
+        CAP_OPAL_CRYPTO)             echo "SED Purge (OPAL Crypto Erase)" ;;
         CAP_NONE)                    echo "No Supported Wipe" ;;
     esac
 }
@@ -424,30 +425,33 @@ device::detect() {
                 ata_enhanced_time[$device]=$(printf '%s\n' "$security_block" | sed -n 's/.*[[:space:]]\([0-9][0-9]*\)min for ENHANCED SECURITY ERASE UNIT.*/\1/p' | head -1)
 
                 if ! grep -qE '^[[:space:]]+supported' <<<"$security_block"; then
+                    # No ATA Security Mode feature set — leave CAP_NONE so the
+                    # OPAL fallback below can still crypto-erase a SED.
                     capability[$device]="CAP_NONE"
-                    continue
-                fi
-
-                if grep -Eq '^[[:space:]]*frozen[[:space:]]*$' <<<"$security_block"; then
+                elif grep -Eq '^[[:space:]]*frozen[[:space:]]*$' <<<"$security_block"; then
                     capability[$device]="CAP_ATA_FROZEN"
-                    continue
-                fi
-
-                if grep -qE '^[[:space:]]+supported: enhanced erase' <<<"$security_block"; then
+                elif grep -qE '^[[:space:]]+supported: enhanced erase' <<<"$security_block"; then
                     capability[$device]="CAP_ATA_PURGE_ENHANCED"
-                    continue
+                else
+                    # Security Mode feature set is "supported" (checked above), the
+                    # drive is not frozen, and enhanced erase is not advertised.
+                    # SECURITY ERASE UNIT is a mandatory command of the Security
+                    # Mode feature set, so a normal Secure Erase (Clear) is always
+                    # available here. Do NOT key on the "Nmin for SECURITY ERASE
+                    # UNIT" timing line — hdparm omits it when the drive reports
+                    # word 89 as 0 (e.g. old Seagate Momentus drives), which
+                    # previously misclassified such drives as CAP_NONE -> FAILED.
+                    capability[$device]="CAP_ATA_CLEAR"
                 fi
-
-                # Security Mode feature set is "supported" (checked above), the
-                # drive is not frozen, and enhanced erase is not advertised.
-                # SECURITY ERASE UNIT is a mandatory command of the Security
-                # Mode feature set, so a normal Secure Erase (Clear) is always
-                # available here. Do NOT key on the "Nmin for SECURITY ERASE
-                # UNIT" timing line — hdparm omits it when the drive reports
-                # word 89 as 0 (e.g. old Seagate Momentus drives), which
-                # previously misclassified such drives as CAP_NONE -> FAILED.
-                capability[$device]="CAP_ATA_CLEAR"
             fi
+
+        # Unlocked SED (OPAL) fallback: a drive with no firmware NVMe/ATA/SCSI
+        # erase can still be crypto-erased at the OPAL layer (revertTPer destroys
+        # the encryption key). Only when unlocked — a locked drive is CAP_NONE and
+        # goes to the PSID-revert prompt / physical destruction.
+        if [[ "${capability[$device]}" == "CAP_NONE" && "${opal_locked[$device]:-}" == "NO" ]]; then
+            capability[$device]="CAP_OPAL_CRYPTO"
+        fi
 
     done
 }
@@ -507,6 +511,12 @@ device::classify() {
             devrow["$dev.method"]="SAS Sanitize"
             ;;
 
+        CAP_OPAL_CRYPTO)
+            devrow["$dev.class"]="PURGE"
+            devrow["$dev.cert"]="DESTRUCTION"
+            devrow["$dev.method"]="OPAL Crypto Erase"
+            ;;
+
         CAP_NVME_CLEAR_ONLY)
             devrow["$dev.class"]="CLEAR"
             devrow["$dev.cert"]="SANITISATION"
@@ -553,6 +563,9 @@ device::execute() {
             ;;
         CAP_SCSI_SANITIZE)
             device::exec_scsi_sanitize "$dev"
+            ;;
+        CAP_OPAL_CRYPTO)
+            device::exec_opal "$dev"
             ;;
         CAP_ATA_*)
             device::exec_ata "$dev" "$cap"
