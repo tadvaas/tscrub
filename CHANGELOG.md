@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.19] - 2026-10-05
+
+### Added
+
+- **RAID dismantling detection** — the appliance now detects when a discovered
+  drive is a RAID member and flags it for the operator, without ever deleting a
+  logical drive or breaking an array. Per-drive `RAID` flag with values
+  `md` (Linux md superblock via `mdadm -E`), `vmd` (NVMe behind Intel VMD /
+  RST "RAID mode") and `hba` (a RAID-capable HBA is present). The flag is
+  recorded in a new `RAID` CSV column (surfaced on the dashboard), and the
+  triage screen prints `RAID member(s) … — dismantle in controller BIOS before
+  erasing.`. `mdadm` is now bundled in the image for superblock detection.
+  Controller-level physical-drive erase (hpacucli/megacli) remains a separate,
+  future feature.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.19_2025.11_30_x86-64_v0.41_20261005-51266ea0.iso`
+  (165 MB) sha256 `9679d15d3bf0f1e22dc1957b01062e00a779a38f72aa4285abf14216758c10ed`.
+- Standalone script `tscrub.sh` (v1.10.19) sha256 `2322e78912489a57853c9273d6a1a2bf87d966ac607426ddf3d7daae9e5ab3c9`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `4ef2108e3ce2b6f94036c7f6442ed5f027942dbe4665a9643ffc4ff9d2377792`.
+
 ## [v1.10.18] - 2026-10-05
 
 ### Added
