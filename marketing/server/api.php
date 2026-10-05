@@ -859,11 +859,10 @@ if ($method === 'POST' && $route === '/reports/diagnostics') {
     // coexist: (1) a WinPE oa3tool hash uploaded via /api/mdm/hash (held in
     // the global unassigned pool until this report claims it — authoritative,
     // preferred, never overwritten), and (2) an OAv3 hash generated HERE from
-    // the report's own hardware fields (no WinPE needed). MDM is a paid
-    // feature (one credit per live check), so the check only enqueues for an
-    // account that can afford it; the hash is still staged either way.
+    // the report's own hardware fields (no WinPE needed). The hash is always
+    // staged, but the check itself is manual only (dashboard Re-check): a
+    // device with a staged hash but no job surfaces as "Unchecked".
     mdm_ensure_schema();
-    $mdmGate = mdm_gate((int)$owner['id']);
     $haveHash = mdm_staged_hash((int)$owner['id'], $serial, $uuid) !== null
              || mdm_claim_hash_for_user((int)$owner['id'], $serial, $uuid);
     if (!$haveHash) {
@@ -871,11 +870,7 @@ if ($method === 'POST' && $route === '/reports/diagnostics') {
         $generated = mdm_report_hash($d);
         if ($generated !== '') {
             mdm_stage_hash((int)$owner['id'], $serial, $uuid, (string)($d['product'] ?? ''), $generated);
-            $haveHash = true;
         }
-    }
-    if ($haveHash && $mdmGate['allowed'] && mdm_latest_job((int)$owner['id'], $serial, $uuid) === null) {
-        mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
     }
 
     // Erasure pre-flight (the appliance reads this before wiping): a paid
@@ -1048,16 +1043,8 @@ if ($method === 'POST' && $route === '/mdm/hash') {
     // exists (hash captured after the report), claim + enqueue now.
     $reportOwner = mdm_report_owner($serial, $uuid);
     mdm_stage_hash($reportOwner, $serial, $uuid, $model, $hash);
-    $jobId = 0;
-    // Start the check ONLY on the first hash collection for this device. If a
-    // job already exists (any status), re-booting WinPE and re-uploading the
-    // hash must not trigger another Graph probe — it just refreshes the staged
-    // hash. mdm_enqueue_job() is idempotent per device as a second line of
-    // defence; the explicit mdm_latest_job() guard keeps `queued` truthful.
-    if ($reportOwner !== null && mdm_latest_job($reportOwner, $serial, $uuid) === null && mdm_gate($reportOwner)['allowed']) {
-        $jobId = mdm_enqueue_job($reportOwner, $serial, $uuid);
-    }
-    json_out(['ok' => true, 'staged' => true, 'queued' => $jobId > 0, 'job_id' => $jobId, 'assigned' => $reportOwner !== null]);
+    // The check is manual only (dashboard Re-check) — no auto-enqueue here.
+    json_out(['ok' => true, 'staged' => true, 'queued' => false, 'job_id' => 0, 'assigned' => $reportOwner !== null]);
 }
 
 // POST /api/mdm/autopilot — machine MDM check (Autopilot enrolment).
@@ -1136,20 +1123,11 @@ if ($method === 'POST' && $route === '/mdm/autopilot') {
         ]);
     }
 
+    // The check is manual only (dashboard Re-check). The appliance just reads
+    // the latest job state; no job yet => "Unchecked".
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid);
-    $status  = (string)($job['status'] ?? '');
+    $status  = $job !== null ? (string)($job['status'] ?? '') : 'unchecked';
     $verdict = (string)($job['verdict'] ?? '');
-    // Enqueue only when NO check exists yet for this device. The Graph probe
-    // (import → poll → delete) must run once, on the first boot. Re-booting
-    // the appliance must not re-trigger it: a completed real verdict is
-    // returned as-is, and even failed or inconclusive ('unknown') checks are
-    // surfaced as their stored state rather than re-probed (the dashboard
-    // Re-check button is the explicit re-probe path).
-    if ($status === '') {
-        mdm_enqueue_job((int)$owner['id'], $serial, $uuid);
-        $status = 'queued';
-        $verdict = '';
-    }
 
     json_out(['ok' => true, 'status' => $status, 'verdict' => $verdict,
         'label' => mdm_status_label($status, $verdict),
@@ -1200,10 +1178,9 @@ if ($method === 'GET' && $route === '/mdm/status') {
     $job = mdm_latest_job((int)$owner['id'], $serial, $uuid !== '' ? $uuid : null);
     $status  = (string)($job['status'] ?? 'na');
     $verdict = (string)($job['verdict'] ?? '');
-    // No job yet, but a hash is staged and waiting for its diagnostics report —
-    // keep the appliance polling (the report claims + enqueues during this boot).
-    if ($status === 'na' && mdm_has_unassigned_hash($serial, $uuid)) {
-        $status = 'queued';
+    // No job yet => "Unchecked" (the dashboard Re-check is the manual trigger).
+    if ($status === 'na') {
+        $status = 'unchecked';
         $verdict = '';
     }
     json_out([
