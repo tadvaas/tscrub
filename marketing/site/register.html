@@ -37,35 +37,18 @@
 
   <section class="mx-auto w-full max-w-md px-4 py-16">
     <h1 class="text-center text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Create your account</h1>
-    <p class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">Personal or company — every account gets a licence for tScrub.</p>
+    <p class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">One account for everything — create or join an organisation from your dashboard.</p>
 
     <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 text-left shadow-sm">
       <form id="register-form" class="space-y-4">
         <div>
-          <label class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Account type</label>
-          <div class="grid grid-cols-2 gap-2">
-            <label class="flex cursor-pointer items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 dark:bg-brand-900/30 has-[:checked]:text-brand-700 dark:text-brand-400">
-              <input type="radio" name="account_type" value="personal" checked class="sr-only" /> Personal
-            </label>
-            <label class="flex cursor-pointer items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 dark:bg-brand-900/30 has-[:checked]:text-brand-700 dark:text-brand-400">
-              <input type="radio" name="account_type" value="company" class="sr-only" /> Company
-            </label>
-          </div>
-        </div>
-
-        <div id="name-field">
           <label for="name" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Full name</label>
-          <input id="name" type="text" autocomplete="name" class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
-        </div>
-
-        <div id="company-field" class="hidden">
-          <label for="company-name" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Company name</label>
-          <input id="company-name" type="text" autocomplete="organization" class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
+          <input id="name" type="text" autocomplete="name" required class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
         </div>
 
         <div>
           <label for="email" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Work email</label>
-          <input id="email" type="email" autocomplete="email" required placeholder="you@company.com" class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-brand-500 focus:ring-brand-500" />
+          <input id="email" type="email" autocomplete="email" required placeholder="you@example.com" class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-brand-500 focus:ring-brand-500" />
         </div>
         <div>
           <label for="password" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Password</label>
@@ -121,29 +104,15 @@
         if (d && d.user) window.location.href = '/dashboard';
       });
 
-      var accountRadios = form.querySelectorAll('input[name="account_type"]');
-      function syncFields() {
-        var isCompany = form.querySelector('input[name="account_type"]:checked').value === 'company';
-        document.getElementById('company-field').classList.toggle('hidden', !isCompany);
-        document.getElementById('name-field').classList.toggle('hidden', isCompany);
-        document.getElementById('company-name').required = isCompany;
-        document.getElementById('name').required = !isCompany;
-      }
-      accountRadios.forEach(function (r) { r.addEventListener('change', syncFields); });
-      syncFields();
-
       form.addEventListener('submit', function (e) {
         e.preventDefault();
-        var accountType = form.querySelector('input[name="account_type"]:checked').value;
         var password = document.getElementById('password').value;
         if (password !== document.getElementById('confirm').value) {
           setStatus('Passwords do not match.', 'text-red-600 dark:text-red-400');
           return;
         }
         var body = {
-          account_type: accountType,
           name: document.getElementById('name').value.trim(),
-          company_name: document.getElementById('company-name').value.trim(),
           email: document.getElementById('email').value.trim(),
           password: password
         };

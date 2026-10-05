@@ -398,29 +398,47 @@ if ($method === 'POST' && $route === '/account') {
     $u = auth_require();
     $d = json_body();
     $name = trim((string)($d['name'] ?? ''));
-    $companyName = trim((string)($d['company_name'] ?? ''));
 
-    $profile = [
-        'company_reg' => trim((string)($d['company_reg'] ?? '')),
-        'addr_line1'  => trim((string)($d['addr_line1'] ?? '')),
-        'addr_line2'  => trim((string)($d['addr_line2'] ?? '')),
-        'city'        => trim((string)($d['city'] ?? '')),
-        'postcode'    => trim((string)($d['postcode'] ?? '')),
-        'country'     => trim((string)($d['country'] ?? '')),
-        'phone'       => trim((string)($d['phone'] ?? '')),
-    ];
-    $max = ['company_reg' => 64, 'addr_line1' => 255, 'addr_line2' => 255, 'city' => 100, 'postcode' => 20, 'country' => 100, 'phone' => 50];
-    foreach ($profile as $k => $v) {
-        if (mb_strlen($v) > $max[$k]) {
-            fail(400, 'Company details too long.');
+    // Organisation members edit only their own name; company/address/phone
+    // details are organisation-owned (the owner certifies the certificates),
+    // so only owners/admins — and solo users — may change them. Whatever a
+    // member submits for those fields is ignored and the stored values kept.
+    $canEditCompany = org_role((int)$u['id']) !== 'member';
+    if ($canEditCompany) {
+        $companyName = trim((string)($d['company_name'] ?? ''));
+        $profile = [
+            'company_reg' => trim((string)($d['company_reg'] ?? '')),
+            'addr_line1'  => trim((string)($d['addr_line1'] ?? '')),
+            'addr_line2'  => trim((string)($d['addr_line2'] ?? '')),
+            'city'        => trim((string)($d['city'] ?? '')),
+            'postcode'    => trim((string)($d['postcode'] ?? '')),
+            'country'     => trim((string)($d['country'] ?? '')),
+            'phone'       => trim((string)($d['phone'] ?? '')),
+        ];
+        $max = ['company_reg' => 64, 'addr_line1' => 255, 'addr_line2' => 255, 'city' => 100, 'postcode' => 20, 'country' => 100, 'phone' => 50];
+        foreach ($profile as $k => $v) {
+            if (mb_strlen($v) > $max[$k]) {
+                fail(400, 'Company details too long.');
+            }
         }
+        if (mb_strlen($companyName) > 255) {
+            fail(400, 'Company name must be 255 characters or fewer.');
+        }
+    } else {
+        $companyName = (string)$u['company_name'];
+        $profile = [
+            'company_reg' => (string)$u['company_reg'],
+            'addr_line1'  => (string)$u['addr_line1'],
+            'addr_line2'  => (string)$u['addr_line2'],
+            'city'        => (string)$u['city'],
+            'postcode'    => (string)$u['postcode'],
+            'country'     => (string)$u['country'],
+            'phone'       => (string)$u['phone'],
+        ];
     }
 
     if ($name === '' || mb_strlen($name) > 200) {
         fail(400, 'Your name is required.');
-    }
-    if (mb_strlen($companyName) > 255) {
-        fail(400, 'Company name must be 255 characters or fewer.');
     }
 
     db()->prepare('UPDATE users SET name = ?, company_name = ?, company_reg = ?, addr_line1 = ?, addr_line2 = ?, city = ?, postcode = ?, country = ?, phone = ? WHERE id = ?')
@@ -460,32 +478,15 @@ if ($method === 'POST' && $route === '/register') {
     $email = strtolower(trim((string)($d['email'] ?? '')));
     $password = (string)($d['password'] ?? '');
     $name = trim((string)($d['name'] ?? ''));
-    $accountType = (string)($d['account_type'] ?? 'personal');
-    $companyName = trim((string)($d['company_name'] ?? ''));
 
-    if (!in_array($accountType, ['personal', 'company'], true)) {
-        fail(400, 'Invalid account type.');
-    }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
         fail(400, 'A valid email address is required.');
     }
     if (strlen($password) < 8 || strlen($password) > 72) {
         fail(400, 'Password must be between 8 and 72 characters.');
     }
-    if ($accountType === 'company') {
-        if ($companyName === '' || mb_strlen($companyName) > 255) {
-            fail(400, 'Company name is required for a company account.');
-        }
-        if ($name === '') {
-            $name = $companyName;
-        }
-        if (mb_strlen($name) > 200) {
-            fail(400, 'Name must be 200 characters or fewer.');
-        }
-    } else {
-        if ($name === '' || mb_strlen($name) > 200) {
-            fail(400, 'Your name is required.');
-        }
+    if ($name === '' || mb_strlen($name) > 200) {
+        fail(400, 'Your name is required.');
     }
 
     if (fetch_user_by_email($email) !== null) {
@@ -493,8 +494,10 @@ if ($method === 'POST' && $route === '/register') {
     }
 
     try {
-        db()->prepare('INSERT INTO users (email, password_hash, name, account_type, company_name) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, $accountType, $companyName]);
+        // Every account starts as a personal account; an organisation is
+        // created (or joined) later from the dashboard.
+        db()->prepare('INSERT INTO users (email, password_hash, name, account_type, company_name) VALUES (?, ?, ?, "personal", "")')
+            ->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name]);
     } catch (Throwable $e) {
         // Concurrent registration race on the unique email key -> 409, not 500.
         if ($e instanceof PDOException && ($e->errorInfo[1] ?? 0) === 1062) {

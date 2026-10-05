@@ -99,6 +99,7 @@
             <label for="phone" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Contact phone</label>
             <input id="phone" type="tel" autocomplete="tel" class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 shadow-sm transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
           </div>
+          <p id="company-lock-note" class="hidden col-span-2 text-xs text-slate-400 dark:text-slate-500">Company, registration, address and phone details are managed by your organisation admin.</p>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 dark:border-ink-800 pt-5">
@@ -199,6 +200,15 @@
         document.getElementById('postcode').value = u.postcode || '';
         document.getElementById('country').value = u.country || '';
         document.getElementById('phone').value = u.phone || '';
+        var isMember = !!(d.org && d.org.role === 'member');
+        if (isMember) {
+          ['company-name', 'company-reg', 'addr-line1', 'addr-line2', 'city', 'postcode', 'country', 'phone'].forEach(function (id) {
+            var el = document.getElementById(id);
+            el.disabled = true;
+            el.classList.add('cursor-not-allowed', 'bg-slate-50', 'dark:bg-ink-800');
+          });
+          document.getElementById('company-lock-note').classList.remove('hidden');
+        }
       });
 
       // Profile save.
