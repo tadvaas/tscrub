@@ -50,14 +50,17 @@ first. Tick items off as they ship and note the release that carries each.
       the key lives in `HP_OA3-<GUID>` in plaintext and is replaced in place; the
       worker is vendor-agnostic (locates the variable by content). Notes in
       `research/dpk-injection/oa3-uefi-injection.md`.
-  - [ ] **Unlock locked OA3** — `HP_OA3_LOCK=1` is a one-way firmware lock that
-        rejects `SetVariable` with `EFI_SECURITY_VIOLATION`; most shipped HP
-        units are factory-locked. Investigate whether a BIOS reset / "restore
-        factory keys" clears it, and whether HP exposes any reset path from
-        Linux (the test units have no `firmware-attributes` / `hp-wmi`).
-  - [ ] **Fresh-table injection** — a machine with no embedded key needs the
-        vendor variable name/GUID + structure to create it from scratch (only HP
-        mapped so far).
+  - [x] **Unlock locked OA3** — resolved: `HP_OA3_LOCK` is a **permanent one-way
+        commit flag** set by HP factory/service tools (DMI Utility / MPM /
+        NbDmiKit) after the key is programmed. Once set, the MSDM table + DMI
+        are hardware read-only and HP's own tools refuse re-injection
+        ("OA3 Key already committed"). A BIOS factory reset does **not** clear
+        it. Only a blank/uncommitted service board (`HP_OA3_LOCK=0`) is
+        firmware-injectable; committed boards use OS-level activation
+        (`PID.txt` / `unattend.xml` / `slmgr`).
+  - [ ] **Fresh-table injection** — a blank/uncommitted board (`HP_OA3_LOCK=0`)
+        with no key needs the vendor variable name/GUID + structure to create it
+        from scratch (only HP mapped so far).
   - [ ] **Dell/Lenovo verification** — confirm the key sits contiguously in a
         UEFI variable on other vendors (content-scan is vendor-agnostic but
         unverified beyond HP).
