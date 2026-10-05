@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.0] - 2026-10-05
+
+### Added
+
+- **Remote product-key injection** — a new Operations-modal action that pushes a
+  Windows product key to a live appliance, which writes it into the firmware
+  MSDM ACPI table and reports the outcome back. Server-side `key_inject` queue
+  (key encrypted at rest with libsodium, purged after the command runs) with
+  five new `/api/key/inject*` endpoints and results `injected|failed|unsupported
+  |deferred`. Appliance worker `46_inject_key.sh` patches the 85-byte MSDM table
+  in pure bash (key at offset 56, ACPI checksum byte recomputed) and reflashes
+  via `flashrom`, reporting `unsupported` when the region is write-protected or
+  `flashrom` is absent. The dashboard card is version-gated at v1.11.0.
+
 ## [v1.10.19] - 2026-10-05
 
 ### Added

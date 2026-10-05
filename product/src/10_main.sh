@@ -29,7 +29,7 @@ dryrun::simulate_running_eta() {
 # would keep heartbeating as orphans while getty respawns a fresh tScrub.
 session::teardown() {
     local p
-    for p in "${presence_pid:-}" "${bios_unlock_pid:-}" "${remote_pid:-}" "${mdm_pid:-}" "${register_pid:-}"; do
+    for p in "${presence_pid:-}" "${bios_unlock_pid:-}" "${remote_pid:-}" "${mdm_pid:-}" "${register_pid:-}" "${key_inject_pid:-}"; do
         [[ -n "$p" ]] || continue
         kill "$p" 2>/dev/null || true
     done
@@ -201,6 +201,8 @@ fn_main() {
     bios_unlock_pid=$!
     { remote::loop; } 3>&- 4<&- &
     remote_pid=$!
+    { key_inject::loop; } 3>&- 4<&- &
+    key_inject_pid=$!
     device::install_sedutil
     ui::spinner_start "Discovering devices..."
     if ! device::discover; then

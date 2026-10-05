@@ -46,6 +46,7 @@ require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/mdm.php';
 require_once __DIR__ . '/bios_unlock.php';
 require_once __DIR__ . '/remote.php';
+require_once __DIR__ . '/key_inject.php';
 
 auth_start();
 
@@ -1383,6 +1384,116 @@ if ($method === 'POST' && $route === '/bios/unlock/cancel') {
     json_out(['ok' => true, 'cancelled' => unlock_cancel((int)$u['id'], $id)]);
 }
 
+// POST /api/key/inject — stage a product-key injection (dashboard). Session+CSRF.
+if ($method === 'POST' && $route === '/key/inject') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    $uuid   = trim((string)($d['uuid'] ?? ''));
+    $key    = strtoupper(trim((string)($d['key'] ?? '')));
+
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+    // Permissive charset — real MSDM keys can contain letters a strict base-24
+    // check would reject; the appliance verifies the table checksum on write.
+    if (!preg_match('/^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$/', $key)) {
+        fail(400, 'Key must look like XXXXX-XXXXX-XXXXX-XXXXX-XXXXX.');
+    }
+
+    $id = inject_enqueue((int)$u['id'], $serial, $uuid, $key);
+    json_out(['ok' => true, 'id' => $id, 'staged' => true]);
+}
+
+// GET /api/key/inject/pending?serial=&uuid= — appliance pulls a staged injection.
+// API-token auth only.
+if ($method === 'GET' && $route === '/key/inject/pending') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '' || $serial === 'N/A') {
+        fail(400, 'Serial required.');
+    }
+
+    $cmd = inject_claim((int)$owner['id'], $serial);
+    if ($cmd === null) {
+        json_out(['ok' => true, 'pending' => false]);
+    }
+    json_out(['ok' => true, 'pending' => true, 'id' => $cmd['id'],
+        'serial' => $cmd['serial'], 'uuid' => $cmd['uuid'], 'key' => $cmd['key']]);
+}
+
+// POST /api/key/inject/result — appliance reports the injection outcome. API token.
+if ($method === 'POST' && $route === '/key/inject/result') {
+    $token = $_SERVER['HTTP_X_API_TOKEN'] ?? '';
+    if (!is_string($token) || preg_match('/^[0-9a-f]{64}$/', $token) !== 1) {
+        fail(401, 'Invalid API token.');
+    }
+    $stmt = db()->prepare('SELECT * FROM api_tokens WHERE token = ?');
+    $stmt->execute([$token]);
+    $tok = $stmt->fetch();
+    if ($tok === false) {
+        fail(401, 'Invalid API token.');
+    }
+    $owner = fetch_user_by_id((int)$tok['user_id']);
+    if ($owner === null || $owner['status'] !== 'active') {
+        fail(403, 'Account inactive.');
+    }
+
+    $d = json_body();
+    $id     = (int)($d['id'] ?? 0);
+    $result = trim((string)($d['result'] ?? ''));
+    $detail = trim((string)($d['detail'] ?? ''));
+    if ($id <= 0) {
+        fail(400, 'Invalid command id.');
+    }
+    if (!in_array($result, ['injected', 'failed', 'unsupported', 'deferred'], true)) {
+        fail(400, 'Invalid result.');
+    }
+
+    inject_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255));
+    json_out(['ok' => true]);
+}
+
+// GET /api/key/inject?serial= — latest injection state (dashboard). Session auth.
+if ($method === 'GET' && $route === '/key/inject') {
+    $u = auth_require();
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    if ($serial === '') {
+        fail(400, 'Serial required.');
+    }
+    json_out(['ok' => true, 'inject' => inject_latest((int)$u['id'], $serial)]);
+}
+
+// POST /api/key/inject/cancel — cancel a still-pending injection. Session+CSRF.
+if ($method === 'POST' && $route === '/key/inject/cancel') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $id = (int)($d['id'] ?? 0);
+    if ($id <= 0) {
+        fail(400, 'Invalid command id.');
+    }
+    json_out(['ok' => true, 'cancelled' => inject_cancel((int)$u['id'], $id)]);
+}
+
 // POST /api/devices/commands — stage a remote power command (dashboard). Session+CSRF.
 if ($method === 'POST' && $route === '/devices/commands') {
     auth_csrf_verify();
@@ -1583,7 +1694,7 @@ if ($method === 'GET' && $route === '/devices') {
     // Free-text filter over the same fields the dashboard searches.
     if ($q !== '') {
         $needle = strtolower($q);
-        $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms'];
+        $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms', 'product_key', 'product_key_id'];
         $devices = array_values(array_filter($devices, function ($d) use ($needle, $fields) {
             foreach ($fields as $f) {
                 if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
