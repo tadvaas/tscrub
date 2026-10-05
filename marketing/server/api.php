@@ -2057,6 +2057,14 @@ if ($method === 'POST' && $route === '/org/leave') {
     json_out(['ok' => true]);
 }
 
+// POST /api/org/rename — rename the organisation (owner only).
+if ($method === 'POST' && $route === '/org/rename') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    json_out(['ok' => true] + org_rename((int)$u['id'], trim((string)($d['name'] ?? ''))));
+}
+
 // POST /api/org/transfer — transfer ownership to another active member (owner only).
 if ($method === 'POST' && $route === '/org/transfer') {
     auth_csrf_verify();

@@ -34,3 +34,28 @@
   wrap.appendChild(groups.right);
   root.appendChild(wrap);
 })();
+
+// Subtle user detail inline right of the "Dashboard" heading: organisation
+// name when in an org, else the account email. Populated from the API.
+;(function () {
+  const h1 = Array.from(document.querySelectorAll('h1')).find((el) => el.textContent.trim() === 'Dashboard');
+  if (!h1) return;
+
+  h1.classList.add('flex', 'items-baseline', 'justify-between', 'gap-4');
+  const detail = document.createElement('span');
+  detail.className = 'text-sm font-normal text-slate-500 dark:text-slate-400 truncate';
+  h1.appendChild(detail);
+
+  Promise.all([
+    fetch('/api/me').then((r) => r.json()).catch(() => ({})),
+    fetch('/api/org').then((r) => r.json()).catch(() => ({})),
+  ]).then(([me, org]) => {
+    if (org && org.org && org.org.name) {
+      detail.textContent = org.org.name;
+      detail.title = 'Organisation: ' + org.org.name;
+    } else if (me && me.user && me.user.email) {
+      detail.textContent = me.user.email;
+      detail.title = me.user.email;
+    }
+  });
+})();

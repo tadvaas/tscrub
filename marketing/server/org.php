@@ -348,6 +348,26 @@ function org_create(int $userId, string $name): array {
     return org_summary($userId);
 }
 
+/** Rename the organisation (owner only). */
+function org_rename(int $userId, string $name): array {
+    org_ensure_schema();
+    $m = org_for_user($userId);
+    if ($m === null || $m['status'] !== 'active') {
+        fail(403, 'You are not in an organisation.');
+    }
+    if ((string)$m['role'] !== 'owner') {
+        fail(403, 'Only the owner can rename the organisation.');
+    }
+    $name = trim($name);
+    if ($name === '' || mb_strlen($name, 'UTF-8') > 255) {
+        fail(400, 'Organisation name must be between 1 and 255 characters.');
+    }
+    db()->prepare('UPDATE organisations SET name = ? WHERE id = ?')
+        ->execute([$name, (int)$m['organisation_id']]);
+    org_reset_cache();
+    return org_summary($userId);
+}
+
 /** Invite an existing account by email; returns the token (caller sends the email). */
 function org_invite(int $actorId, string $email, string $role): array {
     org_ensure_schema();
