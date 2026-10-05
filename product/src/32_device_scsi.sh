@@ -71,6 +71,7 @@ device::exec_scsi_sanitize() {
 
     echo "$dev STATUS RUNNING" >&3
     echo "$dev LOG SCSI sanitize (overwrite) started" >&3
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE (overwrite, zero)" >> "$LOG_FILE"
 
     tmp_out="$(mktemp /tmp/tscrub-sg.XXXXXX)" || {
         echo "$dev STATUS FAILED" >&3
@@ -88,6 +89,7 @@ device::exec_scsi_sanitize() {
 
     if (( rc == 0 )); then
         echo "$dev STATUS COMPLETED" >&3
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE COMPLETED" >> "$LOG_FILE"
         return
     fi
 
@@ -95,6 +97,7 @@ device::exec_scsi_sanitize() {
     # optimistically classified — fall back to nwipe and correct the outcome.
     if grep -qiE 'invalid (command operation code|field in cdb)|not supported' <<<"$out"; then
         echo "$dev LOG sanitize unsupported; falling back to nwipe" >&3
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE unsupported -> nwipe" >> "$LOG_FILE"
         devrow["$dev.class"]="CLEAR"
         devrow["$dev.cert"]="SANITISATION"
         devrow["$dev.method"]="nwipe Quick"
@@ -104,5 +107,6 @@ device::exec_scsi_sanitize() {
 
     echo "$dev STATUS FAILED" >&3
     echo "$dev LOG sanitize failed; manual physical destruction required" >&3
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE FAILED" >> "$LOG_FILE"
 }
 
