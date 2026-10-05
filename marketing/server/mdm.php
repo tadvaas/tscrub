@@ -28,6 +28,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/http.php';
 require_once __DIR__ . '/stripe.php';
+require_once __DIR__ . '/org.php';
 
 // ---- configuration --------------------------------------------------------
 
@@ -101,14 +102,7 @@ function mdm_status_label(string $status, string $verdict): string {
 /** The user's most recent licence tier (free when none). Mirrors owner_tier()
  *  in api.php so the MDM worker (which does not load api.php) can gate too. */
 function mdm_user_tier(int $userId): string {
-    try {
-        $stmt = db()->prepare('SELECT tier FROM licences WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1');
-        $stmt->execute([$userId]);
-        $t = $stmt->fetch();
-        return ($t !== false && isset($t['tier']) && $t['tier'] !== null) ? (string)$t['tier'] : 'free';
-    } catch (Throwable $e) {
-        return 'free';
-    }
+    return org_tier($userId);
 }
 
 /**
@@ -832,8 +826,10 @@ function mdm_stage_hash(?int $userId, string $serial, string $uuid, string $mode
 /** Fetch the pending staged hash for a device (serial + uuid), or null if none. */
 function mdm_staged_hash(int $userId, string $serial, string $uuid): ?string {
     try {
-        $stmt = db()->prepare('SELECT hardware_identifier FROM mdm_staged_hash WHERE user_id = ? AND serial = ? AND uuid = ?');
-        $stmt->execute([$userId, $serial, $uuid]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT hardware_identifier FROM mdm_staged_hash WHERE user_id IN ($ph) AND serial = ? AND uuid = ?");
+        $stmt->execute(array_merge($ids, [$serial, $uuid]));
         $row = $stmt->fetch();
         return ($row !== false && !empty($row['hardware_identifier'])) ? (string)$row['hardware_identifier'] : null;
     } catch (Throwable $e) {
@@ -910,8 +906,10 @@ function mdm_has_unassigned_hash(string $serial, string $uuid): bool {
 function mdm_enqueue_job(int $userId, string $serial, string $uuid, bool $force = false): int {
     try {
         if (!$force) {
-            $stmt = db()->prepare('SELECT id FROM mdm_jobs WHERE user_id = ? AND serial = ? AND uuid = ? ORDER BY id DESC LIMIT 1');
-            $stmt->execute([$userId, $serial, $uuid]);
+            $ids = org_member_ids($userId);
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = db()->prepare("SELECT id FROM mdm_jobs WHERE user_id IN ($ph) AND serial = ? AND uuid = ? ORDER BY id DESC LIMIT 1");
+            $stmt->execute(array_merge($ids, [$serial, $uuid]));
             $existing = $stmt->fetch();
             if ($existing !== false) {
                 return (int)$existing['id'];
@@ -990,12 +988,14 @@ function mdm_abort_job(int $jobId, string $verdict, string $detail): void {
  *  job for the serial is returned (legacy serial-only callers). */
 function mdm_latest_job(int $userId, string $serial, ?string $uuid = null): ?array {
     try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
         if ($uuid !== null && $uuid !== '') {
-            $stmt = db()->prepare('SELECT * FROM mdm_jobs WHERE user_id = ? AND serial = ? AND uuid = ? ORDER BY id DESC LIMIT 1');
-            $stmt->execute([$userId, $serial, $uuid]);
+            $stmt = db()->prepare("SELECT * FROM mdm_jobs WHERE user_id IN ($ph) AND serial = ? AND uuid = ? ORDER BY id DESC LIMIT 1");
+            $stmt->execute(array_merge($ids, [$serial, $uuid]));
         } else {
-            $stmt = db()->prepare('SELECT * FROM mdm_jobs WHERE user_id = ? AND serial = ? ORDER BY id DESC LIMIT 1');
-            $stmt->execute([$userId, $serial]);
+            $stmt = db()->prepare("SELECT * FROM mdm_jobs WHERE user_id IN ($ph) AND serial = ? ORDER BY id DESC LIMIT 1");
+            $stmt->execute(array_merge($ids, [$serial]));
         }
         $row = $stmt->fetch();
         return $row !== false ? $row : null;
@@ -1016,14 +1016,16 @@ function mdm_latest_job(int $userId, string $serial, ?string $uuid = null): ?arr
  */
 function mdm_cached_verdict(int $userId, string $serial, string $uuid, int $ttlSeconds = 86400): ?array {
     try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
         $stmt = db()->prepare(
             "SELECT verdict, updated_at FROM mdm_jobs
-             WHERE user_id = ? AND serial = ? AND uuid = ?
+             WHERE user_id IN ($ph) AND serial = ? AND uuid = ?
                AND status = 'done'
                AND verdict IN ('unlocked','locked_this','locked_other')
              ORDER BY id DESC LIMIT 1"
         );
-        $stmt->execute([$userId, $serial, $uuid]);
+        $stmt->execute(array_merge($ids, [$serial, $uuid]));
         $j = $stmt->fetch();
         if ($j === false) {
             return null;
@@ -1070,8 +1072,10 @@ function mdm_probe_cooldown_remaining(int $cooldownSeconds = 30): int {
 /** Dashboard device list: staged serials + their latest job state. */
 function mdm_devices(int $userId): array {
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, model, created_at AS captured_at FROM mdm_staged_hash WHERE user_id = ? ORDER BY created_at DESC');
-        $stmt->execute([$userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT serial, uuid, model, created_at AS captured_at FROM mdm_staged_hash WHERE user_id IN ($ph) ORDER BY created_at DESC");
+        $stmt->execute($ids);
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $h) {
             $j = mdm_latest_job($userId, (string)$h['serial'], (string)$h['uuid']);

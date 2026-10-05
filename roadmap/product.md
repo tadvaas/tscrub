@@ -87,9 +87,14 @@ first. Tick items off as they ship and note the release that carries each.
 - [ ] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
       `CONFIG_VIRTIO_NET` for faster VM testing, quiet `sedutil-cli` SG_IO noise
       on QEMU disks.
-- [ ] **Organisations & seats** (§5) — lightweight workspace layer (email-invite
-      + role, shared certs/COCID history) so one Team licence covers several
-      operators. No SSO/portal.
+- [x] **Organisations & seats** (§5) — shipped 2026-10-05 (server + dashboard,
+      no appliance change): `organisations` / `organisation_members` /
+      `organisation_invites` tables, `org.php` scope layer (writes keep
+      `user_id`, reads resolve to `org_member_ids`), org-aware tier, email-invite
+      + owner/admin/member roles, soft-remove, seat limits (free 2 / payg 1 /
+      team 10 / enterprise 50), Account-page Organisation card. Plan:
+      `research/organisations-seats/README.md`; tests
+      `research/organisations-seats/test_org_php.php` (37 checks).
 
 ## 4. Long tail (pick up as milestone room allows)
 

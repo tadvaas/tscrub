@@ -386,3 +386,47 @@ CREATE TABLE IF NOT EXISTS device_registrations (
   KEY idx_reg_user (user_id, id),
   CONSTRAINT fk_reg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Organisations & seats (§5) — a lightweight multi-user workspace layer. One
+-- Team/Enterprise licence covers several operators (email-invite + role), who
+-- share the org's reports, certificates, devices, MDM results, remote commands
+-- and BIOS-unlock queue. Reads are org-scoped via org_member_ids(); writes keep
+-- user_id (attribution). Member removal is a SOFT remove (status -> inactive):
+-- rows stay in org history but the seat is freed.
+CREATE TABLE IF NOT EXISTS organisations (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name          VARCHAR(255)    NOT NULL,
+  owner_user_id BIGINT UNSIGNED NOT NULL,
+  created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_org_owner (owner_user_id),
+  CONSTRAINT fk_org_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS organisation_members (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  organisation_id BIGINT UNSIGNED NOT NULL,
+  user_id         BIGINT UNSIGNED NOT NULL,
+  role            ENUM('owner','admin','member') NOT NULL DEFAULT 'member',
+  status          ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  joined_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_org_member_user (user_id),
+  KEY idx_org_member_org (organisation_id),
+  CONSTRAINT fk_org_member_org  FOREIGN KEY (organisation_id) REFERENCES organisations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_org_member_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS organisation_invites (
+  token           CHAR(64)        NOT NULL,
+  organisation_id BIGINT UNSIGNED NOT NULL,
+  email           VARCHAR(255)    NOT NULL,
+  role            ENUM('admin','member') NOT NULL DEFAULT 'member',
+  created_by      BIGINT UNSIGNED NOT NULL,
+  expires_at      DATETIME        NOT NULL,
+  used            TINYINT(1)      NOT NULL DEFAULT 0,
+  created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (token),
+  KEY idx_org_invites_org (organisation_id),
+  KEY idx_org_invites_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

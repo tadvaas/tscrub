@@ -381,9 +381,9 @@ subscriptions, and close the last trust/coverage gaps.
       `subscriptions` table to Stripe recurring prices; the webhook credits the
       monthly 100/500 erasures and sets the `team`/`enterprise` tier automatically
       (today these plans are "contact us" only).
-- [ ] Organisations & seats — a lightweight workspace layer (email-invite + role,
+- [x] Organisations & seats — a lightweight workspace layer (email-invite + role,
       shared certs/COCID history) so a Team licence covers several operators.
-      No SSO/portal.
+      No SSO/portal. Shipped 2026-10-05 (server + dashboard).
 - [x] SAS/SCSI erase-path proof — exercise the `nwipe` SCSI fallback on real SAS
       hardware and add a Proxmox SCSI scenario (the last untested wipe path).
 - [ ] Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net`

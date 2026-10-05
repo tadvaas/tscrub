@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/http.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/org.php';
 
 function run_cmd(array $cmd) {
     $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
@@ -55,8 +56,10 @@ function clip_str(string $s, int $max): string {
  * user. Reports signed by one of these keys are attributable to that licence.
  */
 function licence_pub_keys(int $userId): array {
-    $stmt = db()->prepare("SELECT pub_key FROM licences WHERE user_id = ? AND tier <> 'free' AND pub_key <> ''");
-    $stmt->execute([$userId]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT pub_key FROM licences WHERE user_id IN ($ph) AND tier <> 'free' AND pub_key <> ''");
+    $stmt->execute($ids);
     return array_values(array_filter(array_map(fn($r) => (string)$r['pub_key'], $stmt->fetchAll())));
 }
 
@@ -748,8 +751,10 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
  */
 function user_ingested_shas(int $userId): array {
     $set = [];
-    $stmt = db()->prepare('SELECT payload FROM reports WHERE user_id = ?');
-    $stmt->execute([$userId]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id IN ($ph)");
+    $stmt->execute($ids);
     while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
         $p = json_decode((string)($row['payload'] ?? ''), true);
         if (!is_array($p)) continue;
@@ -1026,9 +1031,10 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
     $offset = ($page - 1) * $per;
 
     reports_ensure_schema();
-    $where = "user_id = ? AND report_type <> 'diagnostics'";
-    $params = [$userId];
-    $types = [PDO::PARAM_INT];
+    $ids = org_member_ids($userId);
+    $where = 'user_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ") AND report_type <> 'diagnostics'";
+    $params = $ids;
+    $types = array_fill(0, count($ids), PDO::PARAM_INT);
 
     if ($cocid !== null && $cocid !== '') {
         $where .= ' AND cocid = ?';
@@ -1072,15 +1078,17 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
  */
 function distinct_cocids(int $userId): array {
     reports_ensure_schema();
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
     $stmt = db()->prepare(
         'SELECT r.cocid, COUNT(*) AS report_count, MAX(r.uploaded_at) AS latest,
                 (SELECT c.cert_id FROM certificates c WHERE c.user_id = r.user_id AND c.cocid = r.cocid ORDER BY c.id DESC LIMIT 1) AS cert_id
          FROM reports r
-         WHERE r.user_id = ? AND r.report_type <> \'diagnostics\'
+         WHERE r.user_id IN (' . $ph . ') AND r.report_type <> \'diagnostics\'
          GROUP BY r.cocid
          ORDER BY latest DESC'
     );
-    $stmt->execute([$userId]);
+    $stmt->execute($ids);
     $out = [];
     foreach ($stmt->fetchAll() as $row) {
         $out[] = [
@@ -1099,8 +1107,10 @@ function distinct_cocids(int $userId): array {
  */
 function load_report_payloads(int $userId, string $cocid): array {
     reports_ensure_schema();
-    $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id = ? AND cocid = ? AND report_type <> 'diagnostics' ORDER BY id");
-    $stmt->execute([$userId, $cocid]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id IN ($ph) AND cocid = ? AND report_type <> 'diagnostics' ORDER BY id");
+    $stmt->execute(array_merge($ids, [$cocid]));
     $groups = [];
     foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $p) {
         $g = json_decode((string)$p, true);
@@ -1183,8 +1193,10 @@ function presence_heartbeat(int $userId, string $serial, string $uuid, string $l
 function presence_map(int $userId): array {
     $map = ['serial' => [], 'uuid' => [], 'ip' => [], 'erasure' => []];
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, last_seen_ts FROM device_presence WHERE user_id = ?');
-        $stmt->execute([$userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, last_seen_ts FROM device_presence WHERE user_id IN ($ph)");
+        $stmt->execute($ids);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $ts = (int)$r['last_seen_ts'];
             $ip = trim((string)($r['lan_ip'] ?? ''));
@@ -1292,8 +1304,10 @@ function device_register(int $userId, string $serial, string $uuid, array $paylo
 function load_registered_devices(int $userId): array {
     $out = [];
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, payload, registered_at, last_seen_ts FROM device_registrations WHERE user_id = ? ORDER BY registered_at DESC, id DESC');
-        $stmt->execute([$userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT serial, uuid, payload, registered_at, last_seen_ts FROM device_registrations WHERE user_id IN ($ph) ORDER BY registered_at DESC, id DESC");
+        $stmt->execute($ids);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $p = json_decode((string)$r['payload'], true);
             if (!is_array($p)) $p = [];
@@ -1324,8 +1338,10 @@ function load_registered_devices(int $userId): array {
  */
 function load_devices(int $userId): array {
     reports_ensure_schema();
-    $stmt = db()->prepare("SELECT id, uploaded_at, payload FROM reports WHERE user_id = ? AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
-    $stmt->execute([$userId]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT id, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute($ids);
 
     $devices = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -1447,8 +1463,8 @@ function load_devices(int $userId): array {
 
     // Fold erasure reports into the same machine history so the Devices tab
     // shows when drives were wiped alongside the boot-time snapshots.
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
-    $stmt->execute([$userId]);
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute($ids);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $g = json_decode((string)$r['payload'], true);
         if (!is_array($g) || empty($g['drives'])) continue;
@@ -1488,8 +1504,8 @@ function load_devices(int $userId): array {
     // jobs are still live (shown in the MDM column), not history.
     if (function_exists('mdm_ensure_schema')) mdm_ensure_schema();
     try {
-        $stmt = db()->prepare("SELECT id, serial, uuid, status, verdict, source, detail, updated_at, created_at FROM mdm_jobs WHERE user_id = ? AND status IN ('done','failed','aborted') ORDER BY updated_at DESC, id DESC");
-        $stmt->execute([$userId]);
+        $stmt = db()->prepare("SELECT id, serial, uuid, status, verdict, source, detail, updated_at, created_at FROM mdm_jobs WHERE user_id IN ($ph) AND status IN ('done','failed','aborted') ORDER BY updated_at DESC, id DESC");
+        $stmt->execute($ids);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $j) {
             $s = strtolower(trim((string)$j['serial']));
             $u = strtolower(trim((string)$j['uuid']));
@@ -1640,8 +1656,10 @@ function load_devices(int $userId): array {
  */
 function load_drives(int $userId): array {
     reports_ensure_schema();
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id = ? AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
-    $stmt->execute([$userId]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute($ids);
 
     $drives = [];
     $lastUpload = [];

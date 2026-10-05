@@ -46,6 +46,7 @@ require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/mdm.php';
 require_once __DIR__ . '/bios_unlock.php';
 require_once __DIR__ . '/remote.php';
+require_once __DIR__ . '/org.php';
 
 auth_start();
 
@@ -159,12 +160,9 @@ function fetch_cert_by_cert_id(string $certId): ?array {
     return $c === false ? null : $c;
 }
 
-/** Most recent licence tier for a user (free when none). */
+/** Most recent licence tier for a user (free when none). Org-aware. */
 function owner_tier(int $userId): string {
-    $stmt = db()->prepare('SELECT tier FROM licences WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1');
-    $stmt->execute([$userId]);
-    $t = $stmt->fetch();
-    return ($t !== false && isset($t['tier']) && $t['tier'] !== null) ? (string)$t['tier'] : 'free';
+    return org_tier($userId);
 }
 
 /**
@@ -196,19 +194,42 @@ function certifier_details(array $u): array {
 }
 
 /**
+ * Certifier block for a user, with the organisation fallback: a member whose
+ * profile has no company name certifies as the organisation (the owner's
+ * company details) instead, so every operator's certificate names the same
+ * legal certifying party.
+ */
+function certifier_for_user(int $userId): array {
+    $u = fetch_user_by_id($userId) ?? [];
+    $details = certifier_details($u);
+    if ((string)($u['company_name'] ?? '') === '') {
+        $m = org_for_user($userId);
+        if ($m !== null && (int)$m['owner_user_id'] !== $userId) {
+            $owner = fetch_user_by_id((int)$m['owner_user_id']);
+            if ($owner !== null && (string)($owner['company_name'] ?? '') !== '') {
+                return certifier_details($owner);
+            }
+        }
+    }
+    return $details;
+}
+
+/**
  * Upsert a consolidated certificate from a parsed report group (one COCID).
  * Merges into the existing certificate when one already exists for that COCID.
  * Returns the certificate row (cert_row shape).
  */
 function generate_certificate(array $g, int $userId, bool $canSign, array $destroyed = []): array {
     require_once __DIR__ . '/render_cert.php';
-    $certifier = certifier_details(fetch_user_by_id($userId) ?? []);
+    $certifier = certifier_for_user($userId);
     $pdfDir = __DIR__ . '/certs';
     if (!is_dir($pdfDir)) { @mkdir($pdfDir, 0775, true); }
 
     $cocid = (string)$g['cocid'];
-    $stmt = db()->prepare('SELECT * FROM certificates WHERE user_id = ? AND cocid = ? ORDER BY id DESC LIMIT 1');
-    $stmt->execute([$userId, $cocid]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT * FROM certificates WHERE user_id IN ($ph) AND cocid = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute(array_merge($ids, [$cocid]));
     $existing = $stmt->fetch();
 
     if ($existing !== false) {
@@ -627,9 +648,9 @@ if ($method === 'GET' && $route === '/certs') {
     $per = 20;
     $offset = ($page - 1) * $per;
 
-    $where = 'user_id = ?';
-    $params = [(int)$u['id']];
-    $types = [PDO::PARAM_INT];
+    $where = 'user_id IN (' . implode(',', array_fill(0, count(org_member_ids((int)$u['id'])), '?')) . ')';
+    $params = org_member_ids((int)$u['id']);
+    $types = array_fill(0, count($params), PDO::PARAM_INT);
     if ($q !== '') {
         $where .= ' AND (LOWER(cert_id) LIKE ? OR LOWER(cocid) LIKE ?)';
         $like = '%' . strtolower($q) . '%';
@@ -655,7 +676,7 @@ if ($method === 'GET' && $route === '/certs') {
 if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'certs') {
     $u = auth_require();
     $c = fetch_cert_by_cert_id($seg[1]);
-    if ($c === null || ((int)$c['user_id'] !== (int)$u['id'] && $u['role'] !== 'admin')) {
+    if ($c === null || (!org_owns((int)$u['id'], (int)($c['user_id'] ?? 0)) && $u['role'] !== 'admin')) {
         fail(404, 'Certificate not found.');
     }
     $out = cert_row($c);
@@ -668,7 +689,7 @@ if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'certs') {
 if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'certs' && $seg[2] === 'download') {
     $u = auth_require();
     $c = fetch_cert_by_cert_id($seg[1]);
-    if ($c === null || ((int)$c['user_id'] !== (int)$u['id'] && $u['role'] !== 'admin')) {
+    if ($c === null || (!org_owns((int)$u['id'], (int)($c['user_id'] ?? 0)) && $u['role'] !== 'admin')) {
         fail(404, 'Certificate not found.');
     }
     $pdfRel = basename((string)($c['pdf_path'] ?? ''));
@@ -708,8 +729,10 @@ if ($method === 'POST' && $route === '/licence') {
 // GET /api/licences
 if ($method === 'GET' && $route === '/licences') {
     $u = auth_require();
-    $stmt = db()->prepare('SELECT id, tier, customer, expiry, created_at FROM licences WHERE user_id = ? ORDER BY created_at DESC');
-    $stmt->execute([$u['id']]);
+    $ids = org_member_ids((int)$u['id']);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT id, tier, customer, expiry, created_at FROM licences WHERE user_id IN ($ph) ORDER BY created_at DESC");
+    $stmt->execute($ids);
     $rows = array_map(fn($l) => [
         'id'         => (int)$l['id'],
         'tier'       => (string)$l['tier'],
@@ -723,8 +746,10 @@ if ($method === 'GET' && $route === '/licences') {
 // GET /api/licences/{id}/download
 if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'licences' && $seg[2] === 'download') {
     $u = auth_require();
-    $stmt = db()->prepare('SELECT * FROM licences WHERE id = ? AND user_id = ?');
-    $stmt->execute([(int)$seg[1], (int)$u['id']]);
+    $ids = org_member_ids((int)$u['id']);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT * FROM licences WHERE id = ? AND user_id IN ($ph)");
+    $stmt->execute(array_merge([(int)$seg[1]], $ids));
     $lic = $stmt->fetch();
     if ($lic === false) {
         fail(404, 'Licence not found.');
@@ -901,7 +926,7 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     $stmt = db()->prepare('SELECT * FROM reports WHERE id = ?');
     $stmt->execute([$id]);
     $r = $stmt->fetch();
-    if ($r === false || ((int)$r['user_id'] !== (int)$u['id'] && $u['role'] !== 'admin')) {
+    if ($r === false || (!org_owns((int)$u['id'], (int)($r['user_id'] ?? 0)) && $u['role'] !== 'admin')) {
         fail(404, 'Report not found.');
     }
     if (($r['report_type'] ?? 'erasure') !== 'diagnostics') {
@@ -913,10 +938,9 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     }
 
     require_once __DIR__ . '/render_diag.php';
-    $owner = fetch_user_by_id((int)$r['user_id']);
     $rendered = render_diagnostics_pdf(
         diag_stored_to_raw($d),
-        certifier_details($owner ?? []),
+        certifier_for_user((int)$r['user_id']),
         owner_tier((int)$r['user_id']) !== 'free',
         'none'
     );
@@ -950,7 +974,7 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'drives' && $seg[2] ==
     $stmt = db()->prepare('SELECT * FROM reports WHERE id = ?');
     $stmt->execute([$id]);
     $r = $stmt->fetch();
-    if ($r === false || ((int)$r['user_id'] !== (int)$u['id'] && $u['role'] !== 'admin')) {
+    if ($r === false || (!org_owns((int)$u['id'], (int)($r['user_id'] ?? 0)) && $u['role'] !== 'admin')) {
         fail(404, 'Drive report not found.');
     }
     if (($r['report_type'] ?? 'erasure') === 'diagnostics') {
@@ -978,11 +1002,10 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'drives' && $seg[2] ==
     $drive['uploaded_at'] = ts_local((string)$r['uploaded_at']);
 
     require_once __DIR__ . '/render_drive.php';
-    $owner = fetch_user_by_id((int)$r['user_id']);
     $rendered = render_drive_pdf(
         $drive,
         owner_tier((int)$r['user_id']) !== 'free',
-        certifier_details($owner ?? [])
+        certifier_for_user((int)$r['user_id'])
     );
 
     $sn = trim(preg_replace('/[^A-Za-z0-9._-]+/', '_', $serial));
@@ -1834,8 +1857,10 @@ if ($method === 'POST' && $route === '/certs') {
     // certificate. An existing certificate's drives are folded in first so a
     // drive already recorded as DESTROYED (or COMPLETED) doesn't reappear here.
     $decisionDrives = $g['drives'];
-    $stmt = db()->prepare('SELECT * FROM certificates WHERE user_id = ? AND cocid = ? ORDER BY id DESC LIMIT 1');
-    $stmt->execute([(int)$u['id'], $cocid]);
+    $ids = org_member_ids((int)$u['id']);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT * FROM certificates WHERE user_id IN ($ph) AND cocid = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute(array_merge($ids, [$cocid]));
     $existing = $stmt->fetch();
     if ($existing !== false) {
         $decisionDrives = merge_group($g, load_cert_drives((int)$existing['id']), load_cert_reports((int)$existing['id']), $existing)['drives'];
@@ -1944,6 +1969,87 @@ if ($method === 'GET' && $route === '/tscrub-conf') {
     header('Content-Length: ' . strlen($conf));
     echo $conf;
     exit;
+}
+
+// ---- organisations & seats ------------------------------------------------
+
+// GET /api/org — current org + members + seats (solo => org:null).
+if ($method === 'GET' && $route === '/org') {
+    $u = auth_require();
+    json_out(['ok' => true] + org_summary((int)$u['id']));
+}
+
+// POST /api/org — create an organisation (the user becomes owner).
+if ($method === 'POST' && $route === '/org') {
+    auth_csrf_verify();
+    $u = auth_require();
+    rate_limit('org', 30);
+    $d = json_body();
+    json_out(['ok' => true] + org_create((int)$u['id'], trim((string)($d['name'] ?? ''))), 201);
+}
+
+// POST /api/org/invites — invite an existing account by email.
+if ($method === 'POST' && $route === '/org/invites') {
+    auth_csrf_verify();
+    $u = auth_require();
+    rate_limit('org-invite', 30);
+    $d = json_body();
+    $inv = org_invite((int)$u['id'], (string)($d['email'] ?? ''), (string)($d['role'] ?? 'member'));
+
+    $org = org_for_user((int)$u['id']);
+    $orgName = $org !== null ? (string)$org['name'] : 'an organisation';
+    $link = db_base_url() . '/dashboard/account?org_invite=' . $inv['token'];
+    $sender = (string)($u['name'] ?? '');
+    if ($sender === '') { $sender = (string)($u['email'] ?? ''); }
+    mail_send(
+        'Join ' . $orgName . ' on tScrub',
+        "Hi,\n\n{$sender} has invited you to join the {$orgName} organisation on tScrub as a {$inv['role']}.\n\n"
+        . "Open this link to accept (it expires in 7 days):\n\n{$link}\n\n"
+        . "If you don't have a tScrub account yet, register with this email address first, then open the link again.\n\n— tScrub",
+        'contact',
+        $inv['email']
+    );
+    json_out(['ok' => true, 'invite' => $inv], 201);
+}
+
+// POST /api/org/invites/{token}/accept — accept an invite (email must match).
+if ($method === 'POST' && count($seg) === 4 && $seg[0] === 'org' && $seg[1] === 'invites' && $seg[3] === 'accept') {
+    $u = auth_require();
+    json_out(['ok' => true] + org_accept((int)$u['id'], $seg[2]));
+}
+
+// POST /api/org/members/{id}/role — change a member's role (owner/admin).
+if ($method === 'POST' && count($seg) === 4 && $seg[0] === 'org' && $seg[1] === 'members' && $seg[3] === 'role') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    org_change_role((int)$u['id'], (int)$seg[2], (string)($d['role'] ?? ''));
+    json_out(['ok' => true] + org_summary((int)$u['id']));
+}
+
+// DELETE /api/org/members/{id} — soft-remove a member (owner/admin).
+if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'org' && $seg[1] === 'members') {
+    auth_csrf_verify();
+    $u = auth_require();
+    org_remove((int)$u['id'], (int)$seg[2]);
+    json_out(['ok' => true] + org_summary((int)$u['id']));
+}
+
+// POST /api/org/leave — leave the organisation (member/admin).
+if ($method === 'POST' && $route === '/org/leave') {
+    auth_csrf_verify();
+    $u = auth_require();
+    org_leave((int)$u['id']);
+    json_out(['ok' => true]);
+}
+
+// POST /api/org/transfer — transfer ownership to another active member (owner only).
+if ($method === 'POST' && $route === '/org/transfer') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    org_transfer((int)$u['id'], (int)($d['user_id'] ?? 0));
+    json_out(['ok' => true] + org_summary((int)$u['id']));
 }
 
 // ---- admin ----------------------------------------------------------------

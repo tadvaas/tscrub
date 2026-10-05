@@ -17,6 +17,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/org.php';
 
 /** Lazily create the device_commands table (idempotent — mirrors schema.sql). */
 function remote_ensure_schema(): void {
@@ -57,12 +58,14 @@ function remote_ensure_schema(): void {
 function remote_expire_stale(int $userId, string $serial, int $minutes = 5): void {
     remote_ensure_schema();
     try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
         $pendingBefore = gmdate('Y-m-d H:i:s', time() - $minutes * 60);
-        db()->prepare('UPDATE device_commands SET status = "expired", resolved_at = UTC_TIMESTAMP() WHERE user_id = ? AND serial = ? AND status = "pending" AND created_at < ?')
-            ->execute([$userId, $serial, $pendingBefore]);
+        db()->prepare("UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND serial = ? AND status = 'pending' AND created_at < ?")
+            ->execute(array_merge($ids, [$serial, $pendingBefore]));
         $dispatchedBefore = gmdate('Y-m-d H:i:s', time() - 120);
-        db()->prepare('UPDATE device_commands SET status = "expired", detail = "no result received", resolved_at = UTC_TIMESTAMP() WHERE user_id = ? AND serial = ? AND status = "dispatched" AND dispatched_at < ?')
-            ->execute([$userId, $serial, $dispatchedBefore]);
+        db()->prepare("UPDATE device_commands SET status = 'expired', detail = 'no result received', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND serial = ? AND status = 'dispatched' AND dispatched_at < ?")
+            ->execute(array_merge($ids, [$serial, $dispatchedBefore]));
     } catch (Throwable $e) {
         error_log('remote expire error: ' . $e->getMessage());
     }
@@ -76,12 +79,14 @@ function remote_expire_stale(int $userId, string $serial, int $minutes = 5): voi
 function remote_expire_stale_user(int $userId): void {
     remote_ensure_schema();
     try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
         $pendingBefore = gmdate('Y-m-d H:i:s', time() - 5 * 60);
-        db()->prepare('UPDATE device_commands SET status = "expired", resolved_at = UTC_TIMESTAMP() WHERE user_id = ? AND status = "pending" AND created_at < ?')
-            ->execute([$userId, $pendingBefore]);
+        db()->prepare("UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND status = 'pending' AND created_at < ?")
+            ->execute(array_merge($ids, [$pendingBefore]));
         $dispatchedBefore = gmdate('Y-m-d H:i:s', time() - 120);
-        db()->prepare('UPDATE device_commands SET status = "expired", detail = "no result received", resolved_at = UTC_TIMESTAMP() WHERE user_id = ? AND status = "dispatched" AND dispatched_at < ?')
-            ->execute([$userId, $dispatchedBefore]);
+        db()->prepare("UPDATE device_commands SET status = 'expired', detail = 'no result received', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND status = 'dispatched' AND dispatched_at < ?")
+            ->execute(array_merge($ids, [$dispatchedBefore]));
     } catch (Throwable $e) {
         error_log('remote expire user error: ' . $e->getMessage());
     }
@@ -91,8 +96,10 @@ function remote_expire_stale_user(int $userId): void {
 function remote_enqueue(int $userId, string $serial, string $uuid, string $command, array $options = []): int {
     remote_ensure_schema();
     remote_expire_stale($userId, $serial);
-    db()->prepare('UPDATE device_commands SET status = "superseded" WHERE user_id = ? AND serial = ? AND status = "pending"')
-        ->execute([$userId, $serial]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    db()->prepare("UPDATE device_commands SET status = 'superseded' WHERE user_id IN ($ph) AND serial = ? AND status = 'pending'")
+        ->execute(array_merge($ids, [$serial]));
     $optionsJson = $options === [] ? null : json_encode($options, JSON_UNESCAPED_SLASHES);
     db()->prepare('INSERT INTO device_commands (user_id, serial, uuid, command, options, status) VALUES (?, ?, ?, ?, ?, "pending")')
         ->execute([$userId, $serial, $uuid, $command, $optionsJson]);
@@ -106,8 +113,10 @@ function remote_has_power_pending(int $userId, string $serial): bool {
     remote_ensure_schema();
     remote_expire_stale($userId, $serial);
     try {
-        $stmt = db()->prepare('SELECT COUNT(*) FROM device_commands WHERE user_id = ? AND serial = ? AND command IN ("shutdown", "reboot") AND status IN ("pending", "dispatched")');
-        $stmt->execute([$userId, $serial]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT COUNT(*) FROM device_commands WHERE user_id IN ($ph) AND serial = ? AND command IN ('shutdown', 'reboot') AND status IN ('pending', 'dispatched')");
+        $stmt->execute(array_merge($ids, [$serial]));
         return (int)$stmt->fetchColumn() > 0;
     } catch (Throwable $e) {
         error_log('remote power pending check error: ' . $e->getMessage());
@@ -121,8 +130,10 @@ function remote_claim(int $userId, string $serial): ?array {
     remote_expire_stale($userId, $serial);
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare('SELECT * FROM device_commands WHERE user_id = ? AND serial = ? AND status = "pending" ORDER BY id ASC LIMIT 1 FOR UPDATE');
-        $stmt->execute([$userId, $serial]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT * FROM device_commands WHERE user_id IN ($ph) AND serial = ? AND status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE");
+        $stmt->execute(array_merge($ids, [$serial]));
         $row = $stmt->fetch();
         if ($row === false) {
             db()->commit();
@@ -154,15 +165,17 @@ function remote_claim(int $userId, string $serial): ?array {
 function remote_report(int $userId, int $id, string $result, string $detail): void {
     remote_ensure_schema();
     try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
         if ($result === 'deferred') {
             // Not safe to act right now — return to pending for the next poll.
-            db()->prepare('UPDATE device_commands SET status = "pending", dispatched_at = NULL, result = "deferred", detail = ? WHERE id = ? AND user_id = ?')
-                ->execute([$detail, $id, $userId]);
+            db()->prepare("UPDATE device_commands SET status = 'pending', dispatched_at = NULL, result = 'deferred', detail = ? WHERE id = ? AND user_id IN ($ph)")
+                ->execute(array_merge([$detail, $id], $ids));
             return;
         }
         $status = $result === 'done' ? 'done' : 'failed';
-        db()->prepare('UPDATE device_commands SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ?')
-            ->execute([$status, $result, $detail, $id, $userId]);
+        db()->prepare("UPDATE device_commands SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id IN ($ph)")
+            ->execute(array_merge([$status, $result, $detail, $id], $ids));
     } catch (Throwable $e) {
         error_log('remote report error: ' . $e->getMessage());
     }
@@ -172,8 +185,10 @@ function remote_report(int $userId, int $id, string $result, string $detail): vo
 function remote_cancel(int $userId, int $id): bool {
     remote_ensure_schema();
     try {
-        $stmt = db()->prepare('UPDATE device_commands SET status = "cancelled", resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ? AND status = "pending"');
-        $stmt->execute([$id, $userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("UPDATE device_commands SET status = 'cancelled', resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id IN ($ph) AND status = 'pending'");
+        $stmt->execute(array_merge([$id], $ids));
         return $stmt->rowCount() > 0;
     } catch (Throwable $e) {
         error_log('remote cancel error: ' . $e->getMessage());
@@ -186,8 +201,10 @@ function remote_latest(int $userId, string $serial): array {
     remote_ensure_schema();
     remote_expire_stale($userId, $serial);
     try {
-        $stmt = db()->prepare('SELECT id, command, status, result, detail, created_at, resolved_at FROM device_commands WHERE user_id = ? AND serial = ? ORDER BY id DESC LIMIT 1');
-        $stmt->execute([$userId, $serial]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT id, command, status, result, detail, created_at, resolved_at FROM device_commands WHERE user_id IN ($ph) AND serial = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute(array_merge($ids, [$serial]));
         $r = $stmt->fetch();
         if ($r === false) {
             return ['status' => 'none'];
@@ -215,8 +232,10 @@ function remote_fold_devices(int $userId, array $devices): array {
     remote_ensure_schema();
     remote_expire_stale_user($userId);
     try {
-        $stmt = db()->prepare('SELECT serial, uuid, command, status, result, dispatched_at, resolved_at FROM device_commands WHERE user_id = ? ORDER BY id DESC');
-        $stmt->execute([$userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT serial, uuid, command, status, result, dispatched_at, resolved_at FROM device_commands WHERE user_id IN ($ph) ORDER BY id DESC");
+        $stmt->execute($ids);
         $bySerial = [];
         $byUuid   = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {

@@ -12,6 +12,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/org.php';
 
 /** Lazily create the bios_unlock table (idempotent — mirrors schema.sql). */
 function unlock_ensure_schema(): void {
@@ -85,8 +86,10 @@ function unlock_enqueue(int $userId, string $serial, string $uuid, string $passw
     unlock_ensure_schema();
     unlock_expire_stale();
     // Superseded rows must not retain their password at rest.
-    db()->prepare('UPDATE bios_unlock SET status = "superseded", resolved_at = UTC_TIMESTAMP(), password_enc = "" WHERE user_id = ? AND serial = ? AND status = "pending"')
-        ->execute([$userId, $serial]);
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    db()->prepare("UPDATE bios_unlock SET status = 'superseded', resolved_at = UTC_TIMESTAMP(), password_enc = '' WHERE user_id IN ($ph) AND serial = ? AND status = 'pending'")
+        ->execute(array_merge($ids, [$serial]));
     db()->prepare('INSERT INTO bios_unlock (user_id, serial, uuid, password_enc, status) VALUES (?, ?, ?, ?, "pending")')
         ->execute([$userId, $serial, $uuid, unlock_encrypt($password)]);
     return (int)db()->lastInsertId();
@@ -98,14 +101,16 @@ function unlock_claim(int $userId, string $serial, string $uuid): ?array {
     unlock_expire_stale();
     db()->beginTransaction();
     try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
         // Requeue a dispatched command whose result POST never arrived (the
         // appliance's report was lost), so it doesn't stay dispatched forever.
-        db()->prepare('UPDATE bios_unlock SET status = "pending", dispatched_at = NULL WHERE user_id = ? AND serial = ? AND status = "dispatched" AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE')
-            ->execute([$userId, $serial]);
+        db()->prepare("UPDATE bios_unlock SET status = 'pending', dispatched_at = NULL WHERE user_id IN ($ph) AND serial = ? AND status = 'dispatched' AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE")
+            ->execute(array_merge($ids, [$serial]));
 
         // Match serial, and the staged uuid when present (serial-only fallback).
-        $stmt = db()->prepare('SELECT * FROM bios_unlock WHERE user_id = ? AND serial = ? AND (uuid = "" OR uuid = ?) AND status = "pending" ORDER BY id ASC LIMIT 1 FOR UPDATE');
-        $stmt->execute([$userId, $serial, $uuid]);
+        $stmt = db()->prepare("SELECT * FROM bios_unlock WHERE user_id IN ($ph) AND serial = ? AND (uuid = '' OR uuid = ?) AND status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE");
+        $stmt->execute(array_merge($ids, [$serial, $uuid]));
         $row = $stmt->fetch();
         if ($row === false) {
             db()->commit();
@@ -136,8 +141,10 @@ function unlock_claim(int $userId, string $serial, string $uuid): ?array {
 function unlock_report(int $userId, int $id, string $result, string $detail): bool {
     $status = $result === 'cleared' ? 'done' : $result;
     try {
-        $stmt = db()->prepare('UPDATE bios_unlock SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ? AND status = "dispatched"');
-        $stmt->execute([$status, $result, $detail, $id, $userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("UPDATE bios_unlock SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id IN ($ph) AND status = 'dispatched'");
+        $stmt->execute(array_merge([$status, $result, $detail, $id], $ids));
         if ($stmt->rowCount() === 0) {
             return false;
         }
@@ -154,8 +161,10 @@ function unlock_report(int $userId, int $id, string $result, string $detail): bo
 function unlock_cancel(int $userId, int $id): bool {
     unlock_ensure_schema();
     try {
-        $stmt = db()->prepare('UPDATE bios_unlock SET status = "cancelled", resolved_at = UTC_TIMESTAMP(), password_enc = "" WHERE id = ? AND user_id = ? AND status = "pending"');
-        $stmt->execute([$id, $userId]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("UPDATE bios_unlock SET status = 'cancelled', resolved_at = UTC_TIMESTAMP(), password_enc = '' WHERE id = ? AND user_id IN ($ph) AND status = 'pending'");
+        $stmt->execute(array_merge([$id], $ids));
         return $stmt->rowCount() > 0;
     } catch (Throwable $e) {
         error_log('unlock cancel error: ' . $e->getMessage());
@@ -167,8 +176,10 @@ function unlock_cancel(int $userId, int $id): bool {
 function unlock_latest(int $userId, string $serial): array {
     unlock_ensure_schema();
     try {
-        $stmt = db()->prepare('SELECT id, status, result, detail, created_at, resolved_at FROM bios_unlock WHERE user_id = ? AND serial = ? ORDER BY id DESC LIMIT 1');
-        $stmt->execute([$userId, $serial]);
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT id, status, result, detail, created_at, resolved_at FROM bios_unlock WHERE user_id IN ($ph) AND serial = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute(array_merge($ids, [$serial]));
         $r = $stmt->fetch();
         if ($r === false) {
             return ['status' => 'none'];
