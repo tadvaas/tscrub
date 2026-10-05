@@ -1089,7 +1089,13 @@ triage::run() {
                     if [[ "$scope" == "all" ]]; then
                         REMOTE_ERASE_DRIVES="all"
                     else
-                        while IFS= read -r drv; do
+                        # `read` returns non-zero at EOF, so a final `drive=`
+                        # line with no trailing newline (the marker is captured
+                        # via command substitution, which strips the trailing
+                        # newline) would be skipped entirely — and on a
+                        # single-drive machine that read as "no drives matched".
+                        # `|| [[ -n "$drv" ]]` also processes that last line.
+                        while IFS= read -r drv || [[ -n "$drv" ]]; do
                             for dev in "${devices[@]}"; do
                                 [[ "${devrow[$dev.serial],,}" == "${drv,,}" ]] && REMOTE_ERASE_DRIVES+="$drv"$'\n'
                             done

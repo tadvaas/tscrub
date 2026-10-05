@@ -61,7 +61,9 @@ remote::stage_erase() {
         else
             printf 'scope=list\n'
             drives_json="$(printf '%s' "$resp" | sed -n 's/.*"drives":\[\(.*\)\].*/\1/p')"
-            while IFS= read -r s; do
+            # `|| [[ -n "$s" ]]` processes a final serial with no trailing
+            # newline (command substitution strips it), mirroring the triage loop.
+            while IFS= read -r s || [[ -n "$s" ]]; do
                 printf 'drive=%s\n' "$s"
             done < <(printf '%s' "$drives_json" | grep -o '"[^"]*"' | tr -d '"')
         fi

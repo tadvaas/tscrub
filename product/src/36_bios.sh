@@ -18,6 +18,13 @@
 # NOTE: detects BIOS *passwords*, NOT TCG "Block SID" drive lockdown (0x4286),
 # which device::nvme_fail already reports as BLOCKED.
 #
+# NOTE (HP): BIOS passwords on HP come through Layer 1 via hp-bioscfg
+# (firmware_attributes) on machines ~2018 and newer. The legacy hp-wmi
+# "bios_password" sysfs node was removed from upstream hp-wmi in the 6.x
+# kernel, and pre-2018 HP firmware (e.g. the Z840) does not implement the
+# hp-bioscfg WMI schema — such machines expose no password surface and
+# correctly fall through to UNKNOWN.
+#
 # Testability: every source is overridable via BIOS_FA_ROOT / BIOS_HP_WMI_FILE /
 # BIOS_TP_ACPI_FILE / BIOS_DMIDECODE_CMD so the cascade is unit-testable without
 # real hardware (see tests/test_bios.sh).
@@ -126,6 +133,9 @@ bios::probe_legacy() {
     local v
 
     # HP: /sys/devices/platform/hp-wmi/bios_password — 1 = password set.
+    # Upstream removed this node from hp-wmi in the 6.x kernel (BIOS passwords
+    # moved to hp-bioscfg / Layer 1); it only exists on older kernels, so this
+    # branch is effectively for standalone runs on legacy systems.
     if [[ -f "$BIOS_HP_WMI_FILE" ]]; then
         v="$(bios::_read "$BIOS_HP_WMI_FILE")" || v=""
         if bios::_truthy "$v"; then

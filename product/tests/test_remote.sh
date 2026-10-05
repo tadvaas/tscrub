@@ -120,6 +120,26 @@ t::check "remote: consume prints marker" '[[ "$out" == *"id=7"* && "$out" == *"s
 t::check "remote: consume removes marker" '[[ ! -e "$REMOTE_ERASE_MARKER" ]]'
 t::check "remote: consume absent marker is empty" '[[ -z "$(remote::consume_erase_marker)" ]]'
 
+# --- single-drive marker: final line has no trailing newline -----------------
+# `remote::consume_erase_marker` output is captured via command substitution,
+# which strips the trailing newline, so the last `drive=` line arrives
+# unterminated. The triage matching loop must still process it — a `read`
+# returns non-zero at EOF, so without `|| [[ -n "$drv" ]]` a single-drive
+# machine skips its only drive and fails "no drives matched". The loop below is
+# the exact triage matching block (40_table.sh) run against the consume output.
+devices=(nvme0n1)
+devrow["nvme0n1.serial"]="98BB74L7K5YS"
+printf 'id=20\ndry_run=0\nscope=list\ndrive=98BB74L7K5YS\n' > "$REMOTE_ERASE_MARKER"
+marker="$(remote::consume_erase_marker)"
+REMOTE_ERASE_DRIVES=""
+while IFS= read -r drv || [[ -n "$drv" ]]; do
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.serial],,}" == "${drv,,}" ]] && REMOTE_ERASE_DRIVES+="$drv"$'\n'
+    done
+done < <(printf '%s' "$marker" | sed -n 's/^drive=//p')
+t::check "remote: single unterminated drive line still matches" \
+    '[[ "$REMOTE_ERASE_DRIVES" == *"98BB74L7K5YS"* ]]'
+
 # --- grace_confirm ----------------------------------------------------------
 REMOTE_ERASE_GRACE_SECONDS=1
 ui::terminal_controls_supported() { return 1; }   # no console → auto-proceed

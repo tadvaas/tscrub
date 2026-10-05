@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.9] - 2026-10-05
+
+### Fixed
+
+- **Remote erasure on selected drives ("no drives matched")** — the triage
+  drive-matching loop read the marker's `drive=` lines with `while read`, which
+  skips a final line that has no trailing newline. Command substitution strips
+  the marker's trailing newline, so on a single-drive machine the only drive
+  line was skipped and the wipe failed with "no drives matched (scope=list)".
+  The loop now uses `read … || [[ -n "$drv" ]]` (and the marker writer's own
+  serial-parsing loop got the same guard), so the last serial is always
+  matched. Multi-drive machines also no longer silently drop their last drive.
+
 ## [v1.11.8] - 2026-10-05
 
 ### Changed
