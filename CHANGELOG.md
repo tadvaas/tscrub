@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.8] - 2026-10-05
+
+### Changed
+
+- **No full-screen blank on screen transitions** — `table::render` no longer
+  clears the whole terminal (`clear`/`\033[2J`) on every repaint. The screen is
+  filled only on the first paint or when the theme (background colour) actually
+  changes; a same-theme re-render homes the cursor and overwrites in place,
+  clearing any stale lines below the table with `\033[J`. This removes the
+  visible flash at the triage → selection → wipe transitions (all on the blue
+  theme), matching nWipe/btop (full redraw only on a structural change).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.8_2025.11_30_x86-64_v0.41_20261005-8a2dbcd8.iso`
+  (165 MB) sha256 `f0d47132bfa3ab22fc852b37a161895e7a629d099c2ad922d4ac67bd3fdf2f71`.
+- Standalone script `tscrub.sh` (v1.11.8) sha256 `6cf7482992da1bbb01af9568bf28f147e174be066dc49b899291c48251a2b3c6`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `5042612ccbf8dd7bf43fa7b5b86c8f300c3dee93e6ac2a35ed33f3c9d316d4c2`.
+
 ## [v1.11.7] - 2026-10-05
 
 ### Changed
