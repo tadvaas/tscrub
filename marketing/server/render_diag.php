@@ -133,20 +133,28 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
         $pdf->Cell(165, 4, 'Report ID: ' . $reportId . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
     };
 
-    $pdf->AddPage();
-    $bg();
-    $pageLabel();
-    diag_logo_mark($pdf, 14, 10);
+    // Every storage page carries the same header (logo, report/page label,
+    // title and diagnostics-type note) and starts the cards at the same Y,
+    // so spilled pages never overlap the header.
+    $pageHeader = function () use ($pdf, $W, $x, $bg, $pageLabel): void {
+        $pdf->AddPage();
+        $bg();
+        $pageLabel();
+        diag_logo_mark($pdf, 14, 10);
 
-    $pdf->SetFont('helvetica', 'B', 18);
-    $pdf->SetTextColor(11, 18, 32);
-    $pdf->SetXY($x, 10);
-    $pdf->Cell($W - 2 * $x, 10, 'STORAGE INVENTORY', 0, 1, 'C');
+        $pdf->SetFont('helvetica', 'B', 18);
+        $pdf->SetTextColor(11, 18, 32);
+        $pdf->SetXY($x, 10);
+        $pdf->Cell($W - 2 * $x, 10, 'STORAGE INVENTORY', 0, 1, 'C');
 
-    $pdf->SetFont('helvetica', '', 8.5);
-    $pdf->SetTextColor(100, 116, 139);
-    $pdf->SetXY($x, 21);
-    $pdf->Cell($W - 2 * $x, 4.5, 'Diagnostics type: Information — SMART and self-test results are point-in-time and do not attest to data erasure.', 0, 1, 'C');
+        $pdf->SetFont('helvetica', '', 8.5);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetXY($x, 21);
+        $pdf->Cell($W - 2 * $x, 4.5, 'Diagnostics type: Information — SMART and self-test results are point-in-time and do not attest to data erasure.', 0, 1, 'C');
+
+        $pdf->SetY(32);
+    };
+    $pageHeader();
 
     if ($drives === []) {
         $pdf->SetFont('helvetica', '', 11);
@@ -193,10 +201,7 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
         $idx++;
         $cardH = 6.5 + 6 * $cellH + 3.0;   // header + rule + 6 rows + bottom pad
         if ($pdf->GetY() + $cardH > $H - 12) {
-            $pdf->AddPage();
-            $bg();
-            $pageLabel();
-            diag_logo_mark($pdf, 14, 10);
+            $pageHeader();
         }
 
         $y = $pdf->GetY() + 3.0;
