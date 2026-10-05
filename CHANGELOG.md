@@ -6,6 +6,30 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.10.18] - 2026-10-05
+
+### Added
+
+- **SED (OPAL) crypto-erase** — an unlocked self-encrypting drive (TCG OPAL)
+  that has no NVMe/ATA/SCSI firmware erase now falls back to an OPAL
+  crypto-erase instead of physical destruction. `device::detect` assigns
+  `CAP_OPAL_CRYPTO` when a drive is otherwise `CAP_NONE` and `sedutil-cli
+  --query` reports it unlocked; `device::exec_opal` takes ownership with a
+  per-run random SID password, enables + locks the global locking range, then
+  `--revertTPer` destroys the media encryption key — a NIST 800-88 Purge
+  recorded as `PURGE` / `DESTRUCTION` / method `OPAL Crypto Erase`. If
+  ownership fails (an already-owned SED), the drive is honestly reported
+  `FAILED` for physical destruction. Locked SEDs continue down the existing
+  PSID-revert prompt. Structured `DRIVE / ACTION` entries are written to the
+  appliance log for the audit trail.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.18_2025.11_30_x86-64_v0.41_20261005-efc1ddf6.iso`
+  (165 MB) sha256 `27b54ca43702b9ac61198d0872eee765aadaf755e63aa9c0bb773844388ad5ff`.
+- Standalone script `tscrub.sh` (v1.10.18) sha256 `e2f1a9394b874daf42b052041c99e9ab0c7aac0e51eb0ba09949ef4d204a7334`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `709f7d9daa89c75cd4397a10ad82271c8752d5508cb9b6a26e1b53c10c715f20`.
+
 ## [v1.10.17] - 2026-10-05
 
 ### Added

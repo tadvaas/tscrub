@@ -28,10 +28,9 @@ first. Tick items off as they ship and note the release that carries each.
 - [x] **SED (OPAL) unlock + erase** — add an OPAL path alongside NVMe/ATA:
       `sedutil-cli --query` → PSID revert when there's no LBA unlock, and surface
       the 3-state SED status as an explicit method. (§9.1)
-      → **Implemented (2026-10-05), awaiting release** — `device::exec_opal` in
-      `product/src/44_device_sed.sh` (`--initialSetup` → `--enableLockingRange 0`
-      → `--setLockingRange 0 LK` → `--revertTPer`); plan
-      `research/sed-opal/README.md`; tests `product/tests/test_sed.sh`.
+      → **Shipped v1.10.18** (2026-10-05). Plan: `research/sed-opal/README.md`
+      (`device::exec_opal` in `product/src/44_device_sed.sh`; tests
+      `product/tests/test_sed.sh`).
 - [ ] **RAID dismantling** — detect members in `gather_info` (`mdadm -E`
       superblocks, Intel VMD / `mpt3sas` controllers), mark "RAID member —
       dismantle in controller BIOS" on the triage screen, record a per-drive RAID
