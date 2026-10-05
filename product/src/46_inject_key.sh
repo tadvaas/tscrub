@@ -1,15 +1,21 @@
 # =============================================================================
 # KEY INJECTION (remote) — pull a product key staged in the dashboard and write
-# it into this machine's MSDM ACPI table in firmware. Same pull model as the
-# remote BIOS-unlock feature: the appliance polls GET .../key/inject/pending,
-# the dashboard stages a key, and the appliance patches + reflashes the MSDM
-# table once it is safe.
+# it into this machine's OA3 UEFI NVRAM variable, which the BIOS reads at boot
+# to construct the ACPI MSDM table. Same pull model as the remote BIOS-unlock
+# feature: the appliance polls GET .../key/inject/pending, the dashboard stages
+# a key, and the appliance overwrites the key inside the OA3 variable.
 #
-# The MSDM patch/checksum is done in pure bash (the appliance image has no
-# guaranteed Python): read the 85-byte table, overwrite the 29-byte key field at
-# offset 56, and recompute the ACPI checksum byte at offset 9. The actual write
-# is a full-SPI flashrom round-trip (dump -> patch in-dump -> reflash); when
-# flashrom is absent or the region is write-protected we report "unsupported".
+# Why a UEFI variable and not SPI flash: on modern OEM machines (OA3 / Windows
+# 8+ activation) the MSDM table is NOT a static flash table — the firmware
+# derives it at boot from an OA3 UEFI variable (e.g. HP_OA3-<GUID>). SMART DPK
+# uses the same path (ClipOaUefiRead / SetVariable). The variable holds the key
+# in plaintext, so re-keying is just: find the variable that contains the
+# current key and replace those 29 bytes with the new key. The BIOS rebuilds
+# the MSDM table + checksum itself — no table assembly or SPI programming.
+#
+# Locked machines: most OEMs set a one-way lock (e.g. HP_OA3_LOCK=1) once the
+# key is committed; the firmware then rejects SetVariable with
+# EFI_SECURITY_VIOLATION. We report that honestly as "unsupported".
 # =============================================================================
 
 # How often (seconds) the appliance checks for a staged injection.
@@ -42,7 +48,7 @@ key_inject::report() {
     return 0
 }
 
-# ---- MSDM table helpers (pure bash) ----------------------------------------
+# ---- OA3 UEFI-variable helpers (pure bash) --------------------------------
 
 # Normalise + validate a product key. Echoes the 29-char uppercase key, or
 # returns 1. Permissive charset — real MSDM keys can contain letters a strict
@@ -55,53 +61,59 @@ msdm::normalize_key() {
     return 0
 }
 
-# Write the 29-char key at the given offset (no padding: 25 chars + 4 hyphens).
-msdm::patch_key() {  # $1=file $2=offset $3=key
-    local f="$1" off="$2" key="$3"
-    [[ ${#key} -eq 29 ]] || return 1
-    printf '%s' "$key" | dd of="$f" bs=1 count=29 seek="$off" conv=notrunc 2>/dev/null || return 1
-    return 0
-}
-
-# Fix the ACPI checksum byte (byte 9 of an 85-byte table at $2). The checksum is
-# chosen so the sum of all 85 bytes == 0 mod 256.
-msdm::fix_checksum() {  # $1=file $2=table_offset
-    local f="$1" base="$2" i byte sum=0 cksum
-    dd if=/dev/zero of="$f" bs=1 count=1 seek=$((base + 9)) conv=notrunc 2>/dev/null || return 1
-    for (( i = 0; i < 85; i++ )); do
-        byte="$(dd if="$f" bs=1 count=1 skip=$((base + i)) 2>/dev/null | od -An -tu1 | tr -d ' ')"
-        [[ "$byte" =~ ^[0-9]+$ ]] || byte=0
-        sum=$(( (sum + byte) % 256 ))
-    done
-    cksum=$(( (256 - sum) % 256 ))
-    printf "\\$(printf '%03o' "$cksum")" | dd of="$f" bs=1 count=1 seek=$((base + 9)) conv=notrunc 2>/dev/null || return 1
-    return 0
-}
-
-# Byte offset of the "MSDM" signature inside a firmware dump ('' when absent).
-msdm::find_offset() {
-    grep -abo 'MSDM' "$1" 2>/dev/null | head -1 | cut -d: -f1
-}
-
-# Read + patch the live MSDM table into a temp file (85 bytes). Returns 0 and
-# leaves the file at $1, or 1 (with no file) when there is nothing to patch.
-msdm::stage_table() {  # $1=out_file $2=key
-    local out="$1" key="$2" size
-    if ! dd if=/sys/firmware/acpi/tables/MSDM of="$out" bs=85 count=1 2>/dev/null; then
-        return 1
+# Load efivarfs (it is a module in the appliance kernel) and mount it. Returns 0
+# once /sys/firmware/efi/efivars is populated; 1 when the machine did not boot
+# UEFI or the variable store is unavailable.
+msdm::efivarfs_ready() {
+    [[ -d /sys/firmware/efi/efivars ]] || return 1
+    if [[ -z "$(ls -A /sys/firmware/efi/efivars 2>/dev/null)" ]]; then
+        modprobe efivarfs 2>/dev/null || true
+        mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true
     fi
-    size="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
-    [[ "$size" == "85" ]] || return 1
-    [[ "$(dd if="$out" bs=4 count=1 2>/dev/null)" == "MSDM" ]] || return 1
-    msdm::patch_key "$out" 56 "$key" || return 1
-    msdm::fix_checksum "$out" 0 || return 1
+    [[ -n "$(ls -A /sys/firmware/efi/efivars 2>/dev/null)" ]] || return 1
     return 0
 }
 
-# Write a staged key into firmware. Sets KEY_INJECT_RESULT (injected|failed|
-# unsupported) and KEY_INJECT_DETAIL. Returns 0 only on injected.
+# Current product key from the live MSDM table (29 chars at offset 56).
+msdm::current_key() {
+    local k
+    k="$(dd if=/sys/firmware/acpi/tables/MSDM bs=1 count=29 skip=56 2>/dev/null)"
+    [[ "$k" =~ ^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$ ]] && { printf '%s' "$k"; return 0; }
+    return 1
+}
+
+# Find the UEFI variable whose data contains the given key. Echoes its path.
+msdm::find_oa3_var() {
+    local key="$1" f
+    for f in /sys/firmware/efi/efivars/*; do
+        [[ -f "$f" ]] || continue
+        if grep -aqF "$key" "$f" 2>/dev/null; then
+            printf '%s' "$f"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Replace $old with $new (equal length) in a binary buffer file $1. Returns 0 on
+# success. Pure file I/O (head -c / tail -c) so it is unit-testable.
+msdm::replace_bytes() {  # $1=file $2=old $3=new
+    local f="$1" old="$2" new="$3" off
+    [[ ${#old} -eq ${#new} ]] || return 1
+    off="$(grep -aboF "$old" "$f" 2>/dev/null | head -1 | cut -d: -f1)"
+    [[ -n "$off" && "$off" =~ ^[0-9]+$ ]] || return 1
+    head -c "$off" "$f" > "$f.new" 2>/dev/null || return 1
+    printf '%s' "$new" >> "$f.new" || return 1
+    tail -c +$((off + ${#old} + 1)) "$f" >> "$f.new" 2>/dev/null || return 1
+    mv -f "$f.new" "$f"
+    return 0
+}
+
+# Write a staged key into the OA3 UEFI variable. Sets KEY_INJECT_RESULT
+# (injected|failed|unsupported) and KEY_INJECT_DETAIL. Returns 0 only on
+# injected.
 msdm::inject() {
-    local key table dump off backup
+    local key old_key var tmp
     KEY_INJECT_RESULT="failed"
     KEY_INJECT_DETAIL="unknown error"
 
@@ -113,62 +125,53 @@ msdm::inject() {
         KEY_INJECT_DETAIL="root required to write firmware"
         return 1
     }
-
-    table="/tmp/tscrub-msdm-table.$$"
-    dump="/tmp/tscrub-msdm-dump.$$"
-    rm -f "$table" "$dump"
-
-    if ! msdm::stage_table "$table" "$key"; then
-        rm -f "$table" "$dump"
+    msdm::efivarfs_ready || {
         KEY_INJECT_RESULT="unsupported"
-        KEY_INJECT_DETAIL="no MSDM table to patch (fresh-table build not yet supported)"
-        return 1
-    fi
-
-    if ! command -v flashrom >/dev/null 2>&1; then
-        rm -f "$table" "$dump"
-        KEY_INJECT_RESULT="unsupported"
-        KEY_INJECT_DETAIL="flashrom not available — needs external programmer"
-        return 1
-    fi
-
-    if ! flashrom -p internal -r "$dump" >/dev/null 2>&1; then
-        rm -f "$table" "$dump"
-        KEY_INJECT_RESULT="unsupported"
-        KEY_INJECT_DETAIL="firmware read failed (write-protected?)"
-        return 1
-    fi
-    backup="/tmp/msdm-backup-$(date +%s).bin"
-    cp "$dump" "$backup" 2>/dev/null || true
-
-    off="$(msdm::find_offset "$dump")"
-    if [[ -z "$off" || ! "$off" =~ ^[0-9]+$ ]]; then
-        rm -f "$table" "$dump"
-        KEY_INJECT_RESULT="unsupported"
-        KEY_INJECT_DETAIL="MSDM not found in firmware dump"
-        return 1
-    fi
-    msdm::patch_key "$dump" $((off + 56)) "$key" || {
-        rm -f "$table" "$dump"
-        KEY_INJECT_DETAIL="dump patch failed"
-        return 1
-    }
-    msdm::fix_checksum "$dump" "$off" || {
-        rm -f "$table" "$dump"
-        KEY_INJECT_DETAIL="dump checksum failed"
+        KEY_INJECT_DETAIL="no UEFI variable store (not a UEFI boot)"
         return 1
     }
 
-    if ! flashrom -p internal -w "$dump" >/dev/null 2>&1; then
-        rm -f "$table" "$dump"
-        KEY_INJECT_RESULT="failed"
-        KEY_INJECT_DETAIL="firmware write failed (backup at $backup)"
+    old_key="$(msdm::current_key)" || {
+        KEY_INJECT_RESULT="unsupported"
+        KEY_INJECT_DETAIL="no MSDM key to replace (fresh-table injection not yet supported)"
+        return 1
+    }
+    [[ "$old_key" == "$key" ]] && {
+        KEY_INJECT_RESULT="injected"
+        KEY_INJECT_DETAIL="key already present"
+        return 0
+    }
+
+    var="$(msdm::find_oa3_var "$old_key")" || {
+        KEY_INJECT_RESULT="unsupported"
+        KEY_INJECT_DETAIL="MSDM key not found in any UEFI variable (unsupported layout)"
+        return 1
+    }
+
+    # Copy attrs + data, replace the key bytes, write the variable back.
+    tmp="/tmp/tscrub-oa3-new.$$"
+    rm -f "$tmp"
+    if ! cat "$var" > "$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        KEY_INJECT_DETAIL="failed to read UEFI variable"
         return 1
     fi
+    msdm::replace_bytes "$tmp" "$old_key" "$key" || {
+        rm -f "$tmp"
+        KEY_INJECT_DETAIL="key offset not found in UEFI variable"
+        return 1
+    }
 
-    rm -f "$table" "$dump"
+    if ! cat "$tmp" > "$var" 2>/dev/null; then
+        rm -f "$tmp"
+        KEY_INJECT_RESULT="unsupported"
+        KEY_INJECT_DETAIL="OA3 variable is locked (firmware rejected the write)"
+        return 1
+    fi
+    rm -f "$tmp"
+
     KEY_INJECT_RESULT="injected"
-    KEY_INJECT_DETAIL="key written to MSDM; effective at next boot (backup at $backup)"
+    KEY_INJECT_DETAIL="key written to OA3 UEFI variable; effective at next boot"
     return 0
 }
 

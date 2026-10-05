@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for the MSDM key-injection helpers: 46_inject_key.sh.
+# Tests for the OA3 key-injection helpers: 46_inject_key.sh.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 t::setup_env
 t::source_src
@@ -8,26 +8,15 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 KEY="BNKRT-THFMG-46DFH-V4Q7M-FGDGP"
+NEW="PC3JK-2FNK9-RQV7M-FPG4K-T83GT"
 
-# Build a synthetic 85-byte MSDM table: "MSDM" sig, length 0x55, rev 0x03,
-# a placeholder key at offset 56.
-build_table() {  # <path>
-    dd if=/dev/zero of="$1" bs=85 count=1 2>/dev/null
-    printf 'MSDM' | dd of="$1" bs=1 count=4 seek=0 conv=notrunc 2>/dev/null
-    printf '\x55' | dd of="$1" bs=1 count=1 seek=4 conv=notrunc 2>/dev/null
-    printf '\x03' | dd of="$1" bs=1 count=1 seek=8 conv=notrunc 2>/dev/null
-    printf '%s' 'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX' | dd of="$1" bs=1 count=29 seek=56 conv=notrunc 2>/dev/null
-}
-
-key_at_56() { dd if="$1" bs=1 count=29 skip=56 2>/dev/null; }
-
-sum85() {  # <path> -> decimal sum mod 256
-    local f="$1" i b s=0
-    for (( i = 0; i < 85; i++ )); do
-        b="$(dd if="$f" bs=1 count=1 skip=$i 2>/dev/null | od -An -tu1 | tr -d ' ')"
-        s=$(( (s + b) % 256 ))
-    done
-    printf '%s' "$s"
+# Build a synthetic HP_OA3 UEFI variable image: 4-byte attrs, flags, a 29-byte
+# length field, then the key (mirrors the real HP_OA3 layout we reverse-engineered).
+build_oa3() {  # <path> <key>
+    printf '\x07\x00\x00\x00' > "$1"
+    printf '\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00' >> "$1"
+    printf '\x1d\x00\x00\x00' >> "$1"
+    printf '%s' "$2" >> "$1"
 }
 
 # --- normalize ---
@@ -40,16 +29,22 @@ t::assert_eq "1" "$rc" "normalise: rejects malformed key"
 msdm::normalize_key "BNKRT-THFMG-46DFH-V4Q7M-FGDG"; rc=$?
 t::assert_eq "1" "$rc" "normalise: rejects wrong-length key"
 
-# --- patch ---
-f="$tmpdir/table.bin"
-build_table "$f"
-msdm::patch_key "$f" 56 "$KEY"; rc=$?
-t::assert_eq "0" "$rc" "patch: returns 0"
-t::assert_eq "$KEY" "$(key_at_56 "$f")" "patch: key lands at offset 56"
+# --- replace_bytes ---
+f="$tmpdir/oa3.bin"
+build_oa3 "$f" "$KEY"
+msdm::replace_bytes "$f" "$KEY" "$NEW"; rc=$?
+t::assert_eq "0" "$rc" "replace_bytes: returns 0"
+t::assert_eq "$NEW" "$(tail -c 29 "$f")" "replace_bytes: new key is the 29-byte tail"
+t::assert_eq "53" "$(wc -c < "$f" | tr -d ' ')" "replace_bytes: total length preserved (53)"
+# attrs + flags + length field unchanged (first 24 bytes identical to the original)
+build_oa3 "$tmpdir/oa3_orig.bin" "$KEY"
+t::assert_eq "$(head -c 24 "$tmpdir/oa3_orig.bin")" "$(head -c 24 "$f")" \
+    "replace_bytes: attrs + flags + length untouched"
+t::assert_eq "$NEW" "$(grep -aoE '[A-Z0-9]{5}(-[A-Z0-9]{5}){4}' "$f")" \
+    "replace_bytes: buffer now contains the new key"
 
-# --- checksum ---
-msdm::fix_checksum "$f" 0; rc=$?
-t::assert_eq "0" "$rc" "checksum: returns 0"
-t::assert_eq "0" "$(sum85 "$f")" "checksum: 85-byte table sums to 0 mod 256"
+# replace_bytes with absent key must fail
+msdm::replace_bytes "$f" "ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ" "$NEW"; rc=$?
+t::assert_eq "1" "$rc" "replace_bytes: absent key returns 1"
 
 t::summary
