@@ -68,7 +68,7 @@ first. Tick items off as they ship and note the release that carries each.
 ## 3. Robustness & ops
 
 - [x] **Remote BIOS unlock robustness** (§8)
-  → **Implemented (2026-10-05), awaiting release** — all 8 items below in
+  → **Shipped v1.11.3** (2026-10-05) — all 8 items below in
   `38_bios_unlock.sh` + `bios_unlock.php`/`api.php`; plan
   `research/bios-unlock/13-remote-unlock-robustness.md`; tests
   `product/tests/test_bios_unlock.sh` (18 tests).
