@@ -331,7 +331,7 @@ erasure::run() {
         else
             while IFS= read -r drv; do
                 for dev in "${devices[@]}"; do
-                    [[ "${devrow[$dev.serial]}" == "$drv" ]] && devrow["$dev.selected"]=1
+                    [[ "${devrow[$dev.serial],,}" == "${drv,,}" ]] && devrow["$dev.selected"]=1
                 done
             done <<< "$REMOTE_ERASE_DRIVES"
         fi

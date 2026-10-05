@@ -988,7 +988,7 @@ triage::run() {
                     else
                         while IFS= read -r drv; do
                             for dev in "${devices[@]}"; do
-                                [[ "${devrow[$dev.serial]}" == "$drv" ]] && REMOTE_ERASE_DRIVES+="$drv"$'\n'
+                                [[ "${devrow[$dev.serial],,}" == "${drv,,}" ]] && REMOTE_ERASE_DRIVES+="$drv"$'\n'
                             done
                         done < <(printf '%s' "$marker" | sed -n 's/^drive=//p')
                         if [[ -z "$REMOTE_ERASE_DRIVES" ]]; then
