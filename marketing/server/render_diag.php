@@ -558,19 +558,6 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         ['BIOS vendor',      (string)($d['bios_vendor'] ?? '')],
     ];
 
-    $hw = [
-        ['CPU',                 (string)($d['cpu'] ?? '')],
-        ['CPU spec',            (string)($d['cpu_spec'] ?? '')],
-        ['Memory',              (string)($d['ram'] ?? '')],
-        ['DIMMs',               (string)($d['dimms'] ?? '')],
-        ['GPU',                 (string)($d['gpu'] ?? '')],
-        ['Display',             (string)($d['display'] ?? '')],
-        ['Wi-Fi',               (string)($d['wifi'] ?? '')],
-        ['Battery',             (string)($d['battery'] ?? '')],
-        ['MACs',                (string)($d['macs'] ?? '')],
-        ['Storage controllers', (string)($d['storage_controllers'] ?? '')],
-    ];
-
     // Normalise the appliance "N/A" sentinel and omit the validator entirely
     // when none was supplied (mirrors the certificate's personnel strategy).
     $pNorm = function (string $v): string {
@@ -594,8 +581,7 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
 
     $section(20, 56, 155, 'ASSET IDENTITY', $asset);
     $section(182, 56, 95, 'SECURITY STATE', $sec);
-    $section(20, 105, 155, 'HARDWARE INVENTORY', $hw);
-    $section(182, 105, 95, 'PERSONNEL & AUTHORITY', $personnel);
+    $section(20, 105, 155, 'PERSONNEL & AUTHORITY', $personnel);
 
     // ---- diagnostics-type / self-test summary line ----
     $cpuTest = strtoupper(trim((string)($d['selftest_cpu'] ?? '')));
