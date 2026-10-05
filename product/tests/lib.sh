@@ -26,7 +26,8 @@ t::setup_env() {
           FAKE_SMART_MODE FAKE_SMART_TEMP FAKE_SMART_POH FAKE_SMART_CYCLES \
           FAKE_SMART_REALLOC FAKE_SMART_LIFE_REMAIN FAKE_SMART_LBA_WRITTEN \
           FAKE_USB_DEVICES FAKE_SEDUTIL_LOCKED \
-          FAKE_NWIPE_RC 2>/dev/null || true
+          FAKE_NWIPE_RC FAKE_SG_SANITIZE_RC FAKE_SG_SANITIZE_OUT \
+          FAKE_SG_OPCODES_SUPPORTED 2>/dev/null || true
 }
 
 # Source the production functions without executing the entrypoint.

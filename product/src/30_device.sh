@@ -10,6 +10,7 @@ device::capability_label() {
         CAP_NVME_CLEAR_ONLY)       echo "NVMe Clear Only (Format)" ;;
         CAP_ATA_PURGE_ENHANCED)      echo "ATA Purge (Enhanced Erase)" ;;
         CAP_ATA_CLEAR)               echo "ATA Clear (Secure Erase)" ;;
+        CAP_SCSI_SANITIZE)           echo "SCSI Sanitize (Overwrite)" ;;
         CAP_SCSI_NWIPE)              echo "SCSI Clear (nwipe Quick)" ;;
         CAP_NONE)                    echo "No Supported Wipe" ;;
     esac
@@ -399,7 +400,13 @@ device::detect() {
 
             elif [[ "$device" == sd* ]]; then
                 if [[ "${bus[$device]}" != "SATA" && "${bus[$device]}" != "ATA" ]]; then
-                    capability[$device]="CAP_SCSI_NWIPE"
+                    # SCSI/SAS: prefer the firmware SANITIZE (overwrite) path,
+                    # falling back to software nwipe only when unsupported.
+                    if device::scsi_sanitize_supported "$device"; then
+                        capability[$device]="CAP_SCSI_SANITIZE"
+                    else
+                        capability[$device]="CAP_SCSI_NWIPE"
+                    fi
                     continue
                 fi
 
@@ -494,6 +501,12 @@ device::classify() {
             devrow["$dev.method"]="nwipe Quick"
             ;;
 
+        CAP_SCSI_SANITIZE)
+            devrow["$dev.class"]="PURGE"
+            devrow["$dev.cert"]="DESTRUCTION"
+            devrow["$dev.method"]="SAS Sanitize"
+            ;;
+
         CAP_NVME_CLEAR_ONLY)
             devrow["$dev.class"]="CLEAR"
             devrow["$dev.cert"]="SANITISATION"
@@ -537,6 +550,9 @@ device::execute() {
             ;;
         CAP_SCSI_NWIPE)
             device::exec_scsi_nwipe "$dev"
+            ;;
+        CAP_SCSI_SANITIZE)
+            device::exec_scsi_sanitize "$dev"
             ;;
         CAP_ATA_*)
             device::exec_ata "$dev" "$cap"

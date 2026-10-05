@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake sg_sanitize for tests. Controlled by FAKE_SG_SANITIZE_RC (default 0)
+# and FAKE_SG_SANITIZE_OUT (default "sanitize: success").
+rc="${FAKE_SG_SANITIZE_RC:-0}"
+if [[ -n "${FAKE_SG_SANITIZE_OUT:-}" ]]; then
+    printf '%s\n' "$FAKE_SG_SANITIZE_OUT"
+else
+    printf 'sanitize: success\n'
+fi
+exit "$rc"

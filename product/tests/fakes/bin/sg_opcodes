@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Fake sg_opcodes for tests. FAKE_SG_OPCODES_SUPPORTED=yes prints
+# "Command supported"; anything else prints "Command not supported".
+if [[ "${FAKE_SG_OPCODES_SUPPORTED:-}" == "yes" ]]; then
+    printf 'Opcode=0x48 Command_name: Sanitize Command supported [conforming to SCSI standard]\n'
+else
+    printf 'Opcode=0x48 Command_name: Sanitize Command not supported\n'
+fi
+exit 0
