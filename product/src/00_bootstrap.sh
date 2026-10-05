@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.9"
+SCRIPT_VERSION="v1.11.10"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -602,6 +602,10 @@ system::gather_info() {
             SYS_RAID_HBA=1
         fi
     fi
+
+    # Extended hardware inventory (USB, full PCI, full SMBIOS, NIC detail,
+    # UEFI boot entries, peripheral presence) — see 46_hardware.sh.
+    hardware::inventory
 }
 
 # =============================================================================

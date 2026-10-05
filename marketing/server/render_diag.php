@@ -262,6 +262,160 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
     }
 }
 
+/** Format the peripherals "webcam:1; touchscreen:0; …" string for the PDF. */
+function diag_peripherals_human(string $s): string {
+    $map = [];
+    foreach (explode(';', $s) as $kv) {
+        $p = explode(':', $kv);
+        if (count($p) === 2) $map[trim($p[0])] = trim($p[1]);
+    }
+    $parts = [];
+    foreach (['webcam' => 'Webcam', 'touchscreen' => 'Touchscreen', 'fingerprint' => 'Fingerprint', 'accelerometer' => 'Accelerometer'] as $k => $label) {
+        if (($map[$k] ?? '') === '1')      $parts[] = $label . ': Yes';
+        elseif (($map[$k] ?? '') === '0')  $parts[] = $label . ': No';
+    }
+    if (($map['audio'] ?? '') !== '' && ($map['audio'] ?? '') !== '0') $parts[] = 'Audio codecs: ' . $map['audio'];
+    return implode('  ·  ', $parts);
+}
+
+/**
+ * Page 3 — hardware annex: the extended machine inventory (NICs, storage
+ * controllers, PCI, USB, boot entries, peripherals, firmware state), laid out
+ * Blancco-style as full-width labelled rows and stacked lists. Rendered between
+ * the summary page and the storage annex.
+ */
+function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $reportId, array $d): void {
+    $bg = function () use ($pdf, $W, $H): void {
+        $pdf->SetFillColor(250, 249, 246);
+        $pdf->Rect(0, 0, $W, $H, 'F');
+    };
+    $pageLabel = function () use ($pdf, $W, $reportId): void {
+        $pdf->SetFont('helvetica', '', 7.5);
+        $pdf->SetTextColor(90, 90, 90);
+        $pdf->SetXY($W - 175, 8);
+        $pdf->Cell(165, 4, 'Report ID: ' . $reportId . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
+    };
+    $pageHeader = function () use ($pdf, $W, $x, $bg, $pageLabel): void {
+        $pdf->AddPage();
+        $bg();
+        $pageLabel();
+        diag_logo_mark($pdf, 14, 10);
+        $pdf->SetFont('helvetica', 'B', 18);
+        $pdf->SetTextColor(11, 18, 32);
+        $pdf->SetXY($x, 10);
+        $pdf->Cell($W - 2 * $x, 10, 'HARDWARE INVENTORY', 0, 1, 'C');
+        $pdf->SetFont('helvetica', '', 8.5);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetXY($x, 21);
+        $pdf->Cell($W - 2 * $x, 4.5, 'Full asset record — point-in-time inventory captured at boot (see the JSON download for the raw SMBIOS dump).', 0, 1, 'C');
+    };
+    $pageHeader();
+
+    $y = 30.0;
+    $labelW = 50.0;
+
+    // Add a page + header when the next block won't fit.
+    $need = function (float $h) use (&$y, $pageHeader, $H): void {
+        if ($y + $h > $H - 14) { $pageHeader(); $y = 30.0; }
+    };
+
+    $sub = function (string $title) use (&$y, $need, $pdf, $x, $W): void {
+        $need(10.0);
+        $pdf->SetFont('helvetica', 'B', 11);
+        $pdf->SetTextColor(11, 18, 32);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($W - 2 * $x, 5, $title, 0, 1, 'L');
+        $pdf->SetLineWidth(0.2);
+        $pdf->SetDrawColor(203, 213, 225);
+        $pdf->Line($x, $y + 5.4, $W - $x, $y + 5.4);
+        $pdf->SetDrawColor(0, 0, 0);
+        $y += 7.4;
+    };
+
+    $row = function (string $label, string $value, array $color = [11, 18, 32]) use (&$y, $need, $pdf, $x, $W, $labelW): void {
+        $need(5.0);
+        $pdf->SetFont('helvetica', '', 8.5);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($labelW, 4.0, $label, 0, 0, 'L');
+        $pdf->SetXY($x + $labelW, $y);
+        if ($value === '') {
+            $pdf->SetFont('helvetica', '', 8.5);
+            $pdf->SetTextColor(148, 163, 184);
+            $pdf->Cell($W - 2 * $x - $labelW, 4.0, '—', 0, 0, 'L');
+        } else {
+            $pdf->SetFont('helvetica', 'B', 8.5);
+            $pdf->SetTextColor($color[0], $color[1], $color[2]);
+            $pdf->Cell($W - 2 * $x - $labelW, 4.0, diag_fit($pdf, $value, $W - 2 * $x - $labelW - 1, 'B', 8.5), 0, 0, 'L');
+        }
+        $y += 4.6;
+    };
+
+    $list = function (string $label, array $lines) use (&$y, $need, $pdf, $x, $W, $labelW, $H, $pageHeader): void {
+        if ($lines === []) { $row($label, ''); return; }
+        $need(5.0);
+        $pdf->SetFont('helvetica', '', 8.5);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($labelW, 4.0, $label, 0, 0, 'L');
+        $firstY = $y;
+        foreach ($lines as $ln) {
+            if ($y + 4.6 > $H - 14) { $pageHeader(); $y = 30.0; }
+            $pdf->SetFont('helvetica', '', 7.5);
+            $pdf->SetTextColor(11, 18, 32);
+            $pdf->SetXY($x + $labelW, $y);
+            $pdf->Cell($W - 2 * $x - $labelW, 4.0, diag_fit($pdf, $ln, $W - 2 * $x - $labelW - 1, '', 7.5), 0, 0, 'L');
+            $y += 4.6;
+        }
+        if ($y === $firstY) { $y += 4.6; }
+    };
+
+    $semicolon = function (string $v): array {
+        $v = trim((string)$v);
+        if ($v === '' || strcasecmp($v, 'N/A') === 0) return [];
+        return array_filter(array_map('trim', explode(';', $v)), fn($s) => $s !== '');
+    };
+    $newline = function (string $v): array {
+        $v = trim((string)$v);
+        if ($v === '' || strcasecmp($v, 'N/A') === 0) return [];
+        return array_filter(array_map('trim', explode("\n", $v)), fn($s) => $s !== '');
+    };
+
+    $sub('PROCESSOR');
+    $row('CPU', trim((string)($d['cpu'] ?? '')));
+    $row('Cores / threads', trim((string)($d['cpu_spec'] ?? '')));
+
+    $sub('MEMORY');
+    $row('Total', trim((string)($d['ram'] ?? '')));
+    $list('DIMMs', $semicolon((string)($d['dimms'] ?? '')));
+
+    $sub('GRAPHICS & DISPLAY');
+    $row('GPU', trim((string)($d['gpu'] ?? '')));
+    $row('Display', trim((string)($d['display'] ?? '')));
+    $row('Wi-Fi', trim((string)($d['wifi'] ?? '')));
+    $row('Battery', trim((string)($d['battery'] ?? '')));
+
+    $sub('NETWORK INTERFACES');
+    $list('Interfaces', $semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))));
+
+    $sub('STORAGE');
+    $list('Controllers', $semicolon((string)($d['storage_controllers'] ?? '')));
+
+    $sub('PCI DEVICES');
+    $list('Devices', $newline((string)($d['pci_devices'] ?? '')));
+
+    $sub('USB DEVICES');
+    $list('Devices', $semicolon((string)($d['usb_devices'] ?? '')));
+
+    $sub('PERIPHERALS');
+    $row('Presence', diag_peripherals_human((string)($d['peripherals'] ?? '')));
+
+    $sub('FIRMWARE STATE');
+    $row('Secure Boot', trim((string)($d['secure_boot'] ?? '')));
+    $row('BIOS lockdown', !empty($d['bios_lockdown']) ? 'Suspected' : 'None', !empty($d['bios_lockdown']) ? [220, 38, 38] : [5, 150, 105]);
+    $list('Boot entries', $semicolon((string)($d['uefi_boot_entries'] ?? '')));
+}
+
 /**
  * Render one boot-time diagnostics snapshot into its own PDF.
  *
@@ -397,6 +551,7 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
     $sec = [
         ['BIOS lock',        $lockLabel, $lockColor],
         ['BIOS lock method', (string)($d['bios_lock_method'] ?? '')],
+        ['BIOS lockdown',    !empty($d['bios_lockdown']) ? 'Suspected' : 'None', !empty($d['bios_lockdown']) ? [220, 38, 38] : [5, 150, 105]],
         ['TPM',              (string)($d['tpm'] ?? '')],
         ['Secure Boot',      (string)($d['secure_boot'] ?? '')],
         ['BIOS version',     $biosVersion],
@@ -500,7 +655,10 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
     $pdf->SetXY(20, 194);
     $pdf->Cell($W - 40, 5, 'Prepared with tScrub — device diagnostics  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'C');
 
-    // ---- Page 2: storage inventory ----
+    // ---- Page 2: hardware annex (extended inventory) ----
+    diag_render_hardware($pdf, 20.0, $W, $H, $reportId, $d);
+
+    // ---- Page 3: storage inventory ----
     diag_render_storage($pdf, 10.0, $W, $H, $reportId, $drives);
 
     $data = $pdf->Output('', 'S');

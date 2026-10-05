@@ -67,6 +67,15 @@ register::json_body() {
         "$(report::_json_field "${SYS_BATTERY:-}")" \
         "$(report::_json_field "${SYS_SECUREBOOT:-}")" \
         "$(report::_json_field "${SYS_DIMM_LIST:-}")"
+    printf ',"usb_devices":"%s","pci_devices":"%s","smbios":"%s","interfaces":"%s"' \
+        "$(report::_json_field "${SYS_USB_LIST:-}")" \
+        "$(report::_json_field "${SYS_PCI_LIST:-}")" \
+        "$(report::_json_field "${SYS_SMBIOS_RAW:-}")" \
+        "$(report::_json_field "${SYS_NET_INTERFACES:-}")"
+    printf ',"uefi_boot_entries":"%s","peripherals":"%s","bios_lockdown":%s' \
+        "$(report::_json_field "${SYS_UEFI_BOOT:-}")" \
+        "$(report::_json_field "${SYS_PERIPHERALS:-}")" \
+        "${SYS_BIOS_LOCKDOWN:-0}"
     printf ',"selftest_cpu":"%s"' \
         "$(report::_json_field "${SELFTEST_CPU:-}")"
     printf ',"operator":"%s","validator":"%s","media_source":"%s","media_destination":"%s"' \

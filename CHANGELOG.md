@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.10] - 2026-10-05
+
+### Added
+
+- **Extended hardware inventory** — the boot-time diagnostics now capture the
+  full PCI device list (`lspci -nn`), USB devices, a full SMBIOS table dump,
+  per-interface network detail (name/MAC/link/driver), UEFI boot entries, and
+  peripheral presence (webcam, touchscreen, fingerprint, accelerometer, audio),
+  plus a derived **"BIOS lockdown suspected"** flag (SED-locked or still-frozen
+  drive). The new fields surface in the Devices-tab modal and on a new hardware
+  annex page in the diagnostics PDF; the CSV gains a `BIOSLockdown` column.
+  Large tables (SMBIOS/PCI/USB) are JSON-only and never bloat the report CSV.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.10_2025.11_30_x86-64_v0.41_20261005-99594db4.iso`
+  (165 MB) sha256 `04b774060a429c3884668f016ee82a0aebba3afbd04dc6cbdddd40c492cd469a`.
+- Standalone script `tscrub.sh` (v1.11.10) sha256 `584275cf72ce0d65d8f3845474f686b199decdd916f18dac6a7fb80b316260b3`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `f16b1ff1b4c433dd452bf8751a0de9c4c9c29d474bbc1975bc9c45b633891d5f`.
+
 ## [v1.11.9] - 2026-10-05
 
 ### Fixed

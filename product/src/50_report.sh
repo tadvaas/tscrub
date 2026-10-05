@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown"
         for dev in "${devices[@]}"; do
             local st en dur sed_status
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -100,7 +100,7 @@ report::csv() {
                 "$sys_macs" "$sys_ctrls" "$sys_toolver" \
                 "$sys_operator" "$sys_validator" "$sys_media_src" "$sys_media_dst" \
                 "${VERIFY_MODE:-none}" "${devrow[$dev.verify_sectors]:-}" "${devrow[$dev.verify_result]:-n/a}" \
-                "${raid[$dev]:-none}"
+                "${raid[$dev]:-none}" "${SYS_BIOS_LOCKDOWN:-0}"
         done
     } > "$report_file"
 

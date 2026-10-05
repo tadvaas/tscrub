@@ -55,6 +55,7 @@ t::source_src() {
         "$ROOT_DIR/src/43_verify.sh" \
         "$ROOT_DIR/src/44_device_sed.sh" \
         "$ROOT_DIR/src/45_device_raid.sh" \
+        "$ROOT_DIR/src/46_hardware.sh" \
         "$ROOT_DIR/src/50_report.sh"; do
         source "$f" || return 1
     done

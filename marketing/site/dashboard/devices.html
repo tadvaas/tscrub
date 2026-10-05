@@ -584,6 +584,10 @@
         var strip = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 dark:border-ink-700 px-6 py-3');
         strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'BIOS lock'));
         strip.appendChild(lockBadge(dev.bioslock) || el('span', 'text-sm text-slate-400 dark:text-slate-500', '—'));
+        strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'BIOS lockdown'));
+        strip.appendChild(dev.bios_lockdown
+          ? el('span', 'rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-400', 'Suspected')
+          : el('span', 'text-sm text-slate-400 dark:text-slate-500', 'None'));
         doc.appendChild(strip);
 
         function section(title, pairs) {
@@ -599,6 +603,54 @@
           });
           sec.appendChild(grid);
           return sec;
+        }
+
+        // One item per line for long lists (PCI, USB, interfaces, boot entries).
+        function listSection(title, text, mono) {
+          var sec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
+          sec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', title));
+          var items = String(text || '').split(/\r?\n|;\s*/).filter(function (s) { return s.trim() !== ''; });
+          if (!items.length) {
+            sec.appendChild(el('div', 'mt-2 text-sm text-slate-400 dark:text-slate-500', '—'));
+            return sec;
+          }
+          var box = el('div', 'mt-2 max-h-40 overflow-y-auto rounded-lg bg-slate-50 dark:bg-ink-800 px-3 py-2 ' + (mono ? 'font-mono text-xs' : 'text-sm'));
+          items.forEach(function (it) { box.appendChild(el('div', 'py-0.5 text-slate-700 dark:text-slate-300', it)); });
+          sec.appendChild(box);
+          return sec;
+        }
+
+        // Collapsible full-text block (the raw SMBIOS dump).
+        function detailsSection(title, summaryText, fullText) {
+          var sec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
+          sec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', title));
+          if (!fullText) { sec.appendChild(el('div', 'mt-2 text-sm text-slate-400 dark:text-slate-500', '—')); return sec; }
+          var det = el('details', 'mt-2');
+          var sum = el('summary', 'cursor-pointer text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline');
+          sum.textContent = summaryText || 'Show';
+          det.appendChild(sum);
+          var pre = el('pre', 'mt-2 max-h-60 overflow-y-auto rounded-lg bg-slate-50 dark:bg-ink-800 p-3 font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap');
+          pre.textContent = fullText;
+          det.appendChild(pre);
+          sec.appendChild(det);
+          return sec;
+        }
+
+        // Parse the peripherals "webcam:1; touchscreen:0; …" string into label/value pairs.
+        function peripheralsPairs(s) {
+          var map = {};
+          String(s || '').split(';').forEach(function (kv) {
+            var p = kv.split(':');
+            if (p.length === 2) map[p[0].trim()] = p[1].trim();
+          });
+          var out = [];
+          ['webcam', 'touchscreen', 'fingerprint', 'accelerometer'].forEach(function (k) {
+            var cap = k.charAt(0).toUpperCase() + k.slice(1);
+            if (map[k] === '1') out.push([cap, 'Yes']);
+            else if (map[k] === '0') out.push([cap, 'No']);
+          });
+          if (map.audio !== undefined) out.push(['Audio codecs', map.audio]);
+          return out;
         }
 
         doc.appendChild(section('Identity', [
@@ -660,9 +712,14 @@
         doc.appendChild(section('Hardware', [
           ['CPU', dev.cpu], ['Cores / threads', dev.cpu_spec], ['GPU', dev.gpu],
           ['Display', dev.display], ['Wi-Fi', dev.wifi], ['RAM', dev.ram],
-          ['TPM', dev.tpm], ['MAC address', dev.macs], ['Storage controllers', dev.storage_controllers],
-          ['Battery', dev.battery], ['Memory modules', dev.dimms]
+          ['TPM', dev.tpm], ['Battery', dev.battery], ['Memory modules', dev.dimms]
         ]));
+        doc.appendChild(listSection('Network interfaces', dev.interfaces || dev.macs, true));
+        doc.appendChild(listSection('Storage controllers', dev.storage_controllers, true));
+        doc.appendChild(listSection('PCI devices', dev.pci_devices, true));
+        doc.appendChild(listSection('USB devices', dev.usb_devices, true));
+        doc.appendChild(listSection('Boot entries', dev.uefi_boot_entries, true));
+        doc.appendChild(section('Peripherals', peripheralsPairs(dev.peripherals)));
         doc.appendChild(section('Firmware', [
           ['BIOS version', dev.biosversion],
           ['BIOS date', dev.biosdate],
@@ -705,6 +762,8 @@
           drvSec.appendChild(dtbl);
           doc.appendChild(drvSec);
         }
+
+        doc.appendChild(detailsSection('SMBIOS (full)', 'Show full SMBIOS table', dev.smbios));
 
         modalBody.appendChild(doc);
 

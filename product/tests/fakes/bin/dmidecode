@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+if [[ "$#" -eq 0 ]]; then
+    # Full SMBIOS dump (46_hardware.sh hardware::smbios).
+    printf '# SMBIOS 3.4 present.\nHandle 0x0000, DMI type 0, 26 bytes\nBIOS Information\n\tVendor: Fake Inc.\n\tVersion: 1.0\n'
+    exit 0
+fi
 if [[ "$1" == "-t" && "$2" == "24" ]]; then
     # BIOS lock detector (36_bios.sh) reads SMBIOS Type 24. Content driven by
     # the FAKE_DMI24 env var (one line per "… Password Status: <value>").

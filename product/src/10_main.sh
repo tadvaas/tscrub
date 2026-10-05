@@ -235,6 +235,10 @@ fn_main() {
     table::build
     ui::spinner_stop
 
+    # Derived "BIOS lockdown suspected" flag — needs the per-drive state that
+    # table::build just classified (SED-locked or still-frozen drives).
+    hardware::lockdown
+
     # ITAD triage: register the machine with the portal (identity + hardware +
     # drive inventory) and save the snapshot to the USB, BEFORE any wipe. Then
     # either autonuke (wipe everything) or let the operator pick the drives.
