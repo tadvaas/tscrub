@@ -20,6 +20,13 @@ and this project uses date-based versioning (`v1.x`).
   via `flashrom`, reporting `unsupported` when the region is write-protected or
   `flashrom` is absent. The dashboard card is version-gated at v1.11.0.
 
+### Release
+
+- Appliance ISO `tscrub-v1.11.0_2025.11_30_x86-64_v0.41_20261005-e5af7137.iso`
+  (165 MB) sha256 `66b5872afd81939a25e3d8974d80c0ad6b8ea4358b981d08da3dabd04f38f0a5`.
+- Standalone script `tscrub.sh` (v1.11.0) sha256 `30603b5e1b41fd688b10b2c53e26099e78e49878df5344875128d805a9574c4e`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `fe827cc6c573c5c57725d013583f1633c3860406098e9852151d12e9fb3dc048`.
+
 ## [v1.10.19] - 2026-10-05
 
 ### Added
