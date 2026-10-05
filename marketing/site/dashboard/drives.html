@@ -177,10 +177,15 @@
         return 'text-slate-700 dark:text-slate-300';
       }
       function capVerify(v) {
-        var s = String(v || '').trim();
-        if (!s) return '';
-        if (s.toLowerCase() === 'n/a') return 'N/A';
-        return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+        var s = String(v || '').toUpperCase();
+        switch (s) {
+          case 'PASSED':     return 'PASS';
+          case 'FAILED':     return 'FAIL';
+          case 'SKIPPED':    return 'SKIP';
+          case 'UNREADABLE': return 'UNRD';
+          case 'N/A':        return 'N/A';
+          default:           return s;
+        }
       }
       function tempClass(v) {
         var n = parseInt(v, 10);
