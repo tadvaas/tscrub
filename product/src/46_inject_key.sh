@@ -95,6 +95,24 @@ msdm::find_oa3_var() {
     return 1
 }
 
+# Append a timestamped diagnostic line to the appliance log.
+msdm::log() {
+    printf '[%s] KEY_INJECT: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${LOG_FILE:-/tmp/tScrub.log}" 2>/dev/null || true
+}
+
+# Basename of a lock variable guarding the OA3 variable (vendor-specific names),
+# or '' when none found.
+msdm::lock_var_name() {
+    ls /sys/firmware/efi/efivars/ 2>/dev/null | grep -iE 'OA3.*LOCK|LOCK.*OA3|MSDM.*LOCK|LOCK.*MSDM|SLIC.*LOCK|LOCK.*SLIC' | head -1
+}
+
+# True (0) when the given lock variable's data is non-zero (locked).
+msdm::is_locked() {  # $1=variable basename
+    local data
+    data="$(cat "/sys/firmware/efi/efivars/$1" 2>/dev/null | tail -c +5 | tr -d '\000')"
+    case "$data" in ''|0|00) return 1 ;; *) return 0 ;; esac
+}
+
 # Replace $old with $new (equal length) in a binary buffer file $1. Returns 0 on
 # success. Pure file I/O (head -c / tail -c) so it is unit-testable.
 msdm::replace_bytes() {  # $1=file $2=old $3=new
@@ -113,7 +131,7 @@ msdm::replace_bytes() {  # $1=file $2=old $3=new
 # (injected|failed|unsupported) and KEY_INJECT_DETAIL. Returns 0 only on
 # injected.
 msdm::inject() {
-    local key old_key var tmp
+    local key old_key var varname lockname tmp
     KEY_INJECT_RESULT="failed"
     KEY_INJECT_DETAIL="unknown error"
 
@@ -136,6 +154,8 @@ msdm::inject() {
         KEY_INJECT_DETAIL="no MSDM key to replace (fresh-table injection not yet supported)"
         return 1
     }
+    msdm::log "current key ...${old_key: -5}"
+
     [[ "$old_key" == "$key" ]] && {
         KEY_INJECT_RESULT="injected"
         KEY_INJECT_DETAIL="key already present"
@@ -147,6 +167,16 @@ msdm::inject() {
         KEY_INJECT_DETAIL="MSDM key not found in any UEFI variable (unsupported layout)"
         return 1
     }
+    varname="$(basename "$var")"
+    msdm::log "found OA3 variable: $varname"
+
+    lockname="$(msdm::lock_var_name)"
+    if [[ -n "$lockname" ]] && msdm::is_locked "$lockname"; then
+        msdm::log "locked by $lockname"
+        KEY_INJECT_RESULT="unsupported"
+        KEY_INJECT_DETAIL="OA3 variable is locked (by $lockname)"
+        return 1
+    fi
 
     # Copy attrs + data, replace the key bytes, write the variable back.
     tmp="/tmp/tscrub-oa3-new.$$"
@@ -164,14 +194,16 @@ msdm::inject() {
 
     if ! cat "$tmp" > "$var" 2>/dev/null; then
         rm -f "$tmp"
+        msdm::log "write rejected for $varname"
         KEY_INJECT_RESULT="unsupported"
-        KEY_INJECT_DETAIL="OA3 variable is locked (firmware rejected the write)"
+        KEY_INJECT_DETAIL="OA3 variable $varname is locked (firmware rejected the write)"
         return 1
     fi
     rm -f "$tmp"
 
+    msdm::log "wrote new key to $varname"
     KEY_INJECT_RESULT="injected"
-    KEY_INJECT_DETAIL="key written to OA3 UEFI variable; effective at next boot"
+    KEY_INJECT_DETAIL="key written to $varname; effective at next boot"
     return 0
 }
 

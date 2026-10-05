@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.1] - 2026-10-05
+
+### Changed
+
+- **Product-key injection now writes the OA3 UEFI variable** instead of SPI
+  flash. Field-verified on HP: the MSDM key is derived at boot from the OA3 UEFI
+  variable (`HP_OA3`), not a static flash table. The worker loads efivarfs,
+  locates the variable containing the current key, and replaces its 29 key bytes
+  in place — no flashrom, no table assembly, no checksum. Locked firmware
+  (`HP_OA3_LOCK=1`) is detected and reported as `unsupported` with the lock
+  variable name; diagnostics are logged to `/tScrub.log`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.1_2025.11_30_x86-64_v0.41_20261005-d70e6578.iso`
+  (166 MB) sha256 `2b9ec6f33ac8dd57fce25f946ba8a1fcde0868abf8ef6ba8bc9db3f23869dc2b`.
+- Standalone script `tscrub.sh` (v1.11.1) sha256 `6e91f84a320c1fbbf3c46eef39efc0f30568611d8f624553cdfbc1124bdbceab`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ce53ca03d14d2088e899653c2b7d3b7aad0cc6a1ebe78524056061f49114967e`.
+
 ## [v1.11.0] - 2026-10-05
 
 ### Added
