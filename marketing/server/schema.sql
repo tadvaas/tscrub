@@ -370,29 +370,6 @@ CREATE TABLE IF NOT EXISTS device_commands (
   CONSTRAINT fk_cmd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Remote product-key injection (dashboard stages, appliance writes the MSDM
--- ACPI table). The key is encrypted at rest (libsodium; see key_inject.php).
--- status: pending -> dispatched -> done|failed|unsupported (or superseded/
--- cancelled/expired). The appliance reports "deferred" (a wipe started after
--- the claim), which flips the row back to "pending" for the next poll.
-CREATE TABLE IF NOT EXISTS key_inject (
-  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id       BIGINT UNSIGNED NOT NULL,
-  serial        VARCHAR(255)    NOT NULL DEFAULT '',
-  uuid          VARCHAR(64)     NOT NULL DEFAULT '',
-  key_enc       VARCHAR(512)    NOT NULL DEFAULT '',
-  status        VARCHAR(16)     NOT NULL DEFAULT 'pending',
-  result        VARCHAR(16)     NOT NULL DEFAULT '',
-  detail        VARCHAR(255)    NOT NULL DEFAULT '',
-  created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  dispatched_at DATETIME        NULL,
-  resolved_at   DATETIME        NULL,
-  PRIMARY KEY (id),
-  KEY idx_kinj_user_serial (user_id, serial, id),
-  KEY idx_kinj_status (status, id),
-  CONSTRAINT fk_kinj_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- Live device registration: the appliance posts its identity + hardware + drive
 -- inventory on boot (ITAD triage), BEFORE any wipe. Keyed + upserted by
 -- (user_id, serial, uuid); the JSON payload carries the full snapshot.

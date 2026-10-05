@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.2] - 2026-10-05
+
+### Removed
+
+- **Product-key injection** — removed the firmware key-injection operation
+  (appliance worker, `/api/key/inject*` endpoints, `key_inject` table, and the
+  dashboard "Inject product key" card). Field research confirmed the embedded
+  MSDM key lives in a one-way-locked OA3 UEFI variable on committed HP boards
+  (`HP_OA3_LOCK=1`), so firmware re-injection is only possible on blank service
+  boards — not a standard ITAD workflow. Committed boards use OS-level
+  activation (`PID.txt` / `unattend.xml` / `slmgr`). The dashboard still
+  *surfaces* the embedded key (Windows licence section).
+
 ## [v1.11.1] - 2026-10-05
 
 ### Changed

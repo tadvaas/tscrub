@@ -1384,148 +1384,6 @@
         scheduleRemotePoll(dev, online, state, host);
       }
 
-      var injectPollTimer = null;
-
-      function injectStateFor(u) {
-        var s = u && u.status ? u.status : 'none';
-        if (s === 'done') return { kind: 'injected', data: u };
-        if (s === 'failed') return { kind: 'failed', data: u };
-        if (s === 'unsupported') return { kind: 'unsupported', data: u };
-        if (s === 'dispatched') return { kind: 'inprogress', data: u };
-        if (s === 'pending') return { kind: 'staged', data: u };
-        return { kind: 'idle', data: u };   // none / cancelled / superseded / expired
-      }
-
-      function injectBadge(kind) {
-        switch (kind) {
-          case 'staged': return el('span', 'rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-semibold', 'Queued');
-          case 'inprogress': return el('span', 'rounded-full bg-sky-100 text-sky-700 px-2.5 py-1 text-xs font-semibold animate-pulse', 'Writing…');
-          case 'injected': return el('span', 'rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold', 'Injected');
-          case 'failed': return el('span', 'rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold', 'Failed');
-          case 'unsupported': return el('span', 'rounded-full bg-slate-200 text-slate-600 px-2.5 py-1 text-xs font-semibold', 'Unsupported');
-          default: return null;
-        }
-      }
-
-      function loadInjectState(dev, online, host) {
-        fetch('/api/key/inject?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
-          .then(function (d) { renderInjectCard(dev, online, injectStateFor(d && d.inject), host); })
-          .catch(function () { renderInjectCard(dev, online, { kind: 'idle', data: null }, host); });
-      }
-
-      function scheduleInjectPoll(dev, online, state, host) {
-        if (injectPollTimer) { clearTimeout(injectPollTimer); injectPollTimer = null; }
-        if (state.kind === 'staged' || state.kind === 'inprogress') {
-          injectPollTimer = setTimeout(function () { loadInjectState(dev, online, host); }, 4000);
-        }
-      }
-
-      function sendInject(dev, online, host, inp, btn, st) {
-        var key = inp.value.toUpperCase().replace(/\s+/g, '');
-        if (!/^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$/.test(key)) {
-          st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-          st.textContent = 'Enter a key like XXXXX-XXXXX-XXXXX-XXXXX-XXXXX.';
-          return;
-        }
-        st.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
-        st.textContent = 'Sending…';
-        btn.disabled = true;
-        getCsrf().then(function (csrf) {
-          return fetch('/api/key/inject', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '', key: key })
-          });
-        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
-          if (res.ok) {
-            loadInjectState(dev, online, host);
-          } else {
-            btn.disabled = false;
-            st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-            st.textContent = res.data.error || 'Could not queue the injection.';
-          }
-        }).catch(function () {
-          btn.disabled = false;
-          st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-          st.textContent = 'Network error — try again.';
-        });
-      }
-
-      function cancelInject(dev, online, host, id, btn) {
-        btn.disabled = true;
-        getCsrf().then(function (csrf) {
-          return fetch('/api/key/inject/cancel', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({ id: id })
-          });
-        }).then(function (r) { return r.json(); }).then(function () {
-          loadInjectState(dev, online, host);
-        }).catch(function () {
-          btn.disabled = false;
-        });
-      }
-
-      function renderInjectCard(dev, online, state, host) {
-        host.innerHTML = '';
-
-        var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
-        var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
-        head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Inject product key'));
-        head.appendChild(injectBadge(state.kind) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
-        card.appendChild(head);
-
-        var kind = state.kind;
-        var u = state.data;
-        var supported = toolVersionNum(dev.tool_version) >= toolVersionNum('v1.11.0');
-        var inpClass = 'min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500';
-
-        if (kind === 'idle' || kind === 'failed' || kind === 'unsupported') {
-          if (kind === 'failed') {
-            card.appendChild(el('p', 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400', 'Injection failed' + (u && u.detail ? ' — ' + u.detail : '') + '.'));
-          } else if (kind === 'unsupported') {
-            card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'Not supported on this machine' + (u && u.detail ? ' — ' + u.detail : '') + '.'));
-          }
-          var form = el('div', 'mt-3 flex flex-wrap items-center gap-2');
-          var inp = el('input', inpClass);
-          inp.type = 'text';
-          inp.autocomplete = 'off';
-          inp.placeholder = 'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX';
-          if (dev.product_key) inp.value = dev.product_key;
-          var btn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Inject');
-          form.appendChild(inp); form.appendChild(btn);
-          card.appendChild(form);
-          var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-          if (!supported) {
-            st.textContent = 'Requires appliance v1.11.0 or newer.';
-            btn.disabled = true;
-          } else if (!online) {
-            st.textContent = 'Machine is offline — staged and runs at next boot.';
-          } else {
-            st.textContent = 'Machine is online — written within a few seconds.';
-          }
-          card.appendChild(st);
-          var warn = el('p', 'mt-2 text-xs font-semibold text-amber-600 dark:text-amber-400', 'Writes the embedded product key (OA3 UEFI variable) — a firmware change. Only for owned devices.');
-          card.appendChild(warn);
-          btn.addEventListener('click', function () { sendInject(dev, online, host, inp, btn, st); });
-        } else if (kind === 'staged') {
-          var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
-          var cancelBtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
-          row.appendChild(cancelBtn);
-          card.appendChild(row);
-          card.appendChild(el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400', 'Queued — the appliance will write the key at its next poll. Cancel to withdraw it.'));
-          cancelBtn.addEventListener('click', function () { cancelInject(dev, online, host, u.id, cancelBtn); });
-        } else if (kind === 'inprogress') {
-          card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'The appliance has picked up the command and is writing the key.'));
-        } else if (kind === 'injected') {
-          card.appendChild(el('p', 'mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-400', 'Product key written to firmware.'));
-          if (u && u.detail) card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400', u.detail));
-        }
-
-        host.appendChild(card);
-        scheduleInjectPoll(dev, online, state, host);
-      }
-
       function openOperations(dev, online) {
         opsSub.textContent = (dev.system || 'Machine') + ' · ' + (dev.sysserial ? 'SN ' + dev.sysserial : 'no serial') + ' · ' + (online ? 'Online' : 'Offline');
         opsBody.innerHTML = '';
@@ -1535,18 +1393,14 @@
           var unlockHost = el('div', '');
           var mdmHost = el('div', 'mt-4');
           var remoteHost = el('div', 'mt-4');
-          var injectHost = el('div', 'mt-4');
           opsBody.appendChild(unlockHost);
           opsBody.appendChild(mdmHost);
           opsBody.appendChild(remoteHost);
-          opsBody.appendChild(injectHost);
           renderUnlockCard(dev, online, { kind: 'idle', data: null }, unlockHost);
           loadUnlockState(dev, online, unlockHost);
           renderMdmCard(dev, online, mdmHost);
           renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost);
           loadRemoteState(dev, online, remoteHost);
-          renderInjectCard(dev, online, { kind: 'idle', data: null }, injectHost);
-          loadInjectState(dev, online, injectHost);
         }
         opsModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
