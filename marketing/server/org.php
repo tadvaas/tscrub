@@ -27,7 +27,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/http.php';
 
-const ORG_SEATS = ['free' => 2, 'payg' => 1, 'team' => 10, 'enterprise' => 50];
+const ORG_SEATS = ['free' => 2, 'payg' => 10, 'team' => 50, 'enterprise' => 100];
 const ORG_INVITE_TTL = 60 * 60 * 24 * 7; // 7 days
 
 /** Per-request cache so repeated scope lookups are one indexed query. */

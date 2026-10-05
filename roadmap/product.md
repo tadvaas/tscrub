@@ -91,10 +91,11 @@ first. Tick items off as they ship and note the release that carries each.
       no appliance change): `organisations` / `organisation_members` /
       `organisation_invites` tables, `org.php` scope layer (writes keep
       `user_id`, reads resolve to `org_member_ids`), org-aware tier, email-invite
-      + owner/admin/member roles, soft-remove, seat limits (free 2 / payg 1 /
-      team 10 / enterprise 50), Account-page Organisation card — and **device
+      + owner/admin/member roles, soft-remove, seat limits (free 2 / payg 10 /
+      team 50 / enterprise 100), Account-page Organisation card — and **device
       credits pool per organisation** (`credit_events.organisation_id`; the
-      wallet is keyed by org id so membership changes never move it). Plan:
+      wallet is keyed by org id so membership changes never move it; a user's
+      personal credits + history transfer into the org on create/join). Plan:
       `research/organisations-seats/README.md`; tests
       `research/organisations-seats/test_org_php.php` (48 checks).
 
