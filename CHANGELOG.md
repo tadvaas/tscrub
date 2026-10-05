@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.4] - 2026-10-05
+
+### Fixed
+
+- **Remote erasure on selected drives** — the appliance matched dashboard-selected
+  drive serials case-sensitively, so any case difference between the boot-time
+  diagnostics report and the live serial made every selected drive fail with
+  "no drives matched". Serials are now compared case-insensitively in both the
+  triage match (`40_table.sh`) and the erasure selection (`10_main.sh`).
+
+### Changed
+
+- **Certificate personnel** — the "Performed by (operator)" line now carries the
+  erasure completion date and falls back to the account holder (name, else email)
+  when the report omits an operator; the validator is omitted when absent; and
+  the appliance's literal `N/A` sentinel is treated as empty. The same rules
+  apply to the device diagnostics PDF.
+- **Certificate layout** — removed the `Verification` and `HPA/DCO` rows and
+  columns, giving the freed width to `Class` so it no longer wraps.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.4_2025.11_30_x86-64_v0.41_20261005-61c1c0cd.iso`
+  (165 MB) sha256 `341ac1bc16ff0988cd955e8d74e343440cc68f149578eb0e9ee8c29d60d9012b`.
+- Standalone script `tscrub.sh` (v1.11.4) sha256 `72548871c621e09911a9662f6bb571cfae371a8c8ae2565e79bc9b3ffcba6143`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `e31f9156655db0347d0f185ea43a8d71754b9ee1e40714729b6de501ea97acf8`.
+
 ## [v1.11.3] - 2026-10-05
 
 ### Changed
