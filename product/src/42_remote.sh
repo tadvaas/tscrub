@@ -44,34 +44,41 @@ remote::report() {
 # Write a staged wipe to the marker file for the console to pick up. The worker
 # does NOT report a result here — the console reports started/cancelled/failed.
 remote::stage_erase() {
-    local cmd_id="$1" resp="$2" dry_run drives_json s
+    local cmd_id="$1" resp="$2" dry_run drives_json s tmp
+    tmp="${REMOTE_ERASE_MARKER}.$$"
     dry_run="$(printf '%s' "$resp" | sed -n 's/.*"dry_run":true.*/1/p')"
     [[ -n "$dry_run" ]] || dry_run=0
 
+    # Write the COMPLETE marker to a temp file, then atomically rename it into
+    # place. The triage loop polls the marker every 0.5 s; a half-written marker
+    # (id/dry_run present but no drive lines) read as an empty drive list and
+    # failed with "no drives matched".
     {
         printf 'id=%s\n' "$cmd_id"
         printf 'dry_run=%s\n' "$dry_run"
-    } > "$REMOTE_ERASE_MARKER"
-
-    if printf '%s' "$resp" | grep -q '"drives":"all"'; then
-        printf 'scope=all\n' >> "$REMOTE_ERASE_MARKER"
-    else
-        printf 'scope=list\n' >> "$REMOTE_ERASE_MARKER"
-        drives_json="$(printf '%s' "$resp" | sed -n 's/.*"drives":\[\(.*\)\].*/\1/p')"
-        while IFS= read -r s; do
-            printf 'drive=%s\n' "$s" >> "$REMOTE_ERASE_MARKER"
-        done < <(printf '%s' "$drives_json" | grep -o '"[^"]*"' | tr -d '"')
-    fi
+        if printf '%s' "$resp" | grep -q '"drives":"all"'; then
+            printf 'scope=all\n'
+        else
+            printf 'scope=list\n'
+            drives_json="$(printf '%s' "$resp" | sed -n 's/.*"drives":\[\(.*\)\].*/\1/p')"
+            while IFS= read -r s; do
+                printf 'drive=%s\n' "$s"
+            done < <(printf '%s' "$drives_json" | grep -o '"[^"]*"' | tr -d '"')
+        fi
+    } > "$tmp"
+    mv -f "$tmp" "$REMOTE_ERASE_MARKER"
     return 0
 }
 
 # Consume the staged-erase marker (if any): print its KEY=VALUE lines and remove
 # the file so a stale marker can never re-trigger a wipe. Outputs nothing when
-# the marker is absent.
+# the marker is absent. Claims the marker with a rename first so a concurrent
+# writer can never leave us reading a half-written file.
 remote::consume_erase_marker() {
     [[ -f "$REMOTE_ERASE_MARKER" ]] || return 0
-    cat "$REMOTE_ERASE_MARKER"
-    rm -f "$REMOTE_ERASE_MARKER"
+    mv -f "$REMOTE_ERASE_MARKER" "$REMOTE_ERASE_MARKER.claimed" 2>/dev/null || return 0
+    cat "$REMOTE_ERASE_MARKER.claimed"
+    rm -f "$REMOTE_ERASE_MARKER.claimed"
     return 0
 }
 

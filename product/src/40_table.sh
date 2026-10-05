@@ -992,7 +992,7 @@ triage::run() {
                             done
                         done < <(printf '%s' "$marker" | sed -n 's/^drive=//p')
                         if [[ -z "$REMOTE_ERASE_DRIVES" ]]; then
-                            remote::report "$cmd_id" failed "no drives matched"
+                            remote::report "$cmd_id" failed "no drives matched (scope=${scope:-none})"
                             continue
                         fi
                     fi

@@ -6,6 +6,23 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.5] - 2026-10-05
+
+### Fixed
+
+- **Remote erasure on selected drives** — the staged-erase marker was written
+  non-atomically (`id`/`dry_run` first, then the `scope`/`drive` lines), so the
+  triage loop could consume a half-written marker and fail with "no drives
+  matched". The marker is now written to a temp file and atomically renamed into
+  place (and claimed with a rename), so the drive list is never read mid-write.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.5_2025.11_30_x86-64_v0.41_20261005-3fffaa91.iso`
+  (165 MB) sha256 `4a8209257862f68d26185f48e5993e3b0a94b14f18fd2b58aadd87ab5f7ad463`.
+- Standalone script `tscrub.sh` (v1.11.5) sha256 `62d04830c7ba1928fe9fa0f2fdbd5f469b4c215bd266f91425d52ee73c3dcfa6`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `48fb0f28131a24c84f19e2a24e41ca4ab2ee85ced23fe73db1196b02140a3fb9`.
+
 ## [v1.11.4] - 2026-10-05
 
 ### Fixed
