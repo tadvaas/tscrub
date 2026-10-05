@@ -1297,13 +1297,15 @@ if ($method === 'GET' && $route === '/bios/unlock/pending') {
     if ($serial === '' || $serial === 'N/A') {
         fail(400, 'Serial required.');
     }
+    $uuid = trim((string)($_GET['uuid'] ?? ''));
 
-    $cmd = unlock_claim((int)$owner['id'], $serial);
+    $cmd = unlock_claim((int)$owner['id'], $serial, $uuid);
     if ($cmd === null) {
         json_out(['ok' => true, 'pending' => false]);
     }
     json_out(['ok' => true, 'pending' => true, 'id' => $cmd['id'],
-        'serial' => $cmd['serial'], 'uuid' => $cmd['uuid'], 'password' => $cmd['password']]);
+        'serial' => $cmd['serial'], 'uuid' => $cmd['uuid'], 'password' => $cmd['password'],
+        'password_b64' => base64_encode($cmd['password'])]);
 }
 
 // POST /api/bios/unlock/result — appliance reports the clear outcome. API token.
@@ -1334,7 +1336,9 @@ if ($method === 'POST' && $route === '/bios/unlock/result') {
         fail(400, 'Invalid result.');
     }
 
-    unlock_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255));
+    if (!unlock_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255))) {
+        fail(409, 'Command is not dispatched.');
+    }
     json_out(['ok' => true]);
 }
 

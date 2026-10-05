@@ -67,21 +67,19 @@ first. Tick items off as they ship and note the release that carries each.
 
 ## 3. Robustness & ops
 
-- [ ] **Remote BIOS unlock robustness** (§8)
-  - [ ] JSON-safe password handling — replace the `sed` extraction of
-        `id`/`password` in `38_bios_unlock.sh` with a real JSON decode (or
-        reject `"`/`\`/control chars server-side).
-  - [ ] Dispatched TTL + requeue — a `dispatched` command whose result POST
-        fails must not stay `dispatched` forever.
-  - [ ] Purge password residue — purge `password_enc` on supersede + an
-        unclaimed-command TTL.
-  - [ ] Explicit slot targeting — prefer setup/`AdminPassword` over
-        power-on/`SystemPassword`; re-verify after clearing.
-  - [ ] Confirm the clear took effect — re-read the slot (wrong password vs
-        non-writable attribute are indistinguishable today).
-  - [ ] `uuid` in the claim (fall back to serial-only).
-  - [ ] `curl -k` TLS clock-skew fallback (mirror `report::upload_http`).
-  - [ ] Enforce the result state machine server-side (`dispatched` → result).
+- [x] **Remote BIOS unlock robustness** (§8)
+  → **Implemented (2026-10-05), awaiting release** — all 8 items below in
+  `38_bios_unlock.sh` + `bios_unlock.php`/`api.php`; plan
+  `research/bios-unlock/13-remote-unlock-robustness.md`; tests
+  `product/tests/test_bios_unlock.sh` (18 tests).
+  - [x] JSON-safe password handling — base64 `password_b64` field (legacy kept).
+  - [x] Dispatched TTL + requeue (10 min) + result-POST curl retries.
+  - [x] Purge password residue — supersede clears `password_enc`; 7-day stale sweep.
+  - [x] Explicit slot targeting — setup/AdminPassword > power-on/SystemPassword.
+  - [x] Confirm the clear took effect — re-read the slot; "still set" → failed.
+  - [x] `uuid` in the claim (fall back to serial-only when staged uuid empty).
+  - [x] `curl -k` TLS clock-skew fallback (mirror `report::upload_http`).
+  - [x] Enforce the result state machine server-side (`dispatched` → result).
   > Reality: writable password attributes exist only on Dell
   > (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most vendors
   > report `unsupported`. In-house SPI bench research lives in

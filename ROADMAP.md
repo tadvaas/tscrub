@@ -520,30 +520,27 @@ pulls it (`GET /api/bios/unlock/pending`), clears via `firmware_attributes` /
 `hp-wmi`, and reports back. It works end-to-end but has known gaps to close
 before it is production-trustworthy:
 
-- [ ] Appliance JSON parsing corrupts passwords containing `"`, `\`, or control
-      chars — replace the `sed` extraction of `id`/`password` in
-      `product/src/38_bios_unlock.sh` with a real JSON decode (or reject those
-      chars server-side in `POST /api/bios/unlock`).
-- [ ] No retry/requeue on lost results — a `dispatched` command whose result
-      POST fails stays `dispatched` forever (password retained). Add a
-      `dispatched` TTL + requeue, or have the appliance re-report.
-- [ ] Password residue — `unlock_enqueue` marks superseded rows but never purges
-      their `password_enc`; add purge-on-supersede + an unclaimed-command TTL.
+- [x] Appliance JSON parsing corrupts passwords containing `"`, `\`, or control
+      chars — replaced the `sed` extraction with a JSON-safe base64 field
+      (`password_b64`; legacy `password` kept for the transition).
+- [x] No retry/requeue on lost results — added a 10-minute `dispatched` TTL +
+      requeue, plus `curl --retry` on the result POST.
+- [x] Password residue — supersede now clears `password_enc`; added a 7-day
+      stale-pending sweep.
 - [ ] Offline staging needs a full tScrub boot — add a lightweight
       "unlock-only" boot/flag so an operator can rescue a locked BIOS without
       running a wipe.
-- [ ] Slot selection is a first-match heuristic, not the wipe-time slot — make
-      targeting explicit (prefer setup/`AdminPassword` over
-      power-on/`SystemPassword`) and re-verify after clearing.
-- [ ] Weak error signal — "write failed" can't distinguish a wrong password from
-      a non-writable attribute; re-read the slot to confirm the clear actually
-      took effect.
-- [ ] Serial-only claim — `unlock_claim` matches `user_id` + `serial` only;
-      include `uuid` (fall back to serial-only when uuid is empty).
-- [ ] No TLS clock-skew fallback — add a `curl -k` retry for RTC-skewed
+- [x] Slot selection is a first-match heuristic, not the wipe-time slot — now
+      prefers setup/`AdminPassword` over power-on/`SystemPassword` and
+      re-verifies after clearing.
+- [x] Weak error signal — re-read the slot after the clear; "still set" reports
+      a distinct `failed` detail (wrong password or read-only).
+- [x] Serial-only claim — `unlock_claim` now matches `uuid` too (serial-only
+      fallback when the staged uuid is empty).
+- [x] No TLS clock-skew fallback — added a `curl -k` retry for RTC-skewed
       appliances (mirror `report::upload_http`).
-- [ ] Result state machine not enforced server-side — `unlock_report` should
-      require the row be `dispatched` before accepting a result.
+- [x] Result state machine not enforced server-side — `unlock_report` now
+      requires the row be `dispatched` before accepting a result.
 - [ ] Coverage reality — writable password attributes exist only on Dell
       (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most other
       vendors report `unsupported`, and power-on passwords are usually not

@@ -70,23 +70,42 @@ function unlock_decrypt(string $blob): ?string {
     }
 }
 
+/** Expire stale pending commands (never claimed) and purge their passwords. */
+function unlock_expire_stale(): void {
+    try {
+        db()->prepare('UPDATE bios_unlock SET status = "cancelled", resolved_at = UTC_TIMESTAMP(), password_enc = "" WHERE status = "pending" AND created_at < UTC_TIMESTAMP() - INTERVAL 7 DAY')
+            ->execute();
+    } catch (Throwable $e) {
+        error_log('unlock expire stale error: ' . $e->getMessage());
+    }
+}
+
 /** Enqueue a clear command; supersedes any still-pending one for the serial. */
 function unlock_enqueue(int $userId, string $serial, string $uuid, string $password): int {
     unlock_ensure_schema();
-    db()->prepare('UPDATE bios_unlock SET status = "superseded" WHERE user_id = ? AND serial = ? AND status = "pending"')
+    unlock_expire_stale();
+    // Superseded rows must not retain their password at rest.
+    db()->prepare('UPDATE bios_unlock SET status = "superseded", resolved_at = UTC_TIMESTAMP(), password_enc = "" WHERE user_id = ? AND serial = ? AND status = "pending"')
         ->execute([$userId, $serial]);
     db()->prepare('INSERT INTO bios_unlock (user_id, serial, uuid, password_enc, status) VALUES (?, ?, ?, ?, "pending")')
         ->execute([$userId, $serial, $uuid, unlock_encrypt($password)]);
     return (int)db()->lastInsertId();
 }
 
-/** Claim the pending command for a serial (appliance) — returns decrypted data. */
-function unlock_claim(int $userId, string $serial): ?array {
+/** Claim the pending command for a serial+uuid (appliance) — returns decrypted data. */
+function unlock_claim(int $userId, string $serial, string $uuid): ?array {
     unlock_ensure_schema();
+    unlock_expire_stale();
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare('SELECT * FROM bios_unlock WHERE user_id = ? AND serial = ? AND status = "pending" ORDER BY id ASC LIMIT 1 FOR UPDATE');
-        $stmt->execute([$userId, $serial]);
+        // Requeue a dispatched command whose result POST never arrived (the
+        // appliance's report was lost), so it doesn't stay dispatched forever.
+        db()->prepare('UPDATE bios_unlock SET status = "pending", dispatched_at = NULL WHERE user_id = ? AND serial = ? AND status = "dispatched" AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE')
+            ->execute([$userId, $serial]);
+
+        // Match serial, and the staged uuid when present (serial-only fallback).
+        $stmt = db()->prepare('SELECT * FROM bios_unlock WHERE user_id = ? AND serial = ? AND (uuid = "" OR uuid = ?) AND status = "pending" ORDER BY id ASC LIMIT 1 FOR UPDATE');
+        $stmt->execute([$userId, $serial, $uuid]);
         $row = $stmt->fetch();
         if ($row === false) {
             db()->commit();
@@ -112,16 +131,22 @@ function unlock_claim(int $userId, string $serial): ?array {
     }
 }
 
-/** Record the appliance's result for a dispatched command; purge the password. */
-function unlock_report(int $userId, int $id, string $result, string $detail): void {
+/** Record the appliance's result for a dispatched command; purge the password.
+ *  Returns false (and writes nothing) when the row is not dispatched. */
+function unlock_report(int $userId, int $id, string $result, string $detail): bool {
     $status = $result === 'cleared' ? 'done' : $result;
     try {
-        db()->prepare('UPDATE bios_unlock SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ?')
-            ->execute([$status, $result, $detail, $id, $userId]);
+        $stmt = db()->prepare('UPDATE bios_unlock SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id = ? AND status = "dispatched"');
+        $stmt->execute([$status, $result, $detail, $id, $userId]);
+        if ($stmt->rowCount() === 0) {
+            return false;
+        }
         // Never retain the password once the command has run.
         db()->prepare('UPDATE bios_unlock SET password_enc = "" WHERE id = ?')->execute([$id]);
+        return true;
     } catch (Throwable $e) {
         error_log('unlock report error: ' . $e->getMessage());
+        return false;
     }
 }
 
