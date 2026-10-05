@@ -44,15 +44,23 @@ first. Tick items off as they ship and note the release that carries each.
 - [ ] **Diagnostics & refurb grading** — collapse SMART pre/post capture into a
       drive grade (A/B/C) + resale health report (power-on hours, TBW,
       reallocated sectors) for ITAD resale. (§6)
-- [ ] **Windows key (DPK) injection into NVRAM** — write a new Windows product
-      key into the firmware MSDM ACPI table so the device boots pre-licensed for
-      resale. Researched via SMART DPK's WinPE client, which does it with
-      OA3Tool `/Assemble` → flash MSDM → device-marker report (see
-      `research/autopilot/smartdpk-client-forensics.md`); we do the same from
-      Linux: build the MSDM/`OA3.bin` blob (PKey2009 encoding already shipped
-      v1.10.9), flash it through the vendor SPI/WMI path — or `flashrom` on the
-      bench, alongside `research/bios-unlock` — then verify by re-reading
-      `/sys/firmware/acpi/tables/MSDM`.
+- [x] **Windows key (DPK) injection into NVRAM** — shipped v1.11.1: write a new
+      key into the OA3 UEFI variable (the BIOS derives the MSDM table from it at
+      boot — no SPI flash, no table assembly, no checksum). Field-verified on HP:
+      the key lives in `HP_OA3-<GUID>` in plaintext and is replaced in place; the
+      worker is vendor-agnostic (locates the variable by content). Notes in
+      `research/dpk-injection/oa3-uefi-injection.md`.
+  - [ ] **Unlock locked OA3** — `HP_OA3_LOCK=1` is a one-way firmware lock that
+        rejects `SetVariable` with `EFI_SECURITY_VIOLATION`; most shipped HP
+        units are factory-locked. Investigate whether a BIOS reset / "restore
+        factory keys" clears it, and whether HP exposes any reset path from
+        Linux (the test units have no `firmware-attributes` / `hp-wmi`).
+  - [ ] **Fresh-table injection** — a machine with no embedded key needs the
+        vendor variable name/GUID + structure to create it from scratch (only HP
+        mapped so far).
+  - [ ] **Dell/Lenovo verification** — confirm the key sits contiguously in a
+        UEFI variable on other vendors (content-scan is vendor-agnostic but
+        unverified beyond HP).
 
 ## 3. Robustness & ops
 
