@@ -807,8 +807,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
 
     $personnelL = [
         ['Operator',  $operator],
-        ['Validator', $validator],
     ];
+    if ($validator !== '') {
+        $personnelL[] = ['Validator', $validator];
+    }
     $personnelR = [
         ['Media source',      $mediaSource],
         ['Media destination', $mediaDest],
@@ -854,12 +856,19 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetXY(30, 123);
     $pdf->MultiCell(237, 3.8, $attestation, 0, 'L');
 
-    // Two signature blocks — operator + validator.
-    $sigBlock = function (float $sx, float $sy, float $sw, string $role, string $name) use ($pdf): void {
+    // Signature blocks. The operator line carries the erasure completion date;
+    // the validator line is only drawn when a validator was actually supplied
+    // (the account model has no second signatory to fall back to).
+    $signDate = (($g['last'] ?? null) !== null) ? fmt_date($g['last']) : gmdate('Y-m-d');
+    $sigBlock = function (float $sx, float $sy, float $sw, string $role, string $name, string $date) use ($pdf): void {
+        $title = $name !== '' ? $name : '________________________';
+        if ($date !== '') {
+            $title .= '   ·   ' . $date;
+        }
         $pdf->SetFont('helvetica', 'B', 9);
         $pdf->SetTextColor(11, 18, 32);
         $pdf->SetXY($sx, $sy);
-        $pdf->Cell($sw, 4.5, $name !== '' ? $name : '________________________', 0, 0, 'L');
+        $pdf->Cell($sw, 4.5, $title, 0, 0, 'L');
         $pdf->SetLineWidth(0.2);
         $pdf->SetDrawColor(148, 163, 184);
         $pdf->Line($sx, $sy + 6.5, $sx + $sw, $sy + 6.5);
@@ -868,8 +877,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         $pdf->SetXY($sx, $sy + 7.5);
         $pdf->Cell($sw, 4, $role, 0, 0, 'L');
     };
-    $sigBlock(30, 140, 117, 'Performed by (operator) — name / date', $operator);
-    $sigBlock(150, 140, 117, 'Validated by (validator) — name / date', $validator);
+    $sigBlock(30, 140, 117, 'Performed by (operator) — name / date', $operator, $signDate);
+    if ($validator !== '') {
+        $sigBlock(150, 140, 117, 'Validated by (validator) — name / date', $validator, $signDate);
+    }
 
     // Audit badges.
     $pdf->setCellPaddings(1.6, 0, 1.6, 0);
