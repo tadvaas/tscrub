@@ -19,6 +19,13 @@ and this project uses date-based versioning (`v1.x`).
   activation (`PID.txt` / `unattend.xml` / `slmgr`). The dashboard still
   *surfaces* the embedded key (Windows licence section).
 
+### Release
+
+- Appliance ISO `tscrub-v1.11.2_2025.11_30_x86-64_v0.41_20261005-1d9ad70b.iso`
+  (165 MB) sha256 `6c3f1fe68b93ede9857c21c19d85a51d7bc0831d43a34aa56ffeecda13e2777b`.
+- Standalone script `tscrub.sh` (v1.11.2) sha256 `baa9bbaa1d22d8e41e9c4875f062b2b290306414ea4d62cfb1abe62add5cc8d8`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `445bf17eb8d391621700fc2f8dbeeb2311a91540438e8cc69171f9f8bdd2f17e`.
+
 ## [v1.11.1] - 2026-10-05
 
 ### Changed
