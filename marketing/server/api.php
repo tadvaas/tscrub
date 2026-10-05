@@ -223,16 +223,20 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     require_once __DIR__ . '/render_cert.php';
     $certifier = certifier_for_user($userId);
 
-    // Operator name. The report normally carries it from the appliance, but a
-    // report is always attributed to a signed-in account, so when it's blank we
-    // fill the account holder's name (falling back to email) so the "Performed
-    // by (operator)" block is never left anonymous.
-    if (trim((string)($g['operator'] ?? '')) === '') {
+    // Operator name. The report normally carries it from the appliance, but the
+    // appliance writes the literal sentinel "N/A" when none was supplied, and a
+    // report is always attributed to a signed-in account. When it's blank (or
+    // "N/A") we fill the account holder's name (falling back to email) so the
+    // "Performed by (operator)" block is never left anonymous.
+    $operatorRaw = trim((string)($g['operator'] ?? ''));
+    if ($operatorRaw === '' || strcasecmp($operatorRaw, 'N/A') === 0) {
         $actor = fetch_user_by_id($userId);
         if ($actor !== null) {
             $g['operator'] = trim((string)($actor['name'] ?? '')) !== ''
                 ? trim((string)$actor['name'])
                 : trim((string)($actor['email'] ?? ''));
+        } else {
+            $g['operator'] = '';
         }
     }
 

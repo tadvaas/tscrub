@@ -648,9 +648,15 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // fields were dropped by a multi-payload merge.
     $first = $drives[0] ?? [];
     $m = function (string $key) use ($g, $first): string {
-        $v = trim((string)($g[$key] ?? ''));
+        // The appliance writes the literal sentinel "N/A" for missing values;
+        // treat it as empty so the cert renders an em dash instead of "N/A".
+        $norm = function (string $v): string {
+            $t = trim($v);
+            return ($t === '' || strcasecmp($t, 'N/A') === 0) ? '' : $t;
+        };
+        $v = $norm((string)($g[$key] ?? ''));
         if ($v !== '') return $v;
-        return trim((string)($first[$key] ?? ''));
+        return $norm((string)($first[$key] ?? ''));
     };
 
     $toolVersion = $m('tool_version');
