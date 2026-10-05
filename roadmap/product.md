@@ -87,6 +87,22 @@ first. Tick items off as they ship and note the release that carries each.
 - [ ] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
       `CONFIG_VIRTIO_NET` for faster VM testing, quiet `sedutil-cli` SG_IO noise
       on QEMU disks.
+- [ ] **Eliminate table UI full-screen reflow** — today `table::render`
+      (`product/src/40_table.sh`) starts with `clear`/`\033[2J\033[H` and
+      reprints the whole screen (both info panels, column header, every device
+      row, footer) from scratch, and `ui::loop` calls it on every worker
+      `STATUS` transition and whenever the MDM verdict label flips — so the
+      screen visibly redraws each time a drive changes state. Fix: render once,
+      then diff-and-repaint — cache the last-painted status/class/method/temp/
+      ETA per drive plus the last Runtime-panel values, and on change repaint
+      only the changed cells in place using the absolute-cursor technique
+      `ui::tick_inplace`/`select::paint_row` already use (`\0337`,
+      `\033[%d;%dH\033[K`, `\0338`); keep a full `table::render` for terminal
+      resize, device-set change or theme switch. Optional: move the UI into the
+      alternate screen buffer (`\033[?1049h`) so the initial clear never scrolls
+      scrollback.
+      → Plan: `research/table-ui-reflow/README.md` (btop-style render-once +
+      diff-and-repaint; nWipe's "clear only on init/resize" principle).
 - [x] **Organisations & seats** (§5) — shipped 2026-10-05 (server + dashboard,
       no appliance change): `organisations` / `organisation_members` /
       `organisation_invites` tables, `org.php` scope layer (writes keep

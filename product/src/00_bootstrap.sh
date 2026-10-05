@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.6"
+SCRIPT_VERSION="v1.11.7"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -51,6 +51,13 @@ SMART_TIMEOUT="${SMART_TIMEOUT:-10}"
 
 declare -Ag devrow
 declare -Ag ui_eta_row
+declare -Ag ui_last_key
+UI_LAYOUT_FP=""
+UI_LAYOUT_FP_CACHED=""
+UI_THEME_LAST=""
+UI_DEV_COUNT_LAST=""
+UI_MODE_LAST=""
+UI_RESIZED=0
 
 # Monotonic seconds, used for every duration measurement (Elapsed, ETA countdown,
 # NVMe monitor timeout). Wall-clock `date +%s` is NOT monotonic: on machines with

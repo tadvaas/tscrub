@@ -112,5 +112,43 @@ COLUMNS=220; table::compute_layout
 t::check "layout 220 margins + fill (12 cols)" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 216 && ${#UI_TABLE_WIDTHS[@]} == 12 ))'
 COLUMNS=199; table::compute_layout
 t::check "layout 199 margin + rounds to even" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 194 && UI_TABLE_MAIN_W <= 199 ))'
+t::check "compute_layout sets a layout fingerprint" '[[ -n "$UI_LAYOUT_FP" ]]'
+
+# --- delta repaint: ui::state_key / ui::changed_rows / ui::layout_changed ---
+devices=(d1 d2)
+devrow=()
+devrow[d1.status]="PLANNED"; devrow[d1.class]="NVM"; devrow[d1.method]="Sanitize"
+devrow[d1.temp]="40"; devrow[d1.smart]="OK"; devrow[d1.model]="M1"; devrow[d1.serial]="S1"
+devrow[d1.selected]=0; devrow[d1.eta_mins]=""
+devrow[d2.status]="PLANNED"; devrow[d2.class]="ATA"; devrow[d2.method]="Secure Erase"
+devrow[d2.temp]="-"; devrow[d2.smart]="-"; devrow[d2.model]="M2"; devrow[d2.serial]="S2"
+devrow[d2.selected]=0; devrow[d2.eta_mins]=""
+
+k1="$(ui::state_key d1)"
+devrow[d1.status]="42%"
+t::check "state_key changes on status flip" '[[ "$(ui::state_key d1)" != "$k1" ]]'
+devrow[d1.status]="PLANNED"
+t::check "state_key stable when nothing changed" '[[ "$(ui::state_key d1)" == "$k1" ]]'
+
+ui_last_key=()
+for d in "${devices[@]}"; do ui_last_key["$d"]="$(ui::state_key "$d")"; done
+devrow[d1.status]="RUNNING"
+t::assert_eq "d1" "$(ui::changed_rows)" "changed_rows returns flipped drive"
+devrow[d1.status]="PLANNED"
+t::assert_eq "" "$(ui::changed_rows)" "changed_rows empty when unchanged"
+
+UI_LAYOUT_FP="x"; UI_LAYOUT_FP_CACHED="x"
+UI_THEME_LAST=0; UI_COMPLETE_THEME=0
+UI_DEV_COUNT_LAST=2; UI_MODE_LAST="0:"
+SELECT_MODE=0; SELECT_CURSOR=""
+t::check "layout_changed false when all match" '! ui::layout_changed'
+UI_LAYOUT_FP_CACHED="y"
+t::check "layout_changed true on layout change" 'ui::layout_changed'
+UI_LAYOUT_FP_CACHED="x"; UI_THEME_LAST=4
+t::check "layout_changed true on theme change" 'ui::layout_changed'
+UI_THEME_LAST=0; UI_MODE_LAST="1:"
+t::check "layout_changed true on selection-mode change" 'ui::layout_changed'
+UI_MODE_LAST="0:"; UI_DEV_COUNT_LAST=3
+t::check "layout_changed true on device-count change" 'ui::layout_changed'
 
 t::summary

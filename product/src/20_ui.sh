@@ -18,6 +18,12 @@ ui::cursor_show() {
     tput cnorm 2>/dev/null || true
 }
 
+# SIGWINCH handler: only set a flag — the actual re-render happens on the next
+# loop iteration (printing from a signal handler can interleave mid-write).
+ui::sigwinch() {
+    UI_RESIZED=1
+}
+
 # Animated progress line: a background loop redraws the SAME line in place while
 # a synchronous step runs, advancing the shared spinner glyph. Call
 # ui::spinner_stop before any other console output; the loop also exits when its

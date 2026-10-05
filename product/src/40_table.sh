@@ -5,28 +5,29 @@
 # Detect the usable terminal width in columns. Falls back to 186 (the full
 # layout) when it cannot be determined (e.g. piped output without COLUMNS).
 table::detect_terminal_width() {
-    local w="${COLUMNS:-}"
-    [[ "$w" =~ ^[0-9]+$ ]] && (( w > 0 )) || w=""
-    if [[ -z "$w" ]]; then
-        if [[ -t 1 ]] && command -v tput &>/dev/null; then
-            w="$(tput cols 2>/dev/null || true)"
-        fi
+    local w=""
+    # On a real terminal, query it directly so a SIGWINCH resize is reflected
+    # immediately — the COLUMNS env var is set by the shell and does not track
+    # resize in a running script. (In tests stdout is piped, so COLUMNS wins.)
+    if [[ -t 1 ]] && command -v tput &>/dev/null; then
+        w="$(tput cols 2>/dev/null || true)"
         [[ "$w" =~ ^[0-9]+$ ]] && (( w > 0 )) || w=""
     fi
+    [[ -z "$w" ]] && w="${COLUMNS:-}"
+    [[ "$w" =~ ^[0-9]+$ ]] && (( w > 0 )) || w=""
     [[ -z "$w" ]] && w=186
     printf '%s' "$w"
 }
 
 # Detect the terminal height in rows (fallback 24).
 table::detect_terminal_height() {
-    local h="${LINES:-}"
-    [[ "$h" =~ ^[0-9]+$ ]] && (( h > 0 )) || h=""
-    if [[ -z "$h" ]]; then
-        if [[ -t 1 ]] && command -v tput &>/dev/null; then
-            h="$(tput lines 2>/dev/null || true)"
-        fi
+    local h=""
+    if [[ -t 1 ]] && command -v tput &>/dev/null; then
+        h="$(tput lines 2>/dev/null || true)"
         [[ "$h" =~ ^[0-9]+$ ]] && (( h > 0 )) || h=""
     fi
+    [[ -z "$h" ]] && h="${LINES:-}"
+    [[ "$h" =~ ^[0-9]+$ ]] && (( h > 0 )) || h=""
     [[ -z "$h" ]] && h=24
     printf '%s' "$h"
 }
@@ -100,6 +101,10 @@ table::compute_layout() {
 
     UI_ETA_COL=$(( ${#UI_TABLE_INDENT} + content - ${UI_TABLE_WIDTHS[n-1]} + 1 ))
     UI_ETA_W=${UI_TABLE_WIDTHS[n-1]}
+
+    # Fingerprint the chosen layout so a resize (different label set or widths)
+    # is detected cheaply and triggers a full re-render instead of a stale delta.
+    UI_LAYOUT_FP="$(IFS=,; printf '%s:%s' "${UI_TABLE_LABELS[*]}" "${UI_TABLE_WIDTHS[*]}")"
 }
 
 # Prints one device row using the current layout. Maps each label in
@@ -456,6 +461,84 @@ ui::tick_inplace() {
     printf "\0338"
 }
 
+# Repaint one device row in place (no clear/reflow). Absolute-cursor + clear-to-
+# EOL so a shorter value can't leave residue from the previous frame. No-op when
+# the row hasn't been positioned yet (the first full render must come first) or
+# when stdout isn't a terminal.
+table::paint_row() {
+    local dev="$1" now="${2:-$(ts::now)}" row
+    [[ -t 1 ]] || return 0
+    row="${ui_eta_row[$dev]:-}"
+    [[ "$row" =~ ^[0-9]+$ ]] || return 0
+    printf "\033[%d;1H\033[K%s%s" "$row" "$TABLE_INDENT" "$(table::row_text "$dev" "$now")"
+}
+
+# Cheap fingerprint of everything that changes a row's pixels. Compared against
+# the cached value to decide whether a repaint is needed without building the
+# full row string (btop's "data_same" short-circuit).
+ui::state_key() {
+    local dev="$1"
+    printf '%s|%s|%s|%s|%s|%s|%s|%s|%s' \
+        "${devrow[$dev.status]:-}" \
+        "${devrow[$dev.class]:-}" \
+        "${devrow[$dev.method]:-}" \
+        "${devrow[$dev.temp]:-}" \
+        "${devrow[$dev.smart]:-}" \
+        "${devrow[$dev.model]:-}" \
+        "${devrow[$dev.serial]:-}" \
+        "${devrow[$dev.selected]:-0}" \
+        "${devrow[$dev.eta_mins]:-}"
+}
+
+# Pure diff (TTY-independent): echo the space-separated list of devices whose
+# rendered row would differ from what was last painted.
+ui::changed_rows() {
+    local dev out=""
+    for dev in "${devices[@]}"; do
+        [[ "$(ui::state_key "$dev")" != "${ui_last_key[$dev]:-}" ]] && out+="$dev "
+    done
+    printf '%s' "${out% }"
+}
+
+# Pure (TTY-independent): returns 0 when the layout, theme, device set or
+# selection mode changed since the last full render (so a full render is
+# required), 1 when a delta repaint is safe.
+ui::layout_changed() {
+    [[ "$UI_LAYOUT_FP" != "$UI_LAYOUT_FP_CACHED" ]] && return 0
+    [[ "${UI_THEME_LAST:-0}" != "$UI_COMPLETE_THEME" ]] && return 0
+    [[ "${UI_DEV_COUNT_LAST:-0}" != "${#devices[@]}" ]] && return 0
+    [[ "${UI_MODE_LAST:-}" != "$SELECT_MODE:${SELECT_CURSOR:-}" ]] && return 0
+    return 1
+}
+
+# Returns 0 when the next paint must be a full table::render (non-interactive,
+# not a terminal, or a structural change), 1 when a delta repaint is OK.
+ui::needs_full_render() {
+    [[ "$UI_INPLACE" -ne 1 ]] && return 0
+    [[ -t 1 ]] || return 0
+    ui::layout_changed
+}
+
+# In-place update path for a state change. Recomputes the layout (cheap) and
+# falls back to a full render when the layout/theme/device-set/mode changed
+# (e.g. terminal resize); otherwise repaints only the rows whose state changed,
+# then refreshes the elapsed/ETA tick. Returns 0 on a delta repaint, 1 when it
+# fell back to a full render.
+ui::repaint_changed() {
+    local now="$1" dev
+    table::compute_layout
+    if ui::needs_full_render; then
+        table::render
+        return 1
+    fi
+    for dev in $(ui::changed_rows); do
+        table::paint_row "$dev" "$now"
+        ui_last_key["$dev"]="$(ui::state_key "$dev")"
+    done
+    ui::tick_inplace || true
+    return 0
+}
+
 table::render() {
     if [[ "$UI_COMPLETE_THEME" -ne 0 ]] && [[ -t 1 ]]; then
         case "$UI_COMPLETE_THEME" in
@@ -508,6 +591,10 @@ table::render() {
     table::compute_layout
     TABLE_INDENT="$UI_TABLE_INDENT"
     main_w=$UI_TABLE_MAIN_W
+    UI_LAYOUT_FP_CACHED="$UI_LAYOUT_FP"
+    UI_THEME_LAST="$UI_COMPLETE_THEME"
+    UI_DEV_COUNT_LAST="${#devices[@]}"
+    UI_MODE_LAST="$SELECT_MODE:${SELECT_CURSOR:-}"
     panel_w=$(( (main_w - 2) / 2 ))
     hline="$(printf "%*s" $((panel_w - 2)) "" | tr ' ' '-')"
     sys_label_w=11
@@ -624,6 +711,7 @@ table::render() {
         row=$((eta_base_row + cpu_rows + gpu_rows + ${#ui_eta_row[@]} ))
         ui_eta_row["$dev"]="$row"
         table::print_row "$dev" "$now"
+        ui_last_key["$dev"]="$(ui::state_key "$dev")"
     done
 
     table::print_raid_warning
@@ -697,7 +785,7 @@ ui::loop() {
                         status::drive_terminal
                         ;;
                 esac
-                table::render
+                ui::repaint_changed "$(ts::now)"
             else
                 # Forward non-STATUS worker messages (LOG) to the log file.
                 printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5
@@ -708,7 +796,10 @@ ui::loop() {
             # the time fields in place to avoid full-screen flicker.
             local prev_mdm="${MDM_STATUS:-}"
             mdm::sync_state
-            if [[ "${MDM_STATUS:-}" != "$prev_mdm" ]]; then
+            if [[ "$UI_RESIZED" -eq 1 ]]; then
+                UI_RESIZED=0
+                table::render
+            elif [[ "${MDM_STATUS:-}" != "$prev_mdm" ]]; then
                 table::render
             elif ! ui::tick_inplace && [[ -t 1 ]]; then
                 table::render
@@ -815,11 +906,7 @@ select::legend() {
 # Repaint a single drive row in place (no clear/reflow) — used by the selection
 # loop so toggling/moving the cursor only touches the affected rows.
 select::paint_row() {
-    local dev="$1" row
-    [[ -t 1 ]] || return 0
-    row="${ui_eta_row[$dev]:-}"
-    [[ "$row" =~ ^[0-9]+$ ]] || return 0
-    printf "\033[%d;1H\033[K%s%s" "$row" "$TABLE_INDENT" "$(table::row_text "$dev" "$(ts::now)")"
+    table::paint_row "$1"
 }
 
 # Repaint the footer legend in place (the selected count changes on toggle).
@@ -861,7 +948,7 @@ select::shutdown() {
 # devrow[*].selected); 1 on abort (Esc/q). Without an interactive terminal it
 # selects everything and starts immediately (headless = autonuke).
 select::run() {
-    local dev idx key k2 prev
+    local dev idx key k2 prev _rc
     select::none
     idx=0
     SELECT_MODE=1
@@ -881,7 +968,18 @@ select::run() {
     table::render    # one full render; every keystroke below is in-place
 
     while :; do
-        IFS= read -rsn1 key < /dev/tty 2>/dev/null || { select::all; SELECT_MODE=0; return 0; }
+        IFS= read -rsn1 key < /dev/tty 2>/dev/null; _rc=$?
+        if (( _rc != 0 )); then
+            # A SIGWINCH resize interrupts the blocking read; re-render and
+            # keep selecting. Any other failure (closed tty) keeps the old
+            # select-all fallback.
+            if [[ "${UI_RESIZED:-0}" -eq 1 ]]; then
+                UI_RESIZED=0
+                table::render
+                continue
+            fi
+            select::all; SELECT_MODE=0; return 0
+        fi
 
         if [[ "$key" == $'\e' ]]; then
             IFS= read -rsn2 -t 0.05 k2 < /dev/tty 2>/dev/null
@@ -1027,7 +1125,14 @@ triage::run() {
             # LAN IP) keeps updating instead of freezing.
             prev_status="${MDM_STATUS:-}"
             mdm::sync_state
-            if [[ "${MDM_STATUS:-}" != "$prev_status" ]]; then
+            if [[ "${UI_RESIZED:-0}" -eq 1 ]]; then
+                UI_RESIZED=0
+                if [[ "$on_finish" -eq 1 ]]; then
+                    ui::paint_finish
+                else
+                    table::render
+                fi
+            elif [[ "${MDM_STATUS:-}" != "$prev_status" ]]; then
                 if [[ "$on_finish" -eq 1 ]]; then
                     ui::paint_finish
                 else

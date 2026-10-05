@@ -46,6 +46,7 @@ fn_main() {
     # also tears down the long-lived session workers.
     trap 'ui::spinner_stop; ui::cursor_show; exit 130' INT
     trap 'ui::spinner_stop; ui::cursor_show; exit 143' TERM
+    trap 'ui::sigwinch' WINCH
     trap 'ui::spinner_stop; ui::cursor_show; session::teardown' EXIT
 
     # Reset per-run state. (The worker -> UI IPC channel is opened per erasure
