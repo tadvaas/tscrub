@@ -517,13 +517,47 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
 
     $section = function (float $x, float $y, float $w, string $title, array $fields) use ($pdf, $sectionHeader, $row): float {
         $sectionHeader($x, $y, $w, $title);
-        $yy = $y + 6.2;
+        $yy = $y + 7.0;
         $labelW = 42.0;
         foreach ($fields as $f) {
             $row($x, $yy, $labelW, $w - $labelW, $f[0], $f[1], $f[2] ?? [11, 18, 32]);
-            $yy += 4.0;
+            $yy += 5.2;
         }
         return $yy;
+    };
+
+    // Full-width section laid out as a two-column label:value grid (used for
+    // ASSET IDENTITY so its ten fields fill five short rows instead of ten tall
+    // ones, keeping page 1 balanced without blank columns).
+    $gridSection = function (float $x, float $y, float $w, string $title, array $fields) use ($pdf, $sectionHeader): void {
+        $sectionHeader($x, $y, $w, $title);
+        $yy = $y + 7.0;
+        $colW = $w / 2.0;
+        $labelW = 30.0;
+        $n = count($fields);
+        for ($i = 0; $i < $n; $i += 2) {
+            for ($c = 0; $c < 2; $c++) {
+                $idx = $i + $c;
+                if ($idx >= $n) break;
+                $f = $fields[$idx];
+                $cx = $x + $c * $colW;
+                $pdf->SetFont('helvetica', '', 8.5);
+                $pdf->SetTextColor(100, 116, 139);
+                $pdf->SetXY($cx, $yy);
+                $pdf->Cell($labelW, 4.0, $f[0], 0, 0, 'L');
+                $pdf->SetXY($cx + $labelW, $yy);
+                if ($f[1] === '') {
+                    $pdf->SetFont('helvetica', '', 8.5);
+                    $pdf->SetTextColor(148, 163, 184);
+                    $pdf->Cell($colW - $labelW, 4.0, '—', 0, 0, 'L');
+                } else {
+                    $pdf->SetFont('helvetica', 'B', 8.5);
+                    $pdf->SetTextColor($f[2][0] ?? 11, $f[2][1] ?? 18, $f[2][2] ?? 32);
+                    $pdf->Cell($colW - $labelW, 4.0, diag_fit($pdf, $f[1], $colW - $labelW - 1, 'B', 8.5), 0, 0, 'L');
+                }
+            }
+            $yy += 5.2;
+        }
     };
 
     // ---- field sets ----
@@ -579,9 +613,9 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
         $personnel[] = ['Customer', trim((string)$issuer['name'])];
     }
 
-    $section(20, 56, 155, 'ASSET IDENTITY', $asset);
-    $section(182, 56, 95, 'SECURITY STATE', $sec);
-    $section(20, 105, 155, 'PERSONNEL & AUTHORITY', $personnel);
+    $gridSection(20, 56, 257, 'ASSET IDENTITY', $asset);
+    $section(20, 96, 155, 'SECURITY STATE', $sec);
+    $section(182, 96, 95, 'PERSONNEL & AUTHORITY', $personnel);
 
     // ---- diagnostics-type / self-test summary line ----
     $cpuTest = strtoupper(trim((string)($d['selftest_cpu'] ?? '')));
