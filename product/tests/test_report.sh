@@ -55,6 +55,7 @@ t::check "CSV header includes drive-detail columns" 'head -n1 "$csv" | grep -q "
 t::check "CSV header includes asset columns" 'head -n1 "$csv" | grep -q "SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion"'
 t::check "CSV header includes personnel columns" 'head -n1 "$csv" | grep -q "Operator,Validator,MediaSource,MediaDestination"'
 t::check "CSV header includes verify columns" 'head -n1 "$csv" | grep -q "Verify,VerifySectors,VerifyResult"'
+t::check "CSV header includes RAID column" 'head -n1 "$csv" | grep -q ",RAID"'
 hdr_cols="$(head -n1 "$csv" | awk -F, '{print NF}')"
 row_cols="$(sed -n '2p' "$csv" | awk -F, '{print NF}')"
 t::check "CSV data row column count matches header ($hdr_cols)" '[ "$hdr_cols" = "$row_cols" ]'

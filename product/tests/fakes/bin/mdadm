@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake mdadm. -E/--examine reads the on-disk superblock; "Magic : a92b4efc"
+# marks an md superblock member when FAKE_MDADM_MEMBER=yes.
+if [[ "$1" == "-E" || "$1" == "--examine" ]]; then
+    if [[ "${FAKE_MDADM_MEMBER:-}" == "yes" ]]; then
+        printf '/dev/sda:\n          Magic : a92b4efc\n        Version : 1.2\n'
+        exit 0
+    fi
+    printf 'mdadm: No md superblock detected on /dev/sda.\n' >&2
+    exit 1
+fi
+exit 0

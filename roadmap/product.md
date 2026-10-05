@@ -31,10 +31,14 @@ first. Tick items off as they ship and note the release that carries each.
       → **Shipped v1.10.18** (2026-10-05). Plan: `research/sed-opal/README.md`
       (`device::exec_opal` in `product/src/44_device_sed.sh`; tests
       `product/tests/test_sed.sh`).
-- [ ] **RAID dismantling** — detect members in `gather_info` (`mdadm -E`
+- [x] **RAID dismantling** — detect members in `gather_info` (`mdadm -E`
       superblocks, Intel VMD / `mpt3sas` controllers), mark "RAID member —
       dismantle in controller BIOS" on the triage screen, record a per-drive RAID
       flag. Never auto-break an array. (§9.1, §11.1)
+      → **Implemented (2026-10-05), awaiting release** — `device::raid_detect`
+      in `product/src/45_device_raid.sh` (md/vmd/hba/none), `RAID` CSV column,
+      triage warning in `40_table.sh`; plan `research/raid-dismantling/README.md`;
+      tests `product/tests/test_raid.sh`. (Controller-level erase stays §11.1.)
 
 ## 2. Hardware capture → intelligence
 

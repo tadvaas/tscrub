@@ -337,6 +337,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'media_destination' => clip_str($get($row, 'mediadestination'), 128),
                 'verify_result' => clip_str($get($row, 'verifyresult'), 32),
                 'verify_sectors' => clip_str($get($row, 'verifysectors'), 16),
+                'raid' => clip_str($get($row, 'raid'), 16),
             ];
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
@@ -1354,6 +1355,8 @@ function load_devices(int $userId): array {
                 'biosversion'   => (string)($g['biosversion'] ?? ''),
                 'biosdate'      => (string)($g['biosdate'] ?? ''),
                 'systemuuid'    => (string)($g['systemuuid'] ?? ''),
+                'product_key'   => (string)($g['product_key'] ?? ''),
+                'product_key_id'=> product_key_id_from_key((string)($g['product_key'] ?? '')),
                 'bioslock'      => (string)($g['bioslock'] ?? ''),
                 'bioslockmethod'=> (string)($g['bioslockmethod'] ?? ''),
                 'cpu'           => (string)($g['cpu'] ?? ''),
@@ -1387,6 +1390,12 @@ function load_devices(int $userId): array {
         }
 
         $d = &$devices[$key];
+        // A device first registered before key capture existed can gain the key
+        // on a later report; fill it forward so the dashboard can show it.
+        if (($g['product_key'] ?? '') !== '' && $d['product_key'] === '') {
+            $d['product_key'] = (string)$g['product_key'];
+            $d['product_key_id'] = product_key_id_from_key((string)$g['product_key']);
+        }
         $d['history'][] = [
             'uploaded_at'    => $seen,
             'first'          => $seen,
@@ -1403,6 +1412,8 @@ function load_devices(int $userId): array {
             'biosversion'    => (string)($g['biosversion'] ?? ''),
             'biosdate'       => (string)($g['biosdate'] ?? ''),
             'systemuuid'     => (string)($g['systemuuid'] ?? ''),
+            'product_key'    => (string)($g['product_key'] ?? ''),
+            'product_key_id' => product_key_id_from_key((string)($g['product_key'] ?? '')),
             'bioslock'       => (string)($g['bioslock'] ?? ''),
             'bioslockmethod' => (string)($g['bioslockmethod'] ?? ''),
             'cpu'            => (string)($g['cpu'] ?? ''),

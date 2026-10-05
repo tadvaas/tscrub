@@ -198,6 +198,20 @@ table::print_row() {
     printf "%s%s\n" "$TABLE_INDENT" "$(table::row_text "$dev" "$now")"
 }
 
+# One-line warning when any discovered drive is a RAID member — tScrub never
+# auto-breaks an array, so the operator is told to dismantle in the controller
+# BIOS before erasing.
+table::print_raid_warning() {
+    local dev note=""
+    for dev in "${devices[@]}"; do
+        [[ "${raid[$dev]:-none}" != "none" ]] || continue
+        note+="${note:+; }${dev} (${raid[$dev]})"
+    done
+    [[ -z "$note" ]] && return 0
+    printf "%s[!] RAID member(s): %s - dismantle in controller BIOS before erasing.\n" \
+        "$TABLE_INDENT" "$note"
+}
+
 table::build() {
     local dev cap
 
@@ -611,6 +625,8 @@ table::render() {
         ui_eta_row["$dev"]="$row"
         table::print_row "$dev" "$now"
     done
+
+    table::print_raid_warning
 
     printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
 

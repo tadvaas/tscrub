@@ -581,6 +581,20 @@ system::gather_info() {
         ')"
     fi
     [[ -n "$SYS_STORAGE_CTRLS" ]] || SYS_STORAGE_CTRLS="N/A"
+
+    # Intel VMD (Volume Management Device) — NVMe drives behind VMD are in
+    # Intel RST "RAID mode". Detected once; per-drive flag in device::discover.
+    SYS_VMD=""
+    # RAID-capable HBA present (Smart Array / MegaRAID / PERC / SAS3xxx / …).
+    SYS_RAID_HBA=""
+    if command -v lspci >/dev/null 2>&1; then
+        if lspci 2>/dev/null | grep -qi "Volume Management Device"; then
+            SYS_VMD=1
+        fi
+        if lspci 2>/dev/null | grep -qiE 'Smart Array|MegaRAID|PERC|ServeRAID|SAS3008|SAS3108|Adaptec|SmartHBA|HBA 11|HBA 9'; then
+            SYS_RAID_HBA=1
+        fi
+    fi
 }
 
 # =============================================================================

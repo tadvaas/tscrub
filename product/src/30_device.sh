@@ -67,6 +67,7 @@ device::discover() {
     declare -Ag sectors
     declare -Ag hpa
     declare -Ag dco
+    declare -Ag raid
 
     # Allow tests to point discovery at a fake block-device tree.
     local block_dir="${SYS_BLOCK_DIR:-/sys/block}"
@@ -214,6 +215,8 @@ device::discover() {
         else
             continue
         fi
+
+        device::raid_detect "$dev"
     done
 
     # Return control to the caller so the UI can still render system information.

@@ -28,7 +28,8 @@ t::setup_env() {
           FAKE_USB_DEVICES FAKE_SEDUTIL_LOCKED \
           FAKE_SEDUTIL_REVERT_RC FAKE_SEDUTIL_INITIALSETUP_RC \
           FAKE_NWIPE_RC FAKE_SG_SANITIZE_RC FAKE_SG_SANITIZE_OUT \
-          FAKE_SG_OPCODES_SUPPORTED 2>/dev/null || true
+          FAKE_SG_OPCODES_SUPPORTED FAKE_MDADM_MEMBER \
+          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA 2>/dev/null || true
 }
 
 # Source the production functions without executing the entrypoint.
@@ -53,6 +54,7 @@ t::source_src() {
         "$ROOT_DIR/src/42_remote.sh" \
         "$ROOT_DIR/src/43_verify.sh" \
         "$ROOT_DIR/src/44_device_sed.sh" \
+        "$ROOT_DIR/src/45_device_raid.sh" \
         "$ROOT_DIR/src/50_report.sh"; do
         source "$f" || return 1
     done
