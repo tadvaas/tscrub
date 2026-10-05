@@ -6,16 +6,40 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.7] - 2026-10-05
+
+### Changed
+
+- **Console table repaint (no full-screen reflow)** — the wipe/triage screen no
+  longer clears and reprints the whole terminal on every drive status change
+  (the NVMe monitor emits a `%` update every 2 s). `table::render` now paints
+  once and seeds a per-drive state cache plus a layout/theme/mode fingerprint;
+  `ui::repaint_changed` repaints only the changed rows in place (absolute cursor
+  + clear-to-end-of-line) and falls back to a full render only on terminal
+  resize, theme, device-set or selection-mode change. A `SIGWINCH` trap
+  (`ui::sigwinch`) and `tput`-first terminal-size detection make the table
+  follow the terminal as it is resized (different monitor sizes), on the wipe,
+  triage and selection screens.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.7_2025.11_30_x86-64_v0.41_20261005-273c5ed8.iso`
+  (165 MB) sha256 `d6926a8ef7830ad2e92c0e3503faa0c935e711a1e84a182eab949b42e73c5298`.
+- Standalone script `tscrub.sh` (v1.11.7) sha256 `67ff6ec5e5d3217556d356d475c4062f61b2793a46e945c1c86e00eb7c47bca3`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `118bcdab1b41b89e6f9676b00bd27ff5f6bda1537d3a2d88cd5f209bc2dd18d6`.
+
 ## [v1.11.6] - 2026-10-05
 
 ### Added
 
 - **HP BIOS password detection** — the appliance kernel now builds in the HP WMI
-  drivers (`CONFIG_HP_WMI`, `CONFIG_HP_BIOSCFG`), so HP workstations (e.g. the
-  Z840) expose `/sys/devices/platform/hp-wmi/bios_password` and the
-  `firmware_attributes` interface for BIOS setup/admin-password detection and
-  remote unlock. Previously HP machines fell through to `UNKNOWN` because no
-  detection surface existed (no `hp-wmi` module, no SMBIOS Type 24).
+  drivers (`CONFIG_HP_WMI`, `CONFIG_HP_BIOSCFG`), so HP business machines
+  (2018+) expose the `firmware_attributes` interface (`hp-bioscfg`) for BIOS
+  setup/admin-password detection and remote unlock. Previously HP machines fell
+  through to `UNKNOWN` because no detection surface existed. Pre-2018 HP
+  firmware (e.g. the Z840) does not implement the `hp-bioscfg` WMI schema, and
+  the legacy `hp-wmi bios_password` node was removed in the 6.x kernel, so such
+  machines correctly remain `UNKNOWN`.
 
 ### Release
 
