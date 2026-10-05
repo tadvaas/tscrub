@@ -2089,9 +2089,10 @@ if ($method === 'POST' && $route === '/org/transfer') {
 // GET /api/admin/stats
 if ($method === 'GET' && $route === '/admin/stats') {
     auth_require_admin();
+    org_ensure_schema();
     $stats = [
         'users'         => (int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn(),
-        'companies'     => (int)db()->query("SELECT COUNT(*) FROM users WHERE account_type = 'company'")->fetchColumn(),
+        'organisations' => (int)db()->query('SELECT COUNT(*) FROM organisations')->fetchColumn(),
         'certificates'  => (int)db()->query('SELECT COUNT(*) FROM certificates')->fetchColumn(),
         'licences'      => (int)db()->query('SELECT COUNT(*) FROM licences')->fetchColumn(),
         'unassigned'    => (int)db()->query('SELECT COUNT(*) FROM certificates WHERE user_id IS NULL')->fetchColumn(),
