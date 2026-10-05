@@ -382,7 +382,14 @@ if ($method === 'GET' && $route === '/csrf') {
 // GET /api/me
 if ($method === 'GET' && $route === '/me') {
     $u = auth_user();
-    json_out(['ok' => true, 'user' => $u === null ? null : user_public($u)]);
+    $org = null;
+    if ($u !== null) {
+        $m = org_for_user((int)$u['id']);
+        if ($m !== null && $m['status'] === 'active') {
+            $org = ['id' => (int)$m['organisation_id'], 'name' => (string)$m['name'], 'role' => (string)$m['role']];
+        }
+    }
+    json_out(['ok' => true, 'user' => $u === null ? null : user_public($u), 'org' => $org]);
 }
 
 // POST /api/account — update profile (name / company details)

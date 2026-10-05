@@ -36,7 +36,9 @@
 })();
 
 // Subtle user detail inline right of the "Dashboard" heading: organisation
-// name when in an org, else the account email. Populated from the API.
+// name when in an org, else the account email. Rendered instantly from a
+// per-session cache and refreshed from /api/me (which now carries `org`), so
+// subsequent dashboard pages in the same tab have no pop-in.
 ;(function () {
   const h1 = Array.from(document.querySelectorAll('h1')).find((el) => el.textContent.trim() === 'Dashboard');
   if (!h1) return;
@@ -46,16 +48,26 @@
   detail.className = 'text-sm font-normal text-slate-500 dark:text-slate-400 truncate';
   h1.appendChild(detail);
 
-  Promise.all([
-    fetch('/api/me').then((r) => r.json()).catch(() => ({})),
-    fetch('/api/org').then((r) => r.json()).catch(() => ({})),
-  ]).then(([me, org]) => {
-    if (org && org.org && org.org.name) {
-      detail.textContent = org.org.name;
-      detail.title = 'Organisation: ' + org.org.name;
-    } else if (me && me.user && me.user.email) {
-      detail.textContent = me.user.email;
-      detail.title = me.user.email;
-    }
-  });
+  const paint = (text, title) => {
+    if (!text) return;
+    detail.textContent = text;
+    detail.title = title || text;
+  };
+  const cache = (text, title) => {
+    try { sessionStorage.setItem('tscrub_header', JSON.stringify({ text, title, ts: Date.now() })); } catch (e) {}
+  };
+
+  // Instant first paint from the session cache.
+  try {
+    const c = JSON.parse(sessionStorage.getItem('tscrub_header') || 'null');
+    if (c && c.text && Date.now() - (c.ts || 0) < 24 * 3600 * 1000) paint(c.text, c.title);
+  } catch (e) {}
+
+  fetch('/api/me').then((r) => r.json()).catch(() => ({}))
+    .then((d) => {
+      const u = d && d.user;
+      if (!u) return;
+      if (d.org && d.org.name) { paint(d.org.name, 'Organisation: ' + d.org.name); cache(d.org.name, 'Organisation: ' + d.org.name); }
+      else if (u.email) { paint(u.email, u.email); cache(u.email, u.email); }
+    });
 })();
