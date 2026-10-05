@@ -6,6 +6,38 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.3] - 2026-10-05
+
+### Changed
+
+- **MDM checks are now manual-only** — removed the automatic MDM enqueue on
+  first diagnostics receipt, on WinPE hash ingest, and on the appliance's
+  `/mdm/autopilot` call. Checks are triggered only by the dashboard Re-check
+  button. Devices with a captured hash but no job surface as `Unchecked`
+  (server + dashboard badge + card copy), instead of implying a pending check.
+
+### Fixed
+
+- **Remote BIOS unlock robustness** — 8 hardening fixes across the appliance
+  (`38_bios_unlock.sh`) and server (`bios_unlock.php`, `api.php`):
+  - JSON-safe password handling — new base64 `password_b64` field (legacy
+    `password` kept) so quotes/backslashes/control chars survive.
+  - Dispatched TTL + requeue (10 min) and `curl --retry` on the result POST.
+  - Password residue purged — supersede clears `password_enc`; 7-day stale sweep.
+  - Explicit slot targeting — setup/`AdminPassword` over power-on/`SystemPassword`.
+  - Clear is re-verified — re-reads the slot; "still set" reports a distinct
+    `failed` detail (wrong password or read-only).
+  - `uuid` in the claim (serial-only fallback when the staged uuid is empty).
+  - `curl -k` TLS clock-skew fallback on the pending GET + result POST.
+  - Result state machine enforced server-side (`dispatched` → result only).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.3_2025.11_30_x86-64_v0.41_20261005-773247c3.iso`
+  (165 MB) sha256 `144a7a841279ffdacf39cc35105cfc7665b61b4289ad538c1073ea7d94deea6e`.
+- Standalone script `tscrub.sh` (v1.11.3) sha256 `65aaf4fe6720d0f4a661dde60330173c24fdb4247d17734465d84a38d0ed4630`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `5a42431f3c4045dc16f16ceb000ab55236fff585ba06dbec37cec617d641a983`.
+
 ## [v1.11.2] - 2026-10-05
 
 ### Removed
