@@ -253,14 +253,12 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'type'     => ['label' => 'Type',         'w' => 11, 'align' => 'L'],
         'size'     => ['label' => 'Drive size',   'w' => 14, 'align' => 'L'],
         'bus'      => ['label' => 'Bus',          'w' => 12, 'align' => 'L'],
-        'cls'      => ['label' => 'Class',        'w' => 11, 'align' => 'L'],
+        'cls'      => ['label' => 'Class',        'w' => 42, 'align' => 'L'],
         'method'   => ['label' => 'Method',       'w' => 42, 'align' => 'L'],
         'tool'     => ['label' => 'Tool',         'w' => 15, 'align' => 'L'],
         'system'   => ['label' => 'Machine',      'w' => 32, 'align' => 'L'],
         'sysserial'=> ['label' => 'Machine SN',   'w' => 18, 'align' => 'L'],
         'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'L'],
-        'verify'   => ['label' => 'Verified',     'w' => 15, 'align' => 'C'],
-        'hpa'      => ['label' => 'HPA/DCO',      'w' => 16, 'align' => 'C'],
         'ts'       => ['label' => 'Erased',       'w' => 22, 'align' => 'C'],
     ];
 
@@ -281,8 +279,6 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'system':    return (string)($d['system'] ?? '');
             case 'sysserial': return (string)($d['sysserial'] ?? '');
             case 'status': return (string)($d['status'] ?? '');
-            case 'verify': return cert_verify_short((string)($d['verify_result'] ?? ''));
-            case 'hpa':    return cert_hpa_short((string)($d['hpa_result'] ?? ''), (string)($d['dco_result'] ?? ''));
             case 'ts':     return (strtoupper(trim((string)($d['status'] ?? ''))) === 'COMPLETED') ? fmt_ts((string)($d['ts'] ?? '')) : '';
         }
         return '';
@@ -301,8 +297,6 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'system':    return trim((string)($d['system'] ?? '')) === '';
             case 'sysserial': return trim((string)($d['sysserial'] ?? '')) === '';
             case 'status': return trim((string)($d['status'] ?? '')) === '';
-            case 'verify': return trim((string)($d['verify_result'] ?? '')) === '';
-            case 'hpa':    return trim((string)($d['hpa_result'] ?? '')) === '' && trim((string)($d['dco_result'] ?? '')) === '';
             case 'ts':     return trim((string)($d['ts'] ?? '')) === '';
         }
         return false;
@@ -332,7 +326,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
     foreach ($cols as $k => $c) { $cols[$k]['w'] = round($c['w'] * $usable / $total, 2); }
 
     // Keep fixed-vocabulary columns on one line.
-    $minOneLine = ['status' => 'COMPLETED', 'ts' => '2026-09-21 10:30', 'tool' => 'tScrub 9.9.99'];
+    $minOneLine = ['status' => 'COMPLETED', 'ts' => '2026-09-21 10:30', 'tool' => 'tScrub 9.9.99', 'cls' => 'SANITISATION'];
     foreach ($minOneLine as $key => $sample) {
         if (!isset($cols[$key])) continue;
         $need = $pdf->getStringWidth($sample, 'helvetica', '', 7.5) + 3.2;
@@ -503,64 +497,6 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
     // Dense one-row-per-drive table, then the report manifest (own page).
     cert_render_table($pdf, $x, $W, $H, $certId, $drives);
     cert_render_manifest($pdf, $x, $W, $H, $certId, $reports);
-}
-
-/** Short per-drive verification label for the Annex A table. */
-function cert_verify_short(string $result): string {
-    $r = strtoupper(trim($result));
-    if ($r === 'PASSED') return 'Passed';
-    if ($r === 'FAILED') return 'FAILED';
-    if ($r === 'UNREADABLE') return 'Unreadable';
-    if ($r === 'SKIPPED') return 'Skipped';
-    return '-';
-}
-
-/** Page-1 "Verification" summary line — honest: mode + outcome + sector count. */
-function cert_verify_summary(array $drives, string $mode): string {
-    $mode = strtolower(trim($mode));
-    if ($mode === '' || $mode === 'none') return 'Not run';
-    $label = $mode === 'full' ? 'Full read-back' : 'Sampled read-back';
-    $sectors = 0; $failed = false; $unreadable = false; $passed = 0;
-    foreach ($drives as $d) {
-        $st = strtoupper(trim((string)($d['status'] ?? '')));
-        if ($st !== 'COMPLETED') continue;
-        $sectors += (int)($d['verify_sectors'] ?? 0);
-        $res = strtoupper(trim((string)($d['verify_result'] ?? '')));
-        if ($res === 'FAILED') { $failed = true; }
-        elseif ($res === 'UNREADABLE') { $unreadable = true; }
-        elseif ($res === 'PASSED') { $passed++; }
-    }
-    if ($failed) return $label . ' — FAILED';
-    if ($passed > 0) return $label . ' — passed (' . $sectors . ' sectors)';
-    if ($unreadable) return $label . ' — unreadable';
-    return $label;
-}
-
-/** Short per-drive HPA/DCO label for the Annex A table. */
-function cert_hpa_short(string $hpaResult, string $dcoResult): string {
-    $hr = strtolower(trim($hpaResult));
-    $dr = strtolower(trim($dcoResult));
-    if ($hr === 'failed' || $dr === 'failed') return 'FAILED';
-    if ($hr === 'removed' || $dr === 'removed') return 'Removed';
-    if ($hr === 'firmware-erased' || $dr === 'firmware-erased') return 'Firmware-erased';
-    return '-';
-}
-
-/** Page-1 "HPA/DCO" summary line — honest: what happened to the hidden areas. */
-function cert_hpa_summary(array $drives): string {
-    $removed = 0; $fw = 0; $failed = 0;
-    foreach ($drives as $d) {
-        if (strtoupper(trim((string)($d['status'] ?? ''))) !== 'COMPLETED') continue;
-        $hr = strtolower(trim((string)($d['hpa_result'] ?? '')));
-        $dr = strtolower(trim((string)($d['dco_result'] ?? '')));
-        if ($hr === 'removed' || $dr === 'removed') { $removed++; continue; }
-        if ($hr === 'firmware-erased' || $dr === 'firmware-erased') { $fw++; continue; }
-        if ($hr === 'failed' || $dr === 'failed') { $failed++; }
-    }
-    if ($failed > 0) return 'Removal failed — hidden data may remain';
-    if ($removed > 0) return 'Hidden areas removed before erasure';
-    if ($fw > 0)    return 'Hidden areas erased by firmware';
-    return '';
 }
 
 /**
@@ -785,18 +721,13 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         if (!isset($seenMachines[$key])) { $seenMachines[$key] = true; $machinesUsed++; }
     }
 
-    $hpaSummary = cert_hpa_summary($drives);
     $erasureL = [
         ['Tool / version', $toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub'],
         ['Standard',       'NIST SP 800-88 Rev 1'],
         ['Level reached',  cert_level($drives)],
-        ['Verification',   cert_verify_summary($drives, (string)($g['verify'] ?? ''))],
         ['Start',          ($g['first'] ?? null) !== null ? fmt_ts($g['first']) : ''],
         ['End',            ($g['last'] ?? null) !== null ? fmt_ts($g['last']) : ''],
     ];
-    if ($hpaSummary !== '') {
-        array_splice($erasureL, 4, 0, [['HPA/DCO', $hpaSummary]]);
-    }
     $erasureR = [
         ['Total duration',    $totalDuration],
         ['Devices',           (string)$devices],
