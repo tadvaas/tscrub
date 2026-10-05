@@ -171,7 +171,12 @@ verify::_check_drive() {
     [[ -f "$state_file" ]] || return 0
     # Only score drives whose erase actually completed; a FAILED/BLOCKED/FROZEN
     # drive is already "not sanitised" and its sentinel may legitimately survive.
-    [[ "${devrow[$dev.status]:-}" == "COMPLETED" ]] || return 0
+    # Also drop the plant-time sector count, so such a drive reports "n/a" with
+    # no "N sectors" figure (nothing was actually re-read).
+    if [[ "${devrow[$dev.status]:-}" != "COMPLETED" ]]; then
+        devrow["$dev.verify_sectors"]=""
+        return 0
+    fi
 
     local ss="${secsize[$dev]:-512}"
     local lba hash tmp got sz failed=0 unreadable=0 checked=0

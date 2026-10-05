@@ -99,6 +99,16 @@ devrow[sda.selected]=0
 verify::plant_all
 t::assert_eq "n/a" "${devrow[sda.verify_result]}" "n/a for unselected drive"
 
+# --- n/a + no sector count when the erase was BLOCKED after the sentinel was planted ---
+devrow[sda.selected]=1
+devrow[sda.status]="BLOCKED"
+verify::plant_all
+t::assert_eq "20" "${devrow[sda.verify_sectors]}" "plant records sentinel count before erase"
+verify::check_all
+t::assert_eq "n/a" "${devrow[sda.verify_result]}" "n/a for BLOCKED drive"
+t::check "blocked drive clears verify_sectors" '[[ -z "${devrow[sda.verify_sectors]}" ]]'
+devrow[sda.status]="COMPLETED"
+
 # --- DRY_RUN plants nothing ---
 devrow[sda.selected]=1
 DRY_RUN=1
