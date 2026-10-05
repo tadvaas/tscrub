@@ -351,7 +351,7 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
         $y += 4.6;
     };
 
-    $list = function (string $label, array $lines) use (&$y, $need, $pdf, $x, $W, $labelW, $H, $pageHeader): void {
+    $list = function (string $label, array $lines) use (&$y, $need, $row, $pdf, $x, $W, $labelW, $H, $pageHeader): void {
         if ($lines === []) { $row($label, ''); return; }
         $need(5.0);
         $pdf->SetFont('helvetica', '', 8.5);
