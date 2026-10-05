@@ -222,6 +222,20 @@ function certifier_for_user(int $userId): array {
 function generate_certificate(array $g, int $userId, bool $canSign, array $destroyed = []): array {
     require_once __DIR__ . '/render_cert.php';
     $certifier = certifier_for_user($userId);
+
+    // Operator name. The report normally carries it from the appliance, but a
+    // report is always attributed to a signed-in account, so when it's blank we
+    // fill the account holder's name (falling back to email) so the "Performed
+    // by (operator)" block is never left anonymous.
+    if (trim((string)($g['operator'] ?? '')) === '') {
+        $actor = fetch_user_by_id($userId);
+        if ($actor !== null) {
+            $g['operator'] = trim((string)($actor['name'] ?? '')) !== ''
+                ? trim((string)$actor['name'])
+                : trim((string)($actor['email'] ?? ''));
+        }
+    }
+
     $pdfDir = __DIR__ . '/certs';
     if (!is_dir($pdfDir)) { @mkdir($pdfDir, 0775, true); }
 
