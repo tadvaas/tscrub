@@ -223,6 +223,23 @@ function org_active_member_count(int $orgId): int {
     }
 }
 
+/**
+ * Re-tag a user's pre-org personal credit rows to their organisation so the
+ * pooled wallet picks them up. A user who held device credits BEFORE creating
+ * or joining an org must not lose them — their historical rows sit at
+ * organisation_id = 0 and the pooled balance reads organisation_id = <org>.
+ * Best-effort: the credit table (or its organisation_id column) may not exist
+ * yet on a fresh install.
+ */
+function org_adopt_personal_credits(int $userId, int $orgId): void {
+    try {
+        db()->prepare('UPDATE credit_events SET organisation_id = ? WHERE user_id = ? AND organisation_id = 0')
+            ->execute([$orgId, $userId]);
+    } catch (Throwable $e) {
+        error_log('org adopt credits error: ' . $e->getMessage());
+    }
+}
+
 function org_user(int $userId): ?array {
     try {
         $stmt = db()->prepare('SELECT id, email, name, status FROM users WHERE id = ?');
@@ -320,6 +337,7 @@ function org_create(int $userId, string $name): array {
         $orgId = (int)db()->lastInsertId();
         db()->prepare('INSERT INTO organisation_members (organisation_id, user_id, role, status) VALUES (?, ?, "owner", "active")')
             ->execute([$orgId, $userId]);
+        org_adopt_personal_credits($userId, $orgId);
         db()->commit();
     } catch (Throwable $e) {
         if (db()->inTransaction()) { db()->rollBack(); }
@@ -431,6 +449,7 @@ function org_accept(int $userId, string $token): array {
         db()->prepare('INSERT INTO organisation_members (organisation_id, user_id, role, status) VALUES (?, ?, ?, "active")
                        ON DUPLICATE KEY UPDATE role = VALUES(role), status = "active", joined_at = UTC_TIMESTAMP()')
             ->execute([(int)$org['id'], $userId, (string)$inv['role']]);
+        org_adopt_personal_credits($userId, (int)$org['id']);
         db()->commit();
     } catch (Throwable $e) {
         if (db()->inTransaction()) { db()->rollBack(); }
