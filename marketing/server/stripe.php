@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/http.php';
+require_once __DIR__ . '/org.php';
 
 function stripe_settings(): array {
     $s = db_config()['stripe'] ?? [];
@@ -112,13 +113,63 @@ function stripe_event_seen(string $eventId): bool {
     return $stmt->rowCount() > 0;
 }
 
-/** Current credit balance for a user (credits minus debits). */
+/**
+ * Lazily add the organisation_id column + org index to an existing
+ * credit_events table (idempotent — mirrors schema.sql). Existing rows keep
+ * organisation_id = 0 (personal), which is the pre-org semantics.
+ */
+function credit_ensure_schema(): void {
+    try {
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'credit_events' AND COLUMN_NAME = ?"
+        );
+        $stmt->execute(['organisation_id']);
+        if ((int)$stmt->fetchColumn() === 0) {
+            db()->exec('ALTER TABLE credit_events ADD COLUMN organisation_id BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER user_id');
+        }
+        $stmt->execute(['idx_credit_org']);
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'credit_events' AND INDEX_NAME = 'idx_credit_org'"
+        );
+        $stmt->execute();
+        if ((int)$stmt->fetchColumn() === 0) {
+            db()->exec('ALTER TABLE credit_events ADD KEY idx_credit_org (organisation_id, id)');
+        }
+    } catch (Throwable $e) {
+        error_log('credit ensure schema error: ' . $e->getMessage());
+    }
+}
+
+/** The organisation_id a user's credits pool under (0 = personal/solo). */
+function credit_scope_id(int $userId): int {
+    $m = org_for_user($userId);
+    return ($m !== null && $m['status'] === 'active') ? (int)$m['organisation_id'] : 0;
+}
+
+/**
+ * Current credit balance. Org members read the organisation pool (every active
+ * member's events under that org); solo users read their personal wallet
+ * (organisation_id = 0). Membership changes never move the pool — it is keyed
+ * by organisation_id, not by who is currently a member.
+ */
 function credit_balance(int $userId): int {
-    $stmt = db()->prepare(
-        'SELECT COALESCE(SUM(CASE WHEN type = "credit" THEN units ELSE -units END), 0)
-           FROM credit_events WHERE user_id = ?'
-    );
-    $stmt->execute([$userId]);
+    credit_ensure_schema();
+    $orgId = credit_scope_id($userId);
+    if ($orgId > 0) {
+        $stmt = db()->prepare(
+            'SELECT COALESCE(SUM(CASE WHEN type = "credit" THEN units ELSE -units END), 0)
+               FROM credit_events WHERE organisation_id = ?'
+        );
+        $stmt->execute([$orgId]);
+    } else {
+        $stmt = db()->prepare(
+            'SELECT COALESCE(SUM(CASE WHEN type = "credit" THEN units ELSE -units END), 0)
+               FROM credit_events WHERE organisation_id = 0 AND user_id = ?'
+        );
+        $stmt->execute([$userId]);
+    }
     return (int)$stmt->fetchColumn();
 }
 
@@ -126,28 +177,43 @@ function credit_balance(int $userId): int {
  * Apply one credit/debit event, idempotently keyed by (user_id, ref). The caller
  * MUST pass a non-empty, stable ref (e.g. "stripe:cs_...", "report:<sha>").
  * Returns true when a new event was recorded, false when the ref already existed.
+ * The event lands in the actor's organisation pool (organisation_id resolved from
+ * membership; 0 when solo), with user_id recording who did it.
  */
 function credit_apply(int $userId, string $type, int $units, string $ref): bool {
-    $stmt = db()->prepare('INSERT IGNORE INTO credit_events (user_id, type, units, ref) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$userId, $type, $units, $ref]);
+    credit_ensure_schema();
+    $orgId = credit_scope_id($userId);
+    $stmt = db()->prepare('INSERT IGNORE INTO credit_events (user_id, organisation_id, type, units, ref) VALUES (?, ?, ?, ?, ?)');
+    $stmt->execute([$userId, $orgId, $type, $units, $ref]);
     return $stmt->rowCount() > 0;
 }
 
 /**
- * Atomically debit credits, never going negative.
- * Returns 1 = debited, 0 = ref already applied (no-op), -1 = insufficient balance.
+ * Atomically debit credits from the actor's pool (org or personal), never going
+ * negative. Returns 1 = debited, 0 = ref already applied (no-op), -1 = insufficient
+ * balance. Locks the pool's rows so concurrent members can't overspend the org.
  */
 function credit_debit(int $userId, int $units, string $ref): int {
     if ($units <= 0) {
         return 0;
     }
+    credit_ensure_schema();
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare(
-            'SELECT COALESCE(SUM(CASE WHEN type = "credit" THEN units ELSE -units END), 0)
-               FROM credit_events WHERE user_id = ? FOR UPDATE'
-        );
-        $stmt->execute([$userId]);
+        $orgId = credit_scope_id($userId);
+        if ($orgId > 0) {
+            $stmt = db()->prepare(
+                'SELECT COALESCE(SUM(CASE WHEN type = "credit" THEN units ELSE -units END), 0)
+                   FROM credit_events WHERE organisation_id = ? FOR UPDATE'
+            );
+            $stmt->execute([$orgId]);
+        } else {
+            $stmt = db()->prepare(
+                'SELECT COALESCE(SUM(CASE WHEN type = "credit" THEN units ELSE -units END), 0)
+                   FROM credit_events WHERE organisation_id = 0 AND user_id = ? FOR UPDATE'
+            );
+            $stmt->execute([$userId]);
+        }
         if ((int)$stmt->fetchColumn() < $units) {
             db()->rollBack();
             return -1;

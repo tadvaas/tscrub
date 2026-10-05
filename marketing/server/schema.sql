@@ -199,16 +199,21 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 -- `ref` is the idempotency key: 'stripe:<checkout_session_id>' for credits and
 -- 'report:<csv-sha>' for debits, so a re-delivered webhook or a re-uploaded
 -- report can never double-count.
+-- Credits pool per organisation (§5): `organisation_id` is the org the event
+-- belongs to (0 = personal/solo). `user_id` records the actor. A member's
+-- balance is the org pool; a solo user's is their own (organisation_id = 0).
 CREATE TABLE IF NOT EXISTS credit_events (
-  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id    BIGINT UNSIGNED NOT NULL,
-  type       ENUM('credit','debit') NOT NULL,
-  units      INT UNSIGNED    NOT NULL,
-  ref        VARCHAR(255)    NOT NULL DEFAULT '',
-  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         BIGINT UNSIGNED NOT NULL,
+  organisation_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  type            ENUM('credit','debit') NOT NULL,
+  units           INT UNSIGNED    NOT NULL,
+  ref             VARCHAR(255)    NOT NULL DEFAULT '',
+  created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_credit_ref (user_id, ref),
   KEY idx_credit_user (user_id, created_at),
+  KEY idx_credit_org (organisation_id, id),
   CONSTRAINT fk_credit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

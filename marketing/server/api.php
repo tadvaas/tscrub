@@ -1755,22 +1755,36 @@ if ($method === 'GET' && $route === '/stripe/publishable-key') {
     json_out(['ok' => true, 'publishable_key' => (string)(stripe_settings()['publishable_key'] ?? '')]);
 }
 
-// GET /api/credits — device-credit balance + paged event history.
+// GET /api/credits — device-credit balance + paged event history (org-pooled).
 if ($method === 'GET' && $route === '/credits') {
     $u = auth_require();
+    credit_ensure_schema();
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = min(100, max(1, (int)($_GET['per'] ?? 20)));
     $offset = ($page - 1) * $per;
 
-    $stmt = db()->prepare('SELECT COUNT(*) FROM credit_events WHERE user_id = ?');
-    $stmt->execute([(int)$u['id']]);
-    $total = (int)$stmt->fetchColumn();
+    $orgId = credit_scope_id((int)$u['id']);
+    if ($orgId > 0) {
+        $stmt = db()->prepare('SELECT COUNT(*) FROM credit_events WHERE organisation_id = ?');
+        $stmt->execute([$orgId]);
+        $total = (int)$stmt->fetchColumn();
 
-    $stmt = db()->prepare('SELECT type, units, ref, created_at FROM credit_events WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?');
-    $stmt->bindValue(1, (int)$u['id'], PDO::PARAM_INT);
-    $stmt->bindValue(2, $per, PDO::PARAM_INT);
-    $stmt->bindValue(3, $offset, PDO::PARAM_INT);
-    $stmt->execute();
+        $stmt = db()->prepare('SELECT type, units, ref, created_at FROM credit_events WHERE organisation_id = ? ORDER BY id DESC LIMIT ? OFFSET ?');
+        $stmt->bindValue(1, $orgId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $per, PDO::PARAM_INT);
+        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $stmt->execute();
+    } else {
+        $stmt = db()->prepare('SELECT COUNT(*) FROM credit_events WHERE organisation_id = 0 AND user_id = ?');
+        $stmt->execute([(int)$u['id']]);
+        $total = (int)$stmt->fetchColumn();
+
+        $stmt = db()->prepare('SELECT type, units, ref, created_at FROM credit_events WHERE organisation_id = 0 AND user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?');
+        $stmt->bindValue(1, (int)$u['id'], PDO::PARAM_INT);
+        $stmt->bindValue(2, $per, PDO::PARAM_INT);
+        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $stmt->execute();
+    }
     $events = array_map(static function (array $ev): array {
         $ev['created_at'] = ts_local((string)($ev['created_at'] ?? ''));
         return $ev;

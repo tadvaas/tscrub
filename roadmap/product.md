@@ -92,9 +92,11 @@ first. Tick items off as they ship and note the release that carries each.
       `organisation_invites` tables, `org.php` scope layer (writes keep
       `user_id`, reads resolve to `org_member_ids`), org-aware tier, email-invite
       + owner/admin/member roles, soft-remove, seat limits (free 2 / payg 1 /
-      team 10 / enterprise 50), Account-page Organisation card. Plan:
+      team 10 / enterprise 50), Account-page Organisation card — and **device
+      credits pool per organisation** (`credit_events.organisation_id`; the
+      wallet is keyed by org id so membership changes never move it). Plan:
       `research/organisations-seats/README.md`; tests
-      `research/organisations-seats/test_org_php.php` (37 checks).
+      `research/organisations-seats/test_org_php.php` (48 checks).
 
 ## 4. Long tail (pick up as milestone room allows)
 
