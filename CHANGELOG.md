@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.6] - 2026-10-05
+
+### Added
+
+- **HP BIOS password detection** — the appliance kernel now builds in the HP WMI
+  drivers (`CONFIG_HP_WMI`, `CONFIG_HP_BIOSCFG`), so HP workstations (e.g. the
+  Z840) expose `/sys/devices/platform/hp-wmi/bios_password` and the
+  `firmware_attributes` interface for BIOS setup/admin-password detection and
+  remote unlock. Previously HP machines fell through to `UNKNOWN` because no
+  detection surface existed (no `hp-wmi` module, no SMBIOS Type 24).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.6_2025.11_30_x86-64_v0.41_20261005-ec2e7100.iso`
+  (165 MB) sha256 `196d711700631e5e2e524ed35f79ba3591f1ab2f413466e7264e4376a229c7c7`.
+- Standalone script `tscrub.sh` (v1.11.6) sha256 `89b3b4f47121cc99738a2f3ec6478abcfe2d471347105de681aacda8b91c2f2a`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `12768d67d23dc7b413c83fffb562dd3a04b90d514da8dadba3306eaab09b4835`.
+
 ## [v1.11.5] - 2026-10-05
 
 ### Fixed
