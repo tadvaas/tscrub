@@ -22,9 +22,9 @@ first. Tick items off as they ship and note the release that carries each.
 - [x] **SAS firmware sanitise** — add `device::sas_sanitize` that tries
       `sg_sanitize --overwrite --zero` first (bundle `sg3_utils` — Buildroot
       already ships it), falling back to nwipe only when unsupported. (§11.1)
-      → **Implemented (2026-10-05), awaiting release** — `device::scsi_sanitize_supported`
-      + `device::exec_scsi_sanitize` in `product/src/32_device_scsi.sh`;
-      plan `research/sas-sanitize/README.md`; tests `product/tests/test_scsi_sanitize.sh`.
+      → **Shipped v1.10.17** (2026-10-05). Plan: `research/sas-sanitize/README.md`
+      (`device::scsi_sanitize_supported` + `device::exec_scsi_sanitize` in
+      `product/src/32_device_scsi.sh`; tests `product/tests/test_scsi_sanitize.sh`).
 - [ ] **SED (OPAL) unlock + erase** — add an OPAL path alongside NVMe/ATA:
       `sedutil-cli --query` → PSID revert when there's no LBA unlock, and surface
       the 3-state SED status as an explicit method. (§9.1)

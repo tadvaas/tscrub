@@ -6,7 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.10.17] - 2026-10-05
+
+### Added
+
+- **SAS firmware sanitise** — SCSI/SAS drives now prefer the firmware
+  `SANITIZE` path over the software `nwipe` fallback. `device::detect` probes
+  overwrite support via `sg_opcodes --opcode=0x48,0x1` (conservative: any probe
+  failure means "no"), and `device::exec_scsi_sanitize` runs
+  `sg_sanitize --overwrite --zero --quick` — a NIST 800-88 Purge recorded as
+  `DESTRUCTION` with method `SAS Sanitize`. When a drive rejects SANITIZE as
+  unsupported (invalid opcode / field in CDB), the appliance falls back to
+  nwipe and corrects the recorded outcome to the honest `CLEAR`/`SANITISATION`
+  label, so a report never claims a firmware purge that didn't happen.
+  `sg3_utils` is already bundled in the image; this is a `tscrub.sh`-only
+  change. Structured `DRIVE / ACTION` entries are written to the appliance log
+  for the audit trail.
 
 ### Fixed
 
@@ -15,6 +30,13 @@ and this project uses date-based versioning (`v1.x`).
   plant count in `VerifySectors`, so the report and dashboard showed `n/a`
   alongside a misleading "40 sectors" figure. The count is now cleared for
   non-completed drives, so `n/a` carries no sector count.
+
+### Release
+
+- Appliance ISO `tscrub-v1.10.17_2025.11_30_x86-64_v0.41_20261005-dedb97f7.iso`
+  (165 MB) sha256 `9e306beef9bf998896e6efe2986b1199e277098c39deb74b6285e9872cc4bcb2`.
+- Standalone script `tscrub.sh` (v1.10.17) sha256 `00c935fbe038c47453ea8e04f6cf7d3db35af3740db1f2c8fe345e42eb274292`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `fb2105958029fcbda38445c3a95bb305a25a55f57566a5cc42df14f02faa5d26`.
 
 ## [v1.10.16] - 2026-10-04
 
