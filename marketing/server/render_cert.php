@@ -250,15 +250,15 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         '#'        => ['label' => '#',            'w' => 7,  'align' => 'C'],
         'model'    => ['label' => 'Drive model',  'w' => 46, 'align' => 'L'],
         'serial'   => ['label' => 'Drive serial', 'w' => 30, 'align' => 'L'],
-        'type'     => ['label' => 'Type',         'w' => 11, 'align' => 'L'],
-        'size'     => ['label' => 'Drive size',   'w' => 14, 'align' => 'L'],
-        'bus'      => ['label' => 'Bus',          'w' => 12, 'align' => 'L'],
-        'cls'      => ['label' => 'Class',        'w' => 42, 'align' => 'L'],
+        'type'     => ['label' => 'Type',         'w' => 11, 'align' => 'C'],
+        'size'     => ['label' => 'Drive size',   'w' => 18, 'align' => 'C'],
+        'bus'      => ['label' => 'Bus',          'w' => 12, 'align' => 'C'],
+        'cls'      => ['label' => 'Class',        'w' => 24, 'align' => 'C'],
         'method'   => ['label' => 'Method',       'w' => 42, 'align' => 'L'],
-        'tool'     => ['label' => 'Tool',         'w' => 15, 'align' => 'L'],
+        'tool'     => ['label' => 'Tool',         'w' => 24, 'align' => 'C'],
         'system'   => ['label' => 'Machine',      'w' => 32, 'align' => 'L'],
-        'sysserial'=> ['label' => 'Machine SN',   'w' => 18, 'align' => 'L'],
-        'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'L'],
+        'sysserial'=> ['label' => 'Machine SN',   'w' => 23, 'align' => 'C'],
+        'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'C'],
         'ts'       => ['label' => 'Erased',       'w' => 22, 'align' => 'C'],
     ];
 
@@ -326,7 +326,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
     foreach ($cols as $k => $c) { $cols[$k]['w'] = round($c['w'] * $usable / $total, 2); }
 
     // Keep fixed-vocabulary columns on one line.
-    $minOneLine = ['status' => 'COMPLETED', 'ts' => '2026-09-21 10:30', 'tool' => 'tScrub 9.9.99', 'cls' => 'SANITISATION'];
+    $minOneLine = ['status' => 'COMPLETED', 'ts' => '2026-09-21 10:30', 'tool' => 'tScrub v1.11.15', 'cls' => 'SANITISATION'];
     foreach ($minOneLine as $key => $sample) {
         if (!isset($cols[$key])) continue;
         $need = $pdf->getStringWidth($sample, 'helvetica', '', 7.5) + 3.2;
