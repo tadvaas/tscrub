@@ -476,7 +476,13 @@
           sysWrap.appendChild(el('span', 'truncate', dev.system || dev.sysserial || 'Unknown'));
           var devGrade = dev.refurb_grade || dev.refurb_grade_suggested || '';
           if (devGrade) {
-            var dgBadge = refurbBadge(devGrade);
+            var gcls = {
+              'R-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+              'R-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
+              'R-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+              'R-D': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+            }[devGrade] || 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400';
+            var dgBadge = el('span', 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ' + gcls, devGrade);
             dgBadge.title = dev.refurb_grade
               ? 'Operator-assigned refurb grade'
               : 'Suggested from battery health — open the device to confirm';
