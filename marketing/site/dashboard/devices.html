@@ -64,9 +64,12 @@
   <div id="device-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="device-modal-title">
     <div id="device-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
-      <div class="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+      <div class="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
-          <h2 id="device-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900 dark:text-white"></h2>
+          <div class="min-w-0">
+            <h2 id="device-modal-title" class="min-w-0 truncate text-lg font-bold text-ink-900 dark:text-white"></h2>
+            <p id="device-modal-sub" class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400"></p>
+          </div>
           <button id="device-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
         </div>
         <div id="device-modal-body" class="flex-1 overflow-y-auto bg-slate-50 dark:bg-ink-800 p-5"></div>
@@ -554,6 +557,7 @@
 
       var modal = document.getElementById('device-modal');
       var modalTitle = document.getElementById('device-modal-title');
+      var modalSub = document.getElementById('device-modal-sub');
       var modalBody = document.getElementById('device-modal-body');
 
       function closeDevice() {
@@ -562,80 +566,71 @@
       }
       function openDevice(dev, online) {
         modalTitle.textContent = dev.system || dev.sysserial || 'Machine';
+        var fsub = fmtTsTime(dev.first), lsub = fmtTsTime(dev.last);
+        modalSub.textContent = (fsub && fsub === lsub)
+          ? 'Report submitted ' + fsub
+          : 'Reports from ' + (fsub || '—') + ' to ' + (lsub || '—');
         modalBody.innerHTML = '';
 
-        var doc = el('div', 'overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm');
-
-        // Header.
-        var head = el('div', 'border-b border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-6 py-5');
-        head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400', 'tScrub device diagnostics'));
-        var meta = el('div', 'mt-2 text-sm text-slate-600 dark:text-slate-400');
-        var fsub = fmtTsTime(dev.first), lsub = fmtTsTime(dev.last);
-        if (fsub && fsub === lsub) {
-          meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Report submitted ' + fsub));
-        } else {
-          meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Reports from ' + (fsub || '—')));
-          meta.appendChild(document.createTextNode(' to ' + (lsub || '—')));
-        }
-        head.appendChild(meta);
-        doc.appendChild(head);
-
-        // BIOS lock status.
-        var strip = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 dark:border-ink-700 px-6 py-3');
+        // BIOS lock / lockdown status strip.
+        var strip = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-3 shadow-sm');
         strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'BIOS lock'));
         strip.appendChild(lockBadge(dev.bioslock) || el('span', 'text-sm text-slate-400 dark:text-slate-500', '—'));
-        strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'BIOS lockdown'));
+        strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Lockdown'));
         strip.appendChild(dev.bios_lockdown
           ? el('span', 'rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-400', 'Suspected')
-          : el('span', 'text-sm text-slate-400 dark:text-slate-500', 'None'));
-        doc.appendChild(strip);
+          : el('span', 'rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400', 'None'));
 
-        function section(title, pairs) {
-          var sec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-          sec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', title));
-          var grid = el('div', 'mt-2 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3');
+        // Card scaffolding: a titled card with a padded body.
+        function card(title) {
+          var c = el('div', 'overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm');
+          var h = el('div', 'border-b border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-5 py-2.5');
+          h.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400', title));
+          c.appendChild(h);
+          c.appendChild(el('div', 'p-5'));
+          return c;
+        }
+        function cardBody(c) { return c.lastChild; }
+        function field(label, value, mono) {
+          var wrap = el('div', 'min-w-0');
+          wrap.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', label));
+          wrap.appendChild(el('div', 'break-words ' + (mono ? 'font-mono text-xs' : 'text-sm') + ' text-slate-800 dark:text-slate-200', value || '—'));
+          return wrap;
+        }
+        function fieldsCard(title, pairs) {
+          var c = card(title);
+          var g = el('div', 'grid grid-cols-2 gap-x-6 gap-y-4 xl:grid-cols-3');
+          var any = false;
           pairs.forEach(function (kv) {
             if (!kv[1]) return;
-            var cell = el('div', 'min-w-0');
-            cell.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', kv[0]));
-            cell.appendChild(el('div', 'break-words text-sm text-slate-800 dark:text-slate-200', kv[1]));
-            grid.appendChild(cell);
+            any = true;
+            g.appendChild(field(kv[0], kv[1], kv[2]));
           });
-          sec.appendChild(grid);
-          return sec;
+          if (!any) g.appendChild(el('div', 'col-span-full text-sm text-slate-400 dark:text-slate-500', '—'));
+          cardBody(c).appendChild(g);
+          return c;
         }
-
-        // One item per line for long lists (PCI, USB, interfaces, boot entries).
-        function listSection(title, text, mono) {
-          var sec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-          sec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', title));
-          var items = String(text || '').split(/\r?\n|;\s*/).filter(function (s) { return s.trim() !== ''; });
-          if (!items.length) {
-            sec.appendChild(el('div', 'mt-2 text-sm text-slate-400 dark:text-slate-500', '—'));
-            return sec;
-          }
-          var box = el('div', 'mt-2 max-h-40 overflow-y-auto rounded-lg bg-slate-50 dark:bg-ink-800 px-3 py-2 ' + (mono ? 'font-mono text-xs' : 'text-sm'));
+        function listCard(title, text, mono) {
+          var c = card(title);
+          var items = Array.isArray(text)
+            ? text
+            : String(text || '').split(/\r?\n|;\s*/).filter(function (s) { return s.trim() !== ''; });
+          if (!items.length) { cardBody(c).appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—')); return c; }
+          var box = el('div', 'max-h-44 overflow-y-auto rounded-lg bg-slate-50 dark:bg-ink-800 px-3 py-2 ' + (mono ? 'font-mono text-xs' : 'text-sm'));
           items.forEach(function (it) { box.appendChild(el('div', 'py-0.5 text-slate-700 dark:text-slate-300', it)); });
-          sec.appendChild(box);
-          return sec;
+          cardBody(c).appendChild(box);
+          return c;
         }
-
-        // Collapsible full-text block (the raw SMBIOS dump).
-        function detailsSection(title, summaryText, fullText) {
-          var sec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-          sec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', title));
-          if (!fullText) { sec.appendChild(el('div', 'mt-2 text-sm text-slate-400 dark:text-slate-500', '—')); return sec; }
-          var det = el('details', 'mt-2');
-          var sum = el('summary', 'cursor-pointer text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline');
-          sum.textContent = summaryText || 'Show';
-          det.appendChild(sum);
-          var pre = el('pre', 'mt-2 max-h-60 overflow-y-auto rounded-lg bg-slate-50 dark:bg-ink-800 p-3 font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap');
-          pre.textContent = fullText;
-          det.appendChild(pre);
-          sec.appendChild(det);
-          return sec;
+        function pill(text, cls) {
+          return el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + cls, text);
         }
-
+        function chassisStateClass(v) {
+          var s = String(v || '').toLowerCase().trim();
+          if (s === 'safe' || s === 'none') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+          if (s.indexOf('critical') !== -1 || s.indexOf('non-recoverable') !== -1) return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+          if (s.indexOf('warning') !== -1) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+          return 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400';
+        }
         // Parse the peripherals "webcam:1; touchscreen:0; …" string into label/value pairs.
         function peripheralsPairs(s) {
           var map = {};
@@ -651,22 +646,158 @@
           });
           return out;
         }
+        // Parse the chassis-state "Boot: X · Power: Y · …" summary into [label, value] pairs.
+        function chassisStatePairs(s) {
+          var out = [];
+          String(s || '').split('·').forEach(function (part) {
+            var p = part.trim().split(':');
+            if (p.length === 2) {
+              var l = p[0].trim(), v = p[1].trim();
+              if (l && v) out.push([l, v]);
+            }
+          });
+          return out;
+        }
+        // Human-readable PCI list — mirrors diag_pci_human() in the PDF renderer:
+        // drops chipset glue, strips bus/class/vendor/revision suffixes and
+        // shortens vendor names.
+        function pciHuman(raw) {
+          var out = [];
+          String(raw || '').split(/\r?\n/).forEach(function (line) {
+            line = line.trim();
+            if (!line) return;
+            if (/\b(host bridge|pci bridge|isa bridge|smbus|root port|signal processing controller|communication controller|serial controller)\b/i.test(line)) return;
+            if (/memory controller\b/i.test(line) && !/non-volatile memory controller\b/i.test(line)) return;
 
-        doc.appendChild(section('Identity', [
-          ['System', dev.system], ['System serial', dev.sysserial], ['LAN IP', dev.lan_ip],
-          ['Baseboard serial', dev.bbserial],
-          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype], ['System UUID', dev.systemuuid],
-          ['SKU', dev.sku], ['Asset tag', dev.asset_tag]
+            var m = line.match(/^[0-9a-f:.]+\s+\[[0-9a-f]{6}\]\s+(.+?)\s+[0-9a-f]{4}:[0-9a-f]{4}$/i);
+            if (m) {
+              line = m[1];
+            } else {
+              line = line.replace(/^[0-9a-f:.]+\s+/, '');
+              line = line.replace(/\s*\[[0-9a-f]{4}\]/, '');
+              line = line.replace(/\s+\[[0-9a-f]{4}:[0-9a-f]{4}\]/, '');
+              line = line.replace(/\s*\(rev\s+[0-9a-f]+\)/, '');
+              line = line.replace(/\s*\([A-Z][0-9]? step\)/i, '');
+            }
+
+            line = line.replace(/\b(?:Corporation|Electronics Co\.?[, ]*\s*Ltd\.?|Semiconductor Co\.?[, ]*\s*Ltd\.?|Co\.?[, ]*\s*Ltd\.?|Inc\.?|Ltd\.?|LLC|Company|and subsidiaries)\b/gi, ' ');
+            line = line.replace(/\s{2,}/g, ' ').replace(/^[ \t,:;]+|[ \t,:;]+$/g, '');
+            if (line) out.push(line);
+          });
+          return out;
+        }
+
+        var main = el('div', 'space-y-5 lg:col-span-2');
+        var side = el('div', 'space-y-5');
+
+        main.appendChild(fieldsCard('Hardware', [
+          ['CPU', dev.cpu], ['Cores / threads', dev.cpu_spec], ['Socket', dev.cpu_socket],
+          ['CPU family', dev.cpu_family], ['CPU ID', dev.cpu_id, true], ['Voltage', dev.cpu_voltage],
+          ['GPU', dev.gpu], ['Display', dev.display], ['Wi-Fi', dev.wifi],
+          ['RAM', dev.ram], ['Memory modules', dev.dimms], ['TPM', dev.tpm],
+          ['Battery', dev.battery], ['Battery model', dev.battery_model], ['Battery chemistry', dev.battery_chemistry]
         ]));
 
-        // Windows licence: the embedded OEM key captured from the firmware MSDM
-        // table, masked by default with reveal + copy, plus the derived OA3
-        // product key ID (which feeds the Autopilot hash type 24).
-        if (dev.product_key || dev.product_key_id) {
-          var licSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-          licSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Windows licence'));
-          var licGrid = el('div', 'mt-2 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3');
+        var drives = Array.isArray(dev.drives) ? dev.drives : [];
+        var drvCard = card('Drives');
+        if (!drives.length) {
+          cardBody(drvCard).appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—'));
+        } else {
+          var scroll = el('div', 'overflow-x-auto');
+          var dtbl = el('table', 'w-full border-collapse text-sm');
+          var dhead = el('tr', 'bg-slate-100 dark:bg-ink-800');
+          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type', 'Firmware', 'SED lock', 'SMART', 'Self-test'].forEach(function (h) {
+            dhead.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left text-xs font-semibold uppercase whitespace-nowrap text-slate-500 dark:text-slate-400', h));
+          });
+          dtbl.appendChild(dhead);
+          drives.forEach(function (dv) {
+            var dtr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
+            [
+              [dv.device || '—', 'font-mono text-xs'],
+              [dv.model || '—', ''],
+              [dv.serial || '—', 'font-mono text-xs'],
+              [dv.size || '—', ''],
+              [dv.bus || '—', ''],
+              [dv.type || '—', ''],
+              [dv.firmware || '—', 'font-mono text-xs'],
+              [dv.opal_locked ? 'Yes' : '—', ''],
+              [dv.smart || '—', ''],
+              [dv.selftest_run || '—', '']
+            ].forEach(function (cell) {
+              dtr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap ' + cell[1] + ' text-slate-700 dark:text-slate-300', cell[0]));
+            });
+            dtbl.appendChild(dtr);
+          });
+          scroll.appendChild(dtbl);
+          cardBody(drvCard).appendChild(scroll);
+        }
+        main.appendChild(drvCard);
 
+        var periphCard = card('Peripherals');
+        var periphPairs = peripheralsPairs(dev.peripherals);
+        if (!periphPairs.length) {
+          cardBody(periphCard).appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—'));
+        } else {
+          var pw = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2');
+          periphPairs.forEach(function (kv) {
+            var seg = el('span', 'inline-flex items-center gap-1.5 text-sm text-slate-800 dark:text-slate-200');
+            seg.appendChild(document.createTextNode(kv[0] + ': '));
+            seg.appendChild(pill(kv[1], kv[1] === 'Yes'
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+              : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'));
+            pw.appendChild(seg);
+          });
+          cardBody(periphCard).appendChild(pw);
+        }
+        main.appendChild(periphCard);
+
+        main.appendChild(listCard('Network interfaces', dev.interfaces || dev.macs, true));
+        main.appendChild(listCard('Storage controllers', dev.storage_controllers, true));
+        main.appendChild(listCard('Onboard devices', dev.onboard_devices, false));
+        main.appendChild(listCard('PCI devices', pciHuman(dev.pci_devices), false));
+        main.appendChild(listCard('USB devices', dev.usb_devices, true));
+        main.appendChild(listCard('Boot entries', dev.uefi_boot_entries, true));
+
+        side.appendChild(fieldsCard('Identity', [
+          ['System', dev.system], ['System serial', dev.sysserial], ['Baseboard serial', dev.bbserial],
+          ['Chassis serial', dev.chassisserial], ['Chassis', dev.chassistype], ['System UUID', dev.systemuuid, true],
+          ['SKU', dev.sku], ['Asset tag', dev.asset_tag], ['System family', dev.family],
+          ['System version', dev.system_version], ['Board version', dev.board_version]
+        ]));
+
+        side.appendChild(fieldsCard('Firmware', [
+          ['BIOS version', dev.biosversion], ['BIOS date', dev.biosdate], ['BIOS vendor', dev.bios_vendor],
+          ['BIOS revision', dev.bios_revision], ['Firmware revision', dev.bios_firmware_revision],
+          ['Motherboard', dev.board], ['BIOS lock method', dev.bioslockmethod], ['Secure Boot', dev.secure_boot],
+          ['Chassis lock', dev.chassis_lock], ['CPU self-test', dev.selftest_cpu]
+        ]));
+
+        var chassisCard = card('Chassis state');
+        var chassisPairs = chassisStatePairs(dev.chassis_state);
+        if (!chassisPairs.length) {
+          cardBody(chassisCard).appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—'));
+        } else {
+          var cw = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2');
+          chassisPairs.forEach(function (kv) {
+            var seg = el('span', 'inline-flex items-center gap-1.5 text-sm text-slate-800 dark:text-slate-200');
+            seg.appendChild(document.createTextNode(kv[0] + ': '));
+            seg.appendChild(pill(kv[1], chassisStateClass(kv[1])));
+            cw.appendChild(seg);
+          });
+          cardBody(chassisCard).appendChild(cw);
+        }
+        side.appendChild(chassisCard);
+
+        side.appendChild(fieldsCard('Report', [
+          ['Report ID', dev.report_id, true], ['Digital identifier', dev.digital_identifier, true],
+          ['Operator', dev.operator], ['Validator', dev.validator],
+          ['Media source', dev.media_source], ['Media destination', dev.media_destination],
+          ['Tool version', dev.tool_version]
+        ]));
+
+        if (dev.product_key || dev.product_key_id) {
+          var licCard = card('Windows licence');
+          var licGrid = el('div', 'grid gap-x-6 gap-y-4 sm:grid-cols-2');
           var keyCell = el('div', 'min-w-0');
           keyCell.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Embedded key'));
           if (dev.product_key) {
@@ -698,73 +829,37 @@
             keyCell.appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—'));
           }
           licGrid.appendChild(keyCell);
-
           var idCell = el('div', 'min-w-0');
           idCell.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Product key ID'));
           idCell.appendChild(el('div', 'break-words font-mono text-sm text-slate-800 dark:text-slate-200', dev.product_key_id || '—'));
           licGrid.appendChild(idCell);
-
-          licSec.appendChild(licGrid);
-          doc.appendChild(licSec);
+          cardBody(licCard).appendChild(licGrid);
+          side.appendChild(licCard);
         }
 
-        doc.appendChild(section('Hardware', [
-          ['CPU', dev.cpu], ['Cores / threads', dev.cpu_spec], ['GPU', dev.gpu],
-          ['Display', dev.display], ['Wi-Fi', dev.wifi], ['RAM', dev.ram],
-          ['TPM', dev.tpm], ['Battery', dev.battery], ['Memory modules', dev.dimms]
-        ]));
-        doc.appendChild(listSection('Network interfaces', dev.interfaces || dev.macs, true));
-        doc.appendChild(listSection('Storage controllers', dev.storage_controllers, true));
-        doc.appendChild(listSection('PCI devices', dev.pci_devices, true));
-        doc.appendChild(listSection('USB devices', dev.usb_devices, true));
-        doc.appendChild(listSection('Boot entries', dev.uefi_boot_entries, true));
-        doc.appendChild(section('Peripherals', peripheralsPairs(dev.peripherals)));
-        doc.appendChild(section('Firmware', [
-          ['BIOS version', dev.biosversion],
-          ['BIOS date', dev.biosdate],
-          ['BIOS vendor', dev.bios_vendor],
-          ['Motherboard', dev.board],
-          ['BIOS lock method', dev.bioslockmethod],
-          ['Secure Boot', dev.secure_boot],
-          ['CPU self-test', dev.selftest_cpu]
-        ]));
-        doc.appendChild(section('Report', [
-          ['Report ID', dev.report_id], ['Digital identifier', dev.digital_identifier],
-          ['Operator', dev.operator], ['Validator', dev.validator],
-          ['Media source', dev.media_source], ['Media destination', dev.media_destination],
-          ['Tool version', dev.tool_version]
-        ]));
+        var shell = el('div', 'space-y-5');
+        shell.appendChild(strip);
+        var grid = el('div', 'grid gap-5 lg:grid-cols-3');
+        grid.appendChild(main);
+        grid.appendChild(side);
+        shell.appendChild(grid);
 
-        if (Array.isArray(dev.drives) && dev.drives.length) {
-          var drvSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-          drvSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Drives'));
-          var dtbl = el('table', 'mt-2 w-full border-collapse text-sm');
-          var dhead = el('tr', 'bg-slate-100 dark:bg-ink-800');
-          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type', 'Firmware', 'SED lock', 'SMART', 'Self-test'].forEach(function (h) {
-            dhead.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
-          });
-          dtbl.appendChild(dhead);
-          dev.drives.forEach(function (dv) {
-            var dtr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
-            dtr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.device || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.model || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.serial || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.size || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.bus || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.type || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-300', dv.firmware || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.opal_locked ? 'Yes' : '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.smart || '—'));
-            dtr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', dv.selftest_run || '—'));
-            dtbl.appendChild(dtr);
-          });
-          drvSec.appendChild(dtbl);
-          doc.appendChild(drvSec);
+        var smbiosCard = card('SMBIOS (full)');
+        if (!dev.smbios) {
+          cardBody(smbiosCard).appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—'));
+        } else {
+          var det = el('details', '');
+          var sum = el('summary', 'cursor-pointer text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline');
+          sum.textContent = 'Show full SMBIOS table';
+          det.appendChild(sum);
+          var pre = el('pre', 'mt-2 max-h-64 overflow-y-auto rounded-lg bg-slate-50 dark:bg-ink-800 p-3 font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap');
+          pre.textContent = dev.smbios;
+          det.appendChild(pre);
+          cardBody(smbiosCard).appendChild(det);
         }
+        shell.appendChild(smbiosCard);
 
-        doc.appendChild(detailsSection('SMBIOS (full)', 'Show full SMBIOS table', dev.smbios));
-
-        modalBody.appendChild(doc);
+        modalBody.appendChild(shell);
 
         // Footer actions.
         var foot = document.getElementById('device-modal-footer');

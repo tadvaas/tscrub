@@ -308,6 +308,42 @@ function diag_peripherals_human(string $s): string {
     return implode('  ·  ', $parts);
 }
 
+/** Parse the chassis-state "Boot: X · Power: Y · …" summary into [label, value] pairs. */
+function diag_chassis_state_pairs(string $s): array {
+    $out = [];
+    foreach (explode('·', $s) as $part) {
+        $part = trim($part);
+        if ($part === '') continue;
+        $p = explode(':', $part, 2);
+        if (count($p) !== 2) continue;
+        $label = trim($p[0]);
+        $val   = trim($p[1]);
+        if ($label !== '' && $val !== '') $out[] = [$label, $val];
+    }
+    return $out;
+}
+
+/**
+ * Colour for one chassis-state value:
+ *   Safe / None               → green (healthy / no intrusion)
+ *   Warning                   → amber (degraded)
+ *   Critical / Non-recoverable → red (fault)
+ *   anything else (Unknown, …) → grey (no signal)
+ */
+function diag_chassis_state_color(string $v): array {
+    $v = strtolower(trim($v));
+    if ($v === 'safe' || $v === 'none') {
+        return [5, 150, 105];
+    }
+    if (str_contains($v, 'critical') || str_contains($v, 'non-recoverable')) {
+        return [220, 38, 38];
+    }
+    if (str_contains($v, 'warning')) {
+        return [217, 119, 6];
+    }
+    return [148, 163, 184];
+}
+
 /** True for loopback/tunnel/software NICs that carry no asset value. */
 function diag_iface_virtual(string $name): bool {
     return (bool)preg_match('/^(lo|sit|tun|tap|veth|br|bond|dummy|docker|virbr|vboxnet|vmnet|vlan)/i', $name);
@@ -448,7 +484,8 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
         $pdf->SetXY($x, $y);
         $pdf->Cell($labelW, 4.0, $label, 0, 0, 'L');
         $pdf->SetXY($x + $labelW, $y);
-        if ($value === '') {
+        $empty = trim($value) === '' || strcasecmp(trim($value), 'N/A') === 0;
+        if ($empty) {
             $pdf->SetFont('helvetica', '', 8.5);
             $pdf->SetTextColor(148, 163, 184);
             $pdf->Cell($W - 2 * $x - $labelW, 4.0, '—', 0, 0, 'L');
@@ -490,18 +527,19 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
         return array_filter(array_map('trim', explode("\n", $v)), fn($s) => $s !== '');
     };
 
-    // The peripherals row renders each Yes/No verdict in colour (green/red).
-    $periphRow = function (string $value) use (&$y, $need, $row, $pdf, $x, $W, $labelW): void {
-        $pairs = diag_peripherals_pairs($value);
-        if ($pairs === []) { $row('Presence', ''); return; }
+    // Generic "label: value · label: value" row whose values are colour-coded
+    // by the supplied resolver — used for peripheral presence and chassis state
+    // so the status vocabulary renders consistently.
+    $verdictRow = function (string $label, array $pairs, callable $colorFor) use (&$y, $need, $row, $pdf, $x, $W, $labelW): void {
+        if ($pairs === []) { $row($label, ''); return; }
         $need(5.0);
         $pdf->SetFont('helvetica', '', 8.5);
         $pdf->SetTextColor(100, 116, 139);
         $pdf->SetXY($x, $y);
-        $pdf->Cell($labelW, 4.0, 'Presence', 0, 0, 'L');
+        $pdf->Cell($labelW, 4.0, $label, 0, 0, 'L');
         $pdf->SetXY($x + $labelW, $y);
         $first = true;
-        foreach ($pairs as [$label, $val]) {
+        foreach ($pairs as [$itemLabel, $val]) {
             if (!$first) {
                 $pdf->SetFont('helvetica', '', 8.5);
                 $pdf->SetTextColor(148, 163, 184);
@@ -510,13 +548,25 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
             $first = false;
             $pdf->SetFont('helvetica', '', 8.5);
             $pdf->SetTextColor(11, 18, 32);
-            $pdf->Cell($pdf->GetStringWidth($label . ': ') + 0.2, 4.0, $label . ': ', 0, 0, 'L');
-            $green = $val === 'Yes';
+            $pdf->Cell($pdf->GetStringWidth($itemLabel . ': ') + 0.2, 4.0, $itemLabel . ': ', 0, 0, 'L');
+            [$r, $g, $b] = $colorFor($val);
             $pdf->SetFont('helvetica', 'B', 8.5);
-            $pdf->SetTextColor($green ? 5 : 220, $green ? 150 : 38, $green ? 105 : 38);
+            $pdf->SetTextColor($r, $g, $b);
             $pdf->Cell($pdf->GetStringWidth($val) + 0.2, 4.0, $val, 0, 0, 'L');
         }
         $y += 4.6;
+    };
+
+    // Peripheral presence — Yes = green, No = red.
+    $periphRow = function (string $value) use ($verdictRow): void {
+        $verdictRow('Presence', diag_peripherals_pairs($value), static function (string $v): array {
+            return $v === 'Yes' ? [5, 150, 105] : [220, 38, 38];
+        });
+    };
+
+    // Chassis power/thermal/security states, colour-coded per value.
+    $chassisRow = function (string $value) use ($verdictRow): void {
+        $verdictRow('Chassis state', diag_chassis_state_pairs($value), 'diag_chassis_state_color');
     };
 
     $sub('PROCESSOR');
@@ -573,10 +623,7 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $row('System version', trim((string)($d['system_version'] ?? '')));
     $row('Board version', trim((string)($d['board_version'] ?? '')));
     $row('Chassis lock', trim((string)($d['chassis_lock'] ?? '')));
-    $row('Chassis state', trim((string)($d['chassis_state'] ?? '')));
-
-    $sub('OEM STRINGS');
-    $list('Strings', $semicolon((string)($d['oem_strings'] ?? '')));
+    $chassisRow((string)($d['chassis_state'] ?? ''));
 }
 
 /**
