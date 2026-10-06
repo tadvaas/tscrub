@@ -50,6 +50,11 @@ first. Tick items off as they ship and note the release that carries each.
       the key lives in `HP_OA3-<GUID>` in plaintext and is replaced in place; the
       worker is vendor-agnostic (locates the variable by content). Notes in
       `research/dpk-injection/oa3-uefi-injection.md`.
+      → **Removed in v1.11.2** (2026-10-05): firmware re-injection is only
+      possible on blank service boards — not a standard ITAD workflow — so the
+      appliance worker, API endpoints and dashboard card were removed; the
+      dashboard still *surfaces* the embedded key. The two sub-items below are
+      therefore cancelled.
   - [x] **Unlock locked OA3** — resolved: `HP_OA3_LOCK` is a **permanent one-way
         commit flag** set by HP factory/service tools (DMI Utility / MPM /
         NbDmiKit) after the key is programmed. Once set, the MSDM table + DMI
@@ -58,12 +63,15 @@ first. Tick items off as they ship and note the release that carries each.
         it. Only a blank/uncommitted service board (`HP_OA3_LOCK=0`) is
         firmware-injectable; committed boards use OS-level activation
         (`PID.txt` / `unattend.xml` / `slmgr`).
-  - [ ] **Fresh-table injection** — a blank/uncommitted board (`HP_OA3_LOCK=0`)
-        with no key needs the vendor variable name/GUID + structure to create it
-        from scratch (only HP mapped so far).
-  - [ ] **Dell/Lenovo verification** — confirm the key sits contiguously in a
-        UEFI variable on other vendors (content-scan is vendor-agnostic but
-        unverified beyond HP).
+  - [x] ~~**Fresh-table injection**~~ — a blank/uncommitted board
+        (`HP_OA3_LOCK=0`) with no key needs the vendor variable name/GUID +
+        structure to create it from scratch. **Cancelled (2026-10-06)** with the
+        v1.11.2 removal of product-key injection — blank-board injection is not
+        a standard ITAD workflow.
+  - [x] ~~**Dell/Lenovo verification**~~ — confirm the key sits contiguously in
+        a UEFI variable on other vendors (content-scan is vendor-agnostic but
+        unverified beyond HP). **Cancelled (2026-10-06)** with the v1.11.2
+        removal of product-key injection.
 
 ## 3. Robustness & ops
 
