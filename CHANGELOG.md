@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.13] - 2026-10-06
+
+### Changed
+
+- **Diagnostics report: readable USB devices** — the USB list no longer shows
+  the machine's own USB host controllers (Linux Foundation root hubs, `1d6b:*`,
+  and any "… Host Controller" entries), drops the placeholder "Generic"
+  manufacturer, and resolves bare `vendor:product` IDs (e.g. Intel Bluetooth
+  `8087:0a2b`) to a friendly name via the appliance's `usb.ids` database. The
+  raw list is still kept in the report JSON.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.13_2025.11_30_x86-64_v0.41_20261006-b5ee92b9.iso`
+  (166 MB) sha256 `dc7ce6dd4f53555d73535d83ec05f0470e22a454daac19ee6641c5baaae7340f`.
+- Standalone script `tscrub.sh` (v1.11.13) sha256 `83b6421998c847fcfb216db65db07a59dc57e8f67b3acc043f82051851592142`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `7625a220893598f9f56fcf40b7a5384d956a1ad516a239e841b93f355e05d0ec`.
+
 ## [v1.11.12] - 2026-10-06
 
 ### Changed
