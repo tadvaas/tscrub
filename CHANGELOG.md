@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.12] - 2026-10-06
+
+### Changed
+
+- **Diagnostics report: virtual NICs skipped** — the network-interfaces list
+  (appliance capture + PDF) no longer includes loopback/tunnel/software
+  interfaces (`lo`, `sit0`, `tun`/`tap`, `veth`, bridges, bonds, docker, …);
+  only physical, hardware-backed NICs are shown.
+- **Diagnostics report: readable PCI devices** — the PDF's PCI list is now a
+  concise "Class: Vendor Device" per meaningful device (e.g. `Audio device:
+  Intel Sunrise Point-LP HD Audio`) instead of the raw `lspci` line; chipset
+  glue (host/PCI/ISA bridges, SMBus, thermal/I2C/HECI/PMC controllers) is
+  dropped, and vendor suffixes (`Corporation`, `Inc.`, `Ltd.`, …) and revision
+  markers are removed. The raw list is still kept in the report JSON.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.12_2025.11_30_x86-64_v0.41_20261006-1b68065b.iso`
+  (166 MB) sha256 `bc25d81ea961647211755595addfb025e0dc0a9a6708fd53f999b72c05dc8b2e`.
+- Standalone script `tscrub.sh` (v1.11.12) sha256 `6767f6e551345b7cc4c7677c60d3a8febbe14786610d442f6f3483560715fca7`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `3b3ef41951139cdb600d852b03d5dc4960d247b0599a0c0893c3c5b23ad7a179`.
+
 ## [v1.11.11] - 2026-10-06
 
 ### Fixed
