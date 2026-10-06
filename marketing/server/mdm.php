@@ -799,9 +799,13 @@ function mdm_purge_serial(string $token, string $serial): void {
 }
 
 /**
- * Store a WinPE-captured authoritative hash, keyed by serial. One hash per
- * (user, serial, uuid); a new capture of the SAME device (serial + uuid)
- * overwrites the previous one, while the same serial with a different uuid is
+ * Store a hardware hash for a device. Ownership is per (user, serial, uuid):
+ * a null $userId stages into the GLOBAL unassigned pool (one row per device,
+ * claimed later by a diagnostics report), while a non-null $userId stages an
+ * owned row for that account — so a second account can hold its own hash for a
+ * device another account already owns. A new capture of the SAME (user, serial,
+ * uuid) overwrites the previous row (the unique key is owner_key/serial/uuid,
+ * owner_key = COALESCE(user_id, 0)); the same serial with a different uuid is
  * a distinct device. The hash is kept after the check so the device can be
  * re-probed later (e.g. "was it removed from MDM?"). The hash MUST be the
  * oa3tool output — a generated base hash can't match an enrolled device
@@ -813,7 +817,6 @@ function mdm_stage_hash(?int $userId, string $serial, string $uuid, string $mode
             'INSERT INTO mdm_staged_hash (user_id, serial, uuid, model, hardware_identifier)
              VALUES (?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
-               user_id = COALESCE(user_id, VALUES(user_id)),
                model = VALUES(model),
                hardware_identifier = VALUES(hardware_identifier),
                created_at = UTC_TIMESTAMP()'
@@ -1239,22 +1242,26 @@ function mdm_ensure_schema(): void {
             'CREATE TABLE IF NOT EXISTS mdm_staged_hash (
                id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                user_id             BIGINT UNSIGNED NULL,
+               owner_key           BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) STORED,
                serial              VARCHAR(255)    NOT NULL DEFAULT "",
                uuid                VARCHAR(64)     NOT NULL DEFAULT "",
                model               VARCHAR(255)    NOT NULL DEFAULT "",
                hardware_identifier TEXT            NOT NULL,
                created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
                PRIMARY KEY (id),
-               UNIQUE KEY uq_mdm_staged_device (serial, uuid),
+               UNIQUE KEY uq_mdm_staged_device (owner_key, serial, uuid),
                KEY idx_mdm_staged_user (user_id),
                CONSTRAINT fk_mdm_staged_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
-        // Existing-table migration: a staged hash is now a GLOBAL unassigned pool
-        // (keyed by serial+uuid; user_id NULL until a diagnostics report claims
-        // the device). MySQL 8 has no ALTER ... IF EXISTS, so probe first. The FK
-        // keeps an index via idx_mdm_staged_user once the per-user unique key is
-        // replaced.
+        // Existing-table migration: hashes are owned per (user, serial, uuid),
+        // with the unassigned WinPE pool (user_id NULL) sharing one row per
+        // device via owner_key = COALESCE(user_id, 0). MySQL 8 has no
+        // ALTER ... IF EXISTS, so probe first. The unique key must move from any
+        // legacy per-user (user_id, …) or global (serial, uuid) form to
+        // (owner_key, serial, uuid) — the global form is what caused the
+        // cross-account "no hash" bug (a second account's stage folded into the
+        // first account's row and clobbered its hash).
         $hashUserIdx = (int)db()->query(
             "SELECT COUNT(*) FROM information_schema.STATISTICS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
@@ -1263,14 +1270,6 @@ function mdm_ensure_schema(): void {
         if ($hashUserIdx === 0) {
             db()->exec('ALTER TABLE mdm_staged_hash ADD KEY idx_mdm_staged_user (user_id)');
         }
-        $hashUqHasUser = (int)db()->query(
-            "SELECT COUNT(*) FROM information_schema.STATISTICS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
-               AND INDEX_NAME = 'uq_mdm_staged_device' AND COLUMN_NAME = 'user_id'"
-        )->fetchColumn();
-        if ($hashUqHasUser > 0) {
-            db()->exec('ALTER TABLE mdm_staged_hash DROP INDEX uq_mdm_staged_device');
-        }
         $hashNullable = db()->query(
             "SELECT IS_NULLABLE FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash' AND COLUMN_NAME = 'user_id'"
@@ -1278,13 +1277,30 @@ function mdm_ensure_schema(): void {
         if ($hashNullable !== 'YES') {
             db()->exec('ALTER TABLE mdm_staged_hash MODIFY user_id BIGINT UNSIGNED NULL');
         }
-        $hashUq = (int)db()->query(
-            "SELECT COUNT(*) FROM information_schema.STATISTICS
+        $hasOwnerKey = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash' AND COLUMN_NAME = 'owner_key'"
+        )->fetchColumn();
+        if ($hasOwnerKey === 0) {
+            db()->exec('ALTER TABLE mdm_staged_hash ADD COLUMN owner_key BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) STORED');
+        }
+        // Drop any uq_mdm_staged_device that is not the per-user key
+        // (legacy (user_id, serial, uuid) or global (serial, uuid)).
+        $uqCols = (string)db()->query(
+            "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
                AND INDEX_NAME = 'uq_mdm_staged_device'"
         )->fetchColumn();
+        if ($uqCols !== '' && $uqCols !== 'owner_key,serial,uuid') {
+            db()->exec('ALTER TABLE mdm_staged_hash DROP INDEX uq_mdm_staged_device');
+        }
+        $hashUq = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash'
+               AND INDEX_NAME = 'uq_mdm_staged_device' AND COLUMN_NAME = 'owner_key'"
+        )->fetchColumn();
         if ($hashUq === 0) {
-            db()->exec('ALTER TABLE mdm_staged_hash ADD UNIQUE KEY uq_mdm_staged_device (serial, uuid)');
+            db()->exec('ALTER TABLE mdm_staged_hash ADD UNIQUE KEY uq_mdm_staged_device (owner_key, serial, uuid)');
         }
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_jobs (

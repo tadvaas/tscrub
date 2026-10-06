@@ -260,18 +260,24 @@ CREATE TABLE IF NOT EXISTS mdm_log (
 -- Windows Autopilot MDM captured hash (POST /api/mdm/hash). Holds the
 -- WinPE-captured authoritative oa3tool hash for a device; one row per
 -- (user, serial, uuid), kept after the check so the device can be re-probed.
--- A re-capture of the same device (serial + uuid) overwrites the row; the same
--- serial with a different uuid is a distinct device.
+-- owner_key = COALESCE(user_id, 0): the unassigned pool (user_id NULL) is one
+-- row per device, and each account owns its own row — a second account adding
+-- a device another account owns gets its own hash instead of clobbering the
+-- first account's. A re-capture of the same device (serial + uuid) by the same
+-- owner overwrites the row; the same serial with a different uuid is a
+-- distinct device.
 CREATE TABLE IF NOT EXISTS mdm_staged_hash (
   id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id             BIGINT UNSIGNED NOT NULL,
+  user_id             BIGINT UNSIGNED NULL,
+  owner_key           BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) STORED,
   serial              VARCHAR(255)    NOT NULL DEFAULT '',
   uuid                VARCHAR(64)     NOT NULL DEFAULT '',
   model               VARCHAR(255)    NOT NULL DEFAULT '',
   hardware_identifier TEXT            NOT NULL,
   created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_mdm_staged_device (user_id, serial, uuid),
+  UNIQUE KEY uq_mdm_staged_device (owner_key, serial, uuid),
+  KEY idx_mdm_staged_user (user_id),
   CONSTRAINT fk_mdm_staged_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
