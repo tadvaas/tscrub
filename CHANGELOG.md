@@ -6,6 +6,37 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.11] - 2026-10-06
+
+### Fixed
+
+- **PCI devices / GPU / Wi-Fi / storage controllers reported empty** — `lspci`
+  is dynamically linked against `libpci.so.3`, but that library never landed in
+  the appliance image, so every `lspci`-based field (the new full PCI list and
+  the pre-existing GPU, Wi-Fi, storage-controller, VMD and RAID-HBA detection)
+  silently failed at boot with "error while loading shared libraries". The
+  library is now shipped in the rootfs overlay, and `hardware::pci` additionally
+  falls back to `/sys/bus/pci/devices` so PCI is never silently "N/A" even on an
+  image without it.
+- **Webcam / audio always reported absent** — peripheral detection checked only
+  `/dev/video*` (uvcvideo) and `/proc/asound/cards` (ALSA), neither of which
+  exists on the minimal image. Webcam presence is now also detected from the USB
+  video class (`bInterfaceClass 0x0e`) or a camera-named product, and audio from
+  a PCI multimedia class (`0x04xx`) or USB audio class (`0x01`).
+
+### Changed
+
+- The peripherals `audio` value is now a presence flag (`0`/`1`) instead of a
+  codec count; the diagnostics PDF and the Devices-tab modal both render it as
+  "Audio: Yes/No".
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.11_2025.11_30_x86-64_v0.41_20261006-4ac81f4b.iso`
+  (166 MB) sha256 `8d0719be2696a2fdfe8a81408072a4e5981b164aed157662c74ea4ab81aa01b8`.
+- Standalone script `tscrub.sh` (v1.11.11) sha256 `17c5814c8767e5426a83e504445da70be3c6eb9b858fbdd11e484843bb92e01e`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `358a70b73692ae91b76627926a17d8f184707552c0d77a470d08e2e2ccb82e43`.
+
 ## [v1.11.10] - 2026-10-05
 
 ### Added

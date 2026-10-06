@@ -29,6 +29,19 @@ t::assert_eq "N/A" "$SYS_USB_LIST" "usb: no devices -> N/A"
 hardware::pci
 t::assert_contains "$SYS_PCI_LIST" "Fake GPU" "pci: full lspci list captured"
 
+# sysfs fallback when lspci is broken (e.g. missing libpci.so.3).
+mkdir -p "$tmpdir/pci/0000:00:02.0" "$tmpdir/pci/0000:00:1f.3"
+printf '0x030000' > "$tmpdir/pci/0000:00:02.0/class"
+printf '0x8086' > "$tmpdir/pci/0000:00:02.0/vendor"
+printf '0x1912' > "$tmpdir/pci/0000:00:02.0/device"
+printf '0x040300' > "$tmpdir/pci/0000:00:1f.3/class"
+printf '0x8086' > "$tmpdir/pci/0000:00:1f.3/vendor"
+printf '0xa170' > "$tmpdir/pci/0000:00:1f.3/device"
+FAKE_LSPCI_BROKEN=1 SYS_PCI_DIR="$tmpdir/pci" hardware::pci
+t::assert_eq "0000:00:02.0 [030000] Display 8086:1912"$'\n'"0000:00:1f.3 [040300] Multimedia 8086:a170" \
+    "$SYS_PCI_LIST" "pci: sysfs fallback when lspci broken"
+unset FAKE_LSPCI_BROKEN
+
 # --- hardware::smbios (fake dmidecode full dump) ----------------------------
 hardware::smbios
 t::assert_contains "$SYS_SMBIOS_RAW" "BIOS Information" "smbios: full dump captured"
@@ -60,21 +73,36 @@ SYS_EFIVARS_DIR="$tmpdir/no-efi" hardware::uefi_boot
 t::assert_eq "N/A" "$SYS_UEFI_BOOT" "uefi: no efivars -> N/A"
 
 # --- hardware::peripherals ---------------------------------------------------
+mkdir -p "$tmpdir/no-usb" "$tmpdir/no-pci"
 printf 'I: Bus=0003 Vendor=04d9 Product=1702 Version=0110\nN: Name="HID 04d9:1702"\n' > "$tmpdir/input"
 printf ' 0 [HDMI      ]: HDA-Intel - HDA Intel PCH\n 1 [PCH       ]: HDA-Intel - HDA PCH\n' > "$tmpdir/asound"
 touch "$tmpdir/video0"
 SYS_INPUT_DEVICES_FILE="$tmpdir/input" SYS_ASOUND_CARDS_FILE="$tmpdir/asound" \
-SYS_VIDEO_GLOB="$tmpdir/video0" SYS_IIO_DIR="$tmpdir/no-iio" hardware::peripherals
-t::assert_eq "webcam:1; touchscreen:0; fingerprint:0; accelerometer:0; audio:2" \
-    "$SYS_PERIPHERALS" "peripherals: webcam + 2 audio codecs, no touch/fp/accel"
+SYS_VIDEO_GLOB="$tmpdir/video0" SYS_IIO_DIR="$tmpdir/no-iio" \
+SYS_USB_DIR="$tmpdir/no-usb" SYS_PCI_DIR="$tmpdir/no-pci" hardware::peripherals
+t::assert_eq "webcam:1; touchscreen:0; fingerprint:0; accelerometer:0; audio:1" \
+    "$SYS_PERIPHERALS" "peripherals: webcam node + audio ALSA, no touch/fp/accel"
 
 printf 'N: Name="Goodix Touchscreen"\n' >> "$tmpdir/input"
 printf 'N: Name="SYNA8004 Fingerprint"\n' >> "$tmpdir/input"
 mkdir -p "$tmpdir/iio/device0"
 SYS_INPUT_DEVICES_FILE="$tmpdir/input" SYS_ASOUND_CARDS_FILE="$tmpdir/asound" \
-SYS_VIDEO_GLOB="$tmpdir/video0" SYS_IIO_DIR="$tmpdir/iio" hardware::peripherals
-t::assert_eq "webcam:1; touchscreen:1; fingerprint:1; accelerometer:1; audio:2" \
+SYS_VIDEO_GLOB="$tmpdir/video0" SYS_IIO_DIR="$tmpdir/iio" \
+SYS_USB_DIR="$tmpdir/no-usb" SYS_PCI_DIR="$tmpdir/no-pci" hardware::peripherals
+t::assert_eq "webcam:1; touchscreen:1; fingerprint:1; accelerometer:1; audio:1" \
     "$SYS_PERIPHERALS" "peripherals: touchscreen + fingerprint + accel detected"
+
+# Webcam via USB video interface class + audio via PCI class (no /dev/video, no ALSA).
+mkdir -p "$tmpdir/usb-cam/1-9/1-9:1.0" "$tmpdir/pci-audio/0000:00:1f.3"
+printf 'ef' > "$tmpdir/usb-cam/1-9/bDeviceClass"
+printf 'HP HD Camera' > "$tmpdir/usb-cam/1-9/product"
+printf '0e' > "$tmpdir/usb-cam/1-9/1-9:1.0/bInterfaceClass"
+printf '0x040300' > "$tmpdir/pci-audio/0000:00:1f.3/class"
+SYS_INPUT_DEVICES_FILE="$tmpdir/no-input" SYS_ASOUND_CARDS_FILE="$tmpdir/no-asound" \
+SYS_VIDEO_GLOB="$tmpdir/no-video*" SYS_IIO_DIR="$tmpdir/no-iio" \
+SYS_USB_DIR="$tmpdir/usb-cam" SYS_PCI_DIR="$tmpdir/pci-audio" hardware::peripherals
+t::assert_eq "webcam:1; touchscreen:0; fingerprint:0; accelerometer:0; audio:1" \
+    "$SYS_PERIPHERALS" "peripherals: webcam via USB iface class + audio via PCI class"
 
 # --- hardware::lockdown (derived from per-drive state) -----------------------
 devices=(sda nvme0n1)

@@ -14,6 +14,7 @@
 
 # --- configuration / test overrides ------------------------------------------
 SYS_USB_DIR="${SYS_USB_DIR:-/sys/bus/usb/devices}"
+SYS_PCI_DIR="${SYS_PCI_DIR:-/sys/bus/pci/devices}"
 SYS_NET_DIR="${SYS_NET_DIR:-/sys/class/net}"
 SYS_EFIVARS_DIR="${SYS_EFIVARS_DIR:-/sys/firmware/efi/efivars}"
 SYS_IIO_DIR="${SYS_IIO_DIR:-/sys/bus/iio/devices}"
@@ -55,15 +56,58 @@ hardware::usb() {
     SYS_USB_LIST="${list:-N/A}"
 }
 
-# Full PCI device list (lspci -nn), one line per function.
+# PCI base class (first byte of the 24-bit class code) -> human label. Used by
+# the sysfs fallback so a numeric-only dump still reads as an asset record.
+hardware::_pci_class_name() {
+    case "${1:-}" in
+        00*) echo "Unclassified" ;;
+        01*) echo "Mass storage" ;;
+        02*) echo "Network" ;;
+        03*) echo "Display" ;;
+        04*) echo "Multimedia" ;;
+        05*) echo "Memory" ;;
+        06*) echo "Bridge" ;;
+        07*) echo "Communication" ;;
+        08*) echo "System peripheral" ;;
+        09*) echo "Input" ;;
+        0a*) echo "Docking" ;;
+        0b*) echo "Processor" ;;
+        0c*) echo "Serial bus" ;;
+        0d*) echo "Wireless" ;;
+        0e*) echo "Intelligent controller" ;;
+        0f*) echo "Satellite comm" ;;
+        10*) echo "Crypto" ;;
+        11*) echo "Signal processing" ;;
+        12*) echo "Processing accelerator" ;;
+        *)   echo "Other" ;;
+    esac
+}
+
+# Full PCI device list (lspci -nn), one line per function. Falls back to sysfs
+# when lspci is missing or broken (e.g. the image lacks libpci.so.3), so PCI is
+# never silently "N/A" on a machine that actually has a bus.
 hardware::pci() {
-    local line list=""
+    local line list="" d loc cls ven dev
     if command -v lspci >/dev/null 2>&1; then
         while IFS= read -r line || [[ -n "$line" ]]; do
             [[ -n "$line" ]] || continue
             line="$(hardware::_clean "$line")"
             list="${list}${list:+$'\n'}${line}"
         done < <(lspci -nn 2>/dev/null)
+    fi
+    if [[ -z "$list" ]]; then
+        for d in "$SYS_PCI_DIR"/*/; do
+            [[ -r "${d}class" ]] || continue
+            loc="$(basename "$d")"
+            cls="$(tr -d '\n' < "${d}class" 2>/dev/null)"
+            [[ -n "$cls" ]] || continue
+            ven="$(tr -d '\n' < "${d}vendor" 2>/dev/null)"
+            dev="$(tr -d '\n' < "${d}device" 2>/dev/null)"
+            line="$loc [${cls#0x}] $(hardware::_pci_class_name "${cls#0x}")"
+            [[ -n "$ven" && -n "$dev" ]] && line+="  ${ven#0x}:${dev#0x}"
+            line="$(hardware::_clean "$line")"
+            list="${list}${list:+$'\n'}${line}"
+        done
     fi
     SYS_PCI_LIST="${list:-N/A}"
 }
@@ -115,17 +159,54 @@ hardware::uefi_boot() {
 }
 
 # Peripheral presence (grading signals): webcam, touchscreen, fingerprint,
-# accelerometer, and the number of audio codecs.
+# accelerometer, audio. Webcam/audio are detected from the USB/PCI bus because
+# the minimal image ships no uvcvideo (no /dev/video*) and no ALSA
+# (/proc/asound may be absent), so device-node checks alone under-report them.
 hardware::peripherals() {
-    local webcam=0 touch=0 fp=0 accel=0 audio_n=0
+    local webcam=0 touch=0 fp=0 accel=0 audio=0 d cls iface prod n
+    # Webcam: /dev/video* (uvcvideo), or a USB video class (0x0e) interface/
+    # device, or a camera-named product.
     [[ -n "$(ls $SYS_VIDEO_GLOB 2>/dev/null)" ]] && webcam=1
+    if [[ "$webcam" -eq 0 ]]; then
+        for d in "$SYS_USB_DIR"/*/; do
+            cls="$(tr -d '\n' < "${d}bDeviceClass" 2>/dev/null)"
+            [[ "$cls" == "0e" ]] && { webcam=1; break; }
+            for iface in "$d"*/bInterfaceClass; do
+                [[ -e "$iface" ]] || continue
+                [[ "$(tr -d '\n' < "$iface" 2>/dev/null)" == "0e" ]] && { webcam=1; break 2; }
+            done
+            prod="$(tr -d '\n' < "${d}product" 2>/dev/null)"
+            grep -qiE 'camera|webcam' <<< "$prod" && { webcam=1; break; }
+        done
+    fi
+
     grep -qi 'touchscreen' "$SYS_INPUT_DEVICES_FILE" 2>/dev/null && touch=1
     grep -qiE 'fingerprint|fprint' "$SYS_INPUT_DEVICES_FILE" 2>/dev/null && fp=1
     [[ -n "$(ls "$SYS_IIO_DIR" 2>/dev/null)" ]] && accel=1
-    audio_n="$(grep -cE '^[[:space:]]*[0-9]+ ' "$SYS_ASOUND_CARDS_FILE" 2>/dev/null)"
-    [[ "$audio_n" =~ ^[0-9]+$ ]] || audio_n=0
 
-    SYS_PERIPHERALS="webcam:$webcam; touchscreen:$touch; fingerprint:$fp; accelerometer:$accel; audio:$audio_n"
+    # Audio: ALSA codec count, or a PCI multimedia/audio class (0x04xx), or a
+    # USB audio class (0x01) interface/device.
+    n="$(grep -cE '^[[:space:]]*[0-9]+ ' "$SYS_ASOUND_CARDS_FILE" 2>/dev/null)"
+    [[ "$n" =~ ^[0-9]+$ ]] || n=0
+    [[ "$n" -gt 0 ]] && audio=1
+    if [[ "$audio" -eq 0 ]]; then
+        for d in "$SYS_PCI_DIR"/*/; do
+            cls="$(tr -d '\n' < "${d}class" 2>/dev/null)"
+            [[ "${cls:0:4}" == "0x04" ]] && { audio=1; break; }
+        done
+    fi
+    if [[ "$audio" -eq 0 ]]; then
+        for d in "$SYS_USB_DIR"/*/; do
+            cls="$(tr -d '\n' < "${d}bDeviceClass" 2>/dev/null)"
+            [[ "$cls" == "01" ]] && { audio=1; break; }
+            for iface in "$d"*/bInterfaceClass; do
+                [[ -e "$iface" ]] || continue
+                [[ "$(tr -d '\n' < "$iface" 2>/dev/null)" == "01" ]] && { audio=1; break 2; }
+            done
+        done
+    fi
+
+    SYS_PERIPHERALS="webcam:$webcam; touchscreen:$touch; fingerprint:$fp; accelerometer:$accel; audio:$audio"
 }
 
 # Derived "BIOS lockdown suspected" flag: any drive that is SED-locked (OPAL

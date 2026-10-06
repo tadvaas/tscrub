@@ -29,7 +29,7 @@ t::setup_env() {
           FAKE_SEDUTIL_REVERT_RC FAKE_SEDUTIL_INITIALSETUP_RC \
           FAKE_NWIPE_RC FAKE_SG_SANITIZE_RC FAKE_SG_SANITIZE_OUT \
           FAKE_SG_OPCODES_SUPPORTED FAKE_MDADM_MEMBER \
-          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA 2>/dev/null || true
+          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA FAKE_LSPCI_BROKEN 2>/dev/null || true
 }
 
 # Source the production functions without executing the entrypoint.

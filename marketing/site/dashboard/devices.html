@@ -644,12 +644,11 @@
             if (p.length === 2) map[p[0].trim()] = p[1].trim();
           });
           var out = [];
-          ['webcam', 'touchscreen', 'fingerprint', 'accelerometer'].forEach(function (k) {
+          ['webcam', 'touchscreen', 'fingerprint', 'accelerometer', 'audio'].forEach(function (k) {
             var cap = k.charAt(0).toUpperCase() + k.slice(1);
             if (map[k] === '1') out.push([cap, 'Yes']);
             else if (map[k] === '0') out.push([cap, 'No']);
           });
-          if (map.audio !== undefined) out.push(['Audio codecs', map.audio]);
           return out;
         }
 

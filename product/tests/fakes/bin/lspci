@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [[ "${FAKE_LSPCI_BROKEN:-}" == "1" ]]; then
+    printf 'lspci: error while loading shared libraries: libpci.so.3: cannot open shared object file\n' >&2
+    exit 127
+fi
 printf '01:00.0 VGA compatible controller: Fake GPU\n'
 if [[ "${FAKE_LSPCI_VMD:-}" == "1" ]]; then
     printf '00:0e.0 RAID bus controller: Intel Corporation Volume Management Device NVMe RAID Controller\n'

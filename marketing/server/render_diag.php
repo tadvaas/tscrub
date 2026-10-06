@@ -270,11 +270,10 @@ function diag_peripherals_human(string $s): string {
         if (count($p) === 2) $map[trim($p[0])] = trim($p[1]);
     }
     $parts = [];
-    foreach (['webcam' => 'Webcam', 'touchscreen' => 'Touchscreen', 'fingerprint' => 'Fingerprint', 'accelerometer' => 'Accelerometer'] as $k => $label) {
+    foreach (['webcam' => 'Webcam', 'touchscreen' => 'Touchscreen', 'fingerprint' => 'Fingerprint', 'accelerometer' => 'Accelerometer', 'audio' => 'Audio'] as $k => $label) {
         if (($map[$k] ?? '') === '1')      $parts[] = $label . ': Yes';
         elseif (($map[$k] ?? '') === '0')  $parts[] = $label . ': No';
     }
-    if (($map['audio'] ?? '') !== '' && ($map['audio'] ?? '') !== '0') $parts[] = 'Audio codecs: ' . $map['audio'];
     return implode('  ·  ', $parts);
 }
 
