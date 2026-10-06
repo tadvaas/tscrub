@@ -6,11 +6,16 @@
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/certifier.php';
+require_once __DIR__ . '/jsonld.php';
 
 $cert = strtoupper(trim((string)($_GET['cert'] ?? '')));
+$format = strtolower(trim((string)($_GET['format'] ?? '')));
+if ($format !== 'jsonld' && $format !== 'json') { $format = ''; }
 $isValidId = (preg_match('/^COD-[A-Z0-9-]{6,}$/', $cert) === 1);
 
 $record = null;
+$certRow = null;
 $recordTier = 'free';
 $dbError = false;
 if ($isValidId) {
@@ -19,6 +24,7 @@ if ($isValidId) {
         $stmt->execute([$cert]);
         $row = $stmt->fetch();
         if ($row !== false) {
+            $certRow = $row;
             $rq = db()->prepare('SELECT report_name AS name, sha256 AS sha, state FROM certificate_reports WHERE certificate_id = ? ORDER BY id');
             $rq->execute([(int)$row['id']]);
             $record = [
@@ -51,6 +57,33 @@ if ($isValidId) {
         error_log('verify.php db error: ' . $e->getMessage());
         $dbError = true;
     }
+}
+
+// Machine-readable output: /verify?cert=…&format=jsonld (or format=json).
+// JSON-LD is valid JSON, so both formats serve the same signed document.
+if ($format !== '') {
+    if ($certRow === null) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Access-Control-Allow-Origin: *');
+        echo json_encode(['ok' => false, 'error' => 'Certificate not found.'], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    certs_ensure_schema();
+    $data = jsonld_ensure_cert($certRow);
+    if ($data === null) {
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Access-Control-Allow-Origin: *');
+        echo json_encode(['ok' => false, 'error' => 'Machine-readable certificate unavailable.'], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    header('Content-Type: ' . ($format === 'jsonld' ? 'application/ld+json' : 'application/json') . '; charset=utf-8');
+    header('Access-Control-Allow-Origin: *');
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
+    echo $data['json'];
+    exit;
 }
 
 function v_ts($ts) {
@@ -157,6 +190,7 @@ if ($found) {
       <tr><th>Integrity</th><td><?= v_h(v_sha_state($record['sha_state'] ?? 'unverified')) ?></td></tr>
       <tr><th>Signature</th><td><?= $recordTier === 'free' ? 'Self-signed — not attributable' : v_h(v_sig_state($record['sig_state'] ?? 'none')) ?></td></tr>
       <tr><th>Document hash (SHA-256)</th><td><code><?= v_h($record['pdf_sha256'] ?? '') ?></code></td></tr>
+      <tr><th>Machine-readable</th><td><a href="/verify?cert=<?= v_h(urlencode($record['cert'] ?? $cert)) ?>&amp;format=jsonld">Signed JSON-LD certificate</a></td></tr>
     </table>
     <?php if (!empty($record['reports'])): ?>
     <div class="reports">

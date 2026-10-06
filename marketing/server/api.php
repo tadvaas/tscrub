@@ -47,6 +47,8 @@ require_once __DIR__ . '/mdm.php';
 require_once __DIR__ . '/bios_unlock.php';
 require_once __DIR__ . '/remote.php';
 require_once __DIR__ . '/org.php';
+require_once __DIR__ . '/certifier.php';
+require_once __DIR__ . '/jsonld.php';
 
 auth_start();
 
@@ -67,13 +69,6 @@ function route_segments(string $route): array {
 function fetch_user_by_email(string $email): ?array {
     $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
     $stmt->execute([$email]);
-    $u = $stmt->fetch();
-    return $u === false ? null : $u;
-}
-
-function fetch_user_by_id(int $id): ?array {
-    $stmt = db()->prepare('SELECT * FROM users WHERE id = ?');
-    $stmt->execute([$id]);
     $u = $stmt->fetch();
     return $u === false ? null : $u;
 }
@@ -126,6 +121,8 @@ function cert_row(array $c): array {
         'pdf_sha256' => (string)$c['pdf_sha256'],
         'pdf_path'   => (string)($c['pdf_path'] ?? ''),
         'has_pdf'    => (($c['pdf_path'] ?? '') !== ''),
+        'has_json'   => (($c['json_path'] ?? '') !== ''),
+        'json_url'   => '/verify?cert=' . urlencode((string)$c['cert_id']) . '&format=jsonld',
         'issued'     => (string)$c['issued_at'],
         'user_id'    => $c['user_id'] === null ? null : (int)$c['user_id'],
     ];
@@ -166,82 +163,13 @@ function owner_tier(int $userId): string {
 }
 
 /**
- * Build the certificate's certifier block from the user's profile. The company
- * name (when set) is the certifying party, falling back to the individual's
- * name; registration/address/phone appear whenever entered. tScrub is named
- * separately on the certificate as the tool provider, not the certifier.
- */
-function certifier_details(array $u): array {
-    $name = (string)($u['company_name'] ?? '');
-    if ($name === '') { $name = (string)($u['name'] ?? ''); }
-    if ($name === '') { $name = (string)($u['email'] ?? ''); }
-
-    $reg = (($u['company_reg'] ?? '') !== '') ? 'Company No. ' . $u['company_reg'] : '';
-
-    $addr = [];
-    if (($u['addr_line1'] ?? '') !== '') { $addr[] = $u['addr_line1']; }
-    if (($u['addr_line2'] ?? '') !== '') { $addr[] = $u['addr_line2']; }
-    $cityLine = trim(implode(' ', array_filter([($u['city'] ?? ''), ($u['postcode'] ?? '')])));
-    if ($cityLine !== '') { $addr[] = $cityLine; }
-    if (($u['country'] ?? '') !== '') { $addr[] = $u['country']; }
-
-    return [
-        'name'  => $name,
-        'reg'   => $reg,
-        'addr'  => implode(', ', $addr),
-        'phone' => (string)($u['phone'] ?? ''),
-    ];
-}
-
-/**
- * Certifier block for a user, with the organisation fallback: a member whose
- * profile has no company name certifies as the organisation (the owner's
- * company details) instead, so every operator's certificate names the same
- * legal certifying party.
- */
-function certifier_for_user(int $userId): array {
-    $u = fetch_user_by_id($userId) ?? [];
-    $details = certifier_details($u);
-    if ((string)($u['company_name'] ?? '') === '') {
-        $m = org_for_user($userId);
-        if ($m !== null && (int)$m['owner_user_id'] !== $userId) {
-            $owner = fetch_user_by_id((int)$m['owner_user_id']);
-            if ($owner !== null && (string)($owner['company_name'] ?? '') !== '') {
-                return certifier_details($owner);
-            }
-        }
-    }
-    return $details;
-}
-
-/** Treat the appliance's literal "N/A" sentinel (and blanks) as no value. */
-function norm_na(string $v): string {
-    $t = trim($v);
-    return ($t === '' || strcasecmp($t, 'N/A') === 0) ? '' : $t;
-}
-
-/**
- * Resolve the operator shown on a generated PDF: the report's own operator
- * when present (and not the "N/A" sentinel), otherwise the account holder's
- * name, falling back to their email.
- */
-function operator_for_pdf(array $g, int $userId): string {
-    $op = norm_na((string)($g['operator'] ?? ''));
-    if ($op !== '') return $op;
-    $actor = fetch_user_by_id($userId);
-    if ($actor === null) return '';
-    return trim((string)($actor['name'] ?? '')) !== ''
-        ? trim((string)$actor['name'])
-        : trim((string)($actor['email'] ?? ''));
-}
-
-/**
  * Upsert a consolidated certificate from a parsed report group (one COCID).
  * Merges into the existing certificate when one already exists for that COCID.
  * Returns the certificate row (cert_row shape).
  */
 function generate_certificate(array $g, int $userId, bool $canSign, array $destroyed = []): array {
     require_once __DIR__ . '/render_cert.php';
+    certs_ensure_schema();
     $certifier = certifier_for_user($userId);
 
     // Operator strategy: the report's own operator when present, otherwise the
@@ -252,11 +180,34 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     if (!is_dir($pdfDir)) { @mkdir($pdfDir, 0775, true); }
 
     $cocid = (string)$g['cocid'];
+    $issuedAt = gmdate('Y-m-d H:i:s');
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
     $stmt = db()->prepare("SELECT * FROM certificates WHERE user_id IN ($ph) AND cocid = ? ORDER BY id DESC LIMIT 1");
     $stmt->execute(array_merge($ids, [$cocid]));
     $existing = $stmt->fetch();
+
+    // Build + sign + write the machine-readable JSON-LD beside the PDF, from
+    // the same rendered data. Returns ['path', 'sha', 'ts'] — path is '' when
+    // signing is unavailable, which must never block PDF issuance.
+    $writeJson = function (array $rendered, array $grp, string $certId) use ($certifier, $issuedAt): array {
+        $doc = build_cert_jsonld([
+            'cert'       => $certId,
+            'cocid'      => (string)$grp['cocid'],
+            'issued_at'  => $issuedAt,
+            'devices'    => (int)$rendered['devices'],
+            'methods'    => (int)$rendered['methods'],
+            'runs'       => (int)$rendered['runs'],
+            'first'      => $grp['first'] ?? null,
+            'last'       => $grp['last'] ?? null,
+            'sha_state'  => (string)$grp['shaState'],
+            'sig_state'  => (string)$grp['sigState'],
+            'pdf_sha256' => (string)$rendered['sha'],
+        ], $rendered['drives'], $grp['reports'], $certifier);
+        $signed = jsonld_sign_document($doc);
+        if ($signed === null) { return ['path' => '', 'sha' => '', 'ts' => 'none']; }
+        return ['path' => jsonld_write($signed['json'], $certId), 'sha' => $signed['sha256'], 'ts' => $signed['ts_state']];
+    };
 
     if ($existing !== false) {
         // One COCID = one consolidated cert: merge and re-render the same cert.
@@ -266,11 +217,12 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
+        $j = $writeJson($rendered, $merged, $certId);
 
         try {
             db()->beginTransaction();
             $stmt = db()->prepare(
-                'UPDATE certificates SET devices = ?, methods = ?, runs = ?, first_ts = ?, last_ts = ?, sha_state = ?, sig_state = ?, pdf_sha256 = ?, pdf_path = ?, issued_at = ? WHERE id = ?'
+                'UPDATE certificates SET devices = ?, methods = ?, runs = ?, first_ts = ?, last_ts = ?, sha_state = ?, sig_state = ?, pdf_sha256 = ?, pdf_path = ?, json_path = ?, json_sha256 = ?, json_ts_state = ?, issued_at = ? WHERE id = ?'
             );
             $stmt->execute([
                 (int)$rendered['devices'],
@@ -282,7 +234,10 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
                 (string)$merged['sigState'],
                 (string)$rendered['sha'],
                 $groupPath,
-                gmdate('Y-m-d H:i:s'),
+                (string)$j['path'],
+                (string)$j['sha'],
+                (string)$j['ts'],
+                $issuedAt,
                 (int)$existing['id'],
             ]);
             rewrite_certificate_details((int)$existing['id'], $merged['reports'], $rendered['drives']);
@@ -290,6 +245,7 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
         } catch (Throwable $e) {
             if (db()->inTransaction()) { db()->rollBack(); }
             @unlink($written);
+            if ($j['path'] !== '') { @unlink($pdfDir . '/' . $j['path']); }
             error_log('generate_certificate db error: ' . $e->getMessage());
             fail(500, 'Could not generate the certificate.');
         }
@@ -299,29 +255,34 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
+        $j = $writeJson($rendered, $g, $certId);
 
         $entry = [
-            'cert'      => $certId,
-            'cocid'     => $cocid,
-            'devices'   => $rendered['devices'],
-            'methods'   => $rendered['methods'],
-            'runs'      => $rendered['runs'],
-            'first'     => $g['first'],
-            'last'      => $g['last'],
-            'sha_state' => $g['shaState'],
-            'sig_state' => $g['sigState'],
-            'reports'   => $g['reports'],
-            'drives'    => $rendered['drives'],
-            'pdf_sha'   => $rendered['sha'],
-            'pdf_path'  => $groupPath,
+            'cert'       => $certId,
+            'cocid'      => $cocid,
+            'devices'    => $rendered['devices'],
+            'methods'    => $rendered['methods'],
+            'runs'       => $rendered['runs'],
+            'first'      => $g['first'],
+            'last'       => $g['last'],
+            'sha_state'  => $g['shaState'],
+            'sig_state'  => $g['sigState'],
+            'reports'    => $g['reports'],
+            'drives'     => $rendered['drives'],
+            'pdf_sha'    => $rendered['sha'],
+            'pdf_path'   => $groupPath,
+            'json_path'  => (string)$j['path'],
+            'json_sha256' => (string)$j['sha'],
+            'json_ts_state' => (string)$j['ts'],
         ];
         try {
             db()->beginTransaction();
-            insert_certificate_records([$entry], $userId, '', '', gmdate('Y-m-d H:i:s'));
+            insert_certificate_records([$entry], $userId, '', '', $issuedAt);
             db()->commit();
         } catch (Throwable $e) {
             if (db()->inTransaction()) { db()->rollBack(); }
             @unlink($written);
+            if ($j['path'] !== '') { @unlink($pdfDir . '/' . $j['path']); }
             error_log('generate_certificate db error: ' . $e->getMessage());
             fail(500, 'Could not generate the certificate.');
         }

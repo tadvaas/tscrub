@@ -11,6 +11,8 @@
   "vendor_key": "/home/oxwet/webs/tscrub-form/vendor.key",
   "download_url": "https://tscrub.com/download",
   "base_url": "https://tscrub.com",
+  "tsa_url": "https://freetsa.org/tsr",
+  "tsa_ca": "/home/oxwet/webs/tscrub-form/tsa-ca.pem",
   "secret_key": "REPLACE_WITH_64_HEX_CHARS",
   "mdm_ingest_key": "REPLACE_WITH_64_HEX_CHARS",
   "db": {

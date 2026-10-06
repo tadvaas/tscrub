@@ -338,7 +338,7 @@
           }
           var table = el('table', 'w-full border-collapse text-sm');
           var hr = el('tr');
-          ['Certificate ID', 'Chain of custody', 'Devices', 'Runs', 'Issued', 'PDF'].forEach(function (h) {
+          ['Certificate ID', 'Chain of custody', 'Devices', 'Runs', 'Issued', 'Files'].forEach(function (h) {
             hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
           });
           table.appendChild(hr);
@@ -356,6 +356,14 @@
               pdfTd.appendChild(dl);
             } else {
               pdfTd.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
+            }
+            if (c.has_json) {
+              if (c.has_pdf) { pdfTd.appendChild(document.createTextNode(' · ')); }
+              var jl = el('a', 'text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline', 'JSON');
+              jl.href = c.json_url;
+              jl.target = '_blank';
+              jl.rel = 'noopener';
+              pdfTd.appendChild(jl);
             }
             tr.appendChild(pdfTd);
             table.appendChild(tr);

@@ -1,0 +1,13 @@
+{
+  "schema": "tscrub-cert-key/1",
+  "kid": "tscrub-vendor-1",
+  "algorithm": "Ed25519",
+  "pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAbBDdsD4wQh7aoBRe890V8LcTOZNe6n6Cvh0AkrBA4B4=\n-----END PUBLIC KEY-----",
+  "fingerprint": "be81586c42b5fb2451f7691782c08376c2038d277e79710ff45294409b476c02",
+  "use": "machine-readable certificates of destruction (proof.verificationMethod)",
+  "verification": {
+    "signature": "Detached Ed25519 over the JCS (RFC 8785) canonical bytes of the document with the `proof` object removed; proof.signatureValue is base64url.",
+    "openssl": "openssl pkeyutl -verify -pubin -inkey <public.pem> -rawin -sigfile <signature.bin> -in <canonical.bin>",
+    "timestamp": "proof.timestamp.timestampToken is an RFC 3161 TimeStampResp (base64url) for the SHA-256 of the same canonical bytes; verify with: openssl ts -verify -data <canonical.bin> -in <token.der> -CAfile <tsa-ca.pem>"
+  }
+}

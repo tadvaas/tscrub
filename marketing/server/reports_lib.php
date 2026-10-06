@@ -456,8 +456,8 @@ function insert_certificate_records(array $entries, ?int $userId, string $pdfSha
     foreach ($entries as $entry) {
         $stmt = db()->prepare(
             'INSERT INTO certificates
-             (cert_id, cocid, user_id, devices, methods, runs, first_ts, last_ts, sha_state, sig_state, pdf_sha256, pdf_path, issued_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             (cert_id, cocid, user_id, devices, methods, runs, first_ts, last_ts, sha_state, sig_state, pdf_sha256, pdf_path, json_path, json_sha256, json_ts_state, issued_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $entry['cert'],
@@ -472,6 +472,9 @@ function insert_certificate_records(array $entries, ?int $userId, string $pdfSha
             (string)$entry['sig_state'],
             (string)($entry['pdf_sha'] ?? $pdfSha),
             (string)($entry['pdf_path'] ?? $pdfPath),
+            (string)($entry['json_path'] ?? ''),
+            (string)($entry['json_sha256'] ?? ''),
+            (string)($entry['json_ts_state'] ?? 'none'),
             $issuedAt,
         ]);
 
