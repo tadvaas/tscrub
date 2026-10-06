@@ -135,8 +135,13 @@ first. Tick items off as they ship and note the release that carries each.
 
 - [ ] Fleet wipe job queue — dashboard queues a wipe per serial; appliance polls.
       (§9.3)
-- [ ] Machine-readable certificates — signed JSON-LD beside the PDF for
+- [x] **Machine-readable certificates** — signed JSON-LD beside the PDF for
       AI/automated auditors. (§6)
+      → **Shipped 2026-10-06**: every certificate is also issued as a signed
+      JSON-LD document at `/verify?cert=…&format=jsonld` (detached Ed25519 over
+      JCS canonical bytes, RFC 3161 timestamp; public key at
+      `/.well-known/tscrub-cert-key.json`; dashboard "JSON" download link).
+      Plan: `research/machine-readable-certs/README.md`.
 - [ ] Multi-pass software overwrite — `--method <standard>` mapped to nwipe
       patterns (DoD 5220.22-M, Gutmann, HMG IS5, PRNG). (§9.2, §11.1)
 - [ ] eMMC/MMC media — add `mmcblk*` to discovery, erase via `blkdiscard`.
