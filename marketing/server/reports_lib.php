@@ -1362,11 +1362,20 @@ function report_grade_set(int $userId, int $reportId, string $grade): bool {
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
+        // Verify ownership first — rowCount() on an UPDATE is 0 when the value
+        // is unchanged (re-picking the same grade), which must still succeed.
+        $chk = db()->prepare(
+            "SELECT COUNT(*) FROM reports WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
+        );
+        $chk->execute(array_merge([$reportId], $ids));
+        if ((int)$chk->fetchColumn() === 0) {
+            return false;
+        }
         $stmt = db()->prepare(
             "UPDATE reports SET grade = ? WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
         );
-        $stmt->execute([$norm, $reportId]);
-        return $stmt->rowCount() > 0;
+        $stmt->execute(array_merge([$norm, $reportId], $ids));
+        return true;
     } catch (Throwable $e) {
         error_log('report grade set error: ' . $e->getMessage());
         return false;
