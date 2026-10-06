@@ -6,6 +6,23 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.14] - 2026-10-06
+
+### Changed
+
+- **Richer SMBIOS machine profile** — the boot-time inventory now also uses the
+  SMBIOS table for: CPU max (turbo) speed (`2C/4T · 3.5 GHz max`), the board's
+  maximum supported RAM (`32 GB (max 64 GB, 2 x 16GB @ 3200)`), and each DIMM's
+  manufacturer + form factor (`16 GB Micron DDR4 SODIMM @ 2133 MT/s P/N=… SN=…`).
+  These surface in the diagnostics PDF and Devices-tab modal.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.14_2025.11_30_x86-64_v0.41_20261006-966b42be.iso`
+  (166 MB) sha256 `dbe5056f6d39d3e324f399f16c59a59875645acb13188c1a6e02512fbccceb32`.
+- Standalone script `tscrub.sh` (v1.11.14) sha256 `ef7b0ffd9d6b8576ba642943ab7716fc9e34411c32a1532216d8abc2baeb81ba`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `0aa4224ee1e0960393bcd5bf4dc73a6a8076815dcfad04ca9c54f783da504318`.
+
 ## [v1.11.13] - 2026-10-06
 
 ### Changed
