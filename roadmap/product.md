@@ -87,7 +87,7 @@ first. Tick items off as they ship and note the release that carries each.
 - [ ] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
       `CONFIG_VIRTIO_NET` for faster VM testing, quiet `sedutil-cli` SG_IO noise
       on QEMU disks.
-- [ ] **Eliminate table UI full-screen reflow** — today `table::render`
+- [x] **Eliminate table UI full-screen reflow** — today `table::render`
       (`product/src/40_table.sh`) starts with `clear`/`\033[2J\033[H` and
       reprints the whole screen (both info panels, column header, every device
       row, footer) from scratch, and `ui::loop` calls it on every worker
@@ -101,6 +101,14 @@ first. Tick items off as they ship and note the release that carries each.
       resize, device-set change or theme switch. Optional: move the UI into the
       alternate screen buffer (`\033[?1049h`) so the initial clear never scrolls
       scrollback.
+      → **Shipped v1.11.7** (2026-10-05): `table::render` now paints once and
+      seeds a per-drive state cache plus a layout/theme/mode fingerprint;
+      `ui::repaint_changed` repaints only the changed rows in place (absolute
+      cursor + clear-to-end-of-line) and falls back to a full render only on
+      terminal resize, theme, device-set or selection-mode change, with a
+      `SIGWINCH` trap and `tput`-first size detection. **v1.11.8** removed the
+      full-screen blank on same-theme transitions (clear only on first paint or
+      theme change). The optional alternate-screen-buffer move was not done.
       → Plan: `research/table-ui-reflow/README.md` (btop-style render-once +
       diff-and-repaint; nWipe's "clear only on init/resize" principle).
 - [x] **Organisations & seats** (§5) — shipped 2026-10-05 (server + dashboard,
