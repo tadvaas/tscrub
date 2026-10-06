@@ -118,6 +118,21 @@ function diag_stored_to_raw(array $p): array {
         'uefi_boot_entries'  => (string)($p['uefi_boot_entries'] ?? ''),
         'peripherals'        => (string)($p['peripherals'] ?? ''),
         'bios_lockdown'      => isset($p['bios_lockdown']) ? (int)$p['bios_lockdown'] : 0,
+        'family'             => (string)($p['family'] ?? ''),
+        'system_version'     => (string)($p['system_version'] ?? ''),
+        'board_version'      => (string)($p['board_version'] ?? ''),
+        'cpu_socket'         => (string)($p['cpu_socket'] ?? ''),
+        'cpu_family'         => (string)($p['cpu_family'] ?? ''),
+        'cpu_id'             => (string)($p['cpu_id'] ?? ''),
+        'cpu_voltage'        => (string)($p['cpu_voltage'] ?? ''),
+        'bios_revision'      => (string)($p['bios_revision'] ?? ''),
+        'bios_firmware_revision' => (string)($p['bios_firmware_revision'] ?? ''),
+        'chassis_lock'       => (string)($p['chassis_lock'] ?? ''),
+        'chassis_state'      => (string)($p['chassis_state'] ?? ''),
+        'onboard_devices'    => (string)($p['onboard_devices'] ?? ''),
+        'oem_strings'        => (string)($p['oem_strings'] ?? ''),
+        'battery_model'      => (string)($p['battery_model'] ?? ''),
+        'battery_chemistry'  => (string)($p['battery_chemistry'] ?? ''),
         'drives'             => is_array($p['drives'] ?? null) ? $p['drives'] : [],
     ];
 }
@@ -507,6 +522,10 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $sub('PROCESSOR');
     $row('CPU', trim((string)($d['cpu'] ?? '')));
     $row('Cores / threads', trim((string)($d['cpu_spec'] ?? '')));
+    $row('Socket', trim((string)($d['cpu_socket'] ?? '')));
+    $row('Family', trim((string)($d['cpu_family'] ?? '')));
+    $row('CPU ID', trim((string)($d['cpu_id'] ?? '')));
+    $row('Voltage', trim((string)($d['cpu_voltage'] ?? '')));
 
     $sub('MEMORY');
     $row('Total', trim((string)($d['ram'] ?? '')));
@@ -517,6 +536,8 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $row('Display', trim((string)($d['display'] ?? '')));
     $row('Wi-Fi', trim((string)($d['wifi'] ?? '')));
     $row('Battery', trim((string)($d['battery'] ?? '')));
+    $row('Battery model', trim((string)($d['battery_model'] ?? '')));
+    $row('Battery chemistry', trim((string)($d['battery_chemistry'] ?? '')));
 
     $sub('NETWORK INTERFACES');
     $ifaces = array_values(array_filter($semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))), static function (string $e): bool {
@@ -534,13 +555,28 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $sub('USB DEVICES');
     $list('Devices', diag_usb_human((string)($d['usb_devices'] ?? '')));
 
+    $sub('ONBOARD DEVICES');
+    $list('Devices', $semicolon((string)($d['onboard_devices'] ?? '')));
+
     $sub('PERIPHERALS');
     $periphRow((string)($d['peripherals'] ?? ''));
 
     $sub('FIRMWARE STATE');
     $row('Secure Boot', trim((string)($d['secure_boot'] ?? '')));
     $row('BIOS lockdown', !empty($d['bios_lockdown']) ? 'Suspected' : 'None', !empty($d['bios_lockdown']) ? [220, 38, 38] : [5, 150, 105]);
+    $row('BIOS revision', trim((string)($d['bios_revision'] ?? '')));
+    $row('Firmware revision', trim((string)($d['bios_firmware_revision'] ?? '')));
     $list('Boot entries', $semicolon((string)($d['uefi_boot_entries'] ?? '')));
+
+    $sub('SYSTEM & CHASSIS');
+    $row('System family', trim((string)($d['family'] ?? '')));
+    $row('System version', trim((string)($d['system_version'] ?? '')));
+    $row('Board version', trim((string)($d['board_version'] ?? '')));
+    $row('Chassis lock', trim((string)($d['chassis_lock'] ?? '')));
+    $row('Chassis state', trim((string)($d['chassis_state'] ?? '')));
+
+    $sub('OEM STRINGS');
+    $list('Strings', $semicolon((string)($d['oem_strings'] ?? '')));
 }
 
 /**

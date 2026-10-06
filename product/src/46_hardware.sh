@@ -31,6 +31,18 @@ SYS_NET_INTERFACES="N/A"
 SYS_UEFI_BOOT="N/A"
 SYS_PERIPHERALS=""
 SYS_BIOS_LOCKDOWN=0
+SYS_CPU_SOCKET=""
+SYS_CPU_FAMILY=""
+SYS_CPU_ID=""
+SYS_CPU_VOLTAGE=""
+SYS_BIOS_REV=""
+SYS_BIOS_FW_REV=""
+SYS_CHASSIS_LOCK=""
+SYS_CHASSIS_STATE=""
+SYS_ONBOARD_DEVICES=""
+SYS_OEM_STRINGS=""
+SYS_BATTERY_MODEL=""
+SYS_BATTERY_CHEM=""
 
 # Collapse whitespace + strip commas + trim, so a value never breaks the JSON
 # or the report CSV. Prints the cleaned string.
@@ -157,6 +169,81 @@ hardware::smbios() {
     SYS_SMBIOS_RAW="$(printf '%s' "$raw" | tr -d '\r')"
 }
 
+# Extract one SMBIOS field from the raw dump, scoped to a DMI type (so a key
+# like "Firmware Revision" in the TPM's Type 43 can't shadow the BIOS Type 0).
+hardware::_smbios_field() {
+    local wt="$1" key="$2"
+    awk -v wt="$wt" -v key="$key" '
+        /DMI type / { t=$0; sub(/.*DMI type /,"",t); sub(/,.*/,"",t); t=t+0; next }
+        t==wt {
+            line=$0; sub(/^[[:space:]]*/,"",line)
+            if (index(line, key ":") == 1) {
+                sub(/^[^:]*:[[:space:]]*/, "", line)
+                print line
+                exit
+            }
+        }
+    ' <<< "${SYS_SMBIOS_RAW:-}"
+}
+
+# Blank placeholder values so the report renders an em-dash instead of noise.
+hardware::_smbios_blank() {
+    local v
+    for v in "$@"; do
+        case "${!v}" in
+            ""|Unknown|"Not Specified"|"To Be Filled By O.E.M.") printf -v "$v" '' ;;
+        esac
+    done
+}
+
+# Extra SMBIOS-derived machine fields, parsed once from the full dump already
+# captured by hardware::smbios (no extra dmidecode call).
+hardware::smbios_extras() {
+    local raw="${SYS_SMBIOS_RAW:-}"
+    [[ -n "$raw" ]] || return 0
+
+    SYS_CPU_SOCKET="$(hardware::_smbios_field 4 "Socket Designation")"
+    SYS_CPU_FAMILY="$(hardware::_smbios_field 4 "Family")"
+    SYS_CPU_ID="$(hardware::_smbios_field 4 "ID")"
+    SYS_CPU_VOLTAGE="$(hardware::_smbios_field 4 "Voltage")"
+    SYS_BIOS_REV="$(hardware::_smbios_field 0 "BIOS Revision")"
+    SYS_BIOS_FW_REV="$(hardware::_smbios_field 0 "Firmware Revision")"
+    SYS_CHASSIS_LOCK="$(hardware::_smbios_field 3 "Lock")"
+    SYS_BATTERY_MODEL="$(hardware::_smbios_field 22 "Name")"
+    SYS_BATTERY_CHEM="$(hardware::_smbios_field 22 "SBDS Chemistry")"
+
+    # Chassis status summary (boot/power/thermal/security states).
+    SYS_CHASSIS_STATE="$(awk '
+        /DMI type / { t=$0; sub(/.*DMI type /,"",t); sub(/,.*/,"",t); t=t+0; next }
+        t==3 {
+            if (/^[[:space:]]*Boot-up State:/)            { sub(/^[[:space:]]*Boot-up State:[[:space:]]*/,""); boot=$0 }
+            else if (/^[[:space:]]*Power Supply State:/)  { sub(/^[[:space:]]*Power Supply State:[[:space:]]*/,""); power=$0 }
+            else if (/^[[:space:]]*Thermal State:/)       { sub(/^[[:space:]]*Thermal State:[[:space:]]*/,""); thermal=$0 }
+            else if (/^[[:space:]]*Security Status:/)     { sub(/^[[:space:]]*Security Status:[[:space:]]*/,""); sec=$0 }
+        }
+        END { printf "Boot: %s · Power: %s · Thermal: %s · Security: %s", boot, power, thermal, sec }
+    ' <<< "$raw")"
+
+    # Onboard devices (SMBIOS Type 41).
+    SYS_ONBOARD_DEVICES="$(awk '
+        function flush() { if (rd != "") printf "%s%s · %s · %s", (n++ ? "; " : ""), rd, dtyp, bus }
+        /DMI type / { if (t == 41) flush(); rd=""; dtyp=""; bus=""; t=$0; sub(/.*DMI type /,"",t); sub(/,.*/,"",t); t=t+0; next }
+        t==41 && /^[[:space:]]*Reference Designation:/ { sub(/^[[:space:]]*Reference Designation:[[:space:]]*/,""); rd=$0; next }
+        t==41 && /^[[:space:]]*Type:/ { sub(/^[[:space:]]*Type:[[:space:]]*/,""); dtyp=$0; next }
+        t==41 && /^[[:space:]]*Bus Address:/ { sub(/^[[:space:]]*Bus Address:[[:space:]]*/,""); bus=$0; next }
+        END { if (t == 41) flush() }
+    ' <<< "$raw")"
+
+    # OEM strings (SMBIOS Type 11 — e.g. HP Feature Byte / Build ID).
+    SYS_OEM_STRINGS="$(awk '
+        /DMI type / { t=$0; sub(/.*DMI type /,"",t); sub(/,.*/,"",t); t=t+0; next }
+        t==11 && /^[[:space:]]*String [0-9]+:/ { sub(/^[[:space:]]*String [0-9]+:[[:space:]]*/,""); sub(/;[[:space:]]*$/, ""); printf "%s%s", (n++ ? "; " : ""), $0 }
+    ' <<< "$raw")"
+
+    hardware::_smbios_blank SYS_CPU_SOCKET SYS_CPU_FAMILY SYS_CPU_ID SYS_CPU_VOLTAGE \
+        SYS_BIOS_REV SYS_BIOS_FW_REV SYS_BATTERY_MODEL SYS_BATTERY_CHEM
+}
+
 # Network interfaces: name · MAC · operstate · driver (one entry per NIC).
 # Virtual interfaces (lo, sit, tun/tap, veth, bridges, bonds, docker, …) are
 # skipped — they carry no asset value and have no backing hardware device.
@@ -273,6 +360,7 @@ hardware::inventory() {
     hardware::usb
     hardware::pci
     hardware::smbios
+    hardware::smbios_extras
     hardware::interfaces
     hardware::uefi_boot
     hardware::peripherals

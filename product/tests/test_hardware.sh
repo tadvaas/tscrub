@@ -63,6 +63,21 @@ unset FAKE_LSPCI_BROKEN
 hardware::smbios
 t::assert_contains "$SYS_SMBIOS_RAW" "BIOS Information" "smbios: full dump captured"
 
+# --- hardware::smbios_extras (Types 0/2/3/4/11/22/41) -----------------------
+hardware::smbios_extras
+t::assert_eq "U3E1" "$SYS_CPU_SOCKET" "smbios: cpu socket"
+t::assert_eq "Core i5" "$SYS_CPU_FAMILY" "smbios: cpu family"
+t::assert_eq "E9 06 08 00 FF FB EB BF" "$SYS_CPU_ID" "smbios: cpu id"
+t::assert_eq "0.8 V" "$SYS_CPU_VOLTAGE" "smbios: cpu voltage"
+t::assert_eq "4.0" "$SYS_BIOS_REV" "smbios: bios revision"
+t::assert_eq "4.83" "$SYS_BIOS_FW_REV" "smbios: firmware revision"
+t::assert_eq "Not Present" "$SYS_CHASSIS_LOCK" "smbios: chassis lock"
+t::assert_eq "Boot: Safe · Power: Safe · Thermal: Safe · Security: None" "$SYS_CHASSIS_STATE" "smbios: chassis state"
+t::assert_eq "Onboard IGD · Video · 0000:00:02.0" "$SYS_ONBOARD_DEVICES" "smbios: onboard devices"
+t::assert_eq "FBYTE#3X476J6S; BUILDID#17WWCSBT602#SABU#DABU; EDK2_1" "$SYS_OEM_STRINGS" "smbios: oem strings"
+t::assert_eq "SS03050XL" "$SYS_BATTERY_MODEL" "smbios: battery model"
+t::assert_eq "LION" "$SYS_BATTERY_CHEM" "smbios: battery chemistry"
+
 # --- hardware::interfaces ----------------------------------------------------
 mkdir -p "$tmpdir/net/eth0/device" "$tmpdir/net/lo" "$tmpdir/net/sit0"
 printf '00:11:22:33:44:55' > "$tmpdir/net/eth0/address"

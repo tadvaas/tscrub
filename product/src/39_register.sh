@@ -76,6 +76,21 @@ register::json_body() {
         "$(report::_json_field "${SYS_UEFI_BOOT:-}")" \
         "$(report::_json_field "${SYS_PERIPHERALS:-}")" \
         "${SYS_BIOS_LOCKDOWN:-0}"
+    printf ',"cpu_socket":"%s","cpu_family":"%s","cpu_id":"%s","cpu_voltage":"%s"' \
+        "$(report::_json_field "${SYS_CPU_SOCKET:-}")" \
+        "$(report::_json_field "${SYS_CPU_FAMILY:-}")" \
+        "$(report::_json_field "${SYS_CPU_ID:-}")" \
+        "$(report::_json_field "${SYS_CPU_VOLTAGE:-}")"
+    printf ',"bios_revision":"%s","bios_firmware_revision":"%s","chassis_lock":"%s","chassis_state":"%s"' \
+        "$(report::_json_field "${SYS_BIOS_REV:-}")" \
+        "$(report::_json_field "${SYS_BIOS_FW_REV:-}")" \
+        "$(report::_json_field "${SYS_CHASSIS_LOCK:-}")" \
+        "$(report::_json_field "${SYS_CHASSIS_STATE:-}")"
+    printf ',"onboard_devices":"%s","oem_strings":"%s","battery_model":"%s","battery_chemistry":"%s"' \
+        "$(report::_json_field "${SYS_ONBOARD_DEVICES:-}")" \
+        "$(report::_json_field "${SYS_OEM_STRINGS:-}")" \
+        "$(report::_json_field "${SYS_BATTERY_MODEL:-}")" \
+        "$(report::_json_field "${SYS_BATTERY_CHEM:-}")"
     printf ',"selftest_cpu":"%s"' \
         "$(report::_json_field "${SELFTEST_CPU:-}")"
     printf ',"operator":"%s","validator":"%s","media_source":"%s","media_destination":"%s"' \

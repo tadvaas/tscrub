@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 if [[ "$#" -eq 0 ]]; then
-    # Full SMBIOS dump (46_hardware.sh hardware::smbios).
-    printf '# SMBIOS 3.4 present.\nHandle 0x0000, DMI type 0, 26 bytes\nBIOS Information\n\tVendor: Fake Inc.\n\tVersion: 1.0\n'
+    # Full SMBIOS dump (46_hardware.sh hardware::smbios + hardware::smbios_extras).
+    printf '# SMBIOS 3.4 present.\n'
+    printf 'Handle 0x0000, DMI type 0, 26 bytes\nBIOS Information\n\tVendor: Fake Inc.\n\tVersion: 1.0\n\tRelease Date: 01/01/2024\n\tBIOS Revision: 4.0\n\tFirmware Revision: 4.83\n\n'
+    printf 'Handle 0x0002, DMI type 2, 15 bytes\nBase Board Information\n\tManufacturer: Fake Inc.\n\tProduct Name: FakeStation\n\tVersion: KBC Version 04.53.00\n\n'
+    printf 'Handle 0x0003, DMI type 3, 22 bytes\nChassis Information\n\tManufacturer: Fake Inc.\n\tType: Tower\n\tLock: Not Present\n\tBoot-up State: Safe\n\tPower Supply State: Safe\n\tThermal State: Safe\n\tSecurity Status: None\n\n'
+    printf 'Handle 0x0004, DMI type 4, 48 bytes\nProcessor Information\n\tSocket Designation: U3E1\n\tType: Central Processor\n\tFamily: Core i5\n\tManufacturer: Intel(R) Corporation\n\tID: E9 06 08 00 FF FB EB BF\n\tVoltage: 0.8 V\n\n'
+    printf 'Handle 0x000B, DMI type 11, 5 bytes\nOEM Strings\n\tString 1: FBYTE#3X476J6S;\n\tString 2: BUILDID#17WWCSBT602#SABU#DABU;\n\tString 3: EDK2_1\n\n'
+    printf 'Handle 0x0016, DMI type 22, 26 bytes\nPortable Battery\n\tManufacturer: Fake Inc.\n\tName: SS03050XL\n\tSBDS Chemistry: LION\n\n'
+    printf 'Handle 0x0029, DMI type 41, 11 bytes\nOnboard Device\n\tReference Designation: Onboard IGD\n\tType: Video\n\tType Instance: 1\n\tBus Address: 0000:00:02.0\n'
     exit 0
 fi
 if [[ "$1" == "-t" && "$2" == "24" ]]; then

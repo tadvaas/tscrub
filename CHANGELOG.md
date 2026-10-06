@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.15] - 2026-10-06
+
+### Changed
+
+- **Complete SMBIOS machine profile** — the hardware inventory now mines the
+  full SMBIOS table for every field with ITAD value and surfaces them all in
+  the diagnostics PDF: CPU socket / family / ID / voltage, BIOS revision and
+  firmware revision, chassis intrusion lock and thermal/power/security state,
+  onboard devices (SMBIOS Type 41), OEM strings (HP Feature Byte / Build ID,
+  etc.) and battery model + chemistry. Type 131 (vendor binary blobs) is
+  intentionally skipped.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.15_2025.11_30_x86-64_v0.41_20261006-19619c8d.iso`
+  (166 MB) sha256 `1c100b9e8560ead15b1bda4abd58ca9e76049667e316da2d71b09e30991f65e5`.
+- Standalone script `tscrub.sh` (v1.11.15) sha256 `6c99d2b09e04dbb98e7cc5ad57501f8c74c4b8d6bb567e1bf823b95987701f33`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `8c8bca28d68bef2eee949da64ef02e33c6755ea1091c63334b5518b2f9b0aaf1`.
+
 ## [v1.11.14] - 2026-10-06
 
 ### Changed
