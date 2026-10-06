@@ -401,7 +401,7 @@ CREATE TABLE IF NOT EXISTS device_registrations (
   CONSTRAINT fk_reg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Manual device refurb grade (R-A–R-D) — the operator's cosmetic/battery
+-- Manual device refurb grade (I-A–I-F) — the operator's inbound assessment
 -- assessment of a machine, keyed by the same machine key load_devices()
 -- derives (sysserial → bbserial → systemuuid). Persisted under the org owner
 -- so every member reads/writes one row.

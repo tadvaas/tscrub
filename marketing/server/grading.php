@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Refurb grading — drive (A/B/C/D/?) + device (R-A–R-D) rubrics.
+ * Refurb grading — drive (A/B/C/D/?) + device (I-A–I-F) rubrics.
  *
  * Pure functions (no DB) so they are trivially unit-testable and shared by the
  * API, the dashboard data endpoints and both PDF renderers. The drive rubric
@@ -133,27 +133,6 @@ function drive_health_report(array $d): array {
     ];
 }
 
-/** Extract the battery health % from the captured battery string, or null. */
-function grade_battery_health_pct(string $battery): ?float {
-    if (preg_match('/health\s+(\d+(?:\.\d+)?)\s*%/i', $battery, $m)) {
-        return (float)$m[1];
-    }
-    return null;
-}
-
-/**
- * Battery band → device grade suggestion, per the review-provided rubric.
- * Returns '' when no battery health is known (desktop / no battery).
- */
-function device_grade_suggest(string $battery): string {
-    $h = grade_battery_health_pct($battery);
-    if ($h === null) return '';
-    if ($h >= 85) return 'R-A';
-    if ($h >= 75) return 'R-B';
-    if ($h >= 60) return 'R-C';
-    return 'R-D';
-}
-
 /** The stable machine key used by load_devices(): sysserial → bbserial → uuid. */
 function device_key(array $g): string {
     foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
@@ -163,7 +142,18 @@ function device_key(array $g): string {
     return '';
 }
 
-/** True when $grade is a valid device refurb grade (or '' to clear). */
+/**
+ * Device inbound-grading scheme (I-A…I-F), assessed manually by the operator:
+ *   I-A  High refurb potential   (green)
+ *   I-B  Refurb possible         (green)
+ *   I-C  Low refurb potential    (orange)
+ *   I-D  Scrap / parts likely    (orange)
+ *   I-F  Faulty / dead           (grey)
+ * Determined by the power/security, visual/physical, screen and
+ * serious-damage checks (see the Devices-tab picker help text). There is no
+ * safe automatic suggestion — the checks are visual/manual — so the grade is
+ * the operator's pick.
+ */
 function valid_device_grade(string $grade): bool {
-    return $grade === '' || in_array(strtoupper($grade), ['R-A', 'R-B', 'R-C', 'R-D'], true);
+    return $grade === '' || in_array(strtoupper($grade), ['I-A', 'I-B', 'I-C', 'I-D', 'I-F'], true);
 }

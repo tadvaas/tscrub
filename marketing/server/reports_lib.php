@@ -1350,7 +1350,7 @@ function load_registered_devices(int $userId): array {
 
 /**
  * Lazily create the device_grades table (idempotent — mirrors schema.sql).
- * Holds the operator's manual R-A–R-D refurb grade, keyed by the same machine
+ * Holds the operator's manual I-A–I-F refurb grade, keyed by the same machine
  * key load_devices() derives (sysserial → bbserial → systemuuid).
  */
 function grades_ensure_schema(): void {
@@ -1376,7 +1376,7 @@ function grades_ensure_schema(): void {
     }
 }
 
-/** Stored R-A–R-D grades for a user's organisation, keyed by machine key. */
+/** Stored I-A–I-F grades for a user's organisation, keyed by machine key. */
 function device_grade_map(int $userId): array {
     grades_ensure_schema();
     $out = [];
@@ -1394,7 +1394,7 @@ function device_grade_map(int $userId): array {
     return $out;
 }
 
-/** Upsert (or clear, with grade='') a device's R-A–R-D refurb grade. */
+/** Upsert (or clear, with grade='') a device's I-A–I-F refurb grade. */
 function device_grade_set(int $userId, string $machineKey, string $grade, int $by): void {
     grades_ensure_schema();
     if (!valid_device_grade($grade)) return;
@@ -1679,11 +1679,10 @@ function load_devices(int $userId): array {
         $out[$k]['first']     = ts_local((string)$dv['first']);
         $out[$k]['last']      = ts_local((string)$dv['last']);
 
-        // Refurb grading: the operator's manual R-A–R-D pick + the
-        // battery-derived suggestion, and an automatic per-drive SMART grade.
+        // Refurb grading: the operator's manual I-A–I-F pick, plus an
+        // automatic per-drive SMART grade.
         $key = device_key($dv);
         $out[$k]['refurb_grade'] = $storedGrades[$key] ?? '';
-        $out[$k]['refurb_grade_suggested'] = device_grade_suggest((string)$dv['battery']);
         foreach ($out[$k]['drives'] as $di => $drv) {
             $g = drive_grade(is_array($drv) ? $drv : []);
             $out[$k]['drives'][$di]['grade'] = $g['grade'];

@@ -939,8 +939,7 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     // Operator strategy: fall back to the account holder (name, else email)
     // when the appliance supplied none; the validator row is omitted when empty.
     $raw['operator'] = operator_for_pdf($raw, (int)$u['id']);
-    // The operator's manual R-A–R-D refurb grade (empty → PDF shows the
-    // battery-suggested band).
+    // The operator's manual I-A–I-F refurb grade (empty → no grade shown).
     $storedGrades = device_grade_map((int)$u['id']);
     $raw['refurb_grade'] = $storedGrades[device_key($d)] ?? '';
     $rendered = render_diagnostics_pdf(
@@ -1642,14 +1641,14 @@ if ($method === 'GET' && $route === '/devices') {
 }
 
 // POST /api/devices/grade — set (or clear, grade='') the operator's manual
-// R-A–R-D refurb grade for a machine. Session + CSRF auth; org-scoped.
+// I-A–I-F refurb grade for a machine. Session + CSRF auth; org-scoped.
 if ($method === 'POST' && $route === '/devices/grade') {
     auth_csrf_verify();
     $u = auth_require();
     $d = json_body();
     $grade = strtoupper(trim((string)($d['grade'] ?? '')));
     if (!valid_device_grade($grade)) {
-        fail(400, 'grade must be one of R-A, R-B, R-C, R-D (or empty to clear).');
+        fail(400, 'grade must be one of I-A, I-B, I-C, I-D, I-F (or empty to clear).');
     }
     // Reconstruct the same machine key load_devices() uses.
     $key = device_key([

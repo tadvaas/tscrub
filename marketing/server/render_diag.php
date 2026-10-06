@@ -613,10 +613,8 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $row('Battery chemistry', trim((string)($d['battery_chemistry'] ?? '')));
 
     $storedGrade = trim((string)($d['refurb_grade'] ?? ''));
-    $suggested = device_grade_suggest((string)($d['battery'] ?? ''));
-    $gradeShown = $storedGrade !== '' ? $storedGrade : ($suggested !== '' ? $suggested . ' (suggested)' : '');
-    $gradeColor = ['R-A' => [5, 150, 105], 'R-B' => [13, 148, 136], 'R-C' => [217, 119, 6], 'R-D' => [220, 38, 38]];
-    $row('Refurb grade', $gradeShown, $gradeColor[$storedGrade !== '' ? $storedGrade : $suggested] ?? [148, 163, 184]);
+    $gradeColor = ['I-A' => [5, 150, 105], 'I-B' => [13, 148, 136], 'I-C' => [217, 119, 6], 'I-D' => [234, 88, 12], 'I-F' => [100, 116, 139]];
+    $row('Refurb grade', $storedGrade, $gradeColor[$storedGrade] ?? [148, 163, 184]);
 
     $sub('NETWORK INTERFACES');
     $ifaces = array_values(array_filter($semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))), static function (string $e): bool {

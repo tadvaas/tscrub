@@ -474,18 +474,17 @@
           var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
           var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
           sysWrap.appendChild(el('span', 'truncate', dev.system || dev.sysserial || 'Unknown'));
-          var devGrade = dev.refurb_grade || dev.refurb_grade_suggested || '';
+          var devGrade = dev.refurb_grade || '';
           if (devGrade) {
             var gcls = {
-              'R-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
-              'R-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
-              'R-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-              'R-D': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+              'I-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+              'I-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
+              'I-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+              'I-D': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+              'I-F': 'bg-slate-200 text-slate-600 dark:bg-ink-700 dark:text-slate-400'
             }[devGrade] || 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400';
             var dgBadge = el('span', 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ' + gcls, devGrade);
-            dgBadge.title = dev.refurb_grade
-              ? 'Operator-assigned refurb grade'
-              : 'Suggested from battery health — open the device to confirm';
+            dgBadge.title = 'Operator-assigned inbound grade';
             sysWrap.appendChild(dgBadge);
           }
           sysCell.appendChild(sysWrap);
@@ -688,30 +687,27 @@
           return g ? pill('Grade ' + g, cls[g] || cls['?']) : null;
         }
         function refurbBadge(g) {
-          var cls = { 'R-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
-                      'R-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
-                      'R-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-                      'R-D': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' };
+          var cls = { 'I-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+                      'I-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
+                      'I-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+                      'I-D': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+                      'I-F': 'bg-slate-200 text-slate-600 dark:bg-ink-700 dark:text-slate-400' };
           return g ? pill(g, cls[g] || 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400') : null;
         }
-        // R-A–R-D device refurb grade picker (battery auto-suggests; operator
-        // confirms the cosmetic aspects). Posts to /api/devices/grade.
+        // I-A–I-F device inbound-grade picker — manual assessment across the
+        // power/security, visual/physical, screen and serious-damage checks.
         function refurbGradeCard(dev) {
           var c = card('Refurb grade');
           var body = cardBody(c);
           var cur = dev.refurb_grade || '';
-          var sugg = dev.refurb_grade_suggested || '';
           var line = el('div', 'flex flex-wrap items-center gap-2');
           line.appendChild(el('span', 'text-sm font-semibold text-slate-800 dark:text-slate-200', cur || 'Ungraded'));
-          if (!cur && sugg) {
-            line.appendChild(pill(sugg + ' suggested', 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400'));
-          }
           var note = el('div', 'mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500',
-            'R-A Excellent · R-B Very good · R-C Good/used · R-D Fair/heavy wear — screen, body, keyboard and battery health.');
+            'I-A High refurb potential · I-B Refurb possible · I-C Low refurb potential · I-D Scrap/parts likely · I-F Faulty/dead — assessed by power, visual, screen and damage checks.');
           body.appendChild(line);
           body.appendChild(note);
           var btns = el('div', 'mt-3 flex flex-wrap gap-2');
-          ['R-A', 'R-B', 'R-C', 'R-D'].forEach(function (g) {
+          ['I-A', 'I-B', 'I-C', 'I-D', 'I-F'].forEach(function (g) {
             var b = el('button', 'rounded-lg border px-2.5 py-1 text-xs font-semibold ' + (cur === g
               ? 'border-brand-600 bg-brand-600 text-white'
               : 'border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800'), g);
