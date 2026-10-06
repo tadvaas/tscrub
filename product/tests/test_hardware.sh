@@ -138,6 +138,21 @@ SYS_USB_DIR="$tmpdir/usb-cam" SYS_PCI_DIR="$tmpdir/pci-audio" hardware::peripher
 t::assert_eq "webcam:1; touchscreen:0; fingerprint:0; accelerometer:0; audio:1" \
     "$SYS_PERIPHERALS" "peripherals: webcam via USB iface class + audio via PCI class"
 
+# Top-level USB interface dirs (e.g. root hub interfaces 1-0:1.0, 2-0:1.0, …)
+# have no bDeviceClass/product files. They must be skipped silently — the old
+# code emitted "No such file or directory" redirect errors for every one.
+mkdir -p "$tmpdir/usb-iface/1-0/1-0:1.0" "$tmpdir/usb-iface/1-0:1.0"
+printf '09' > "$tmpdir/usb-iface/1-0/bDeviceClass"
+printf 'xHCI Host Controller' > "$tmpdir/usb-iface/1-0/product"
+printf '09' > "$tmpdir/usb-iface/1-0/1-0:1.0/bInterfaceClass"
+SYS_INPUT_DEVICES_FILE="$tmpdir/no-input" SYS_ASOUND_CARDS_FILE="$tmpdir/no-asound" \
+SYS_VIDEO_GLOB="$tmpdir/no-video*" SYS_IIO_DIR="$tmpdir/no-iio" \
+SYS_USB_DIR="$tmpdir/usb-iface" SYS_PCI_DIR="$tmpdir/no-pci" \
+hardware::peripherals 2>"$tmpdir/periph-err"
+t::assert_eq "" "$(<"$tmpdir/periph-err")" "peripherals: no redirect errors for USB interface dirs"
+t::assert_eq "webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:0" \
+    "$SYS_PERIPHERALS" "peripherals: hub (class 09) not webcam or audio"
+
 # --- hardware::lockdown (derived from per-drive state) -----------------------
 devices=(sda nvme0n1)
 declare -A opal_locked devrow

@@ -298,14 +298,19 @@ hardware::peripherals() {
     [[ -n "$(ls $SYS_VIDEO_GLOB 2>/dev/null)" ]] && webcam=1
     if [[ "$webcam" -eq 0 ]]; then
         for d in "$SYS_USB_DIR"/*/; do
+            # Interface dirs (e.g. 1-0:1.0) have no bDeviceClass/product — only
+            # device dirs do. Skip them so the redirects below don't error.
+            [[ -r "${d}bDeviceClass" ]] || continue
             cls="$(tr -d '\n' < "${d}bDeviceClass" 2>/dev/null)"
             [[ "$cls" == "0e" ]] && { webcam=1; break; }
             for iface in "$d"*/bInterfaceClass; do
                 [[ -e "$iface" ]] || continue
                 [[ "$(tr -d '\n' < "$iface" 2>/dev/null)" == "0e" ]] && { webcam=1; break 2; }
             done
-            prod="$(tr -d '\n' < "${d}product" 2>/dev/null)"
-            grep -qiE 'camera|webcam' <<< "$prod" && { webcam=1; break; }
+            if [[ -r "${d}product" ]]; then
+                prod="$(tr -d '\n' < "${d}product" 2>/dev/null)"
+                grep -qiE 'camera|webcam' <<< "$prod" && { webcam=1; break; }
+            fi
         done
     fi
 
@@ -320,12 +325,15 @@ hardware::peripherals() {
     [[ "$n" -gt 0 ]] && audio=1
     if [[ "$audio" -eq 0 ]]; then
         for d in "$SYS_PCI_DIR"/*/; do
+            [[ -r "${d}class" ]] || continue
             cls="$(tr -d '\n' < "${d}class" 2>/dev/null)"
             [[ "${cls:0:4}" == "0x04" ]] && { audio=1; break; }
         done
     fi
     if [[ "$audio" -eq 0 ]]; then
         for d in "$SYS_USB_DIR"/*/; do
+            # Skip USB interface dirs (e.g. 1-0:1.0) — no bDeviceClass there.
+            [[ -r "${d}bDeviceClass" ]] || continue
             cls="$(tr -d '\n' < "${d}bDeviceClass" 2>/dev/null)"
             [[ "$cls" == "01" ]] && { audio=1; break; }
             for iface in "$d"*/bInterfaceClass; do

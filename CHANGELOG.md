@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.16] - 2026-10-06
+
+### Changed
+
+- **Fix USB peripheral-scan redirect errors** — the webcam/audio peripheral scan
+  no longer emits `No such file or directory` errors for every USB root-hub
+  interface directory (`1-0:1.0`, `2-0:1.0`, …). Those entries carry only
+  `bInterfaceClass`, not `bDeviceClass`/`product`, so they are now skipped
+  before the sysfs reads; the PCI class scan got the same guard.
+
+### Release
+
+- Standalone script `tscrub.sh` (v1.11.16) sha256 `a85e0559f13ecbcf53b14992a989a670aba6895fdef8368eaed6c4b66180068c`.
+
 ## [v1.11.15] - 2026-10-06
 
 ### Changed
