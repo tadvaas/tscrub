@@ -413,7 +413,8 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     };
 
     $sub = function (string $title) use (&$y, $need, $pdf, $x, $W): void {
-        $need(10.0);
+        $need(11.0);
+        $y += 3.0; // breathing room above the section heading
         $pdf->SetFont('helvetica', 'B', 11);
         $pdf->SetTextColor(11, 18, 32);
         $pdf->SetXY($x, $y);
