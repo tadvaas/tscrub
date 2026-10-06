@@ -1366,7 +1366,11 @@
       // without an indicator.
       function remoteDot(dev) {
         var r = dev.remote;
-        var erasing = dev.erasure && dev.erasure.phase === 'wiping';
+        // Only treat "wiping" as live while the appliance is still heartbeating
+        // (dev.online = heartbeat within 90s). A machine that goes offline
+        // mid-wipe leaves phase='wiping' behind forever — without this guard
+        // the Operations button shows an eternal "Erasure in progress" dot.
+        var erasing = !!dev.online && dev.erasure && dev.erasure.phase === 'wiping';
         var active = r && (r.status === 'pending' || r.status === 'dispatched');
         if (!active && !erasing) return null;
 
