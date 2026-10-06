@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS mdm_log (
 CREATE TABLE IF NOT EXISTS mdm_staged_hash (
   id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id             BIGINT UNSIGNED NULL,
-  owner_key           BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) STORED,
+  owner_key           BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) VIRTUAL,
   serial              VARCHAR(255)    NOT NULL DEFAULT '',
   uuid                VARCHAR(64)     NOT NULL DEFAULT '',
   model               VARCHAR(255)    NOT NULL DEFAULT '',

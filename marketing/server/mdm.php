@@ -1242,7 +1242,7 @@ function mdm_ensure_schema(): void {
             'CREATE TABLE IF NOT EXISTS mdm_staged_hash (
                id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                user_id             BIGINT UNSIGNED NULL,
-               owner_key           BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) STORED,
+               owner_key           BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) VIRTUAL,
                serial              VARCHAR(255)    NOT NULL DEFAULT "",
                uuid                VARCHAR(64)     NOT NULL DEFAULT "",
                model               VARCHAR(255)    NOT NULL DEFAULT "",
@@ -1282,7 +1282,11 @@ function mdm_ensure_schema(): void {
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_staged_hash' AND COLUMN_NAME = 'owner_key'"
         )->fetchColumn();
         if ($hasOwnerKey === 0) {
-            db()->exec('ALTER TABLE mdm_staged_hash ADD COLUMN owner_key BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) STORED');
+            // VIRTUAL, not STORED: adding a STORED generated column rebuilds the
+            // table and InnoDB then fails to re-create the existing user FK
+            // (error 1215). VIRTUAL is an in-place change and is indexable
+            // (MySQL 8.0.13+), so the unique key below works.
+            db()->exec('ALTER TABLE mdm_staged_hash ADD COLUMN owner_key BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(user_id, 0)) VIRTUAL');
         }
         // Drop any uq_mdm_staged_device that is not the per-user key
         // (legacy (user_id, serial, uuid) or global (serial, uuid)).
