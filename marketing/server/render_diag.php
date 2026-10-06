@@ -412,8 +412,13 @@ function diag_usb_human(string $raw): array {
         if (preg_match('/host controller/i', $it)) continue;         // internal USB controllers
         $it = preg_replace('/^([0-9a-f]{4}:[0-9a-f]{4})\s+Generic\s+/i', '$1 ', $it);
         if (preg_match('/^([0-9a-f]{4}):([0-9a-f]{4})$/i', $it, $m)) {
+            // Bare vendor:product ID (no name) — name the common Intel Bluetooth IDs.
             $key = strtolower($m[1] . ':' . $m[2]);
-            $it = isset($known[$key]) ? $known[$key] . ' (' . $m[1] . ':' . $m[2] . ')' : $it;
+            $it = $known[$key] ?? $it;
+        } else {
+            // Named entry — drop the vendor:product ID wherever it appears.
+            $it = preg_replace('/^[0-9a-f]{4}:[0-9a-f]{4}\s+/', '', $it);
+            $it = preg_replace('/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/', '', $it);
         }
         $it = trim(preg_replace('/\s{2,}/', ' ', $it), " \t,:;");
         if ($it === '') continue;

@@ -318,6 +318,7 @@
       var lastDevicesJson = '';
       var devicesFetchSeq = 0;  // guards against out-of-order /api/devices responses
       var currentQ = '';
+      var pagerLoading = null;  // 'prev' | 'next' while a pager navigation is in flight
 
       function mdmRank(dev) {
         var st = String(dev.mdm_status || '');
@@ -399,6 +400,17 @@
           var maxPage = Math.max(1, Math.ceil(total / per));
           if (page > maxPage) { page = maxPage; loadDevices(); return; }
           render();
+        }).catch(function () {
+          // Network/server error: the settle step below resets the pager
+          // buttons; the auto-refresh interval retries shortly.
+        }).then(function () {
+          // Settle the pager only for the latest request — a nav click sets
+          // pagerLoading, and only the latest response may clear it (so a
+          // superseded or auto-refresh request never clobbers an in-flight nav).
+          if (seq === devicesFetchSeq && pagerLoading !== null) {
+            pagerLoading = null;
+            renderPager();
+          }
         });
       }
 
@@ -543,12 +555,38 @@
         box.innerHTML = '';
         var totalPages = Math.max(1, Math.ceil(total / per));
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var prev = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
-        prev.disabled = page <= 1;
-        prev.addEventListener('click', function () { if (page > 1) { page--; loadDevices(); } });
-        var next = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
-        next.disabled = page >= totalPages;
-        next.addEventListener('click', function () { if (page < totalPages) { page++; loadDevices(); } });
+        var navCls = 'inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50';
+
+        function spinner() {
+          return el('span', 'inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-slate-400 dark:border-slate-500 border-t-transparent', '');
+        }
+
+        var prev = el('button', navCls, '');
+        if (pagerLoading === 'prev') {
+          prev.disabled = true;
+          prev.appendChild(spinner());
+          prev.appendChild(document.createTextNode('…'));
+        } else {
+          prev.textContent = '← Prev';
+          prev.disabled = page <= 1 || pagerLoading !== null;
+        }
+        prev.addEventListener('click', function () {
+          if (page > 1 && pagerLoading === null) { page--; pagerLoading = 'prev'; renderPager(); loadDevices(); }
+        });
+
+        var next = el('button', navCls, '');
+        if (pagerLoading === 'next') {
+          next.disabled = true;
+          next.appendChild(spinner());
+          next.appendChild(document.createTextNode('…'));
+        } else {
+          next.textContent = 'Next →';
+          next.disabled = page >= totalPages || pagerLoading !== null;
+        }
+        next.addEventListener('click', function () {
+          if (page < totalPages && pagerLoading === null) { page++; pagerLoading = 'next'; renderPager(); loadDevices(); }
+        });
+
         wrap.appendChild(prev);
         wrap.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Page ' + page + ' of ' + totalPages + ' (' + total + ' total)'));
         wrap.appendChild(next);
@@ -686,6 +724,43 @@
           });
           return out;
         }
+        // Human-readable USB list — mirrors diag_usb_human() in the PDF renderer:
+        // drops Linux Foundation root hubs and internal host controllers, strips
+        // the "Generic" placeholder, and names common bare Intel Bluetooth IDs.
+        function usbHuman(raw) {
+          var known = {
+            '8087:0025': 'Intel Wireless-AC 9260 Bluetooth',
+            '8087:0026': 'Intel AX201 Bluetooth',
+            '8087:0029': 'Intel AX200 Bluetooth',
+            '8087:0032': 'Intel AX210 Bluetooth',
+            '8087:0033': 'Intel AX211 Bluetooth',
+            '8087:0036': 'Intel BE200 Bluetooth',
+            '8087:0a2b': 'Intel Bluetooth',
+            '8087:0aa7': 'Intel Wireless-AC 3168 Bluetooth',
+            '8087:0aaa': 'Intel Bluetooth 9460/9560'
+          };
+          var out = [];
+          String(raw || '').split(/\r?\n|;\s*/).forEach(function (it) {
+            it = it.trim();
+            if (!it) return;
+            if (/^1d6b:/i.test(it)) return;                    // Linux Foundation root hub
+            if (/host controller/i.test(it)) return;            // internal USB controllers
+            it = it.replace(/^([0-9a-f]{4}:[0-9a-f]{4})\s+Generic\s+/i, '$1 ');
+            var m = it.match(/^([0-9a-f]{4}):([0-9a-f]{4})$/i);
+            if (m) {
+              // bare vendor:product ID (no name) — name the common Intel Bluetooth IDs
+              var key = (m[1] + ':' + m[2]).toLowerCase();
+              it = known[key] || it;
+            } else {
+              // named entry — drop the vendor:product ID wherever it appears
+              it = it.replace(/^[0-9a-f]{4}:[0-9a-f]{4}\s+/, '');
+              it = it.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/, '');
+            }
+            it = it.replace(/\s{2,}/g, ' ').replace(/^[ \t,:;]+|[ \t,:;]+$/g, '');
+            if (it) out.push(it);
+          });
+          return out;
+        }
 
         var main = el('div', 'space-y-5 lg:col-span-2');
         var side = el('div', 'space-y-5');
@@ -755,7 +830,7 @@
         main.appendChild(listCard('Storage controllers', dev.storage_controllers, true));
         main.appendChild(listCard('Onboard devices', dev.onboard_devices, false));
         main.appendChild(listCard('PCI devices', pciHuman(dev.pci_devices), false));
-        main.appendChild(listCard('USB devices', dev.usb_devices, true));
+        main.appendChild(listCard('USB devices', usbHuman(dev.usb_devices), false));
         main.appendChild(listCard('Boot entries', dev.uefi_boot_entries, true));
 
         side.appendChild(fieldsCard('Identity', [
