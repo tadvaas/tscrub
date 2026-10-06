@@ -402,6 +402,13 @@ system::gather_info() {
         fi
     fi
 
+    # CPU max (turbo) speed from SMBIOS Type 4 — resale grading detail.
+    if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
+        local _cpu_max
+        _cpu_max="$(dmidecode -t 4 2>/dev/null | awk -F': *' '/^[[:space:]]*Max Speed:/{v=$2; sub(/ .*/,"",v); if (v+0>0) printf "%.1f GHz", v/1000; exit}')"
+        [[ -n "$_cpu_max" ]] && SYS_CPU_SPEC="${SYS_CPU_SPEC:+${SYS_CPU_SPEC} · }${_cpu_max} max"
+    fi
+
     if command -v lspci &>/dev/null; then
         SYS_GPU_LIST="$(lspci 2>/dev/null | awk '/VGA compatible controller|3D controller|Display controller/ {sub(/^[^ ]+ +/, ""); sub(/^[^:]+: /, ""); print}' | nl -w1 -s'. ')"
     elif command -v lshw &>/dev/null; then
@@ -466,8 +473,18 @@ system::gather_info() {
         ')"
     fi
 
-    if [[ -n "$_ram_summary" ]]; then
-        SYS_RAM_GB="$_ram_total ($_ram_summary)"
+    # Board's maximum supported RAM (SMBIOS Type 16) — upgrade headroom.
+    local _ram_max=""
+    if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
+        _ram_max="$(dmidecode -t 16 2>/dev/null | awk -F': *' '/^[[:space:]]*Maximum Capacity:/{sub(/^[[:space:]]+/,"",$2); print $2; exit}')"
+    fi
+
+    local _ram_extra=""
+    [[ -n "$_ram_max" && "$_ram_max" != "Unknown" ]] && _ram_extra="max $_ram_max"
+    [[ -n "$_ram_summary" ]] && _ram_extra="${_ram_extra:+${_ram_extra}, }$_ram_summary"
+
+    if [[ -n "$_ram_extra" ]]; then
+        SYS_RAM_GB="$_ram_total ($_ram_extra)"
     else
         SYS_RAM_GB="$_ram_total"
     fi
@@ -522,36 +539,42 @@ system::gather_info() {
     fi
     SYS_SECUREBOOT="${_sb:-N/A}"
 
-    # Per-DIMM inventory (size/type/speed/part#/serial) — resale grading detail.
+    # Per-DIMM inventory (size/mfr/type/form-factor/speed/part#/serial).
     local _dimm=""
     if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
         _dimm="$(dmidecode -t 17 2>/dev/null | awk '
-            /Memory Device$/        { size=""; stype=""; speed=""; sn=""; pn="" }
+            /Memory Device$/        { size=""; stype=""; speed=""; sn=""; pn=""; mfr=""; ff="" }
             /^[[:space:]]*Size:/ {
                 sub(/^[[:space:]]*Size:[[:space:]]*/,"")
                 if ($0 !~ /No Module/) size=$0
                 next
             }
             /^[[:space:]]*Type:/     { sub(/^[[:space:]]*Type:[[:space:]]*/,""); stype=$0; next }
+            /^[[:space:]]*Form Factor:/ { sub(/^[[:space:]]*Form Factor:[[:space:]]*/,""); ff=$0; next }
+            /^[[:space:]]*Manufacturer:/ { sub(/^[[:space:]]*Manufacturer:[[:space:]]*/,""); mfr=$0; next }
             /^[[:space:]]*Configured Memory Speed:/ { sub(/^[[:space:]]*Configured Memory Speed:[[:space:]]*/,""); speed=$0; next }
             /^[[:space:]]*Speed:/    { if (speed=="") { sub(/^[[:space:]]*Speed:[[:space:]]*/,""); speed=$0 } ; next }
             /^[[:space:]]*Serial Number:/ { sub(/^[[:space:]]*Serial Number:[[:space:]]*/,""); sn=$0; next }
             /^[[:space:]]*Part Number:/   { sub(/^[[:space:]]*Part Number:[[:space:]]*/,""); pn=$0; next }
             /^$/ && size!="" {
                 out=size
-                if (stype!="") out=out " " stype
+                if (mfr!="" && mfr!="Unknown" && mfr!="None" && mfr!="Not Specified" && mfr!="[Empty]") out=out " " mfr
+                if (stype!="" && stype!="Unknown") out=out " " stype
+                if (ff!="" && ff!="Unknown" && ff!="None" && ff!="Not Specified") out=out " " ff
                 if (speed!="" && speed!="Unknown") out=out " @ " speed
                 if (pn!="" && pn!="Unknown" && pn!="None" && pn!="Not Specified" && pn!="[Empty]") out=out " P/N=" pn
                 if (sn!="" && sn!="Unknown" && sn!="None" && sn!="Not Specified") out=out " SN=" sn
                 gsub(/,/, " ", out)
                 gsub(/[ \t]+/, " ", out)
                 print out
-                size=""; stype=""; speed=""; sn=""; pn=""
+                size=""; stype=""; speed=""; sn=""; pn=""; mfr=""; ff=""
             }
             END {
                 if (size!="") {
                     out=size
-                    if (stype!="") out=out " " stype
+                    if (mfr!="" && mfr!="Unknown" && mfr!="None" && mfr!="Not Specified" && mfr!="[Empty]") out=out " " mfr
+                    if (stype!="" && stype!="Unknown") out=out " " stype
+                    if (ff!="" && ff!="Unknown" && ff!="None" && ff!="Not Specified") out=out " " ff
                     if (speed!="" && speed!="Unknown") out=out " @ " speed
                     if (pn!="" && pn!="Unknown" && pn!="None" && pn!="Not Specified" && pn!="[Empty]") out=out " P/N=" pn
                     if (sn!="" && sn!="Unknown" && sn!="None" && sn!="Not Specified") out=out " SN=" sn
