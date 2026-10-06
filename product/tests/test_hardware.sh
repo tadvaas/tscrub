@@ -7,19 +7,36 @@ t::source_src
 tmpdir="$(mktemp -d)"
 
 # --- hardware::usb ----------------------------------------------------------
-mkdir -p "$tmpdir/usb/usb1" "$tmpdir/usb/1-1" "$tmpdir/usb/1-2"
-# root hub (usb1) has no idVendor -> skipped
+mkdir -p "$tmpdir/usb/usb1" "$tmpdir/usb/1-1" "$tmpdir/usb/1-2" "$tmpdir/usb/1-3" "$tmpdir/usb/1-4" "$tmpdir/usb/1-5"
+# usb1 has no idVendor -> skipped; 1-1 is a Linux Foundation root hub -> skipped
 printf '1d6b' > "$tmpdir/usb/1-1/idVendor"
 printf '0003' > "$tmpdir/usb/1-1/idProduct"
-printf 'Linux Foundation' > "$tmpdir/usb/1-1/manufacturer"
-printf '3.0 root hub' > "$tmpdir/usb/1-1/product"
+printf 'Linux 6.18.0 xhci-hcd' > "$tmpdir/usb/1-1/manufacturer"
+printf 'xHCI Host Controller' > "$tmpdir/usb/1-1/product"
+# normal keyboard
 printf '04d9' > "$tmpdir/usb/1-2/idVendor"
 printf '1702' > "$tmpdir/usb/1-2/idProduct"
 printf 'HP' > "$tmpdir/usb/1-2/manufacturer"
 printf 'USB Slim Keyboard' > "$tmpdir/usb/1-2/product"
-SYS_USB_DIR="$tmpdir/usb" hardware::usb
-t::assert_eq "1d6b:0003 Linux Foundation 3.0 root hub; 04d9:1702 HP USB Slim Keyboard" \
-    "$SYS_USB_LIST" "usb: two devices, root hub skipped"
+# webcam with a placeholder "Generic" manufacturer
+printf '05c8' > "$tmpdir/usb/1-3/idVendor"
+printf '03b1' > "$tmpdir/usb/1-3/idProduct"
+printf 'Generic' > "$tmpdir/usb/1-3/manufacturer"
+printf 'HP HD Camera' > "$tmpdir/usb/1-3/product"
+# bare device (no strings) -> resolved from usb.ids
+printf '8087' > "$tmpdir/usb/1-4/idVendor"
+printf '0a2b' > "$tmpdir/usb/1-4/idProduct"
+# non-root-hub "Host Controller" -> skipped
+printf '1234' > "$tmpdir/usb/1-5/idVendor"
+printf '5678' > "$tmpdir/usb/1-5/idProduct"
+printf 'Foo' > "$tmpdir/usb/1-5/manufacturer"
+printf 'Foo Host Controller' > "$tmpdir/usb/1-5/product"
+
+printf '8087  Intel Corp.\n\t0a2b  Bluetooth wireless interface\n' > "$tmpdir/usb.ids"
+
+SYS_USB_DIR="$tmpdir/usb" SYS_USB_IDS_FILE="$tmpdir/usb.ids" hardware::usb
+t::assert_eq "04d9:1702 HP USB Slim Keyboard; 05c8:03b1 HP HD Camera; Intel Corp. Bluetooth wireless interface (8087:0a2b)" \
+    "$SYS_USB_LIST" "usb: root hubs/host controllers skipped, Generic stripped, bare ID resolved"
 
 rm -rf "$tmpdir/usb"; mkdir -p "$tmpdir/usb"
 SYS_USB_DIR="$tmpdir/usb" hardware::usb

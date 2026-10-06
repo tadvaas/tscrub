@@ -14,6 +14,7 @@
 
 # --- configuration / test overrides ------------------------------------------
 SYS_USB_DIR="${SYS_USB_DIR:-/sys/bus/usb/devices}"
+SYS_USB_IDS_FILE="${SYS_USB_IDS_FILE:-/usr/share/hwdata/usb.ids}"
 SYS_PCI_DIR="${SYS_PCI_DIR:-/sys/bus/pci/devices}"
 SYS_NET_DIR="${SYS_NET_DIR:-/sys/class/net}"
 SYS_EFIVARS_DIR="${SYS_EFIVARS_DIR:-/sys/firmware/efi/efivars}"
@@ -37,19 +38,54 @@ hardware::_clean() {
     printf '%s' "${1:-}" | tr -d ',' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]][[:space:]]*/ /g'
 }
 
-# USB devices: "vendor:product  manufacturer  product" per non-root-hub device.
+# Friendly name for a bare vendor:product, resolved from usb.ids. Used when the
+# device exposes no manufacturer/product strings (e.g. Intel Bluetooth radios).
+hardware::usb_name() {
+    local vid="$1" pid="$2"
+    [[ -r "$SYS_USB_IDS_FILE" ]] || return 0
+    awk -v vid="$vid" -v pid="$pid" '
+        /^#/ { next }
+        /^[[:space:]]/ {
+            if (in_v && $1 == pid) {
+                name=$2; for (i=3; i<=NF; i++) name=name " " $i
+                print vendor " " name
+                exit
+            }
+            next
+        }
+        {
+            v=$1; in_v=(v==vid)
+            vendor=$2; for (i=3; i<=NF; i++) vendor=vendor " " $i
+            next
+        }
+    ' "$SYS_USB_IDS_FILE" 2>/dev/null
+}
+
+# USB devices: "vendor:product  manufacturer  product" per device. Linux
+# Foundation root hubs (1d6b) and "… Host Controller" entries are the machine's
+# own USB controllers — not assets — so they are skipped; a placeholder
+# "Generic" manufacturer is dropped; a bare vendor:product is resolved.
 hardware::usb() {
-    local d vid pid prod mfr entry list=""
+    local d vid pid prod mfr entry list="" name
     for d in "$SYS_USB_DIR"/*/; do
         [[ -r "${d}idVendor" ]] || continue
         vid="$(tr -d '\n' < "${d}idVendor" 2>/dev/null)"
         pid="$(tr -d '\n' < "${d}idProduct" 2>/dev/null)"
         [[ -n "$vid" && -n "$pid" ]] || continue
-        prod="$(tr -d '\n' < "${d}product" 2>/dev/null)"
-        mfr="$(tr -d '\n' < "${d}manufacturer" 2>/dev/null)"
+        [[ "$vid" == "1d6b" ]] && continue
+        prod=""
+        mfr=""
+        [[ -r "${d}product" ]] && prod="$(tr -d '\n' < "${d}product" 2>/dev/null)"
+        [[ -r "${d}manufacturer" ]] && mfr="$(tr -d '\n' < "${d}manufacturer" 2>/dev/null)"
+        [[ "$prod" == *"Host Controller"* ]] && continue
+        [[ "$mfr" == "Generic" ]] && mfr=""
         entry="${vid}:${pid}"
         [[ -n "$mfr" ]] && entry+=" ${mfr}"
         [[ -n "$prod" ]] && entry+=" ${prod}"
+        if [[ -z "$mfr" && -z "$prod" ]]; then
+            name="$(hardware::usb_name "$vid" "$pid")"
+            [[ -n "$name" ]] && entry="${name} (${vid}:${pid})"
+        fi
         entry="$(hardware::_clean "$entry")"
         list="${list}${list:+; }${entry}"
     done

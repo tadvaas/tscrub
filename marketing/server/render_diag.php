@@ -336,6 +336,42 @@ function diag_pci_human(string $raw): array {
 }
 
 /**
+ * Turn the raw USB "vid:pid manufacturer product" list into readable device
+ * lines — Linux Foundation root hubs and host controllers are dropped, the
+ * placeholder "Generic" manufacturer is removed, and common bare vid:pids are
+ * given a friendly name.
+ */
+function diag_usb_human(string $raw): array {
+    $known = [
+        '8087:0025' => 'Intel Wireless-AC 9260 Bluetooth',
+        '8087:0026' => 'Intel AX201 Bluetooth',
+        '8087:0029' => 'Intel AX200 Bluetooth',
+        '8087:0032' => 'Intel AX210 Bluetooth',
+        '8087:0033' => 'Intel AX211 Bluetooth',
+        '8087:0036' => 'Intel BE200 Bluetooth',
+        '8087:0a2b' => 'Intel Bluetooth',
+        '8087:0aa7' => 'Intel Wireless-AC 3168 Bluetooth',
+        '8087:0aaa' => 'Intel Bluetooth 9460/9560',
+    ];
+    $out = [];
+    foreach (preg_split('/\r?\n|;\s*/', trim($raw)) as $it) {
+        $it = trim((string)$it);
+        if ($it === '') continue;
+        if (preg_match('/^1d6b:/i', $it)) continue;                 // Linux Foundation root hub
+        if (preg_match('/host controller/i', $it)) continue;         // internal USB controllers
+        $it = preg_replace('/^([0-9a-f]{4}:[0-9a-f]{4})\s+Generic\s+/i', '$1 ', $it);
+        if (preg_match('/^([0-9a-f]{4}):([0-9a-f]{4})$/i', $it, $m)) {
+            $key = strtolower($m[1] . ':' . $m[2]);
+            $it = isset($known[$key]) ? $known[$key] . ' (' . $m[1] . ':' . $m[2] . ')' : $it;
+        }
+        $it = trim(preg_replace('/\s{2,}/', ' ', $it), " \t,:;");
+        if ($it === '') continue;
+        $out[] = $it;
+    }
+    return $out;
+}
+
+/**
  * Page 3 — hardware annex: the extended machine inventory (NICs, storage
  * controllers, PCI, USB, boot entries, peripherals, firmware state), laid out
  * Blancco-style as full-width labelled rows and stacked lists. Rendered between
@@ -495,7 +531,7 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $list('Devices', diag_pci_human((string)($d['pci_devices'] ?? '')));
 
     $sub('USB DEVICES');
-    $list('Devices', $semicolon((string)($d['usb_devices'] ?? '')));
+    $list('Devices', diag_usb_human((string)($d['usb_devices'] ?? '')));
 
     $sub('PERIPHERALS');
     $periphRow((string)($d['peripherals'] ?? ''));
