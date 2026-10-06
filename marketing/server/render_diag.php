@@ -269,17 +269,26 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
     }
 }
 
-/** Format the peripherals "webcam:1; touchscreen:0; …" string for the PDF. */
-function diag_peripherals_human(string $s): string {
+/** Parse the peripherals "webcam:1; touchscreen:0; …" string into ordered [label, Yes/No] pairs. */
+function diag_peripherals_pairs(string $s): array {
     $map = [];
     foreach (explode(';', $s) as $kv) {
         $p = explode(':', $kv);
         if (count($p) === 2) $map[trim($p[0])] = trim($p[1]);
     }
-    $parts = [];
+    $out = [];
     foreach (['webcam' => 'Webcam', 'touchscreen' => 'Touchscreen', 'fingerprint' => 'Fingerprint', 'accelerometer' => 'Accelerometer', 'audio' => 'Audio'] as $k => $label) {
-        if (($map[$k] ?? '') === '1')      $parts[] = $label . ': Yes';
-        elseif (($map[$k] ?? '') === '0')  $parts[] = $label . ': No';
+        if (($map[$k] ?? '') === '1')      $out[] = [$label, 'Yes'];
+        elseif (($map[$k] ?? '') === '0')  $out[] = [$label, 'No'];
+    }
+    return $out;
+}
+
+/** Format the peripherals "webcam:1; touchscreen:0; …" string for the PDF. */
+function diag_peripherals_human(string $s): string {
+    $parts = [];
+    foreach (diag_peripherals_pairs($s) as [$label, $val]) {
+        $parts[] = $label . ': ' . $val;
     }
     return implode('  ·  ', $parts);
 }
@@ -429,6 +438,35 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
         return array_filter(array_map('trim', explode("\n", $v)), fn($s) => $s !== '');
     };
 
+    // The peripherals row renders each Yes/No verdict in colour (green/red).
+    $periphRow = function (string $value) use (&$y, $need, $row, $pdf, $x, $W, $labelW): void {
+        $pairs = diag_peripherals_pairs($value);
+        if ($pairs === []) { $row('Presence', ''); return; }
+        $need(5.0);
+        $pdf->SetFont('helvetica', '', 8.5);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($labelW, 4.0, 'Presence', 0, 0, 'L');
+        $pdf->SetXY($x + $labelW, $y);
+        $first = true;
+        foreach ($pairs as [$label, $val]) {
+            if (!$first) {
+                $pdf->SetFont('helvetica', '', 8.5);
+                $pdf->SetTextColor(148, 163, 184);
+                $pdf->Cell($pdf->GetStringWidth('  ·  ') + 0.2, 4.0, '  ·  ', 0, 0, 'L');
+            }
+            $first = false;
+            $pdf->SetFont('helvetica', '', 8.5);
+            $pdf->SetTextColor(11, 18, 32);
+            $pdf->Cell($pdf->GetStringWidth($label . ': ') + 0.2, 4.0, $label . ': ', 0, 0, 'L');
+            $green = $val === 'Yes';
+            $pdf->SetFont('helvetica', 'B', 8.5);
+            $pdf->SetTextColor($green ? 5 : 220, $green ? 150 : 38, $green ? 105 : 38);
+            $pdf->Cell($pdf->GetStringWidth($val) + 0.2, 4.0, $val, 0, 0, 'L');
+        }
+        $y += 4.6;
+    };
+
     $sub('PROCESSOR');
     $row('CPU', trim((string)($d['cpu'] ?? '')));
     $row('Cores / threads', trim((string)($d['cpu_spec'] ?? '')));
@@ -460,7 +498,7 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $list('Devices', $semicolon((string)($d['usb_devices'] ?? '')));
 
     $sub('PERIPHERALS');
-    $row('Presence', diag_peripherals_human((string)($d['peripherals'] ?? '')));
+    $periphRow((string)($d['peripherals'] ?? ''));
 
     $sub('FIRMWARE STATE');
     $row('Secure Boot', trim((string)($d['secure_boot'] ?? '')));
