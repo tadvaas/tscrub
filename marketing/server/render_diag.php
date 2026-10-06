@@ -284,6 +284,48 @@ function diag_peripherals_human(string $s): string {
     return implode('  ·  ', $parts);
 }
 
+/** True for loopback/tunnel/software NICs that carry no asset value. */
+function diag_iface_virtual(string $name): bool {
+    return (bool)preg_match('/^(lo|sit|tun|tap|veth|br|bond|dummy|docker|virbr|vboxnet|vmnet|vlan)/i', $name);
+}
+
+/**
+ * Turn the raw lspci -nn blob (or the sysfs fallback) into short, readable
+ * device lines — one "Class: Vendor Device" per meaningful device, with
+ * chipset glue (host/PCI/ISA bridges, SMBus, root ports) dropped.
+ */
+function diag_pci_human(string $raw): array {
+    $out = [];
+    foreach (preg_split('/\r?\n/', trim($raw)) as $line) {
+        $line = trim((string)$line);
+        if ($line === '') continue;
+
+        // Chipset infrastructure — no asset value for the reader.
+        if (preg_match('/\b(host bridge|pci bridge|isa bridge|smbus|root port|signal processing controller|communication controller|serial controller)\b/i', $line)) continue;
+        // RAM/PMC memory controller is chipset glue; keep NVMe ("Non-Volatile memory controller").
+        if (preg_match('/(?<!non-volatile )memory controller\b/i', $line)) continue;
+
+        if (preg_match('/^[0-9a-f:.]+\s+\[[0-9a-f]{6}\]\s+(.+?)\s+[0-9a-f]{4}:[0-9a-f]{4}$/i', $line, $m)) {
+            // sysfs fallback: "0000:00:1f.3 [040300] Multimedia 8086:a170"
+            $line = $m[1];
+        } else {
+            // lspci -nn: "00:1f.6 Ethernet controller [0200]: Intel … [8086:15d7] (rev 21)"
+            $line = preg_replace('/^[0-9a-f:.]+\s+/', '', $line);
+            $line = preg_replace('/\s*\[[0-9a-f]{4}\]/', '', $line);
+            $line = preg_replace('/\s+\[[0-9a-f]{4}:[0-9a-f]{4}\]/', '', $line);
+            $line = preg_replace('/\s*\(rev\s+[0-9a-f]+\)/', '', $line);
+            $line = preg_replace('/\s*\([A-Z][0-9]? step\)/i', '', $line);
+        }
+
+        // Vendor-name noise ("Intel Corporation" -> "Intel", etc.).
+        $line = preg_replace('/\b(?:Corporation|Electronics Co\.?[, ]*\s*Ltd\.?|Semiconductor Co\.?[, ]*\s*Ltd\.?|Co\.?[, ]*\s*Ltd\.?|Inc\.?|Ltd\.?|LLC|Company|and subsidiaries)\b/i', ' ', $line);
+        $line = trim(preg_replace('/\s{2,}/', ' ', $line), " \t,:;");
+        if ($line === '') continue;
+        $out[] = $line;
+    }
+    return $out;
+}
+
 /**
  * Page 3 — hardware annex: the extended machine inventory (NICs, storage
  * controllers, PCI, USB, boot entries, peripherals, firmware state), laid out
@@ -402,13 +444,17 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $row('Battery', trim((string)($d['battery'] ?? '')));
 
     $sub('NETWORK INTERFACES');
-    $list('Interfaces', $semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))));
+    $ifaces = array_values(array_filter($semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))), static function (string $e): bool {
+        $name = trim(explode(' ', $e)[0] ?? '');
+        return $name === '' || !diag_iface_virtual($name);
+    }));
+    $list('Interfaces', $ifaces);
 
     $sub('STORAGE');
     $list('Controllers', $semicolon((string)($d['storage_controllers'] ?? '')));
 
     $sub('PCI DEVICES');
-    $list('Devices', $newline((string)($d['pci_devices'] ?? '')));
+    $list('Devices', diag_pci_human((string)($d['pci_devices'] ?? '')));
 
     $sub('USB DEVICES');
     $list('Devices', $semicolon((string)($d['usb_devices'] ?? '')));

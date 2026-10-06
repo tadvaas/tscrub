@@ -122,11 +122,17 @@ hardware::smbios() {
 }
 
 # Network interfaces: name · MAC · operstate · driver (one entry per NIC).
+# Virtual interfaces (lo, sit, tun/tap, veth, bridges, bonds, docker, …) are
+# skipped — they carry no asset value and have no backing hardware device.
 hardware::interfaces() {
     local d name addr state driver entry list=""
     for d in "$SYS_NET_DIR"/*/; do
         [[ -r "${d}address" ]] || continue
         name="$(basename "$d")"
+        case "$name" in
+            lo|sit*|tun*|tap*|veth*|br-*|br[0-9]*|bond*|dummy*|docker*|virbr*|vboxnet*|vmnet*|vlan*|gre*|ip6tnl*) continue ;;
+        esac
+        [[ -d "${d}device" ]] || continue
         addr="$(tr -d '\n' < "${d}address" 2>/dev/null)"
         state="$(tr -d '\n' < "${d}operstate" 2>/dev/null)"
         driver="$(sed -n 's/^DRIVER=//p' "${d}device/uevent" 2>/dev/null | head -n1)"

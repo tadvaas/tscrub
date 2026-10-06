@@ -47,15 +47,17 @@ hardware::smbios
 t::assert_contains "$SYS_SMBIOS_RAW" "BIOS Information" "smbios: full dump captured"
 
 # --- hardware::interfaces ----------------------------------------------------
-mkdir -p "$tmpdir/net/eth0/device" "$tmpdir/net/lo"
+mkdir -p "$tmpdir/net/eth0/device" "$tmpdir/net/lo" "$tmpdir/net/sit0"
 printf '00:11:22:33:44:55' > "$tmpdir/net/eth0/address"
 printf 'up' > "$tmpdir/net/eth0/operstate"
 printf 'DRIVER=e1000e\n' > "$tmpdir/net/eth0/device/uevent"
 printf '00:00:00:00:00:00' > "$tmpdir/net/lo/address"
 printf 'unknown' > "$tmpdir/net/lo/operstate"
+printf '00:00:00:00' > "$tmpdir/net/sit0/address"
+printf 'unknown' > "$tmpdir/net/sit0/operstate"
 SYS_NET_DIR="$tmpdir/net" hardware::interfaces
-t::assert_eq "eth0 · 00:11:22:33:44:55 · up · e1000e; lo · 00:00:00:00:00:00 · unknown" \
-    "$SYS_NET_INTERFACES" "interfaces: name/mac/state/driver per NIC"
+t::assert_eq "eth0 · 00:11:22:33:44:55 · up · e1000e" \
+    "$SYS_NET_INTERFACES" "interfaces: physical NIC kept, lo/sit0 skipped"
 
 rm -rf "$tmpdir/net"; mkdir -p "$tmpdir/net"
 SYS_NET_DIR="$tmpdir/net" hardware::interfaces
