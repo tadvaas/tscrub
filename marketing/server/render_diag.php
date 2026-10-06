@@ -111,6 +111,13 @@ function diag_stored_to_raw(array $p): array {
         'media_source'       => (string)($p['media_source'] ?? ''),
         'media_destination'  => (string)($p['media_destination'] ?? ''),
         'selftest_cpu'       => (string)($p['selftest_cpu'] ?? ''),
+        'usb_devices'        => (string)($p['usb_devices'] ?? ''),
+        'pci_devices'        => (string)($p['pci_devices'] ?? ''),
+        'smbios'             => (string)($p['smbios'] ?? ''),
+        'interfaces'         => (string)($p['interfaces'] ?? ''),
+        'uefi_boot_entries'  => (string)($p['uefi_boot_entries'] ?? ''),
+        'peripherals'        => (string)($p['peripherals'] ?? ''),
+        'bios_lockdown'      => isset($p['bios_lockdown']) ? (int)$p['bios_lockdown'] : 0,
         'drives'             => is_array($p['drives'] ?? null) ? $p['drives'] : [],
     ];
 }
