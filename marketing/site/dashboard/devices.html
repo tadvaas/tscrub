@@ -691,7 +691,7 @@
         function refurbGradeCard(dev) {
           var c = card('Refurb grade');
           var body = cardBody(c);
-          var cur = dev.refurb_grade || '';
+          var cur = dev.refurb_grade || dev.grade || '';
           var line = el('div', 'flex flex-wrap items-center gap-2');
           line.appendChild(el('span', 'text-sm font-semibold text-slate-800 dark:text-slate-200', cur || 'Ungraded'));
           var note = el('div', 'mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500',
@@ -723,12 +723,29 @@
             });
           }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
             if (res.ok) {
+              // The modal can be opened on a single report entry (not the
+              // top-level device), so reflect the grade on the entry itself,
+              // on every matching history row, and — only when the graded
+              // report is the device's latest — on the main table badge.
               dev.refurb_grade = res.data.grade;
-              // Keep the in-memory history in sync so the report rows show the
-              // new grade without a full page reload.
-              (dev.history || []).forEach(function (h) {
-                if (h.pdf_id === dev.pdf_id) h.grade = res.data.grade;
-              });
+              dev.grade = res.data.grade;
+
+              var parent = null;
+              for (var i = 0; i < devices.length; i++) {
+                var d0 = devices[i];
+                if (d0.pdf_id === dev.pdf_id) { parent = d0; break; }
+                for (var j = 0; j < (d0.history || []).length; j++) {
+                  if (d0.history[j].pdf_id === dev.pdf_id) { parent = d0; break; }
+                }
+                if (parent) break;
+              }
+              if (parent) {
+                (parent.history || []).forEach(function (h) {
+                  if (h.pdf_id === dev.pdf_id) h.grade = res.data.grade;
+                });
+                if (parent.pdf_id === dev.pdf_id) parent.refurb_grade = res.data.grade;
+              }
+
               // Re-render the card in place.
               var fresh = refurbGradeCard(dev);
               cardEl.parentNode.replaceChild(fresh, cardEl);
