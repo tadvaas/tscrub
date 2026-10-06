@@ -65,14 +65,15 @@ function licence_pub_keys(int $userId): array {
 }
 
 /**
- * Lazily add the `report_type` column to an existing `reports` table
- * (idempotent — mirrors schema.sql). A fresh install gets the column from
+ * Lazily add the `report_type` and `grade` columns to an existing `reports`
+ * table (idempotent — mirrors schema.sql). A fresh install gets them from
  * schema.sql; an existing server self-heals on first use.
  */
 function reports_ensure_schema(): void {
     try {
         $wanted = [
             'report_type' => "ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source",
+            'grade'       => "VARCHAR(8) NOT NULL DEFAULT '' AFTER report_type",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -1349,68 +1350,26 @@ function load_registered_devices(int $userId): array {
 }
 
 /**
- * Lazily create the device_grades table (idempotent — mirrors schema.sql).
- * Holds the operator's manual I-A–I-F refurb grade, keyed by the same machine
- * key load_devices() derives (sysserial → bbserial → systemuuid).
+ * Set (or clear, with grade='') the manual I-A–I-F refurb grade on a
+ * diagnostics report. The grade lives on the report itself so each report row
+ * carries its own grade; the Devices tab shows the latest report's grade.
+ * Writes are org-scoped via ownership of the report.
  */
-function grades_ensure_schema(): void {
-    static $done = false;
-    if ($done) return;
-    $done = true;
-    try {
-        db()->exec(
-            'CREATE TABLE IF NOT EXISTS device_grades (
-               id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-               user_id     BIGINT UNSIGNED NOT NULL,
-               machine_key VARCHAR(255)    NOT NULL DEFAULT "",
-               grade       VARCHAR(8)      NOT NULL DEFAULT "",
-               graded_by   BIGINT UNSIGNED NULL DEFAULT NULL,
-               graded_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-               PRIMARY KEY (id),
-               UNIQUE KEY uq_grade_device (user_id, machine_key),
-               CONSTRAINT fk_grade_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )'
-        );
-    } catch (Throwable $e) {
-        error_log('grades ensure schema error: ' . $e->getMessage());
-    }
-}
-
-/** Stored I-A–I-F grades for a user's organisation, keyed by machine key. */
-function device_grade_map(int $userId): array {
-    grades_ensure_schema();
-    $out = [];
+function report_grade_set(int $userId, int $reportId, string $grade): bool {
+    reports_ensure_schema();
+    if (!valid_device_grade($grade)) return false;
+    $norm = strtoupper(trim($grade));
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("SELECT machine_key, grade FROM device_grades WHERE user_id IN ($ph)");
-        $stmt->execute($ids);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $out[(string)$r['machine_key']] = (string)$r['grade'];
-        }
+        $stmt = db()->prepare(
+            "UPDATE reports SET grade = ? WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
+        );
+        $stmt->execute([$norm, $reportId]);
+        return $stmt->rowCount() > 0;
     } catch (Throwable $e) {
-        error_log('device grade map error: ' . $e->getMessage());
-    }
-    return $out;
-}
-
-/** Upsert (or clear, with grade='') a device's I-A–I-F refurb grade. */
-function device_grade_set(int $userId, string $machineKey, string $grade, int $by): void {
-    grades_ensure_schema();
-    if (!valid_device_grade($grade)) return;
-    try {
-        // Org-scoped: persist under the org owner so every member reads and
-        // writes the same grade row (device_grade_map reads via org_member_ids).
-        $org = org_for_user($userId);
-        $scopeId = ($org !== null) ? (int)$org['owner_user_id'] : $userId;
-        $norm = strtoupper(trim($grade));
-        db()->prepare(
-            'INSERT INTO device_grades (user_id, machine_key, grade, graded_by, graded_at)
-             VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
-             ON DUPLICATE KEY UPDATE grade = VALUES(grade), graded_by = VALUES(graded_by), graded_at = UTC_TIMESTAMP()'
-        )->execute([$scopeId, strtolower(trim($machineKey)), $norm, $by]);
-    } catch (Throwable $e) {
-        error_log('device grade set error: ' . $e->getMessage());
+        error_log('report grade set error: ' . $e->getMessage());
+        return false;
     }
 }
 
@@ -1429,7 +1388,7 @@ function load_devices(int $userId): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = db()->prepare("SELECT id, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, uploaded_at, grade, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($ids);
 
     $devices = [];
@@ -1477,6 +1436,7 @@ function load_devices(int $userId): array {
                 'media_source'  => (string)($g['media_source'] ?? ''),
                 'media_destination' => (string)($g['media_destination'] ?? ''),
                 'battery'       => (string)($g['battery'] ?? ''),
+                'refurb_grade'  => (string)($r['grade'] ?? ''),
                 'secure_boot'   => (string)($g['secure_boot'] ?? ''),
                 'dimms'         => (string)($g['dimms'] ?? ''),
                 'cpu_spec'      => (string)($g['cpu_spec'] ?? ''),
@@ -1521,6 +1481,7 @@ function load_devices(int $userId): array {
             $d['product_key_id'] = product_key_id_from_key((string)$g['product_key']);
         }
         $d['history'][] = [
+            'report_type'    => 'diagnostics',
             'uploaded_at'    => $seen,
             'first'          => $seen,
             'last'           => $seen,
@@ -1530,6 +1491,7 @@ function load_devices(int $userId): array {
             'report_id'      => (string)($g['report_id'] ?? ''),
             'digital_identifier' => (string)($g['digital_identifier'] ?? ''),
             'pdf_id'         => (int)$r['id'],
+            'grade'          => (string)($r['grade'] ?? ''),
             'selftest_cpu'   => (string)($g['selftest_cpu'] ?? ''),
             'chassisserial'  => (string)($g['chassisserial'] ?? ''),
             'chassistype'    => (string)($g['chassistype'] ?? ''),
@@ -1668,7 +1630,6 @@ function load_devices(int $userId): array {
 
     $out = array_values($devices);
     $presence = presence_map($userId);
-    $storedGrades = device_grade_map($userId);
     foreach ($out as $k => $dv) {
         $lastSeen = presence_last_seen((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['online']    = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
@@ -1679,10 +1640,9 @@ function load_devices(int $userId): array {
         $out[$k]['first']     = ts_local((string)$dv['first']);
         $out[$k]['last']      = ts_local((string)$dv['last']);
 
-        // Refurb grading: the operator's manual I-A–I-F pick, plus an
-        // automatic per-drive SMART grade.
-        $key = device_key($dv);
-        $out[$k]['refurb_grade'] = $storedGrades[$key] ?? '';
+        // Refurb grading: the I-A–I-F grade lives on the newest diagnostics
+        // report (set in the loop above), plus an automatic per-drive SMART
+        // grade computed on demand.
         foreach ($out[$k]['drives'] as $di => $drv) {
             $g = drive_grade(is_array($drv) ? $drv : []);
             $out[$k]['drives'][$di]['grade'] = $g['grade'];

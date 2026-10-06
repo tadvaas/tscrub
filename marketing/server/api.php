@@ -940,8 +940,7 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     // when the appliance supplied none; the validator row is omitted when empty.
     $raw['operator'] = operator_for_pdf($raw, (int)$u['id']);
     // The operator's manual I-A–I-F refurb grade (empty → no grade shown).
-    $storedGrades = device_grade_map((int)$u['id']);
-    $raw['refurb_grade'] = $storedGrades[device_key($d)] ?? '';
+    $raw['refurb_grade'] = (string)($r['grade'] ?? '');
     $rendered = render_diagnostics_pdf(
         $raw,
         certifier_for_user((int)$r['user_id']),
@@ -1641,7 +1640,8 @@ if ($method === 'GET' && $route === '/devices') {
 }
 
 // POST /api/devices/grade — set (or clear, grade='') the operator's manual
-// I-A–I-F refurb grade for a machine. Session + CSRF auth; org-scoped.
+// I-A–I-F refurb grade on a diagnostics report. Session + CSRF auth;
+// org-scoped by report ownership.
 if ($method === 'POST' && $route === '/devices/grade') {
     auth_csrf_verify();
     $u = auth_require();
@@ -1650,17 +1650,14 @@ if ($method === 'POST' && $route === '/devices/grade') {
     if (!valid_device_grade($grade)) {
         fail(400, 'grade must be one of I-A, I-B, I-C, I-D, I-F (or empty to clear).');
     }
-    // Reconstruct the same machine key load_devices() uses.
-    $key = device_key([
-        'sysserial' => (string)($d['sysserial'] ?? ''),
-        'bbserial'  => (string)($d['bbserial'] ?? ''),
-        'systemuuid' => (string)($d['systemuuid'] ?? $d['uuid'] ?? ''),
-    ]);
-    if ($key === '') {
-        fail(400, 'Provide a system serial, baseboard serial, or system UUID.');
+    $reportId = (int)($d['report_id'] ?? 0);
+    if ($reportId <= 0) {
+        fail(400, 'Provide the diagnostics report id.');
     }
-    device_grade_set((int)$u['id'], $key, $grade, (int)$u['id']);
-    json_out(['ok' => true, 'grade' => $grade, 'key' => $key]);
+    if (!report_grade_set((int)$u['id'], $reportId, $grade)) {
+        fail(404, 'Diagnostics report not found.');
+    }
+    json_out(['ok' => true, 'grade' => $grade, 'report_id' => $reportId]);
 }
 
 // POST /api/devices/register — the appliance posts its identity + hardware +
