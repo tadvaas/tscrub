@@ -6,7 +6,7 @@
   "description": "Marketing site for tScrub — verifiable disk sanitization.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/copy-well-known.mjs",
     "preview": "vite preview",
     "deploy": "bash deploy.sh",
     "deploy:server": "bash deploy-server.sh"
