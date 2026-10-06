@@ -474,7 +474,14 @@
           var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
           var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
           sysWrap.appendChild(el('span', 'truncate', dev.system || dev.sysserial || 'Unknown'));
-          if (dev.refurb_grade) { sysWrap.appendChild(refurbBadge(dev.refurb_grade)); }
+          var devGrade = dev.refurb_grade || dev.refurb_grade_suggested || '';
+          if (devGrade) {
+            var dgBadge = refurbBadge(devGrade);
+            dgBadge.title = dev.refurb_grade
+              ? 'Operator-assigned refurb grade'
+              : 'Suggested from battery health — open the device to confirm';
+            sysWrap.appendChild(dgBadge);
+          }
           sysCell.appendChild(sysWrap);
           sysCell.title = dev.system || '';
           tr.appendChild(sysCell);

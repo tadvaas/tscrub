@@ -178,6 +178,15 @@
           default:  return 'text-slate-500 dark:text-slate-400';
         }
       }
+      function gradeBadgeClass(g) {
+        switch (String(g || '')) {
+          case 'A': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+          case 'B': return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400';
+          case 'C': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+          case 'D': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+          default:  return 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400';
+        }
+      }
       function verifyClass(v) {
         var s = String(v || '').toUpperCase();
         if (s === 'PASSED')     return 'text-emerald-700 dark:text-emerald-400 font-semibold';
@@ -348,7 +357,7 @@
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var head = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-        [['Model', 'w-[17%]'], ['Serial', 'w-[14%]'], ['Size', 'w-[8%]'], ['Type', 'w-[8%]'], ['Status', 'w-[10%]'], ['Method', 'w-[16%]'], ['SMART', 'w-[7%]'], ['Verify', 'w-[8%]'], ['', 'w-[12%]']].forEach(function (c) {
+        [['Model', 'w-[17%]'], ['Serial', 'w-[14%]'], ['Size', 'w-[8%]'], ['Type', 'w-[8%]'], ['Status', 'w-[10%]'], ['Method', 'w-[14%]'], ['SMART', 'w-[7%]'], ['Verify', 'w-[8%]'], ['Grade', 'w-[7%]'], ['', 'w-[7%]']].forEach(function (c) {
           hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', c[0]));
         });
         head.appendChild(hr);
@@ -368,6 +377,11 @@
           tr.appendChild(el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + smartClass(d.smartpost), d.smartpost || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + verifyClass(d.verify_result), capVerify(d.verify_result) || '—'));
+          var gradeTd = el('td', 'px-3 py-2');
+          var gradeCell = el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + gradeBadgeClass(d.grade), d.grade || '—');
+          if (d.grade_reason) { gradeCell.title = d.grade_reason; }
+          gradeTd.appendChild(gradeCell);
+          tr.appendChild(gradeTd);
 
           var tdv = el('td', 'px-3 py-2 text-right');
           var vbtn = el('button', 'whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[serial] ? 'border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 text-brand-700 dark:text-brand-400' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
