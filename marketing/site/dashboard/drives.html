@@ -169,6 +169,15 @@
         if (s === 'UNSUP') return 'text-slate-400 dark:text-slate-500';
         return 'text-slate-700 dark:text-slate-300';
       }
+      function gradeClass(g) {
+        switch (String(g || '')) {
+          case 'A': return 'text-emerald-700 dark:text-emerald-400 font-semibold';
+          case 'B': return 'text-teal-700 dark:text-teal-400 font-semibold';
+          case 'C': return 'text-amber-700 dark:text-amber-400 font-semibold';
+          case 'D': return 'text-red-700 dark:text-red-400 font-semibold';
+          default:  return 'text-slate-500 dark:text-slate-400';
+        }
+      }
       function verifyClass(v) {
         var s = String(v || '').toUpperCase();
         if (s === 'PASSED')     return 'text-emerald-700 dark:text-emerald-400 font-semibold';
@@ -201,6 +210,7 @@
       function smartCsv(d) {
         var rows = [
           ['Serial', d.serial], ['Model', d.model], ['Size', d.size], ['Bus', d.bus], ['Type', d.type],
+          ['Resale grade', d.grade], ['Grade reason', d.grade_reason],
           ['Erasure status', d.status], ['Class', d.cls], ['Method', d.method], ['Certification', d.cert],
           ['Wiped', d.ts], ['CoC', d.cocid], ['System', d.system], ['System serial', d.sysserial],
           ['SMART (pre-wipe)', d.smart], ['Temperature °C (pre)', d.tempc], ['Power-on hours (pre)', d.poweronhours],
@@ -463,7 +473,7 @@
 
         // Outcome strip.
         var strip = el('div', 'flex flex-wrap gap-2 border-b border-slate-200 dark:border-ink-700 px-6 py-3');
-        [['Status', d.status, statusClass(d.status)], ['Method', d.method, ''], ['Class', d.cls, ''], ['Certification', d.cert, ''], ['SMART (post)', d.smartpost, smartClass(d.smartpost)]].forEach(function (c) {
+        [['Status', d.status, statusClass(d.status)], ['Method', d.method, ''], ['Class', d.cls, ''], ['Certification', d.cert, ''], ['SMART (post)', d.smartpost, smartClass(d.smartpost)], ['Resale grade', d.grade || '—', gradeClass(d.grade)]].forEach(function (c) {
           if (!c[1]) return;
           var chip = el('div', 'rounded-lg bg-slate-50 dark:bg-ink-800 px-3 py-1.5');
           chip.appendChild(el('div', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', c[0]));
@@ -509,6 +519,18 @@
           ['Operator', d.operator], ['Validator', d.validator],
           ['Media source', d.media_source], ['Media destination', d.media_destination]
         ]));
+
+        // Resale grade (computed from the SMART capture server-side).
+        var gradeNote = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-3');
+        gradeNote.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Resale grade'));
+        var gline = el('div', 'mt-1 text-sm ' + gradeClass(d.grade));
+        gline.appendChild(document.createTextNode('Grade ' + (d.grade || '—')));
+        if (d.grade_reason) {
+          gline.appendChild(el('span', 'ml-2 text-xs font-normal text-slate-500 dark:text-slate-400', d.grade_reason));
+        }
+        gradeNote.appendChild(gline);
+        gradeNote.appendChild(el('div', 'mt-1 text-[11px] text-slate-400 dark:text-slate-500', 'A heuristic from SMART at erase time — not a guarantee or a standards grade.'));
+        doc.appendChild(gradeNote);
 
         // SMART health (before / after).
         var smartSection = el('div', 'px-6 py-4');

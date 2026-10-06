@@ -10,6 +10,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/http.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/org.php';
+require_once __DIR__ . '/grading.php';
 
 function run_cmd(array $cmd) {
     $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
@@ -1348,6 +1349,72 @@ function load_registered_devices(int $userId): array {
 }
 
 /**
+ * Lazily create the device_grades table (idempotent — mirrors schema.sql).
+ * Holds the operator's manual R-A–R-D refurb grade, keyed by the same machine
+ * key load_devices() derives (sysserial → bbserial → systemuuid).
+ */
+function grades_ensure_schema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec(
+            'CREATE TABLE IF NOT EXISTS device_grades (
+               id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+               user_id     BIGINT UNSIGNED NOT NULL,
+               machine_key VARCHAR(255)    NOT NULL DEFAULT "",
+               grade       VARCHAR(8)      NOT NULL DEFAULT "",
+               graded_by   BIGINT UNSIGNED NULL DEFAULT NULL,
+               graded_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               PRIMARY KEY (id),
+               UNIQUE KEY uq_grade_device (user_id, machine_key),
+               CONSTRAINT fk_grade_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )'
+        );
+    } catch (Throwable $e) {
+        error_log('grades ensure schema error: ' . $e->getMessage());
+    }
+}
+
+/** Stored R-A–R-D grades for a user's organisation, keyed by machine key. */
+function device_grade_map(int $userId): array {
+    grades_ensure_schema();
+    $out = [];
+    try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare("SELECT machine_key, grade FROM device_grades WHERE user_id IN ($ph)");
+        $stmt->execute($ids);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(string)$r['machine_key']] = (string)$r['grade'];
+        }
+    } catch (Throwable $e) {
+        error_log('device grade map error: ' . $e->getMessage());
+    }
+    return $out;
+}
+
+/** Upsert (or clear, with grade='') a device's R-A–R-D refurb grade. */
+function device_grade_set(int $userId, string $machineKey, string $grade, int $by): void {
+    grades_ensure_schema();
+    if (!valid_device_grade($grade)) return;
+    try {
+        // Org-scoped: persist under the org owner so every member reads and
+        // writes the same grade row (device_grade_map reads via org_member_ids).
+        $org = org_for_user($userId);
+        $scopeId = ($org !== null) ? (int)$org['owner_user_id'] : $userId;
+        $norm = strtoupper(trim($grade));
+        db()->prepare(
+            'INSERT INTO device_grades (user_id, machine_key, grade, graded_by, graded_at)
+             VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE grade = VALUES(grade), graded_by = VALUES(graded_by), graded_at = UTC_TIMESTAMP()'
+        )->execute([$scopeId, strtolower(trim($machineKey)), $norm, $by]);
+    } catch (Throwable $e) {
+        error_log('device grade set error: ' . $e->getMessage());
+    }
+}
+
+/**
  * Aggregated machine (hardware/firmware) inventory across a user's boot-time
  * diagnostics reports — one row per physical machine, keyed by system serial
  * (fallback: baseboard serial, then system UUID). The serial is the stable
@@ -1370,10 +1437,7 @@ function load_devices(int $userId): array {
         $g = json_decode((string)$r['payload'], true);
         if (!is_array($g)) continue;
 
-        $key = '';
-        foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
-            if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
-        }
+        $key = device_key($g);
         if ($key === '') continue;   // diagnostics without identity can't be listed
 
         $drives = is_array($g['drives'] ?? null) ? $g['drives'] : [];
@@ -1535,10 +1599,7 @@ function load_devices(int $userId): array {
         $g = json_decode((string)$r['payload'], true);
         if (!is_array($g) || empty($g['drives'])) continue;
 
-        $key = '';
-        foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
-            if (!empty($g[$k])) { $key = strtolower((string)$g[$k]); break; }
-        }
+        $key = device_key($g);
         if ($key === '' || !isset($devices[$key])) continue;   // only fold into a known machine
 
         $drives = is_array($g['drives']) ? $g['drives'] : [];
@@ -1607,6 +1668,7 @@ function load_devices(int $userId): array {
 
     $out = array_values($devices);
     $presence = presence_map($userId);
+    $storedGrades = device_grade_map($userId);
     foreach ($out as $k => $dv) {
         $lastSeen = presence_last_seen((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
         $out[$k]['online']    = presence_is_online((string)$dv['sysserial'], (string)$dv['systemuuid'], $presence);
@@ -1616,6 +1678,18 @@ function load_devices(int $userId): array {
         $out[$k]['last_seen_at'] = $lastSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $lastSeen)) : null;
         $out[$k]['first']     = ts_local((string)$dv['first']);
         $out[$k]['last']      = ts_local((string)$dv['last']);
+
+        // Refurb grading: the operator's manual R-A–R-D pick + the
+        // battery-derived suggestion, and an automatic per-drive SMART grade.
+        $key = device_key($dv);
+        $out[$k]['refurb_grade'] = $storedGrades[$key] ?? '';
+        $out[$k]['refurb_grade_suggested'] = device_grade_suggest((string)$dv['battery']);
+        foreach ($out[$k]['drives'] as $di => $drv) {
+            $g = drive_grade(is_array($drv) ? $drv : []);
+            $out[$k]['drives'][$di]['grade'] = $g['grade'];
+            $out[$k]['drives'][$di]['grade_reason'] = implode('; ', $g['reasons']);
+            $out[$k]['drives'][$di]['graded'] = $g['graded'];
+        }
     }
 
     // Merge legacy boot-time registrations (pre-v1.8.6 appliances POST to
@@ -1762,6 +1836,12 @@ function load_drives(int $userId): array {
     foreach ($out as &$dv) {
         $dv['reports']  = count($dv['history']);
         $dv['multiple'] = $dv['reports'] > 1;
+
+        // Automatic per-drive resale grade from the captured SMART.
+        $g = drive_grade($dv);
+        $dv['grade'] = $g['grade'];
+        $dv['grade_reason'] = implode('; ', $g['reasons']);
+        $dv['graded'] = $g['graded'];
         unset($dv);
     }
     // Sort by most recent report upload, newest first (model/serial as a

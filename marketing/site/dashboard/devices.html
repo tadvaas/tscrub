@@ -471,7 +471,11 @@
         slice.forEach(function (dev, idx) {
           var key = String(dev.systemuuid || dev.sysserial || dev.bbserial || ('d' + idx));
           var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800 hover:bg-slate-50 dark:hover:bg-ink-800');
-          var sysCell = el('td', 'truncate px-4 py-2.5 font-medium text-ink-900 dark:text-white', dev.system || dev.sysserial || 'Unknown');
+          var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
+          var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
+          sysWrap.appendChild(el('span', 'truncate', dev.system || dev.sysserial || 'Unknown'));
+          if (dev.refurb_grade) { sysWrap.appendChild(refurbBadge(dev.refurb_grade)); }
+          sysCell.appendChild(sysWrap);
           sysCell.title = dev.system || '';
           tr.appendChild(sysCell);
           var serCell = el('td', 'truncate px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-400', dev.sysserial || '—');
@@ -662,6 +666,71 @@
         function pill(text, cls) {
           return el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + cls, text);
         }
+        function driveGradeBadge(g) {
+          var cls = { A: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+                      B: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
+                      C: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+                      D: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+                      '?': 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400' };
+          return g ? pill('Grade ' + g, cls[g] || cls['?']) : null;
+        }
+        function refurbBadge(g) {
+          var cls = { 'R-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+                      'R-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
+                      'R-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+                      'R-D': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' };
+          return g ? pill(g, cls[g] || 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400') : null;
+        }
+        // R-A–R-D device refurb grade picker (battery auto-suggests; operator
+        // confirms the cosmetic aspects). Posts to /api/devices/grade.
+        function refurbGradeCard(dev) {
+          var c = card('Refurb grade');
+          var body = cardBody(c);
+          var cur = dev.refurb_grade || '';
+          var sugg = dev.refurb_grade_suggested || '';
+          var line = el('div', 'flex flex-wrap items-center gap-2');
+          line.appendChild(el('span', 'text-sm font-semibold text-slate-800 dark:text-slate-200', cur || 'Ungraded'));
+          if (!cur && sugg) {
+            line.appendChild(pill(sugg + ' suggested', 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400'));
+          }
+          var note = el('div', 'mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500',
+            'R-A Excellent · R-B Very good · R-C Good/used · R-D Fair/heavy wear — screen, body, keyboard and battery health.');
+          body.appendChild(line);
+          body.appendChild(note);
+          var btns = el('div', 'mt-3 flex flex-wrap gap-2');
+          ['R-A', 'R-B', 'R-C', 'R-D'].forEach(function (g) {
+            var b = el('button', 'rounded-lg border px-2.5 py-1 text-xs font-semibold ' + (cur === g
+              ? 'border-brand-600 bg-brand-600 text-white'
+              : 'border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800'), g);
+            b.addEventListener('click', function () { saveRefurbGrade(dev, g, c); });
+            btns.appendChild(b);
+          });
+          if (cur) {
+            var clr = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800', 'Clear');
+            clr.addEventListener('click', function () { saveRefurbGrade(dev, '', c); });
+            btns.appendChild(clr);
+          }
+          body.appendChild(btns);
+          return c;
+        }
+        function saveRefurbGrade(dev, grade, cardEl) {
+          getCsrf().then(function (csrf) {
+            return fetch('/api/devices/grade', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ sysserial: dev.sysserial || '', bbserial: dev.bbserial || '', systemuuid: dev.systemuuid || '', grade: grade })
+            });
+          }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+            if (res.ok) {
+              dev.refurb_grade = res.data.grade;
+              // Re-render the card in place.
+              var fresh = refurbGradeCard(dev);
+              cardEl.parentNode.replaceChild(fresh, cardEl);
+            } else {
+              window.alert(res.data.error || 'Could not save the grade.');
+            }
+          }).catch(function () { window.alert('Network error — try again.'); });
+        }
         function chassisStateClass(v) {
           var s = String(v || '').toLowerCase().trim();
           if (s === 'safe' || s === 'none') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
@@ -781,7 +850,7 @@
           var scroll = el('div', 'overflow-x-auto');
           var dtbl = el('table', 'w-full border-collapse text-sm');
           var dhead = el('tr', 'bg-slate-100 dark:bg-ink-800');
-          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type', 'Firmware', 'SED lock', 'SMART', 'Self-test'].forEach(function (h) {
+          ['Device', 'Model', 'Serial', 'Size', 'Bus', 'Type', 'Firmware', 'SED lock', 'SMART', 'Self-test', 'Grade'].forEach(function (h) {
             dhead.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left text-xs font-semibold uppercase whitespace-nowrap text-slate-500 dark:text-slate-400', h));
           });
           dtbl.appendChild(dhead);
@@ -801,6 +870,9 @@
             ].forEach(function (cell) {
               dtr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap ' + cell[1] + ' text-slate-700 dark:text-slate-300', cell[0]));
             });
+            var gtd = el('td', 'px-2 py-1.5 whitespace-nowrap');
+            gtd.appendChild(driveGradeBadge(dv.grade) || document.createTextNode('—'));
+            dtr.appendChild(gtd);
             dtbl.appendChild(dtr);
           });
           scroll.appendChild(dtbl);
@@ -846,6 +918,8 @@
           ['Motherboard', dev.board], ['BIOS lock method', dev.bioslockmethod], ['Secure Boot', dev.secure_boot],
           ['Chassis lock', dev.chassis_lock], ['CPU self-test', dev.selftest_cpu]
         ]));
+
+        side.appendChild(refurbGradeCard(dev));
 
         var chassisCard = card('Chassis state');
         var chassisPairs = chassisStatePairs(dev.chassis_state);

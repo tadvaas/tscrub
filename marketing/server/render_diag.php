@@ -19,6 +19,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/render_cert.php'; // tScrubPDF + fmt_ts/fmt_date/type_label
+require_once __DIR__ . '/grading.php';
 
 /**
  * Fit a value into an exact width budget using the PDF's real font metrics,
@@ -194,6 +195,16 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
         return [148, 163, 184];   // UNSUP / N/A / empty
     };
 
+    $gradeColor = function (string $g): array {
+        switch ($g) {
+            case 'A': return [5, 150, 105];
+            case 'B': return [13, 148, 136];
+            case 'C': return [217, 119, 6];
+            case 'D': return [220, 38, 38];
+            default:  return [148, 163, 184];   // '?' ungraded
+        }
+    };
+
     // One label/value cell: label in small caps above the bold value.
     $cell = function (float $cx, float $cy, float $cw, string $label, string $value, array $color = [11, 18, 32]) use ($pdf): void {
         $pdf->SetFont('helvetica', '', 7);
@@ -221,7 +232,7 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
     $idx = 0;
     foreach ($drives as $d) {
         $idx++;
-        $cardH = 6.5 + 6 * $cellH + 3.0;   // header + rule + 6 rows + bottom pad
+        $cardH = 6.5 + 7 * $cellH + 3.0;   // header + rule + 7 rows + bottom pad
         if ($pdf->GetY() + $cardH > $H - 12) {
             $pageHeader();
         }
@@ -279,6 +290,13 @@ function diag_render_storage(TCPDF $pdf, float $x, float $W, float $H, string $r
         // Row 6 — self-tests (two wide cells).
         $cell($cols[0], $y, 2 * $colW, 'Self-test (SMART log)', (string)($d['selftest'] ?? ''));
         $cell($cols[2], $y, 2 * $colW, 'Self-test (run)',       (string)($d['selftest_run'] ?? ''), $verdictColor((string)($d['selftest_run'] ?? '')));
+        $y += $cellH;
+
+        // Row 7 — refurb grade (full width).
+        $g = drive_grade($d);
+        $gradeTxt = 'Refurb grade ' . $g['grade'];
+        if ($g['reasons'] !== []) { $gradeTxt .= ' — ' . implode('; ', $g['reasons']); }
+        $cell($cols[0], $y, $W - 2 * $x, 'Resale grade', $gradeTxt, $gradeColor($g['grade']));
 
         $pdf->SetY($y + $cellH);
     }
@@ -593,6 +611,12 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $row('Battery', trim((string)($d['battery'] ?? '')));
     $row('Battery model', trim((string)($d['battery_model'] ?? '')));
     $row('Battery chemistry', trim((string)($d['battery_chemistry'] ?? '')));
+
+    $storedGrade = trim((string)($d['refurb_grade'] ?? ''));
+    $suggested = device_grade_suggest((string)($d['battery'] ?? ''));
+    $gradeShown = $storedGrade !== '' ? $storedGrade : ($suggested !== '' ? $suggested . ' (suggested)' : '');
+    $gradeColor = ['R-A' => [5, 150, 105], 'R-B' => [13, 148, 136], 'R-C' => [217, 119, 6], 'R-D' => [220, 38, 38]];
+    $row('Refurb grade', $gradeShown, $gradeColor[$storedGrade !== '' ? $storedGrade : $suggested] ?? [148, 163, 184]);
 
     $sub('NETWORK INTERFACES');
     $ifaces = array_values(array_filter($semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))), static function (string $e): bool {

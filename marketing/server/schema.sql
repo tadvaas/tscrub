@@ -401,6 +401,22 @@ CREATE TABLE IF NOT EXISTS device_registrations (
   CONSTRAINT fk_reg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Manual device refurb grade (R-A–R-D) — the operator's cosmetic/battery
+-- assessment of a machine, keyed by the same machine key load_devices()
+-- derives (sysserial → bbserial → systemuuid). Persisted under the org owner
+-- so every member reads/writes one row.
+CREATE TABLE IF NOT EXISTS device_grades (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     BIGINT UNSIGNED NOT NULL,
+  machine_key VARCHAR(255)    NOT NULL DEFAULT '',
+  grade       VARCHAR(8)      NOT NULL DEFAULT '',
+  graded_by   BIGINT UNSIGNED NULL DEFAULT NULL,
+  graded_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_grade_device (user_id, machine_key),
+  CONSTRAINT fk_grade_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Organisations & seats (§5) — a lightweight multi-user workspace layer. One
 -- Team/Enterprise licence covers several operators (email-invite + role), who
 -- share the org's reports, certificates, devices, MDM results, remote commands
