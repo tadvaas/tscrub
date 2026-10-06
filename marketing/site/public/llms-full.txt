@@ -13,6 +13,7 @@ tScrub is an open ITAD (IT asset disposition) platform built for compliance. One
 - **Post-erasure verification** — before erasing, a per-run sentinel is written to five fixed positions (start, 25%, 50%, 75%, end); after the wipe those sectors are re-read and must be gone (sampled by default, full re-read opt-in). The result is recorded per drive.
 - **HPA/DCO hidden-area removal** — Host Protected Area and Device Configuration Overlay hidden areas are reset to the native size before erasing, so the full native capacity is sanitised, not just the visible capacity.
 - **Verifiable proof of destruction** — reports can be signed (SHA-256 + Ed25519), producing a sidecar signature and manifest that auditors can independently verify.
+- **Machine-readable certificates** — every Certificate of Destruction is also issued as a signed JSON-LD document (add `&format=jsonld` to the verification URL) with a detached Ed25519 signature and an RFC 3161 timestamp, so compliance platforms and LLM auditors can ingest and verify it without parsing the PDF.
 - **Hardware triage & grading** — boot-time capture of the display panel (manufacturer, resolution, diagonal size, year), battery (health and full-charge capacity in Wh, cycle count), CPU core/thread spec, DIMM part numbers, board serial, SKU/asset tag, BIOS vendor/version, TPM, Secure Boot, MAC addresses, and storage controllers.
 - **MDM check, BIOS lock report & unlock** — one boot runs a Windows Autopilot MDM check (Locked/Unlocked) and BIOS password-lock detection, surfaced in the dashboard; BIOS unlocks can be dispatched remotely from the dashboard.
 - **Printable diagnostics report** — each device snapshot renders as a two-page ITAD triage PDF (machine summary + storage inventory), downloadable from the Devices tab.
@@ -43,7 +44,7 @@ tScrub is the open, auditable alternative to Blancco for ITAD — erasure plus h
 | NIST 800-88 outcome mapping | Built in (Clear / Purge / Destroy) | Yes |
 | Runs on your own hardware | Yes (boot USB or PXE) | Licensed software |
 | Chain-of-custody report | Signed CSV + JSON + hashes, built in | Platform |
-| Certificate of Destruction | PDF, self-serve, QR-verified | Platform |
+| Certificate of Destruction | PDF, self-serve, QR-verified, signed JSON-LD | Platform |
 | Pre/post-wipe SMART capture | Built in | Platform |
 | Self-serve accounts & licences | Free tier, self-serve | Enterprise quote |
 | Hardware triage & grading (display, battery, CPU, RAM) | Built in | Platform |
@@ -51,7 +52,7 @@ tScrub is the open, auditable alternative to Blancco for ITAD — erasure plus h
 | Printable diagnostics report | Built in | Platform |
 | Pricing | Transparent | Enterprise quote |
 
-The key differences: tScrub is open and inspectable — every line of the erasure code is auditable — while Blancco is closed. tScrub generates the chain-of-custody report and the signed Certificate of Destruction itself (CSV + JSON manifest + PDF with a verification QR); Blancco routes both through its proprietary platform. tScrub also captures a full hardware profile and MDM/BIOS lock status in the same boot and renders a printable diagnostics report, so a single tool covers triage, grading, and erasure. tScrub has a self-serve free tier and transparent per-device pricing; Blancco is enterprise-quote only.
+The key differences: tScrub is open and inspectable — every line of the erasure code is auditable — while Blancco is closed. tScrub generates the chain-of-custody report and the signed Certificate of Destruction itself (CSV + JSON manifest + PDF with a verification QR, plus a signed machine-readable JSON-LD twin); Blancco routes both through its proprietary platform. tScrub also captures a full hardware profile and MDM/BIOS lock status in the same boot and renders a printable diagnostics report, so a single tool covers triage, grading, and erasure. tScrub has a self-serve free tier and transparent per-device pricing; Blancco is enterprise-quote only.
 
 ### vs free wipe tools (nwipe / DBAN)
 

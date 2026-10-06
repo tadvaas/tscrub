@@ -100,6 +100,9 @@
       <h2>Why signing matters for certificates</h2>
       <p>When you generate a <a href="/resources/certificates">certificate of destruction</a> in the dashboard, the report's hash and signature are verified first. The certificate is only as trustworthy as the record it certifies — and the signature is what makes the record trustworthy. The <a href="/resources/verify-certificate">verification QR code</a> then ties the certificate back to an independently checkable record.</p>
 
+      <h2>Beyond the PDF: a signed, machine-readable certificate</h2>
+      <p>The same evidence is also issued as a <strong>signed JSON-LD certificate</strong> — the certificate as structured data with its own detached Ed25519 signature and an RFC 3161 timestamp. Compliance platforms, ERP systems and LLM auditors can <a href="/resources/verify-certificate">fetch and verify it</a> directly, without opening the PDF. Same signature, two formats.</p>
+
       <h2>FAQ</h2>
       <h3>What if the appliance has no signing key?</h3>
       <p>tScrub degrades gracefully to a checksum-only report — the SHA-256 hash is still recorded, so tampering is still detectable, just without an attributable signature.</p>

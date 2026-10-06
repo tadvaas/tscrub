@@ -376,6 +376,9 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                 <li>the integrity and signature status recorded at issuance;</li>
                 <li>a SHA-256 hash of the PDF itself, so the document can be checked for alteration since issue.</li>
               </ul>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Machine-readable certificate (JSON-LD)</h3>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The same certificate is available as a signed JSON-LD document — add <code class="font-mono">&amp;format=jsonld</code> to the verification URL. It carries the Certificate ID, COCID, every drive and report, and the PDF's SHA-256, signed with a detached Ed25519 signature (public key published at <code class="font-mono">/.well-known/tscrub-cert-key.json</code>) plus an RFC 3161 timestamp. Any script can verify it offline without calling tScrub.</p>
             </div>
           </div>
         </section>

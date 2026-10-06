@@ -90,6 +90,14 @@
       </ul>
       <p>A match returns "Certificate Verified." A certificate that isn't found, or that has been altered, won't verify — which is exactly the point.</p>
 
+      <h2>Machine-readable certificate (JSON-LD)</h2>
+      <p>Every certificate also ships as a <strong>signed JSON-LD document</strong> — the same link with <code>&amp;format=jsonld</code>. It's the certificate as structured data: certificate and chain-of-custody IDs, every drive and report, the PDF's SHA-256, and a detached Ed25519 signature over the whole document.</p>
+      <ul>
+        <li><strong>Verifiable offline</strong> — the public key is published at <code>/.well-known/tscrub-cert-key.json</code>, so any script can check the signature without calling tScrub.</li>
+        <li><strong>Third-party timestamped</strong> — the signature carries an RFC 3161 timestamp from a timestamping authority, anchoring when it was issued.</li>
+        <li><strong>Built for automation</strong> — compliance platforms, procurement bots and LLM auditors can ingest the certificate directly, no PDF parsing.</li>
+      </ul>
+
       <h2>Free vs paid certificates at verification</h2>
       <p>Verification is honest about what it can confirm:</p>
       <ul>

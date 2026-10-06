@@ -117,6 +117,9 @@
       <h2>The verification QR code</h2>
       <p>Every tScrub certificate carries a QR code that encodes a verification link. Scanning it opens <code>/verify?cert=…</code>, which confirms the certificate's issuance record and document hash against the database. That turns a static PDF into something a third party can <strong>independently check</strong> — no phone call to you required.</p>
 
+      <h2>Machine-readable certificates (JSON-LD)</h2>
+      <p>Alongside the PDF, every certificate is issued as a <strong>signed JSON-LD document</strong> — the same link with <code>&amp;format=jsonld</code>. It carries the same data as structured fields (certificate ID, COCID, every drive and report, the PDF's SHA-256) plus a detached Ed25519 signature and an RFC 3161 timestamp, so compliance platforms and automated auditors can ingest and verify it without a human reading the PDF. <a href="/resources/verify-certificate">See how verification works</a>.</p>
+
       <h2>Free vs paid: self-signed vs vendor-signed</h2>
       <p>Not all signatures are equal, and tScrub is explicit about which kind a certificate has:</p>
       <ul>

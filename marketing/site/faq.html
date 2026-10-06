@@ -110,7 +110,7 @@
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">What's the difference between a free and a paid licence?</h3>
-            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Both erase drives the same way. Every report is signed with Ed25519: free licences self-sign with an appliance-generated key (tamper-evident, not attributable), while paid licences embed a vendor-signed report key, so reports are verified against that key and attributable to the licence (the licence itself verifies against the tScrub vendor key). Certificates are available on every tier and every one carries a verification QR code; paid licences add a digitally signed PDF.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Both erase drives the same way. Every report is signed with Ed25519: free licences self-sign with an appliance-generated key (tamper-evident, not attributable), while paid licences embed a vendor-signed report key, so reports are verified against that key and attributable to the licence (the licence itself verifies against the tScrub vendor key). Certificates are available on every tier and every one carries a verification QR code; paid licences add a digitally signed PDF. Every certificate also ships as a signed, machine-readable JSON-LD document (add <code class="font-mono">&amp;format=jsonld</code> to the verification link) so automated auditors can verify it without opening the PDF.</p>
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">How do I get my reports into the dashboard?</h3>

@@ -69,5 +69,6 @@
 - Bootable, inspectable appliance image; inspect every line of what runs.
 - Triage-first boot: diagnostics + online heartbeat at boot; erasure starts on Shift+T from the triage screen.
 - End-to-end loop: erase → signed report → PDF Certificate of Destruction with a verification QR (tscrub.com/verify).
+- Every certificate is also issued as a signed machine-readable JSON-LD document (add &format=jsonld to the verification URL), so automated auditors can ingest and verify it without parsing the PDF.
 - The customer (data controller) certifies their own destruction; tScrub supplies the signed, tamper-evident evidence.
 - Open source (GPL-3.0), runs on your own hardware. Contrast: Blancco = closed, platform-only, enterprise quote; nwipe/DBAN = free ad-hoc overwrite, no signed reports or certificates.
