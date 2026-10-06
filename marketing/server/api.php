@@ -1595,6 +1595,11 @@ if ($method === 'GET' && $route === '/devices') {
             foreach ($fields as $f) {
                 if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
             }
+            // A device's reports (diagnostics + erasure) carry their own COCID;
+            // searching one should surface the machine those reports belong to.
+            foreach (($d['history'] ?? []) as $h) {
+                if (strpos(strtolower((string)($h['cocid'] ?? '')), $needle) !== false) return true;
+            }
             return false;
         }));
     }

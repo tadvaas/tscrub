@@ -1397,7 +1397,7 @@ function load_devices(int $userId): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = db()->prepare("SELECT id, uploaded_at, grade, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, uploaded_at, grade, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($ids);
 
     $devices = [];
@@ -1501,6 +1501,7 @@ function load_devices(int $userId): array {
             'digital_identifier' => (string)($g['digital_identifier'] ?? ''),
             'pdf_id'         => (int)$r['id'],
             'grade'          => (string)($r['grade'] ?? ''),
+            'cocid'          => (string)($r['cocid'] ?? ''),
             'selftest_cpu'   => (string)($g['selftest_cpu'] ?? ''),
             'chassisserial'  => (string)($g['chassisserial'] ?? ''),
             'chassistype'    => (string)($g['chassistype'] ?? ''),
