@@ -17,6 +17,14 @@ and this project uses date-based versioning (`v1.x`).
   timing word. The Devices tab shows a fixed-width amber progress bar plus
   "≈Xm left" under the Wiping status.
 
+### Fixed
+
+- **Remote wipe commands no longer expire after 5 minutes** — a staged erase
+  was marked `expired` before a rebooting/booting appliance could claim it
+  (the device boots faster than the old TTL, but a re-image takes several
+  minutes). The pending-command TTL is now 60 minutes; an online device still
+  claims within seconds.
+
 ### Release
 
 - Appliance ISO `tscrub-v1.11.18_2025.11_30_x86-64_v0.41_20261007-26aeda73.iso`

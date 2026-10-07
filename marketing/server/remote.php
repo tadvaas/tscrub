@@ -54,8 +54,11 @@ function remote_ensure_schema(): void {
 }
 
 /** Expire stale commands: pending ones the device never claimed, and dispatched
- *  ones it claimed but never reported on (e.g. the console died first). */
-function remote_expire_stale(int $userId, string $serial, int $minutes = 5): void {
+ *  ones it claimed but never reported on (e.g. the console died first).
+ *  Pending TTL is deliberately generous (60 min) — a staged wipe must survive
+ *  a device boot / reboot onto a new image (several minutes), unlike an
+ *  always-on device which claims within ~10 s. */
+function remote_expire_stale(int $userId, string $serial, int $minutes = 60): void {
     remote_ensure_schema();
     try {
         $ids = org_member_ids($userId);
@@ -81,7 +84,7 @@ function remote_expire_stale_user(int $userId): void {
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $pendingBefore = gmdate('Y-m-d H:i:s', time() - 5 * 60);
+        $pendingBefore = gmdate('Y-m-d H:i:s', time() - 60 * 60);
         db()->prepare("UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND status = 'pending' AND created_at < ?")
             ->execute(array_merge($ids, [$pendingBefore]));
         $dispatchedBefore = gmdate('Y-m-d H:i:s', time() - 120);
