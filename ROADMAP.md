@@ -605,10 +605,13 @@ comparison page honest — never claim a feature or certification we don't hold.
 
 ### 9.3 Enterprise ITAD ecosystem
 
-- [ ] **Fleet / network erasure** — extend the BIOS-unlock request/result
+- [x] **Fleet / network erasure** — extend the BIOS-unlock request/result
       pattern (§8) into a wipe job queue: dashboard queues a job per serial →
       appliance polls `GET /api/jobs/pending` → runs an autonuke → posts the
       report back. Cross-ref §6 "Fleet Management Console".
+      → **Shipped 2026-10-07 (v1.11.19)**: durable wipe jobs (pending 7 days,
+      dispatched requeue 10 min), uuid-aware claim, retried result POST, and
+      Queued/Expired states in the dashboard.
 - [ ] **ITSM/ERP integrations** — first document the REST API (OpenAPI) and add
       webhooks (`report.uploaded`, `certificate.ready`); then ship one reference
       ServiceNow inbound-webhook script. Cross-ref §6 "Integration API +

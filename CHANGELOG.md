@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.19] - 2026-10-07
+
+### Changed
+
+- **Fleet wipe job queue** — remote wipe jobs are now durable: a staged erase
+  lives 7 days (survives a re-image/boot) and a dispatched wipe whose result
+  POST was lost is requeued after 10 minutes instead of expiring. Power
+  commands stay online-only (5 min). The appliance retries its result POST 3×;
+  the dashboard shows Queued (with an offline hint) and Expired states and
+  allows staging an erasure for an offline machine.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.19_2025.11_30_x86-64_v0.41_20261007-b418c300.iso`
+  (166 MB) sha256 `b84b630f7c3fb1c4760fcc0dbd2af040b5be03438412d318aa9239540faae2d4`.
+- Standalone script `tscrub.sh` (v1.11.19) sha256 `883c5d4f12a3c3c8236b254e90cf688f87d7c19579cd23755ce3c81fc3712e11`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `44f149364b32dccaae833fed1e42b4ba48c646ae313fe9c8eeb9892d39cc5214`.
+
 ## [v1.11.18] - 2026-10-07
 
 ### Added

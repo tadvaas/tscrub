@@ -147,8 +147,12 @@ first. Tick items off as they ship and note the release that carries each.
 
 ## 4. Long tail (pick up as milestone room allows)
 
-- [ ] Fleet wipe job queue — dashboard queues a wipe per serial; appliance polls.
+- [x] Fleet wipe job queue — dashboard queues a wipe per serial; appliance polls.
       (§9.3)
+      → **Shipped 2026-10-07 (v1.11.19)**: wipe jobs are durable (pending 7 days,
+      dispatched→requeued after 10 min), claims are serial+uuid aware, appliance
+      result POST retries 3×, and the dashboard surfaces Queued/Expired states
+      (offline erase staging enabled).
 - [x] **Machine-readable certificates** — signed JSON-LD beside the PDF for
       AI/automated auditors. (§6)
       → **Shipped 2026-10-06**: every certificate is also issued as a signed
