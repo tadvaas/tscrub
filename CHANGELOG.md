@@ -6,6 +6,27 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.25] - 2026-10-07
+
+### Fixed
+
+- **Wipe-wave glyphs still unrecognised on fbcon** — the shade glyphs `░▒▓` do
+  not render on the appliance's console font at all, so the sweep was rebuilt
+  from the full block `█` (U+2588) plus spaces only: a 3-wide `█` segment that
+  marches left-to-right and wraps. This is the safest possible in-row
+  indicator.
+- **ETA still `N/A` for NVMe format** — NVMe `format` (CLEAR) reports no
+  percentage and has no ATA word-89 timing, so there was no ETA source. The ETA
+  cell now shows elapsed time (`+1m0s`) for an indeterminate erase, so it ticks
+  up and proves the wipe is still live instead of a static `N/A`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.25_2025.11_30_x86-64_v0.41_20261007-2a49f35f.iso`
+  (166 MB) sha256 `11619eacb87488c8daf59e62ad6e7edddf59c98c64b91b93b14d6db8fa17cac6`.
+- Standalone script `tscrub.sh` (v1.11.25) sha256 `0b9fddc1d8330be8ca875bc35d9dde905f65938db876a44d94a96f730fcae315`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `d2cc7db73f17bbc40ecf7a1fe83124ec23d2fb691e4c79a40f96ad158d45bc0e`.
+
 ## [v1.11.24] - 2026-10-07
 
 ### Fixed
