@@ -145,6 +145,10 @@ UI_WAVE_FRAME=0
 row="$(table::row_text d1 0)"
 t::assert_contains "$row" "███" "row_text RUNNING shows the wave"
 t::check "row_text RUNNING drops the word" '[[ "$row" != *RUNNING* ]]'
+# The appliance shell runs in the C locale where ${val:0:w} counts bytes, so
+# the multi-byte wave must not be truncated (3 glyphs + 6 spaces = 9 columns).
+LC_ALL=C row="$(table::row_text d1 0)"
+t::assert_contains "$row" "███      " "row_text wave not byte-truncated (C locale)"
 devrow[d1.status]="42%"
 row="$(table::row_text d1 0)"
 t::assert_contains "$row" "42%" "row_text keeps the NN% value"

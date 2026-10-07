@@ -185,7 +185,16 @@ table::row_text() {
             fi
         fi
 
-        cell="$(printf "%-*s" "$w" "${val:0:$w}")"
+        # The wipe wave is multi-byte (each █ is 3 UTF-8 bytes); the appliance
+        # shell runs in the C locale where ${val:0:w} counts BYTES, so the
+        # generic truncation below would cut a 9-column wave to 3 glyphs and
+        # shift every following cell (ETA) 6 columns left. The wave is already
+        # exactly $w columns — use it verbatim.
+        if [[ "$label" == "STATUS" && "${devrow[$dev.status]}" == "RUNNING" ]]; then
+            cell="$val"
+        else
+            cell="$(printf "%-*s" "$w" "${val:0:$w}")"
+        fi
 
         # Drives hotter than 75C show a red temperature reading. Red foreground
         # only (background untouched), reset back to the active theme colour.
@@ -529,7 +538,10 @@ ui::tick_inplace() {
         eta_col="$(ui::eta_text_for "$dev" "$now")"
         printf "\033[%d;%dH%-*.*s" "$row" "$UI_ETA_COL" "$UI_ETA_W" "$UI_ETA_W" "$eta_col"
         if [[ "${devrow[$dev.status]}" == "RUNNING" ]]; then
-            printf "\033[%d;%dH%-*.*s" "$row" "$UI_STATUS_COL" "$UI_STATUS_W" "$UI_STATUS_W" "$(ui::wave_cell "$UI_WAVE_FRAME" "$UI_STATUS_W")"
+            # %s (no width/precision): the wave is multi-byte and exactly
+            # UI_STATUS_W columns; %-*.*s would truncate it at UI_STATUS_W
+            # bytes (C locale) and cut mid-glyph.
+            printf "\033[%d;%dH%s" "$row" "$UI_STATUS_COL" "$(ui::wave_cell "$UI_WAVE_FRAME" "$UI_STATUS_W")"
         fi
     done
 
