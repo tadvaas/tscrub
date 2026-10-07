@@ -767,6 +767,11 @@ ui::loop() {
                 esac
             elif [[ "$_key" == "STATUS" ]]; then
                 devrow["$_dev.status"]="$_value"
+                # Live progress: workers emit "STATUS NN%" (NVMe SPROG, nwipe
+                # parse). Store it for the aggregate heartbeat progress.
+                if [[ "$_value" =~ ^([0-9]+)%$ ]]; then
+                    devrow["$_dev.progress_pct"]="${BASH_REMATCH[1]}"
+                fi
                 # Record when an ATA wipe starts (first RUNNING only)
                 if [[ "$_value" == "RUNNING" ]] && \
                    [[ -n "${devrow[$_dev.eta_mins]}" ]] && \
@@ -790,7 +795,14 @@ ui::loop() {
                         status::drive_terminal
                         ;;
                 esac
+                # Refresh the aggregate % + ETA the heartbeat reports.
+                status::recompute_progress
                 ui::repaint_changed "$(ts::now)"
+            elif [[ "$_key" == "ETA" ]]; then
+                # nwipe reports an explicit eta (HH:MM:SS -> seconds); the
+                # aggregate picks the slowest running drive's estimate.
+                [[ "$_value" =~ ^[0-9]+$ ]] && devrow["$_dev.progress_eta_sec"]="$_value"
+                status::recompute_progress
             else
                 # Forward non-STATUS worker messages (LOG) to the log file.
                 printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5

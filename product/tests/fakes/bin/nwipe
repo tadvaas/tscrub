@@ -1,7 +1,29 @@
 #!/usr/bin/env bash
+# Optional invocation log — tests assert nwipe was/wasn't called with an arg.
+[[ -n "${FAKE_NWIPE_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_NWIPE_LOG"
+
 if [[ "$1" == "--help" ]]; then
-    printf 'nwipe usage... --nogui ...\n'
+    printf 'nwipe usage... --nogui --logfile=FILE ...\n'
     exit 0
 fi
-printf '[sda]  0%% complete, eta 0:00\n'
+
+# Real nwipe writes progress lines (on SIGUSR1) to --logfile FILE; mirror that
+# so the progress parser in exec_scsi_nwipe can be exercised by tests.
+logfile=""
+prev=""
+for a in "$@"; do
+    if [[ "$prev" == "--logfile" ]]; then logfile="$a"; break; fi
+    if [[ "$a" == --logfile=* ]]; then logfile="${a#--logfile=}"; break; fi
+    prev="$a"
+done
+
+dev="${FAKE_NWIPE_DEV:-sda}"
+pct="${FAKE_NWIPE_PROGRESS:-0}"
+eta="${FAKE_NWIPE_ETA:-00:00:01}"
+line="/dev/${dev}: ${pct}.00%, round 1 of 1, pass 1 of 1, eta ${eta}, [writing]"
+if [[ -n "$logfile" ]]; then
+    printf '%s\n' "$line" >> "$logfile"
+else
+    printf '%s\n' "$line"
+fi
 exit "${FAKE_NWIPE_RC:-0}"

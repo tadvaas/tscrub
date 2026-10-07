@@ -5,8 +5,9 @@
 
 device::exec_scsi_nwipe() {
     local dev="$1"
-    local nwipe_help
+    local nwipe_help logfile rc line pct eta_sec
     local -a nwipe_cmd
+    local nwipe_pid pump_pid tail_pid
 
     if ! command -v nwipe > /dev/null 2>&1; then
         echo "$dev STATUS FAILED" >&3
@@ -22,16 +23,70 @@ device::exec_scsi_nwipe() {
     if grep -q -- '--nogui' <<<"$nwipe_help"; then
         nwipe_cmd+=(--nogui)
     fi
+    # nwipe --nogui only logs progress when signalled (SIGUSR1). A --logfile is
+    # flushed per line, so we can follow it live: run nwipe in the background,
+    # pump SIGUSR1 every ~10s, and tail the log for "NN.NN%, …, eta HH:MM:SS".
+    logfile="$(mktemp /tmp/tscrub-nwipe.XXXXXX)"
+    nwipe_cmd+=(--logfile "$logfile")
     nwipe_cmd+=("/dev/$dev")
 
-    # nwipe --nogui emits no per-drive percentage lines (the GUI progress
-    # thread is never created), so progress is reflected only by
-    # RUNNING -> COMPLETED/FAILED.
-    "${nwipe_cmd[@]}" 2>&1 | while IFS= read -r line; do
-        echo "$line" >&5
+    "${nwipe_cmd[@]}" 2>>"$logfile" &
+    nwipe_pid=$!
+
+    # Progress pump: nwipe blocks SIGUSR1 in main before wiping and logs a
+    # progress line whenever the signal arrives. Start after a short delay so
+    # the handler is installed, then signal every 10s while nwipe lives.
+    (
+        sleep 3
+        while kill -0 "$nwipe_pid" 2>/dev/null; do
+            sleep 10
+            kill -USR1 "$nwipe_pid" 2>/dev/null || true
+        done
+    ) 3>&- 4<&- &
+    pump_pid=$!
+
+    # Follow the log by re-reading only newly appended bytes once a second:
+    # forward every line to the detail log (fd 5) and translate progress lines
+    # ("NN.NN%, …, eta HH:MM:SS") into STATUS/ETA IPC so the parent ui::loop
+    # can aggregate live % + time remaining for the dashboard heartbeat.
+    local offset=0 size=0
+    while kill -0 "$nwipe_pid" 2>/dev/null; do
+        size=$(wc -c < "$logfile" 2>/dev/null || echo 0)
+        if (( size > offset )); then
+            tail -c +$((offset + 1)) "$logfile" 2>/dev/null | while IFS= read -r line; do
+                echo "$line" >&5
+                if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
+                    pct="${BASH_REMATCH[1]}"
+                    if [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]]; then
+                        eta_sec=$(( ${BASH_REMATCH[1]} * 3600 + ${BASH_REMATCH[2]} * 60 + ${BASH_REMATCH[3]} ))
+                        echo "$dev ETA $eta_sec" >&3
+                    fi
+                    echo "$dev STATUS ${pct}%" >&3
+                fi
+            done
+            offset=$size
+        fi
+        sleep 1
     done
-    # Check exit status of nwipe
-    if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+
+    wait "$nwipe_pid"; rc=$?
+    # Drain any lines written between the last poll and nwipe's exit.
+    tail -c +$((offset + 1)) "$logfile" 2>/dev/null | while IFS= read -r line; do
+        echo "$line" >&5
+        if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
+            pct="${BASH_REMATCH[1]}"
+            if [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]]; then
+                eta_sec=$(( ${BASH_REMATCH[1]} * 3600 + ${BASH_REMATCH[2]} * 60 + ${BASH_REMATCH[3]} ))
+                echo "$dev ETA $eta_sec" >&3
+            fi
+            echo "$dev STATUS ${pct}%" >&3
+        fi
+    done
+    kill "$pump_pid" 2>/dev/null || true
+    wait "$pump_pid" 2>/dev/null || true
+    rm -f "$logfile"
+
+    if [ $rc -eq 0 ]; then
         echo "$dev STATUS COMPLETED" >&3
     else
         echo "$dev STATUS FAILED" >&3
