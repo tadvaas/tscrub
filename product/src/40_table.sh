@@ -271,14 +271,14 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
-# Indeterminate "wipe wave" for the STATUS cell: a █▓▒ comet that sweeps
-# left-to-right and wraps, replacing the static RUNNING word for drives doing a
-# firmware erasure (no % to report). Pure and TTY-independent — echoes a
-# width-column string from (frame, width) so the full render, delta repaint and
-# in-place tick all paint the same frame. The light-shade ░ (U+2591) is
-# deliberately avoided: on the blue fbcon screen it is nearly invisible and
-# reads as a stray artifact. Falls back to the word RUNNING below 3 columns
-# (never today: STATUS min is 9).
+# Indeterminate "wipe wave" for the STATUS cell: a 3-wide █ segment that
+# marches left-to-right and wraps, replacing the static RUNNING word for drives
+# doing a firmware erasure (no % to report). Pure and TTY-independent — echoes
+# a width-column string from (frame, width) so the full render, delta repaint
+# and in-place tick all paint the same frame. Only U+2588 (full block) is used:
+# the shade glyphs ░▒▓ do NOT render on the fbcon console font, so the sweep is
+# built from █ + spaces only — the safest possible in-row indicator. Falls back
+# to the word RUNNING below 3 columns (never today: STATUS min is 9).
 ui::wave_cell() {
     local frame="${1:-0}" w="${2:-9}" c d glyph out=""
     if (( w < 3 )); then
@@ -289,12 +289,11 @@ ui::wave_cell() {
     for (( c = 0; c < w; c++ )); do
         d=$(( c - frame ))
         (( d < 0 )) && d=$(( d + w ))
-        case "$d" in
-            0) glyph='█' ;;
-            1) glyph='▓' ;;
-            2) glyph='▒' ;;
-            *) glyph=' ' ;;
-        esac
+        if (( d < 3 )); then
+            glyph='█'
+        else
+            glyph=' '
+        fi
         out+="$glyph"
     done
     printf '%s' "$out"
@@ -472,6 +471,23 @@ ui::eta_text_for() {
                     printf "~%dm%ds" "$rm" "$rs"
                 else
                     printf "~%ds" "$rs"
+                fi
+            elif [[ "$wipe_start" =~ ^[0-9]+$ ]]; then
+                # Indeterminate erase with no ETA source (e.g. NVMe format
+                # emits no % and has no ATA word-89 timing). Show elapsed so the
+                # cell ticks up and proves the wipe is still live, instead of a
+                # static "N/A".
+                remain=$(( now - wipe_start ))
+                (( remain < 0 )) && remain=0
+                rh=$(( remain / 3600 ))
+                rm=$(( (remain % 3600) / 60 ))
+                rs=$(( remain % 60 ))
+                if (( rh > 0 )); then
+                    printf "+%dh%dm" "$rh" "$rm"
+                elif (( rm > 0 )); then
+                    printf "+%dm%ds" "$rm" "$rs"
+                else
+                    printf "+%ds" "$rs"
                 fi
             else
                 printf "N/A"

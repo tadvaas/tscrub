@@ -26,13 +26,13 @@ UI_SPINNER_FRAME=4
 t::assert_eq "|" "$(ui::spinner)" "spinner wraps to 0"
 
 # --- ui::wave_cell ---
-t::assert_eq "█▓▒      " "$(ui::wave_cell 0)"     "wave frame 0 (9 cols)"
-t::assert_eq " █▓▒     " "$(ui::wave_cell 1)"     "wave frame 1"
-t::assert_eq "    █▓▒  " "$(ui::wave_cell 4)"     "wave frame 4"
-t::assert_eq "▓▒      █" "$(ui::wave_cell 8)"     "wave frame 8 wraps head/tail"
-t::assert_eq "█▓▒      " "$(ui::wave_cell 9)"     "wave wraps to 0 at frame 9"
-t::assert_eq " █▓▒     " "$(ui::wave_cell 100)"   "wave large frame folds mod width"
-t::assert_eq "█▓▒"      "$(ui::wave_cell 0 3)"   "wave fits exactly at width 3"
+t::assert_eq "███      " "$(ui::wave_cell 0)"     "wave frame 0 (9 cols)"
+t::assert_eq " ███     " "$(ui::wave_cell 1)"     "wave frame 1"
+t::assert_eq "    ███  " "$(ui::wave_cell 4)"     "wave frame 4"
+t::assert_eq "██      █" "$(ui::wave_cell 8)"     "wave frame 8 wraps head/tail"
+t::assert_eq "███      " "$(ui::wave_cell 9)"     "wave wraps to 0 at frame 9"
+t::assert_eq " ███     " "$(ui::wave_cell 100)"   "wave large frame folds mod width"
+t::assert_eq "███"      "$(ui::wave_cell 0 3)"   "wave fits exactly at width 3"
 t::assert_eq "RUNNING"  "$(ui::wave_cell 0 2)"   "wave guard: narrow cell -> RUNNING"
 
 # --- ui::eta_text_for ---
@@ -71,6 +71,9 @@ t::assert_eq "N/A" "$(ui::eta_text_for d1 160)" "eta RUNNING no eta -> N/A"
 devrow[d1.eta_sec]="720"
 t::assert_eq "~12m0s" "$(ui::eta_text_for d1 160)" "eta RUNNING eta_sec fallback (NVMe/nwipe)"
 devrow[d1.eta_sec]=""
+devrow[d1.status]="RUNNING"
+devrow[d1.wipe_start]="100"
+t::assert_eq "+1m0s" "$(ui::eta_text_for d1 160)" "eta indeterminate -> elapsed"
 
 # --- ui::all_drives_terminal / ui::any_drive_failed ---
 devices=(d1 d2)
@@ -140,12 +143,12 @@ UI_COMPLETE_THEME=0
 SELECT_MODE=0; SELECT_CURSOR=""
 UI_WAVE_FRAME=0
 row="$(table::row_text d1 0)"
-t::assert_contains "$row" "█▓▒" "row_text RUNNING shows the wave"
+t::assert_contains "$row" "███" "row_text RUNNING shows the wave"
 t::check "row_text RUNNING drops the word" '[[ "$row" != *RUNNING* ]]'
 devrow[d1.status]="42%"
 row="$(table::row_text d1 0)"
 t::assert_contains "$row" "42%" "row_text keeps the NN% value"
-t::check "row_text NN% shows no wave" '[[ "$row" != *█▓▒* ]]'
+t::check "row_text NN% shows no wave" '[[ "$row" != *█* ]]'
 
 # --- delta repaint: ui::state_key / ui::changed_rows / ui::layout_changed ---
 devices=(d1 d2)
