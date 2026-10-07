@@ -41,9 +41,17 @@ first. Tick items off as they ship and note the release that carries each.
 
 ## 2. Hardware capture → intelligence
 
-- [ ] **Diagnostics & refurb grading** — collapse SMART pre/post capture into a
-      drive grade (A/B/C) + resale health report (power-on hours, TBW,
-      reallocated sectors) for ITAD resale. (§6)
+- [x] **Diagnostics & refurb grading** — collapse SMART pre/post capture into a
+      drive grade (A/B/C/D/?) + per-drive resale health report (power-on hours,
+      TBW, reallocated sectors), plus an operator inbound device grade
+      (I-A–I-F) stored on each diagnostics report. (§6)
+      → **Shipped 2026-10-06/07**: `grading.php` drive rubric (D on SMART
+      FAIL/realloc≥5/used≥90%/spare<10%; C/B/A otherwise) with the per-drive
+      grade surfaced in the Drives list, modal and SMART CSV; device inbound
+      grade picker (I-A High refurb potential … I-F Faulty/dead) in the Devices
+      tab, shown on the latest report in the main row and on each diagnostics
+      report row; grade attached to the diagnostics PDF. Plan:
+      `research/refurb-grading/README.md` (Backblaze-threshold drive rubric).
 - [x] **Windows key (DPK) injection into NVRAM** — shipped v1.11.1: write a new
       key into the OA3 UEFI variable (the BIOS derives the MSDM table from it at
       boot — no SPI flash, no table assembly, no checksum). Field-verified on HP:
