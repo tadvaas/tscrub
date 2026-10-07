@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.23] - 2026-10-07
+
+### Added
+
+- **Animated wipe-wave status indicator** — the wipe table's `STATUS` cell no
+  longer shows the static `RUNNING` word for a drive doing a firmware erasure
+  (which reports no percentage). It now renders a fbcon-safe `█▓▒░` comet that
+  sweeps left-to-right and wraps, so an indeterminate erase is visibly "in
+  progress" instead of frozen. Rendering-only: the stored status stays
+  `RUNNING`, so wipe timing, the progress/ETA heartbeat and reporting are
+  unchanged. `NN%` for NVMe/nwipe drives is untouched.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.23_2025.11_30_x86-64_v0.41_20261007-4264a23b.iso`
+  (166 MB) sha256 `38049a0f8d3e2f79a63dfe108cc24d39bdc1775a7a9610fa041eb6b640b30239`.
+- Standalone script `tscrub.sh` (v1.11.23) sha256 `88ca230bc735b71f1e7c554a7284fc875e84c2df36643865812a1d8ca0fc7aa7`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `fe8a26fd2957eebac2016b0c95b325069246781ea2da559acfecc64343575aba`.
+
 ## [v1.11.22] - 2026-10-07
 
 ### Fixed
