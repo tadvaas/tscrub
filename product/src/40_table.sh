@@ -35,7 +35,7 @@ table::detect_terminal_height() {
 # Chooses a device-table layout that fits the current terminal width and sets
 # the globals consumed by table::render() and ui::tick_inplace():
 #   UI_TABLE_MAIN_W, UI_TABLE_LABELS, UI_TABLE_WIDTHS, UI_TABLE_FMT,
-#   UI_ETA_COL, UI_ETA_W
+#   UI_ETA_COL, UI_ETA_W, UI_STATUS_COL, UI_STATUS_W
 # The table degrades from the full 12-column / 182-char layout down to a
 # 9-column / 76-char layout so an 80-column console still renders on one line.
 # CERT is gone (redundant with CLASS); METHOD drops below wide terminals; the
@@ -102,6 +102,11 @@ table::compute_layout() {
     UI_ETA_COL=$(( ${#UI_TABLE_INDENT} + content - ${UI_TABLE_WIDTHS[n-1]} + 1 ))
     UI_ETA_W=${UI_TABLE_WIDTHS[n-1]}
 
+    # STATUS sits immediately left of ETA (one separator space apart); its
+    # geometry drives the in-place wipe-wave repaint in ui::tick_inplace.
+    UI_STATUS_W=${UI_TABLE_WIDTHS[n-2]}
+    UI_STATUS_COL=$(( UI_ETA_COL - 1 - UI_STATUS_W ))
+
     # Fingerprint the chosen layout so a resize (different label set or widths)
     # is detected cheaply and triggers a full re-render instead of a stale delta.
     UI_LAYOUT_FP="$(IFS=,; printf '%s:%s' "${UI_TABLE_LABELS[*]}" "${UI_TABLE_WIDTHS[*]}")"
@@ -164,7 +169,11 @@ table::row_text() {
             DEVICE) val="${devrow[$dev.device]}" ;;
             CLASS)  val="${devrow[$dev.class]}" ;;
             METHOD) val="${devrow[$dev.method]}" ;;
-            STATUS) val="${devrow[$dev.status]}" ;;
+            STATUS) if [[ "${devrow[$dev.status]}" == "RUNNING" ]]; then
+                        val="$(ui::wave_cell "$UI_WAVE_FRAME" "$w")"
+                    else
+                        val="${devrow[$dev.status]}"
+                    fi ;;
             ETA)    val="$eta_col" ;;
         esac
 
@@ -259,6 +268,34 @@ ui::spinner() {
     local frames
     frames=( '|' '/' '-' '\' )
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
+}
+
+# Indeterminate "wipe wave" for the STATUS cell: a █▓▒░ comet that sweeps
+# left-to-right and wraps, replacing the static RUNNING word for drives doing a
+# firmware erasure (no % to report). Pure and TTY-independent — echoes a
+# width-column string from (frame, width) so the full render, delta repaint and
+# in-place tick all paint the same frame. Falls back to the word RUNNING when
+# the cell is narrower than the 4-glyph wave (never today: STATUS min is 9).
+ui::wave_cell() {
+    local frame="${1:-0}" w="${2:-9}" c d glyph out=""
+    if (( w < 4 )); then
+        printf 'RUNNING'
+        return 0
+    fi
+    frame=$(( frame % w ))
+    for (( c = 0; c < w; c++ )); do
+        d=$(( c - frame ))
+        (( d < 0 )) && d=$(( d + w ))
+        case "$d" in
+            0) glyph='█' ;;
+            1) glyph='▓' ;;
+            2) glyph='▒' ;;
+            3) glyph='░' ;;
+            *) glyph=' ' ;;
+        esac
+        out+="$glyph"
+    done
+    printf '%s' "$out"
 }
 
 # The Runtime panel's MDM status cell: the dashboard's exact label (verbatim —
@@ -446,6 +483,7 @@ ui::tick_inplace() {
 
     now="$(ts::now)"
     UI_SPINNER_FRAME=$(( UI_SPINNER_FRAME + 1 ))
+    UI_WAVE_FRAME=$(( UI_WAVE_FRAME + 1 ))
     runtime_str="$(ui::format_runtime "$now") $(ui::spinner)"
 
     printf "\0337"
@@ -456,6 +494,9 @@ ui::tick_inplace() {
         [[ "$row" =~ ^[0-9]+$ ]] || continue
         eta_col="$(ui::eta_text_for "$dev" "$now")"
         printf "\033[%d;%dH%-*.*s" "$row" "$UI_ETA_COL" "$UI_ETA_W" "$UI_ETA_W" "$eta_col"
+        if [[ "${devrow[$dev.status]}" == "RUNNING" ]]; then
+            printf "\033[%d;%dH%-*.*s" "$row" "$UI_STATUS_COL" "$UI_STATUS_W" "$UI_STATUS_W" "$(ui::wave_cell "$UI_WAVE_FRAME" "$UI_STATUS_W")"
+        fi
     done
 
     printf "\0338"

@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.22"
+SCRIPT_VERSION="v1.11.23"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -35,6 +35,9 @@ UI_RUNTIME_COL=0
 UI_RUNTIME_VALUE_W=0
 UI_ETA_COL=178
 UI_ETA_W=9
+UI_STATUS_COL=0
+UI_STATUS_W=9
+UI_WAVE_FRAME=0
 UI_TABLE_MAIN_W=182
 UI_TABLE_INDENT="    "
 LICENSE_FILE="/etc/tscrub/license.lic"

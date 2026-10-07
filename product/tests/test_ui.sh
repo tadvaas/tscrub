@@ -25,6 +25,16 @@ t::assert_eq "\\" "$(ui::spinner)" "spinner frame 3"
 UI_SPINNER_FRAME=4
 t::assert_eq "|" "$(ui::spinner)" "spinner wraps to 0"
 
+# --- ui::wave_cell ---
+t::assert_eq "█▓▒░     " "$(ui::wave_cell 0)"     "wave frame 0 (9 cols)"
+t::assert_eq " █▓▒░    " "$(ui::wave_cell 1)"     "wave frame 1"
+t::assert_eq "    █▓▒░ " "$(ui::wave_cell 4)"     "wave frame 4"
+t::assert_eq "▓▒░     █" "$(ui::wave_cell 8)"     "wave frame 8 wraps head/tail"
+t::assert_eq "█▓▒░     " "$(ui::wave_cell 9)"     "wave wraps to 0 at frame 9"
+t::assert_eq " █▓▒░    " "$(ui::wave_cell 100)"   "wave large frame folds mod width"
+t::assert_eq "█▓▒░"     "$(ui::wave_cell 0 4)"   "wave fits exactly at width 4"
+t::assert_eq "RUNNING"  "$(ui::wave_cell 0 3)"   "wave guard: narrow cell -> RUNNING"
+
 # --- ui::eta_text_for ---
 devices=(d1)
 devrow=()
@@ -113,6 +123,26 @@ t::check "layout 220 margins + fill (12 cols)" '(( ${#UI_TABLE_INDENT} == 2 && U
 COLUMNS=199; table::compute_layout
 t::check "layout 199 margin + rounds to even" '(( ${#UI_TABLE_INDENT} == 2 && UI_TABLE_MAIN_W == 194 && UI_TABLE_MAIN_W <= 199 ))'
 t::check "compute_layout sets a layout fingerprint" '[[ -n "$UI_LAYOUT_FP" ]]'
+
+# --- table::row_text renders the wipe wave for RUNNING ---
+devices=(d1)
+devrow=()
+devrow[d1.device]="nvme0n1"; devrow[d1.model]="ModelOne"; devrow[d1.serial]="SN12345"
+devrow[d1.size]="1TB"; devrow[d1.bus]="NVMe"; devrow[d1.type]="SSD"
+devrow[d1.smart]="OK"; devrow[d1.temp]="40"; devrow[d1.class]="NVM"
+devrow[d1.method]="Sanitize"; devrow[d1.status]="RUNNING"; devrow[d1.eta_mins]=""
+UI_TABLE_LABELS=(MODEL SERIAL SIZE BUS TYPE SMART TEMP DEVICE CLASS METHOD STATUS ETA)
+UI_TABLE_WIDTHS=(12 8 5 5 4 5 4 8 8 8 9 5)
+UI_COMPLETE_THEME=0
+SELECT_MODE=0; SELECT_CURSOR=""
+UI_WAVE_FRAME=0
+row="$(table::row_text d1 0)"
+t::assert_contains "$row" "█▓▒░" "row_text RUNNING shows the wave"
+t::check "row_text RUNNING drops the word" '[[ "$row" != *RUNNING* ]]'
+devrow[d1.status]="42%"
+row="$(table::row_text d1 0)"
+t::assert_contains "$row" "42%" "row_text keeps the NN% value"
+t::check "row_text NN% shows no wave" '[[ "$row" != *█▓▒░* ]]'
 
 # --- delta repaint: ui::state_key / ui::changed_rows / ui::layout_changed ---
 devices=(d1 d2)
