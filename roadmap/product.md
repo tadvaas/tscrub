@@ -267,3 +267,11 @@ point back to that master's section numbering.
       drive's LED. (§11.1)
 - [ ] Drive-side niceties — SMR detection flag, SED crypto-erase progress %,
       ATA Device Unlock Password utility, BitLocker volume detection. (§11.1)
+
+### 4.11 Hot-plug & discovery
+
+- [ ] Hot-plug drive detection — `device::discover` runs once at boot, so a
+      drive connected after tScrub starts is invisible until reboot. Watch for
+      hot-plug (udev monitor, or a periodic re-scan of `/dev/sd*`/`nvme*`/
+      `mmcblk*`) and re-run discovery so newly connected drives appear in the
+      triage/wipe flow and the diagnostics report without a reboot.
