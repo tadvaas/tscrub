@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.22] - 2026-10-07
+
+### Fixed
+
+- **Live wipe ETA frozen on the dashboard** — the heartbeat has always carried
+  the aggregate progress percentage and ETA, but those values were only
+  recomputed when a wipe worker emitted a `STATUS`/`ETA` line. ATA security
+  erases (`hdparm --security-erase[-enhanced]`) emit no mid-wipe progress, so
+  the ETA was computed once at `RUNNING` and then froze (e.g. "≈48m left" for
+  the whole erase). `ui::loop` now recomputes the aggregate progress every tick
+  while a wipe is running, so the countdown keeps moving even for firmware
+  erases with no percentage source.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.22_2025.11_30_x86-64_v0.41_20261007-9daafe3d.iso`
+  (166 MB) sha256 `d6fad7a739ed613e3ecac765d1070054e8153489ee4d42a71f370d0353e8767e`.
+- Standalone script `tscrub.sh` (v1.11.22) sha256 `22ad8dca8611609c183ae07d821a17f4200149289778971428b67a1e40ba5de7`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `980bf379978e51a43e7c81c29a262502299b1a4382778cb8d584c3ce0beaa0d0`.
+
 ## [v1.11.21] - 2026-10-07
 
 ### Added

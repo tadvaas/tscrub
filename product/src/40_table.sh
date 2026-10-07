@@ -811,6 +811,11 @@ ui::loop() {
             # read timed out — refresh the MDM cell from the worker's result
             # file (re-render only when the label changes), else update just
             # the time fields in place to avoid full-screen flicker.
+            # Firmware erases (ATA security erase) emit no periodic STATUS, so
+            # the aggregate %/ETA would be computed once at start and then
+            # freeze — recompute every tick while wiping so the heartbeat keeps
+            # counting down to completion.
+            [[ "$(status::field phase)" == "wiping" ]] && status::recompute_progress
             local prev_mdm="${MDM_STATUS:-}"
             mdm::sync_state
             if [[ "$UI_RESIZED" -eq 1 ]]; then
