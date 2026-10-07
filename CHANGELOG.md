@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.18] - 2026-10-07
+
+### Added
+
+- **Live wipe progress → dashboard** — the heartbeat now carries an aggregate
+  `progress_pct` (0–100, or −1 when a firmware erase can't report a number) and
+  `progress_eta_sec` while a wipe is running. NVMe uses `SPROG`; SCSI nwipe now
+  pumps `SIGUSR1` and parses its `%`/`eta` log line; ATA uses the drive's own
+  timing word. The Devices tab shows a fixed-width amber progress bar plus
+  "≈Xm left" under the Wiping status.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.18_2025.11_30_x86-64_v0.41_20261007-26aeda73.iso`
+  (166 MB) sha256 `006a1dfb4ecdb4678072d73d68e573a6629f644a768727f48eed6c9f096e2407`.
+- Standalone script `tscrub.sh` (v1.11.18) sha256 `84811b4e9b9da7940e2302b88441ede1a2de885dcd7b66fb2db0345ae9b74b11`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ab7217a7f1f297bd2b8b85b44afb77bd2b27b36369d48aedf504f40a81c1701b`.
+
 ## [v1.11.17] - 2026-10-07
 
 ### Changed
