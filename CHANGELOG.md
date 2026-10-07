@@ -19,6 +19,13 @@ and this project uses date-based versioning (`v1.x`).
   (they can never be SEDs), removing the SG_IO noise (and occasional trap) such
   disks produced; they are marked `NA` and real drives are still probed.
 
+### Release
+
+- Appliance ISO `tscrub-v1.11.17_2025.11_30_x86-64_v0.41_20261007-1ae4ef75.iso`
+  (166 MB) sha256 `399dadfd2566586ff62242965fd2c08b41c62d2efacfa142ad5f24add28df96f`.
+- Standalone script `tscrub.sh` (v1.11.17) sha256 `f025af356b0ddd02d4c8bdcb3bb0beb91126f229ea8233453682508196f300ef`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `e36c4a7970ba7665d0ee3f237e42c891cb5dded7c21a2ff47157dbd146640eba`.
+
 ## [v1.11.16] - 2026-10-06
 
 ### Changed
