@@ -6,6 +6,27 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.24] - 2026-10-07
+
+### Fixed
+
+- **ETA column frozen at `N/A` for NVMe/nwipe drives** — the console countdown
+  only used the ATA word-89 `eta_mins` value, which those buses never populate,
+  so the ETA cell showed `N/A` for the whole wipe. The aggregate progress
+  recompute now also stores a per-drive seconds-remaining estimate
+  (`devrow[DEV.eta_sec]`), and the console ETA falls back to it, showing a live
+  countdown.
+- **Wipe-wave tail glyph unrecognised** — the light-shade `░` (U+2591) tail was
+  near-invisible on the blue fbcon screen and read as a stray artifact. The
+  comet is now `█▓▒` (three clearly-visible glyphs).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.24_2025.11_30_x86-64_v0.41_20261007-d01416ba.iso`
+  (166 MB) sha256 `8523fee602ce7e9dabdd0b246d6ea9fc40d0b167fe66862dea235492df194306`.
+- Standalone script `tscrub.sh` (v1.11.24) sha256 `80eb3bc183bb5cae9130db92b1baade2e3d2ff7132908793d9008f8c977b9d5a`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `278c79c68f815835cd28c8e91d1bb041d97ecbc2cfedaca2ef364ec10782d268`.
+
 ## [v1.11.23] - 2026-10-07
 
 ### Added
