@@ -203,8 +203,10 @@ point back to that master's section numbering.
       LBAs before erasing, verify it's gone after, record the result. (§6)
 - [ ] Offline / air-gapped verification — self-contained certificate QR
       (embedded signature + key) so a phone verifies with zero network. (§6)
-- [ ] IEEE 2883 awareness — audit `compliance.html`/`docs.html`; map methods to
+- [x] IEEE 2883 awareness — audit `compliance.html`/`docs.html`; map methods to
       IEEE 2883 terminology or state the NIST 800-88 target explicitly. (§9.2)
+      → **Shipped**: compliance copy states the NIST 800-88 target explicitly
+      and disclaims certification (never claims IEEE 2883).
 - [ ] Third-party testing / certification — prepare a certification submission
       + application runbook as `ops/certification.md`; never claim what we don't
       hold. (§9.4)
@@ -224,10 +226,15 @@ point back to that master's section numbering.
 
 ### 4.5 Inventory & MDM (§6)
 
-- [ ] Richer machine inventory — full SMBIOS, `lspci -nn`, `lsusb`, network +
+- [x] Richer machine inventory — full SMBIOS, `lspci -nn`, `lsusb`, network +
       MACs, DIMM details, UEFI Secure Boot status, and BIOS-lock-derived flags;
       stable CSV columns (name-based parser) + full inventory in report JSON.
       (§6)
+      → **Shipped**: `hardware::` captures a raw SMBIOS dump, full PCI list
+      (`lspci -nn`), USB devices, per-NIC name/MAC/operstate/driver, per-DIMM
+      size/mfr/type/form-factor/speed/part#/serial, Secure Boot state
+      (mokutil + efivars fallback) and BIOS-lock flags; the JSON inventory and
+      diagnostics report render them (blobs stay JSON-only, out of the CSV).
 - [ ] MDM / enrolment-lock detection — Apple DEP/Activation Lock, ChromeOS
       GBB/VPD, CompuTrace; record `mdm_locked`/`enrollment` per device. (§6)
 
