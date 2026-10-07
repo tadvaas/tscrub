@@ -1,8 +1,8 @@
 # Monetisation — working backlog
 
-Detail lives in `ROADMAP.md` §5 and §9.3; Stripe specifics in
-`ops/stripe-integration.md`. Order = highest impact first. Tick items off as they
-ship.
+Detail folded in below (former `ROADMAP.md` §5 and §9.3, retired 2026-10-07);
+Stripe specifics in `ops/stripe-integration.md`. Order = highest impact first.
+Tick items off as they ship.
 
 ## 1. Security prerequisite
 

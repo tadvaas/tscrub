@@ -25,7 +25,7 @@ Website: <https://tscrub.com> · Docs: <https://tscrub.com/docs>
 | `marketing/` | The website — Vite + Tailwind static site, plus the PHP/MySQL backend and dashboard (`marketing/server/`). |
 | `ops/` | Deployment and operations runbooks (see `ops/deploy.md`). |
 | `test-fixtures/` | Sample signed/unsigned reports for exercising the certificate backend. |
-| `ROADMAP.md` | Current state and future plans. |
+| `roadmap/` | Working backlog per track (product / marketing / monetisation). |
 | `CHANGELOG.md` | Release history (artifact SHA-256s). |
 
 ## Quick start — build the appliance image
@@ -144,5 +144,5 @@ GPL-3.0-or-later.
 
 ## Next steps
 
-See [`ROADMAP.md`](ROADMAP.md) for the plan. Billing (Stripe) is intentionally
+See [`roadmap/`](roadmap/) for the plan. Billing (Stripe) is intentionally
 parked; database backups are handled by Proxmox Backup Server.

@@ -1,8 +1,8 @@
 # Marketing — working backlog
 
-Detail lives in `ROADMAP.md` §4 (Distribution & growth runbook). Order = highest
-impact first. Tick items off as they ship; deploy after each batch with
-`npm run build && npm run deploy`.
+Detail folded in below (former `ROADMAP.md` §4 Distribution & growth runbook,
+retired 2026-10-07). Order = highest impact first. Tick items off as they ship;
+deploy after each batch with `npm run build && npm run deploy`.
 
 ## 1. Measurement (do first — nothing else is measurable without it)
 
@@ -43,6 +43,9 @@ impact first. Tick items off as they ship; deploy after each batch with
 - [ ] **"Wipe an SSD from BIOS" coverage page** — high-volume money query with no
       page; port the vendor menu table + frozen-drive fix into
       `resources/wipe-ssd-from-bios.html`. (§4.6)
+- [ ] Fix stale dashboard reference in `llms-full.txt` — "Reports page" →
+      "Drives page" (uploads moved when the Reports tab was folded into Drives);
+      re-scan `llms.txt` + `llms-full.txt` for any other dead "Reports page" refs.
 
 ## 4. Paid (gated)
 
