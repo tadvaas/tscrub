@@ -183,8 +183,9 @@ program and sign the boot chain so it works with UEFI Secure Boot enabled.
 | Piece | Where | What |
 |---|---|---|
 | Buildroot defconfig | `configs/tscrub_defconfig` | openssl, libcurl + curl, ca-certificates, sedutil, lftp; EFI partition 8 MB; `TSCRUB` volume/FAT labels |
+| Kernel config | `board/shredos/kernel-defconfig` | 8250 serial console (`CONFIG_SERIAL_8250` + console/PCI) for RS232/IPMI-SoL/Proxmox serial, `CONFIG_VIRTIO_NET` for QEMU/KVM |
 | Rootfs overlay | `board/shredos/fsoverlay/` | `usr/bin/tscrub.sh` (slim build), `usr/bin/tscrub_launcher` (`exec tscrub.sh`), `etc/inittab` (tty1 → `tscrub_launcher`) |
-| Boot menus | `board/shredos/` isolinux/grub configs | "tScrub" branding, hostname `tscrub` |
+| Boot menus | `board/shredos/` isolinux/grub configs | "tScrub" branding, hostname `tscrub`; main entries pass `console=ttyS0,115200 console=tty3` |
 
 The image is a **hybrid ISO** (`dd` it to USB or boot as a CD), with the kernel
 self-contained as `bzImage` (embedded initramfs) so PXE needs no initrd.

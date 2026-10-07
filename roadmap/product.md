@@ -100,9 +100,15 @@ first. Tick items off as they ship and note the release that carries each.
   > (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most vendors
   > report `unsupported`. In-house SPI bench research lives in
   > `research/bios-unlock/`.
-- [ ] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
+- [x] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
       `CONFIG_VIRTIO_NET` for faster VM testing, quiet `sedutil-cli` SG_IO noise
       on QEMU disks.
+      → **Shipped v1.11.17** (2026-10-07): `board/shredos/kernel-defconfig` gains
+      `CONFIG_SERIAL_8250`/`CONFIG_SERIAL_8250_CONSOLE`/`CONFIG_SERIAL_8250_PCI` +
+      `CONFIG_VIRTIO_NET`; boot menus pass `console=ttyS0,115200` alongside
+      `console=tty3`. Discovery skips the OPAL `--query` probe on
+      hypervisor/emulated disks (QEMU/VMware/VirtualBox/Hyper-V/Xen/virtio) so
+      sedutil's SG_IO noise (and traps) on QEMU disks is gone.
 - [x] **Eliminate table UI full-screen reflow** — today `table::render`
       (`product/src/40_table.sh`) starts with `clear`/`\033[2J\033[H` and
       reprints the whole screen (both info panels, column header, every device

@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.17] - 2026-10-07
+
+### Changed
+
+- **Appliance ops polish** — the kernel now ships the 8250 serial console
+  (`CONFIG_SERIAL_8250` + console/PCI) and `virtio-net` for faster QEMU/KVM
+  testing; the boot menus pass `console=ttyS0,115200` alongside `console=tty3`
+  so a serial/IPMI-SoL/Proxmox serial console shows boot logs.
+- **Quiet OPAL probe on virtual disks** — discovery no longer runs
+  `sedutil-cli --query` against QEMU/VMware/VirtualBox/Hyper-V/Xen/virtio disks
+  (they can never be SEDs), removing the SG_IO noise (and occasional trap) such
+  disks produced; they are marked `NA` and real drives are still probed.
+
 ## [v1.11.16] - 2026-10-06
 
 ### Changed

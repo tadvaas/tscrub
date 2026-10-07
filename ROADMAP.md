@@ -386,8 +386,10 @@ subscriptions, and close the last trust/coverage gaps.
       No SSO/portal. Shipped 2026-10-05 (server + dashboard).
 - [x] SAS/SCSI erase-path proof — exercise the `nwipe` SCSI fallback on real SAS
       hardware and add a Proxmox SCSI scenario (the last untested wipe path).
-- [ ] Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net`
+- [x] Appliance ops polish — serial console (`CONFIG_SERIAL_8250`), `virtio-net`
       for faster VM testing, quiet `sedutil-cli` SG_IO noise on QEMU disks.
+      Shipped v1.11.17 (2026-10-07): kernel-defconfig + boot-menu `console=ttyS0`;
+      OPAL probe skipped on hypervisor/emulated disks.
 - [ ] Marketing analytics + Search Console — add a privacy-friendly analytics tag
       (GA4 or Plausible) across the site and verify Google Search Console
       ownership, so the SEO/Resources content program can be measured (traffic,
