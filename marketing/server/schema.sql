@@ -334,6 +334,8 @@ CREATE TABLE IF NOT EXISTS device_presence (
   drives_total INT UNSIGNED    NOT NULL DEFAULT 0,
   drives_done  INT UNSIGNED    NOT NULL DEFAULT 0,
   drives_failed INT UNSIGNED   NOT NULL DEFAULT 0,
+  progress_pct TINYINT         NOT NULL DEFAULT -1,
+  progress_eta_sec INT         NOT NULL DEFAULT -1,
   last_seen_ts INT UNSIGNED    NOT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_presence_device (user_id, serial, uuid),

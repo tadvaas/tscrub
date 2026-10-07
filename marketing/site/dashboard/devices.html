@@ -240,11 +240,21 @@
           // only meaningful with 2+ drives (a single drive just shows "Wiping").
           var label = 'Wiping' + (total > 1 ? ' ' + finished + '/' + total : '');
           var title = 'Erasure in progress — ' + finished + ' of ' + total + ' drives finished' + (failed > 0 ? ' (' + failed + ' failed)' : '');
+          var pct = (typeof e.progress_pct === 'number') ? e.progress_pct : -1;
+          var etaSec = (typeof e.progress_eta_sec === 'number') ? e.progress_eta_sec : -1;
+          var etaText = '';
+          if (etaSec >= 0) {
+            var mins = Math.max(1, Math.round(etaSec / 60));
+            etaText = mins >= 60 ? ('≈' + Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm') : ('≈' + mins + 'm');
+            title += ' · ' + etaText + ' left';
+          }
           return {
             dot: 'bg-amber-500 animate-pulse',
             txt: 'text-amber-700 dark:text-amber-400',
             label: label,
-            title: title
+            title: title,
+            progressPct: pct,
+            etaText: etaText
           };
         }
         if (e.phase === 'done') {
@@ -513,6 +523,23 @@
             stLine.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'Seen ' + dev.last_seen));
           }
           stCell.appendChild(stLine);
+          // Live wipe progress (subtle, fixed-width so the row never jumps):
+          // a real % when the appliance reports one, else a pulsing
+          // indeterminate bar; approximate time remaining when known.
+          if (sb && sb.progressPct !== undefined) {
+            var barWrap = el('div', 'mt-1 flex items-center gap-1.5');
+            var barTrack = el('div', 'h-1.5 w-14 overflow-hidden rounded-full bg-slate-200 dark:bg-ink-700');
+            if (sb.progressPct >= 0) {
+              var barFill = el('div', 'h-full rounded-full bg-amber-500 transition-[width] duration-500', '');
+              barFill.style.width = Math.max(0, Math.min(100, sb.progressPct)) + '%';
+              barTrack.appendChild(barFill);
+            } else {
+              barTrack.appendChild(el('div', 'h-full w-1/3 rounded-full bg-amber-400 animate-pulse', ''));
+            }
+            barWrap.appendChild(barTrack);
+            if (sb.etaText) barWrap.appendChild(el('span', 'text-[10px] text-slate-400 dark:text-slate-500', sb.etaText));
+            stCell.appendChild(barWrap);
+          }
           stCell.title = sb ? sb.title : (dev.online ? 'Appliance heartbeat seen within the last 90s' : (dev.last_seen_at ? 'Last seen ' + dev.last_seen_at : 'No recent heartbeat'));
           tr.appendChild(stCell);
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');

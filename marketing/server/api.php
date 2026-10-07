@@ -1267,8 +1267,15 @@ if ($method === 'POST' && $route === '/heartbeat') {
     $drivesDone   = max(0, (int)($d['drives_done'] ?? 0));
     $drivesFailed = max(0, (int)($d['drives_failed'] ?? 0));
 
+    // Live wipe progress (optional; only newer appliances send it). -1 means
+    // "indeterminate / unknown" and is the safe default for older appliances.
+    $progressPct = (int)($d['progress_pct'] ?? -1);
+    if ($progressPct < -1 || $progressPct > 100) $progressPct = -1;
+    $progressEtaSec = (int)($d['progress_eta_sec'] ?? -1);
+    if ($progressEtaSec < -1) $progressEtaSec = -1;
+
     presence_ensure_schema();
-    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $touchPhase);
+    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $progressPct, $progressEtaSec, $touchPhase);
     json_out(['ok' => true]);
 }
 
