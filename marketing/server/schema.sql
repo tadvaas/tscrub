@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS reports (
   source      VARCHAR(16)     NOT NULL DEFAULT 'manual',
   report_type ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure',
   grade       VARCHAR(8)      NOT NULL DEFAULT '',
+  notes       TEXT            NULL,
   devices     INT UNSIGNED    NOT NULL DEFAULT 0,
   runs        INT UNSIGNED    NOT NULL DEFAULT 0,
   payload     JSON            NOT NULL,
@@ -406,7 +407,8 @@ CREATE TABLE IF NOT EXISTS device_registrations (
 
 -- Manual device refurb grade (I-A–I-F) is stored on the diagnostics report
 -- itself (reports.grade) so each report row carries its grade; the Devices
--- tab shows the grade of the latest diagnostics report.
+-- tab shows the grade of the latest diagnostics report. Free-form operator
+-- notes (e.g. "damaged screen") live alongside it in reports.notes.
 
 -- Organisations & seats (§5) — a lightweight multi-user workspace layer. One
 -- Team/Enterprise licence covers several operators (email-invite + role), who

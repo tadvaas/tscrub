@@ -65,15 +65,16 @@ function licence_pub_keys(int $userId): array {
 }
 
 /**
- * Lazily add the `report_type` and `grade` columns to an existing `reports`
- * table (idempotent — mirrors schema.sql). A fresh install gets them from
- * schema.sql; an existing server self-heals on first use.
+ * Lazily add the `report_type`, `grade` and `notes` columns to an existing
+ * `reports` table (idempotent — mirrors schema.sql). A fresh install gets
+ * them from schema.sql; an existing server self-heals on first use.
  */
 function reports_ensure_schema(): void {
     try {
         $wanted = [
             'report_type' => "ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source",
             'grade'       => "VARCHAR(8) NOT NULL DEFAULT '' AFTER report_type",
+            'notes'       => "TEXT NULL AFTER grade",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -1391,6 +1392,45 @@ function report_grade_set(int $userId, int $reportId, string $grade): bool {
 }
 
 /**
+ * Set (or clear, with notes='') the operator's free-form notes on a
+ * diagnostics report — e.g. "damaged screen, missing battery". Mirrors
+ * report_grade_set: org-scoped by report ownership, empty clears the notes,
+ * and the text is trimmed and capped so a stray paste can't bloat a row.
+ */
+function report_notes_set(int $userId, int $reportId, string $notes): bool {
+    reports_ensure_schema();
+    $norm = trim($notes);
+    // Cap at a generous 4000 chars (UTF-8) — long enough for any realistic
+    // condition note, short enough to stay a single-row annotation.
+    if (function_exists('mb_substr')) {
+        $norm = mb_substr($norm, 0, 4000);
+    } else {
+        $norm = substr($norm, 0, 4000);
+    }
+    try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        // Verify ownership first — UPDATE rowCount() is 0 when the value is
+        // unchanged (re-saving identical notes), which must still succeed.
+        $chk = db()->prepare(
+            "SELECT COUNT(*) FROM reports WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
+        );
+        $chk->execute(array_merge([$reportId], $ids));
+        if ((int)$chk->fetchColumn() === 0) {
+            return false;
+        }
+        $stmt = db()->prepare(
+            "UPDATE reports SET notes = ? WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
+        );
+        $stmt->execute(array_merge([$norm, $reportId], $ids));
+        return true;
+    } catch (Throwable $e) {
+        error_log('report notes set error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Aggregated machine (hardware/firmware) inventory across a user's boot-time
  * diagnostics reports — one row per physical machine, keyed by system serial
  * (fallback: baseboard serial, then system UUID). The serial is the stable
@@ -1405,7 +1445,7 @@ function load_devices(int $userId): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = db()->prepare("SELECT id, uploaded_at, grade, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, uploaded_at, grade, notes, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($ids);
 
     $devices = [];
@@ -1454,6 +1494,7 @@ function load_devices(int $userId): array {
                 'media_destination' => (string)($g['media_destination'] ?? ''),
                 'battery'       => (string)($g['battery'] ?? ''),
                 'refurb_grade'  => (string)($r['grade'] ?? ''),
+                'notes'         => (string)($r['notes'] ?? ''),
                 'secure_boot'   => (string)($g['secure_boot'] ?? ''),
                 'dimms'         => (string)($g['dimms'] ?? ''),
                 'cpu_spec'      => (string)($g['cpu_spec'] ?? ''),
@@ -1509,6 +1550,7 @@ function load_devices(int $userId): array {
             'digital_identifier' => (string)($g['digital_identifier'] ?? ''),
             'pdf_id'         => (int)$r['id'],
             'grade'          => (string)($r['grade'] ?? ''),
+            'notes'          => (string)($r['notes'] ?? ''),
             'cocid'          => (string)($r['cocid'] ?? ''),
             'selftest_cpu'   => (string)($g['selftest_cpu'] ?? ''),
             'chassisserial'  => (string)($g['chassisserial'] ?? ''),

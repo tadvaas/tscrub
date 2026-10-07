@@ -784,6 +784,67 @@
             }
           }).catch(function () { window.alert('Network error — try again.'); });
         }
+        // Free-form operator notes on a diagnostics report (e.g. "damaged
+        // screen") — editable inline and rendered on the PDF report.
+        function notesCard(dev) {
+          var c = card('Operator notes');
+          var body = cardBody(c);
+          var ta = el('textarea', 'mt-1 w-full resize-y rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[72px]');
+          ta.placeholder = 'e.g. damaged screen, missing battery…';
+          ta.value = dev.notes || '';
+          body.appendChild(ta);
+          body.appendChild(el('div', 'mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500', 'Shown on the PDF report.'));
+          var btns = el('div', 'mt-2 flex items-center gap-2');
+          var save = el('button', 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700', 'Save note');
+          var status = el('span', 'text-xs text-slate-400 dark:text-slate-500', '');
+          save.type = 'button';
+          save.addEventListener('click', function () { saveNotes(dev, ta.value, save, status); });
+          btns.appendChild(save);
+          btns.appendChild(status);
+          body.appendChild(btns);
+          return c;
+        }
+        function saveNotes(dev, notes, saveBtn, statusEl) {
+          saveBtn.disabled = true;
+          statusEl.textContent = 'Saving…';
+          getCsrf().then(function (csrf) {
+            return fetch('/api/devices/notes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ report_id: dev.pdf_id || 0, notes: notes })
+            });
+          }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+            saveBtn.disabled = false;
+            if (res.ok) {
+              statusEl.textContent = 'Saved';
+              dev.notes = res.data.notes;
+              // Reflect the note on the top-level entry and every matching
+              // history row so a re-open shows the freshest value without
+              // waiting for the next auto-poll.
+              var parent = null;
+              for (var i = 0; i < devices.length; i++) {
+                var d0 = devices[i];
+                if (d0.pdf_id === dev.pdf_id) { parent = d0; break; }
+                for (var j = 0; j < (d0.history || []).length; j++) {
+                  if (d0.history[j].pdf_id === dev.pdf_id) { parent = d0; break; }
+                }
+                if (parent) break;
+              }
+              if (parent) {
+                (parent.history || []).forEach(function (h) {
+                  if (h.pdf_id === dev.pdf_id) h.notes = res.data.notes;
+                });
+                if (parent.pdf_id === dev.pdf_id) parent.notes = res.data.notes;
+              }
+              setTimeout(function () { statusEl.textContent = ''; }, 2000);
+            } else {
+              statusEl.textContent = res.data.error || 'Could not save the note.';
+            }
+          }).catch(function () {
+            saveBtn.disabled = false;
+            statusEl.textContent = 'Network error — try again.';
+          });
+        }
         function chassisStateClass(v) {
           var s = String(v || '').toLowerCase().trim();
           if (s === 'safe' || s === 'none') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
@@ -973,6 +1034,7 @@
         ]));
 
         side.appendChild(refurbGradeCard(dev));
+        side.appendChild(notesCard(dev));
 
         var chassisCard = card('Chassis state');
         var chassisPairs = chassisStatePairs(dev.chassis_state);
@@ -1186,6 +1248,9 @@
         }
         if (h.grade) {
           details.push(detail('Grade', refurbBadge(h.grade), 'Operator-assigned inbound grade for this report'));
+        }
+        if (h.notes) {
+          details.push(detail('Notes', h.notes, 'Operator notes for this report'));
         }
         return reportRow(h, reportTypeBadge('diagnostics'), details, actions);
       }

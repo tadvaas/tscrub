@@ -616,6 +616,30 @@ function diag_render_hardware(TCPDF $pdf, float $x, float $W, float $H, string $
     $gradeColor = ['I-A' => [5, 150, 105], 'I-B' => [13, 148, 136], 'I-C' => [217, 119, 6], 'I-D' => [234, 88, 12], 'I-F' => [100, 116, 139]];
     $row('Refurb grade', $storedGrade, $gradeColor[$storedGrade] ?? [148, 163, 184]);
 
+    // Operator notes (e.g. "damaged screen, missing battery") — free-form and
+    // word-wrapped so no condition note is truncated away. Empty → omitted.
+    $storedNotes = trim((string)($d['notes'] ?? ''));
+    if ($storedNotes !== '') {
+        $noteW = $W - 2 * $x - $labelW - 1;
+        $noteLines = [];
+        foreach (preg_split('/\r?\n/', $storedNotes) as $para) {
+            $para = trim($para);
+            if ($para === '') continue;
+            $cur = '';
+            foreach (preg_split('/\s+/', $para) as $w) {
+                $trial = $cur === '' ? $w : $cur . ' ' . $w;
+                if ($pdf->getStringWidth($trial, 'helvetica', '', 7.5) <= $noteW) {
+                    $cur = $trial;
+                } else {
+                    if ($cur !== '') $noteLines[] = $cur;
+                    $cur = $w;
+                }
+            }
+            if ($cur !== '') $noteLines[] = $cur;
+        }
+        $list('Operator notes', $noteLines);
+    }
+
     $sub('NETWORK INTERFACES');
     $ifaces = array_values(array_filter($semicolon((string)($d['interfaces'] ?? (string)($d['macs'] ?? ''))), static function (string $e): bool {
         $name = trim(explode(' ', $e)[0] ?? '');

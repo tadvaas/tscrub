@@ -941,6 +941,8 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     $raw['operator'] = operator_for_pdf($raw, (int)$u['id']);
     // The operator's manual I-A–I-F refurb grade (empty → no grade shown).
     $raw['refurb_grade'] = (string)($r['grade'] ?? '');
+    // Operator notes (e.g. "damaged screen") — empty → omitted from the PDF.
+    $raw['notes'] = (string)($r['notes'] ?? '');
     $rendered = render_diagnostics_pdf(
         $raw,
         certifier_for_user((int)$r['user_id']),
@@ -1674,6 +1676,24 @@ if ($method === 'POST' && $route === '/devices/grade') {
         fail(404, 'Diagnostics report not found.');
     }
     json_out(['ok' => true, 'grade' => $grade, 'report_id' => $reportId]);
+}
+
+// POST /api/devices/notes — set (or clear, notes='') the operator's free-form
+// notes on a diagnostics report (e.g. "damaged screen"). Session + CSRF auth;
+// org-scoped by report ownership.
+if ($method === 'POST' && $route === '/devices/notes') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $notes = trim((string)($d['notes'] ?? ''));
+    $reportId = (int)($d['report_id'] ?? 0);
+    if ($reportId <= 0) {
+        fail(400, 'Provide the diagnostics report id.');
+    }
+    if (!report_notes_set((int)$u['id'], $reportId, $notes)) {
+        fail(404, 'Diagnostics report not found.');
+    }
+    json_out(['ok' => true, 'notes' => $notes, 'report_id' => $reportId]);
 }
 
 // POST /api/devices/register — the appliance posts its identity + hardware +
