@@ -8,7 +8,7 @@
 - [Compliance](https://tscrub.com/compliance): How each wipe method maps to NIST 800-88 Clear, Purge, and Destroy, with GDPR/HIPAA/ISO 27001 reporting.
 - [Pricing](https://tscrub.com/pricing): Free licence, Pay-as-you-go £3/device, Team £99 (100 credits), Enterprise £399 (500 credits); the Windows Autopilot (MDM) check is a paid feature (1 credit per check) — free licences are self-serve; paid licences are issued by tScrub.
 - [Download](https://tscrub.com/download): The bootable appliance ISO, with a SHA-256 checksum for verification.
-- [Docs](https://tscrub.com/docs): Building the appliance, booting from USB (Windows/macOS/Linux) or over the network (PXE), choosing a report destination (USB, FTP, or the tScrub dashboard), and verifying signed reports.
+- [Docs](https://tscrub.com/docs): Building the appliance, booting from USB (Windows/macOS/Linux) or over the network (PXE), boot-time hardware triage and MDM/BIOS-lock detection, choosing a report destination (USB, FTP, or the tScrub dashboard), dashboard remote commands and organisations, and verifying signed reports.
 - [Resources](https://tscrub.com/resources): Data erasure guides — standards, drive types, wipe methods, certificates of destruction, and a buyer's guide.
 - [FAQ](https://tscrub.com/faq): Certification, running on your own hardware, and edge-case drive handling.
 - [Certificates](https://tscrub.com/dashboard/certificates): Upload reports on the Drives page, then select a Chain of Custody ID to generate one consolidated, printable Certificate of Destruction per job, and manage every certificate on your account.

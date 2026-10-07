@@ -515,7 +515,24 @@
           var stDot = el('span', 'inline-block h-2 w-2 shrink-0 rounded-full ' + (sb ? sb.dot : (dev.online ? 'bg-emerald-500' : 'bg-transparent ring-1 ring-inset ring-slate-400 dark:ring-slate-500')));
           var stTxt = el('span', 'text-xs font-semibold ' + (sb ? sb.txt : (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500')), sb ? sb.label : (dev.online ? 'Online' : 'Offline'));
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
-          if (dev.online && dev.lan_ip) {
+          var hasProgress = sb && sb.progressPct !== undefined;
+          // Live wipe progress — a real % when the appliance reports one, else
+          // a pulsing indeterminate bar, plus approximate time remaining. It
+          // sits inline so a wiping row keeps the same single-line height as
+          // every other row; while it is shown the LAN IP moves into the hover
+          // title so the bar + ETA fit without widening the row.
+          if (hasProgress) {
+            var barTrack = el('div', 'h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-ink-700');
+            if (sb.progressPct >= 0) {
+              var barFill = el('div', 'h-full rounded-full bg-amber-500 transition-[width] duration-500', '');
+              barFill.style.width = Math.max(0, Math.min(100, sb.progressPct)) + '%';
+              barTrack.appendChild(barFill);
+            } else {
+              barTrack.appendChild(el('div', 'h-full w-1/3 rounded-full bg-amber-400 animate-indeterminate', ''));
+            }
+            stLine.appendChild(barTrack);
+            if (sb.etaText) stLine.appendChild(el('span', 'text-[10px] text-slate-400 dark:text-slate-500', sb.etaText));
+          } else if (dev.online && dev.lan_ip) {
             var ipSpan = el('span', 'text-xs text-slate-400 dark:text-slate-500', dev.lan_ip);
             ipSpan.title = 'LAN IP reported by the appliance heartbeat — telnet/SSH target';
             stLine.appendChild(ipSpan);
@@ -523,24 +540,9 @@
             stLine.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'Seen ' + dev.last_seen));
           }
           stCell.appendChild(stLine);
-          // Live wipe progress (subtle, fixed-width so the row never jumps):
-          // a real % when the appliance reports one, else a pulsing
-          // indeterminate bar; approximate time remaining when known.
-          if (sb && sb.progressPct !== undefined) {
-            var barWrap = el('div', 'mt-1 flex items-center gap-1.5');
-            var barTrack = el('div', 'h-1.5 w-14 overflow-hidden rounded-full bg-slate-200 dark:bg-ink-700');
-            if (sb.progressPct >= 0) {
-              var barFill = el('div', 'h-full rounded-full bg-amber-500 transition-[width] duration-500', '');
-              barFill.style.width = Math.max(0, Math.min(100, sb.progressPct)) + '%';
-              barTrack.appendChild(barFill);
-            } else {
-              barTrack.appendChild(el('div', 'h-full w-1/3 rounded-full bg-amber-400 animate-pulse', ''));
-            }
-            barWrap.appendChild(barTrack);
-            if (sb.etaText) barWrap.appendChild(el('span', 'text-[10px] text-slate-400 dark:text-slate-500', sb.etaText));
-            stCell.appendChild(barWrap);
-          }
-          stCell.title = sb ? sb.title : (dev.online ? 'Appliance heartbeat seen within the last 90s' : (dev.last_seen_at ? 'Last seen ' + dev.last_seen_at : 'No recent heartbeat'));
+          var cellTitle = sb ? sb.title : (dev.online ? 'Appliance heartbeat seen within the last 90s' : (dev.last_seen_at ? 'Last seen ' + dev.last_seen_at : 'No recent heartbeat'));
+          if (hasProgress && dev.online && dev.lan_ip) cellTitle += ' · LAN IP ' + dev.lan_ip;
+          stCell.title = cellTitle;
           tr.appendChild(stCell);
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
           var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 text-brand-700 dark:text-brand-400' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
@@ -1820,7 +1822,7 @@
       }
 
       function openOperations(dev, online) {
-        opsSub.textContent = (dev.system || 'Machine') + ' · ' + (dev.sysserial ? 'SN ' + dev.sysserial : 'no serial') + ' · ' + (online ? 'Online' : 'Offline');
+        opsSub.textContent = (dev.system || 'Machine') + ' · ' + (dev.sysserial ? 'SN ' + dev.sysserial : 'no serial') + ' · ' + (online ? 'Online' : 'Offline') + (online && dev.lan_ip ? ' · ' + dev.lan_ip : '');
         opsBody.innerHTML = '';
         if (!dev.sysserial) {
           opsBody.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No system serial to target.'));

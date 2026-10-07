@@ -33,6 +33,18 @@ export default {
           800: '#111827',
           700: '#1f2937'
         }
+      },
+      keyframes: {
+        // Sweeping segment for an indeterminate progress bar — the element is
+        // w-1/3 inside an overflow-hidden track, so translateX(-100%) parks it
+        // fully off the left edge and translateX(400%) sweeps it off the right.
+        indeterminate: {
+          '0%':   { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' }
+        }
+      },
+      animation: {
+        indeterminate: 'indeterminate 1.5s linear infinite'
       }
     }
   },

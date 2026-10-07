@@ -84,6 +84,12 @@
               <li><a href="#kernel-params" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">13. Kernel parameters</a></li>
             </ul>
           </div>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Dashboard</p>
+            <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
+              <li><a href="#dashboard" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">14. Devices, remote commands &amp; organisations</a></li>
+            </ul>
+          </div>
         </nav>
       </aside>
 
@@ -104,6 +110,7 @@
           <a href="#licensing" class="rounded-full border border-slate-200 dark:border-ink-700 px-3 py-1 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-ink-800">Licensing</a>
           <a href="#media" class="rounded-full border border-slate-200 dark:border-ink-700 px-3 py-1 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-ink-800">Media</a>
           <a href="#kernel-params" class="rounded-full border border-slate-200 dark:border-ink-700 px-3 py-1 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-ink-800">Params</a>
+          <a href="#dashboard" class="rounded-full border border-slate-200 dark:border-ink-700 px-3 py-1 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-ink-800">Dashboard</a>
         </nav>
 
         <!-- Part 1 -->
@@ -148,7 +155,13 @@
             </div>
             <div id="run">
               <h2 class="text-xl font-bold text-ink-900 dark:text-white">4. Run a sanitisation job</h2>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">There is nothing to run manually — tScrub starts automatically as the appliance boots (from USB or PXE). After you enter a Chain of Custody ID it lands on a <strong>triage screen</strong> showing the captured hardware, MDM/BIOS lock status and LAN IP while it heartbeats online. Press <kbd>Shift</kbd>+<kbd>T</kbd> to erase the selected drives in parallel; frozen, locked, or blocked drives are flagged rather than marked clean.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">There is nothing to run manually — tScrub starts automatically as the appliance boots (from USB or PXE). After you enter a Chain of Custody ID it lands on a <strong>triage screen</strong> while it captures the machine's hardware profile, checks Windows Autopilot (MDM) and BIOS lock status, and heartbeats online:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
+                <li><strong>Hardware triage &amp; grading</strong> — system/board serials, SKU and asset tag, BIOS and firmware revisions, TPM and Secure Boot, CPU spec, per-DIMM memory, display panel, battery health, Wi-Fi and PCI/USB peripherals, plus a per-drive inventory (firmware, sector size, SMART, self-test). This becomes a printable ITAD diagnostics report on the dashboard (see <a href="#dashboard" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 14</a>).</li>
+                <li><strong>MDM &amp; BIOS lock</strong> — an opt-in Windows Autopilot check (<code class="font-mono">tscrub_autopilotcheck=true</code>) reports <em>Locked</em>/<em>Unlocked</em> from Microsoft; BIOS admin-password lock is detected from firmware/SMBIOS.</li>
+                <li><strong>LAN IP</strong> — shown on the triage screen so you can reach the machine remotely.</li>
+              </ul>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Press <kbd>Shift</kbd>+<kbd>T</kbd> to erase the selected drives in parallel; frozen, locked, or blocked drives are flagged rather than marked clean. With an appliance token set, the triage screen also accepts <strong>remote commands</strong> (shut down, restart, or a staged remote wipe) from the dashboard.</p>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Before wiping, tScrub removes any hidden <strong>HPA/DCO</strong> area so the full native capacity is sanitised, and after the wipe it <strong>verifies</strong> the result by reading back sample sectors — both on by default (see <a href="#report" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 8</a>).</p>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">For unattended fleet runs, pre-set <code class="font-mono">tscrub_cocid=</code> to skip the prompt and add <code class="font-mono">tscrub_autonuke=1</code> to skip the triage screen and wipe every drive automatically (see <a href="#kernel-params" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">section 13</a>).</p>
             </div>
@@ -161,7 +174,7 @@
           <div class="mt-5 space-y-10">
             <div id="boot-usb">
               <h2 class="text-xl font-bold text-ink-900 dark:text-white">5. Boot the appliance from USB</h2>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~150 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~166 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
               <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:text-emerald-300"><span class="font-semibold">Secure Boot supported:</span> the appliance boots with UEFI Secure Boot on, via a signed shim + MOK chain. On the <strong>first</strong> boot on a machine, shim opens <strong>MokManager</strong> — choose <em>Enroll MOK → Continue → Yes</em>, then reboot. After that it boots normally. (You can also simply disable Secure Boot or enable CSM/Legacy boot.)</p>
 
               <div class="mt-5" data-ostabs>
@@ -436,6 +449,7 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                   <tbody class="divide-y divide-slate-100 dark:divide-ink-800 bg-white dark:bg-ink-900">
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_cocid=12345</td><td class="px-6 py-3">Chain of Custody ID. Setting it skips the prompt (no longer implies autonuke).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_autonuke=1</td><td class="px-6 py-3">Skip the triage screen and wipe every drive automatically (fleet/PXE unattended runs).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_selftest=1</td><td class="px-6 py-3">Opt in to the hardware self-test (CPU + per-drive short SMART self-test) before the triage screen.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_license=/path.lic</td><td class="px-6 py-3">Read the licence from a filesystem path.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_license_url=http://…</td><td class="px-6 py-3">Fetch the licence over the network.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_output=/mnt/usb</td><td class="px-6 py-3">Where to write the report (a filesystem path).</td></tr>
@@ -474,9 +488,16 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                   <tbody class="divide-y divide-slate-100 dark:divide-ink-800 bg-white dark:bg-ink-900">
                     <tr><td class="px-6 py-3 font-mono text-xs">--cocid 12345</td><td class="px-6 py-3">Chain of Custody ID (no longer implies autonuke).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--autonuke</td><td class="px-6 py-3">Select every drive and start erasure without the triage screen.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--selftest</td><td class="px-6 py-3">Run the opt-in hardware self-test (CPU + per-drive short SMART self-test).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--autopilotcheck</td><td class="px-6 py-3">Opt in to the Windows Autopilot MDM check (needs <code class="font-mono">tscrub_api_token</code> and a network connection).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--license /path.lic</td><td class="px-6 py-3">Read the licence from a path (default: boot USB, then <code class="font-mono">/etc/tscrub/</code>).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--license-url URL</td><td class="px-6 py-3">Fetch the licence from a URL.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--output /mnt/usb</td><td class="px-6 py-3">Write reports to a directory (default: boot USB, then RAM).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--operator NAME</td><td class="px-6 py-3">Erasure technician recorded on the report (single token — use <code class="font-mono">tscrub.conf</code> for names with spaces).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--validator NAME</td><td class="px-6 py-3">Validation official recorded on the report (single token).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--asset-tag TAG</td><td class="px-6 py-3">Asset tag recorded on the report (overrides the firmware chassis asset tag).</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--media-source WHERE</td><td class="px-6 py-3">Media source recorded on the report.</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--media-destination WHERE</td><td class="px-6 py-3">Media destination recorded on the report.</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--verify none|sampled|full</td><td class="px-6 py-3">Post-erasure read-back verification (default sampled).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--hpa on|off</td><td class="px-6 py-3">Remove HPA/DCO hidden areas before erasure (default on).</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--dry-run, -n</td><td class="px-6 py-3">Discover and classify drives without wiping anything.</td></tr>
@@ -485,6 +506,33 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Part 6 · Dashboard & remote operations -->
+        <section>
+          <p class="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400">Part 6 · Dashboard &amp; remote operations</p>
+          <div class="mt-5 space-y-10">
+            <div id="dashboard">
+              <h2 class="text-xl font-bold text-ink-900 dark:text-white">14. Dashboard: devices, remote commands &amp; organisations</h2>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">With an appliance token (<code class="font-mono">tscrub_api_token=</code>) set, every boot reports to your tScrub dashboard. Beyond storing reports and generating certificates, the dashboard gives you a live view of the machines you have booted and lets you drive them remotely while they are online.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Devices &amp; the ITAD diagnostics report</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">At boot, before any wipe, tScrub captures a full hardware profile — system and board serials, SKU/asset tag, BIOS and firmware revisions, TPM and Secure Boot, CPU spec, per-DIMM memory, display panel, battery health, Wi-Fi adapter, PCI/USB peripherals and full SMBIOS detail — plus a per-drive inventory (firmware, sector size, SMART health, self-test result, reallocated sectors, HPA/DCO and SED/OPAL lock state). It lands on the dashboard's <a href="/dashboard/devices" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">Devices tab</a>, where each machine's snapshot renders as a printable two-page ITAD triage and grading PDF (download it from the device's detail view).</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Remote commands</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">While the appliance sits on the triage screen it polls the dashboard, so you can send commands without touching the keyboard:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
+                <li><strong>Shut down / restart</strong> — power the machine off or reboot it from the device's detail view.</li>
+                <li><strong>Remote erase</strong> — stage a wipe from the dashboard; the appliance shows a short grace countdown on the triage screen, then wipes the selected drives (appliance v1.10.14 or newer).</li>
+              </ul>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Remote BIOS unlock</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">For Dell and Lenovo machines whose BIOS admin password is exposed through the firmware interface, the device's detail view has a BIOS-unlock action that queues a clear command to the online appliance.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Organisations &amp; seats</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Team and Enterprise accounts can create an organisation on the dashboard and invite colleagues as members — one licence covers several operators who share the same devices, reports, certificates and remote-command queues. Seats scale with the tier: 2 on Free, 10 on Pay-as-you-go, 50 on Team, 100 on Enterprise.</p>
             </div>
           </div>
         </section>
