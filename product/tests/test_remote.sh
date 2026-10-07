@@ -151,5 +151,31 @@ read() { return 0; }                               # a key → cancel
 t::check "remote: grace cancels on key press" '! remote::grace_confirm'
 unset -f read ui::terminal_controls_supported
 
+# --- result POST retry: two failures then success ---------------------------
+# A lost result POST strands the job "dispatched" (the server requeues it only
+# after 10 min), so remote::report retries a few times first.
+RESULT_ATTEMPTS_FILE="$tmpdir/result_attempts"
+printf '0' > "$RESULT_ATTEMPTS_FILE"
+: > "$RESULT_LOG"
+curl() {
+    printf '%s\n' "$*" >> "$CURL_LOG"
+    if [[ "$*" == *"/commands/result"* ]]; then
+        printf '%s\n' "$*" >> "$RESULT_LOG"
+        n="$(cat "$RESULT_ATTEMPTS_FILE")"
+        n=$((n + 1))
+        printf '%s' "$n" > "$RESULT_ATTEMPTS_FILE"
+        if (( n < 3 )); then
+            return 7   # first two attempts fail
+        fi
+        printf '{"ok":true}'
+        return 0
+    fi
+    printf '{}'
+    return 0
+}
+remote::report 99 done "started"
+t::check "remote: result POST retried after failure" '[[ "$(cat "$RESULT_ATTEMPTS_FILE")" == "3" ]]'
+t::check "remote: retry posted to the result endpoint" '[[ "$(grep -c "commands/result" "$RESULT_LOG")" == "3" ]]'
+
 rm -rf "$tmpdir"
 t::summary

@@ -1470,11 +1470,15 @@ if ($method === 'GET' && $route === '/devices/commands/pending') {
     }
 
     $serial = trim((string)($_GET['serial'] ?? ''));
+    $uuid   = trim((string)($_GET['uuid'] ?? ''));
     if ($serial === '' || $serial === 'N/A') {
         fail(400, 'Serial required.');
     }
+    if (strlen($uuid) > 64) {
+        $uuid = '';
+    }
 
-    $cmd = remote_claim((int)$owner['id'], $serial);
+    $cmd = remote_claim((int)$owner['id'], $serial, $uuid);
     if ($cmd === null) {
         json_out(['ok' => true, 'pending' => false]);
     }

@@ -29,15 +29,20 @@ remote::result_endpoint() {
 }
 
 # Report the outcome of a claimed command back to the dashboard (best-effort).
+# Retries a few times so a single lost POST doesn't strand the job "dispatched"
+# (the server requeues it after 10 min as a second safety net).
 remote::report() {
-    local cmd_id="$1" result="$2" detail="${3:-}" json_body
+    local cmd_id="$1" result="$2" detail="${3:-}" json_body attempt
     json_body="$(printf '{"id":%s,"result":"%s","detail":"%s"}' \
         "$cmd_id" "$result" "$(report::_json_field "$detail")")"
-    curl -fsS --connect-timeout 5 --max-time 15 \
-        -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-        -H "Content-Type: application/json" \
-        --data-binary "$json_body" \
-        "$(remote::result_endpoint)" >/dev/null 2>&1
+    for attempt in 1 2 3; do
+        curl -fsS --connect-timeout 5 --max-time 15 \
+            -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary "$json_body" \
+            "$(remote::result_endpoint)" >/dev/null 2>&1 && return 0
+        sleep 2
+    done
     return 0
 }
 

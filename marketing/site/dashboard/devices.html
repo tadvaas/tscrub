@@ -1492,7 +1492,8 @@
         if (s === 'pending') {
           return (c && c.result === 'deferred') ? { kind: 'deferred', data: c } : { kind: 'staged', data: c };
         }
-        return { kind: 'idle', data: c };   // none / cancelled / superseded / expired
+        if (s === 'expired') return { kind: 'expired', data: c };
+        return { kind: 'idle', data: c };   // none / cancelled / superseded
       }
 
       function remoteBadge(kind) {
@@ -1502,6 +1503,7 @@
           case 'done': return el('span', 'rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold', 'Done');
           case 'failed': return el('span', 'rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold', 'Failed');
           case 'deferred': return el('span', 'rounded-full bg-sky-100 text-sky-700 px-2.5 py-1 text-xs font-semibold', 'Deferred');
+          case 'expired': return el('span', 'rounded-full bg-slate-200 text-slate-600 dark:bg-ink-700 dark:text-slate-400 px-2.5 py-1 text-xs font-semibold', 'Expired');
           default: return null;
         }
       }
@@ -1668,10 +1670,7 @@
 
         var supported = toolVersionNum(dev.tool_version) >= toolVersionNum('v1.10.14');
         var wiping = dev.erasure && dev.erasure.phase === 'wiping';
-        if (!online) {
-          st.textContent = 'Machine is offline — a command would expire before it could be picked up.';
-          start.disabled = true;
-        } else if (wiping) {
+        if (wiping) {
           st.textContent = 'A wipe is already in progress on this machine.';
           start.disabled = true;
         } else if (!supported) {
@@ -1680,6 +1679,10 @@
         } else if (!drives.length) {
           st.textContent = 'No drives reported by this machine.';
           start.disabled = true;
+        } else if (!online) {
+          // Wipe jobs are durable (the fleet queue) — staging for an offline
+          // machine queues it until the appliance next boots and polls.
+          st.textContent = 'Machine is offline — the erase will be queued and run when it comes online.';
         } else {
           st.textContent = 'Queues an erasure that starts automatically on the appliance.';
         }
@@ -1718,7 +1721,9 @@
           srow.appendChild(sbtn);
           card.appendChild(srow);
           var smsg = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-          smsg.textContent = 'Queued — the appliance will run ' + remoteCommandNoun(c && c.command) + ' at its next poll.';
+          smsg.textContent = online
+            ? 'Queued — the appliance will run ' + remoteCommandNoun(c && c.command) + ' at its next poll.'
+            : 'Queued — the appliance is offline; it will run ' + remoteCommandNoun(c && c.command) + ' when it next comes online.';
           card.appendChild(smsg);
           sbtn.addEventListener('click', function () { cancelRemote(dev, online, host, c.id, sbtn, smsg); });
         } else if (kind === 'inprogress') {
@@ -1740,6 +1745,9 @@
           if (kind === 'failed') {
             card.appendChild(el('p', 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400', 'Command failed' + (c && c.detail ? ' — ' + c.detail : '') + '.'));
           }
+          if (kind === 'expired') {
+            card.appendChild(el('p', 'mt-3 text-sm font-semibold text-amber-600 dark:text-amber-500', 'The previous command expired before the appliance picked it up.'));
+          }
 
           var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
           var shut = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Shut down');
@@ -1749,7 +1757,7 @@
           var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
           var wiping = dev.erasure && dev.erasure.phase === 'wiping';
           if (!online) {
-            st.textContent = 'Machine is offline — a command would expire before it could be picked up.';
+            st.textContent = 'Machine is offline — shutdown and restart only work while online (erase can still be queued below).';
             shut.disabled = true; rest.disabled = true;
           } else if (wiping) {
             st.textContent = 'A wipe is in progress — the command will run once it finishes.';

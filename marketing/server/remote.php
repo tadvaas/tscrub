@@ -53,43 +53,69 @@ function remote_ensure_schema(): void {
     }
 }
 
-/** Expire stale commands: pending ones the device never claimed, and dispatched
- *  ones it claimed but never reported on (e.g. the console died first).
- *  Pending TTL is deliberately generous (60 min) — a staged wipe must survive
- *  a device boot / reboot onto a new image (several minutes), unlike an
- *  always-on device which claims within ~10 s. */
-function remote_expire_stale(int $userId, string $serial, int $minutes = 60): void {
+/** Expire stale commands with command-type-aware TTLs.
+ *
+ *  Wipe jobs are DURABLE: a pending wipe lives 7 days (survives a re-image +
+ *  boot), and a dispatched wipe whose result POST was lost is requeued after
+ *  10 minutes — never hard-expired. Power commands (shutdown/reboot) are
+ *  online-only: a stale one must never fire long after the fact, so pending
+ *  power commands expire in 5 minutes and dispatched ones in 2. */
+function remote_expire_stale(int $userId, string $serial): void {
     remote_ensure_schema();
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $pendingBefore = gmdate('Y-m-d H:i:s', time() - $minutes * 60);
-        db()->prepare("UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND serial = ? AND status = 'pending' AND created_at < ?")
-            ->execute(array_merge($ids, [$serial, $pendingBefore]));
-        $dispatchedBefore = gmdate('Y-m-d H:i:s', time() - 120);
-        db()->prepare("UPDATE device_commands SET status = 'expired', detail = 'no result received', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND serial = ? AND status = 'dispatched' AND dispatched_at < ?")
-            ->execute(array_merge($ids, [$serial, $dispatchedBefore]));
+        $args = array_merge($ids, [$serial]);
+
+        db()->prepare(
+            "UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP()
+             WHERE user_id IN ($ph) AND serial = ? AND status = 'pending'
+               AND ((command = 'wipe' AND created_at < UTC_TIMESTAMP() - INTERVAL 7 DAY)
+                 OR (command IN ('shutdown','reboot') AND created_at < UTC_TIMESTAMP() - INTERVAL 5 MINUTE))"
+        )->execute($args);
+
+        db()->prepare(
+            "UPDATE device_commands SET status = 'pending', dispatched_at = NULL, detail = 'result lost — requeued'
+             WHERE user_id IN ($ph) AND serial = ? AND status = 'dispatched' AND command = 'wipe'
+               AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE"
+        )->execute($args);
+
+        db()->prepare(
+            "UPDATE device_commands SET status = 'expired', detail = 'no result received', resolved_at = UTC_TIMESTAMP()
+             WHERE user_id IN ($ph) AND serial = ? AND status = 'dispatched' AND command IN ('shutdown','reboot')
+               AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 2 MINUTE"
+        )->execute($args);
     } catch (Throwable $e) {
         error_log('remote expire error: ' . $e->getMessage());
     }
 }
 
-/** Expire every stale command for a user in one pass (dashboard read path).
- *  A shutdown/reboot the appliance claimed but never reported on — e.g. the
- *  result POST was lost as the machine powered off — must not linger as
- *  "dispatched" forever, or the status column would read "Power off…"
- *  indefinitely. */
+/** Expire every stale command for a user in one pass (dashboard read path) with
+ *  the same command-type TTLs as remote_expire_stale. */
 function remote_expire_stale_user(int $userId): void {
     remote_ensure_schema();
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $pendingBefore = gmdate('Y-m-d H:i:s', time() - 60 * 60);
-        db()->prepare("UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND status = 'pending' AND created_at < ?")
-            ->execute(array_merge($ids, [$pendingBefore]));
-        $dispatchedBefore = gmdate('Y-m-d H:i:s', time() - 120);
-        db()->prepare("UPDATE device_commands SET status = 'expired', detail = 'no result received', resolved_at = UTC_TIMESTAMP() WHERE user_id IN ($ph) AND status = 'dispatched' AND dispatched_at < ?")
-            ->execute(array_merge($ids, [$dispatchedBefore]));
+
+        db()->prepare(
+            "UPDATE device_commands SET status = 'expired', resolved_at = UTC_TIMESTAMP()
+             WHERE user_id IN ($ph) AND status = 'pending'
+               AND ((command = 'wipe' AND created_at < UTC_TIMESTAMP() - INTERVAL 7 DAY)
+                 OR (command IN ('shutdown','reboot') AND created_at < UTC_TIMESTAMP() - INTERVAL 5 MINUTE))"
+        )->execute($ids);
+
+        db()->prepare(
+            "UPDATE device_commands SET status = 'pending', dispatched_at = NULL, detail = 'result lost — requeued'
+             WHERE user_id IN ($ph) AND status = 'dispatched' AND command = 'wipe'
+               AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE"
+        )->execute($ids);
+
+        db()->prepare(
+            "UPDATE device_commands SET status = 'expired', detail = 'no result received', resolved_at = UTC_TIMESTAMP()
+             WHERE user_id IN ($ph) AND status = 'dispatched' AND command IN ('shutdown','reboot')
+               AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 2 MINUTE"
+        )->execute($ids);
     } catch (Throwable $e) {
         error_log('remote expire user error: ' . $e->getMessage());
     }
@@ -127,16 +153,20 @@ function remote_has_power_pending(int $userId, string $serial): bool {
     }
 }
 
-/** Claim the pending command for a serial (appliance). Returns null when none. */
-function remote_claim(int $userId, string $serial): ?array {
+/** Claim the pending command for a serial+uuid (appliance). Returns null when
+ *  none. The uuid check is lenient — it only applies when BOTH the staged
+ *  command and the appliance carry a uuid — so an empty uuid on either side
+ *  never blocks a serial match (cloned serials with distinct uuids still
+ *  claim only their own job). */
+function remote_claim(int $userId, string $serial, string $uuid = ''): ?array {
     remote_ensure_schema();
     remote_expire_stale($userId, $serial);
     db()->beginTransaction();
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("SELECT * FROM device_commands WHERE user_id IN ($ph) AND serial = ? AND status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE");
-        $stmt->execute(array_merge($ids, [$serial]));
+        $stmt = db()->prepare("SELECT * FROM device_commands WHERE user_id IN ($ph) AND serial = ? AND (uuid = '' OR ? = '' OR LOWER(uuid) = LOWER(?)) AND status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE");
+        $stmt->execute(array_merge($ids, [$serial, $uuid, $uuid]));
         $row = $stmt->fetch();
         if ($row === false) {
             db()->commit();
