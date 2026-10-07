@@ -1075,6 +1075,9 @@ triage::run() {
 
     mdm::sync_state
     table::render
+    # Seed the hot-plug baseline from the boot-time discovery so a drive added
+    # while this screen is up is detected on the next poll.
+    hotplug::baseline
 
     if ! ui::terminal_controls_supported; then
         # Headless (no terminal): there is no triage screen to interact with —
@@ -1138,6 +1141,19 @@ triage::run() {
                 elif [[ -n "$cmd_id" ]]; then
                     remote::report "$cmd_id" failed "cancelled at the console"
                 fi
+                continue
+            fi
+
+            # Hot-plug drive detection: diff /sys/block against the last
+            # snapshot and, while idling on the triage screen (never during a
+            # wipe or selection), re-scan so a newly cabled drive appears
+            # without a reboot.
+            if [[ "${TRIAGE_MODE:-0}" -eq 1 && "${SELECT_MODE:-0}" -eq 0 ]] && hotplug::poll; then
+                device::rediscover
+                { register::push; } 3>&- &
+                hotplug::baseline
+                table::render
+                hotplug::notice
                 continue
             fi
 

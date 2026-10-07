@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.21] - 2026-10-07
+
+### Added
+
+- **Hot-plug drive detection** — a drive connected after tScrub has booted now
+  appears on the triage screen without a reboot. A lightweight `/sys/block`
+  poll (the image uses devtmpfs, no udev) diffs the device set; on a change it
+  re-runs discovery, probes only the newcomer (capability + pre-wipe SMART),
+  re-renders the table with a `[+] /dev/sdX — model size` notice, and re-pushes
+  the diagnostics snapshot to the dashboard. Gated to the idle triage screen —
+  never during a wipe (the wipe set stays fixed) — and USB-attached drives are
+  still excluded.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.21_2025.11_30_x86-64_v0.41_20261007-539378b5.iso`
+  (166 MB) sha256 `a3254baa407374f1ea366bd76f37e0a3b385491ecba3f922a26f023934399a68`.
+- Standalone script `tscrub.sh` (v1.11.21) sha256 `81e1afa18806e43a1641876464fbf21b2099fff00ce8e6f013ea937a01726311`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `bc30ff92559488f4c03c46928428d6025b78e7544c08599a32f85bbfc5d0c200`.
+
 ## [v1.11.20] - 2026-10-07
 
 ### Fixed

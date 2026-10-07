@@ -42,6 +42,7 @@ for part in \
   "$SRC_DIR/44_device_sed.sh" \
   "$SRC_DIR/45_device_raid.sh" \
   "$SRC_DIR/46_hardware.sh" \
+  "$SRC_DIR/47_hotplug.sh" \
   "$SRC_DIR/50_report.sh"; do
   [[ -f "$part" ]] || {
     echo "Missing source part: $part" >&2

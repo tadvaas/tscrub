@@ -251,6 +251,55 @@ device::discover() {
     fi
 }
 
+# Re-run discovery after a hot-plug change, probing ONLY the newly arrived
+# drives (identity + capability + pre-wipe SMART) so existing drives keep their
+# cached state and the wipe set is never disturbed. Leaves the already-known
+# rows untouched (their devrow status survives — important on the finish
+# screen). Returns 0 always.
+device::rediscover() {
+    local dev
+    local -A _known=()
+    for dev in "${devices[@]}"; do _known[$dev]=1; done
+
+    if ! device::discover; then
+        # Every drive was removed — rebuild an empty table so the UI shows the
+        # "no supported drives" state.
+        table::build
+        return 0
+    fi
+
+    local -a _all=("${devices[@]}")
+    local -a _new=()
+    for dev in "${_all[@]}"; do
+        [[ -n "${_known[$dev]:-}" ]] || _new+=("$dev")
+    done
+
+    if [[ ${#_new[@]} -gt 0 ]]; then
+        # Narrow `devices` to the newcomers so detect + SMART pre only probe
+        # them, then restore the full list.
+        devices=("${_new[@]}")
+        device::detect
+        smart::capture_all pre
+        devices=("${_all[@]}")
+
+        # Populate the new rows exactly like table::build does.
+        for dev in "${_new[@]}"; do
+            devrow["$dev.device"]="$dev"
+            devrow["$dev.model"]="${model[$dev]:-N/A}"
+            devrow["$dev.serial"]="${serial[$dev]:-N/A}"
+            devrow["$dev.size"]="${size[$dev]}"
+            devrow["$dev.bus"]="${bus[$dev]}"
+            devrow["$dev.type"]="${type[$dev]}"
+            devrow["$dev.capability"]="${capability[$dev]}"
+            devrow["$dev.status"]="PLANNED"
+            devrow["$dev.eta_mins"]=""
+            devrow["$dev.wipe_start"]=""
+            device::classify "$dev"
+        done
+    fi
+    return 0
+}
+
 device::handle_locks() {
     for dev in "${devices[@]}"; do
         # Only process if discovery flagged it as YES
