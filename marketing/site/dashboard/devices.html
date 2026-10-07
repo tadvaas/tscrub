@@ -655,6 +655,17 @@
           : 'Reports from ' + (fsub || '—') + ' to ' + (lsub || '—');
         modalBody.innerHTML = '';
 
+        // If the modal was opened on a single history entry, flag it so the
+        // grade/notes cards can warn that edits are scoped to that snapshot.
+        var editingPrevious = false;
+        if (!Array.isArray(dev.history)) {
+          for (var i = 0; i < devices.length; i++) {
+            var d0 = devices[i];
+            var hit = d0.pdf_id === dev.pdf_id || (d0.history || []).some(function (h) { return h.pdf_id === dev.pdf_id; });
+            if (hit) { editingPrevious = d0.pdf_id !== dev.pdf_id; break; }
+          }
+        }
+
         // BIOS lock / lockdown status strip.
         var strip = el('div', 'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-3 shadow-sm');
         strip.appendChild(el('span', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'BIOS lock'));
@@ -720,6 +731,10 @@
         function refurbGradeCard(dev) {
           var c = card('Refurb grade');
           var body = cardBody(c);
+          if (editingPrevious) {
+            body.appendChild(el('div', 'mb-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300',
+              'Editing a previous report — applies to this PDF only and is not carried forward.'));
+          }
           var cur = dev.refurb_grade || dev.grade || '';
           var line = el('div', 'flex flex-wrap items-center gap-2');
           line.appendChild(el('span', 'text-sm font-semibold text-slate-800 dark:text-slate-200', cur || 'Ungraded'));
@@ -789,6 +804,10 @@
         function notesCard(dev) {
           var c = card('Operator notes');
           var body = cardBody(c);
+          if (editingPrevious) {
+            body.appendChild(el('div', 'mb-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300',
+              'Editing a previous report — applies to this PDF only and is not carried forward.'));
+          }
           var ta = el('textarea', 'mt-1 w-full resize-y rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[72px]');
           ta.placeholder = 'e.g. damaged screen, missing battery…';
           ta.value = dev.notes || '';
