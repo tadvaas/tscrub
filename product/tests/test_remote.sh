@@ -177,5 +177,49 @@ remote::report 99 done "started"
 t::check "remote: result POST retried after failure" '[[ "$(cat "$RESULT_ATTEMPTS_FILE")" == "3" ]]'
 t::check "remote: retry posted to the result endpoint" '[[ "$(grep -c "commands/result" "$RESULT_LOG")" == "3" ]]'
 
+# --- pending fetch: TLS clock-skew retry -------------------------------------
+# A dead RTC battery makes curl fail TLS verification (exit 60). The poll must
+# retry once with -k so a clock-skewed appliance still claims its wipe.
+status::clear
+TLS_LOG="$tmpdir/tls.log"
+curl() {
+    printf '%s\n' "$*" >> "$TLS_LOG"
+    if [[ "$*" == *"/commands/pending"* ]]; then
+        if [[ "$*" == "-k "* ]]; then
+            printf '%s' "$PENDING_RESPONSE"
+            return 0
+        fi
+        printf 'curl: (60) SSL certificate problem: certificate is not yet valid\n' >&2
+        return 60
+    fi
+    printf '{}'
+    return 0
+}
+PENDING_RESPONSE='{"ok":true,"pending":true,"id":13,"command":"wipe","options":{"dry_run":true,"drives":["AB123"]}}'
+: > "$REMOTE_ERASE_MARKER"
+remote::poll_and_execute
+t::check "remote: pending TLS error retries with -k" \
+    'grep -qE "^-k " "$TLS_LOG" && grep -q "commands/pending" "$TLS_LOG"'
+t::check "remote: pending TLS retry still claims the wipe" \
+    'grep -q "^drive=AB123$" "$REMOTE_ERASE_MARKER"'
+
+# --- result POST: TLS clock-skew retry ---------------------------------------
+REPORT_TLS_LOG="$tmpdir/report_tls.log"
+curl() {
+    printf '%s\n' "$*" >> "$REPORT_TLS_LOG"
+    if [[ "$*" == *"/commands/result"* ]]; then
+        if [[ "$*" == "-k "* ]]; then
+            return 0
+        fi
+        printf 'curl: (60) SSL certificate problem: certificate is not yet valid\n' >&2
+        return 60
+    fi
+    printf '{}'
+    return 0
+}
+remote::report 88 done "started"
+t::check "remote: result POST retries with -k after TLS error" \
+    'grep -qE "^-k " "$REPORT_TLS_LOG"'
+
 rm -rf "$tmpdir"
 t::summary

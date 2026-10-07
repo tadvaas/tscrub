@@ -32,18 +32,50 @@ remote::result_endpoint() {
 # Retries a few times so a single lost POST doesn't strand the job "dispatched"
 # (the server requeues it after 10 min as a second safety net).
 remote::report() {
-    local cmd_id="$1" result="$2" detail="${3:-}" json_body attempt
+    local cmd_id="$1" result="$2" detail="${3:-}" json_body attempt resp
     json_body="$(printf '{"id":%s,"result":"%s","detail":"%s"}' \
         "$cmd_id" "$result" "$(report::_json_field "$detail")")"
     for attempt in 1 2 3; do
-        curl -fsS --connect-timeout 5 --max-time 15 \
+        if resp="$(curl -fsS --connect-timeout 5 --max-time 15 \
             -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data-binary "$json_body" \
-            "$(remote::result_endpoint)" >/dev/null 2>&1 && return 0
+            "$(remote::result_endpoint)" 2>&1)"; then
+            return 0
+        fi
+        # A dead RTC battery leaves the system clock wrong, so TLS certificate
+        # verification fails (curl error 60) on an otherwise healthy server.
+        # Retry once without verification, mirroring presence/mdm/bios_unlock.
+        if [[ "$resp" == *"curl: (60)"* ]]; then
+            curl -k -fsS --connect-timeout 5 --max-time 15 \
+                -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data-binary "$json_body" \
+                "$(remote::result_endpoint)" >/dev/null 2>&1 && return 0
+        fi
         sleep 2
     done
     return 0
+}
+
+# GET the pending endpoint (with the TLS clock-skew retry). Prints the body;
+# returns non-zero when no command could be fetched.
+remote::_fetch_pending() {
+    local resp
+    resp="$(curl -fsS -G --connect-timeout 5 --max-time 15 \
+        -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+        --data-urlencode "serial=${SYS_SERIAL:-}" \
+        --data-urlencode "uuid=${SYS_UUID:-}" \
+        "$(remote::pending_endpoint)" 2>&1)" && { printf '%s' "$resp"; return 0; }
+    if [[ "$resp" == *"curl: (60)"* ]]; then
+        curl -k -fsS -G --connect-timeout 5 --max-time 15 \
+            -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
+            --data-urlencode "serial=${SYS_SERIAL:-}" \
+            --data-urlencode "uuid=${SYS_UUID:-}" \
+            "$(remote::pending_endpoint)" 2>/dev/null
+        return $?
+    fi
+    return 1
 }
 
 # Write a staged wipe to the marker file for the console to pick up. The worker
@@ -118,11 +150,7 @@ remote::poll_and_execute() {
     # it pending and we pick it up once the machine is idle again.
     [[ "$(status::field phase)" == "wiping" ]] && return 0
 
-    resp="$(curl -fsS -G --connect-timeout 5 --max-time 15 \
-        -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-        --data-urlencode "serial=${SYS_SERIAL:-}" \
-        --data-urlencode "uuid=${SYS_UUID:-}" \
-        "$(remote::pending_endpoint)" 2>/dev/null)" || return 0
+    resp="$(remote::_fetch_pending)" || return 0
     cmd_id="$(printf '%s' "$resp" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -n 1)"
     command="$(printf '%s' "$resp" | sed -n 's/.*"command":"\([^"]*\)".*/\1/p' | head -n 1)"
     [[ -n "$cmd_id" ]] || return 0

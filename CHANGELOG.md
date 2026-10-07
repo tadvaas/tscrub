@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.20] - 2026-10-07
+
+### Fixed
+
+- **Remote wipe/power poll TLS clock-skew retry** — the wipe-queue poll
+  (`remote::poll_and_execute`) and its result POST previously had no `curl -k`
+  fallback, so an appliance with a dead RTC battery (wrong system clock) could
+  heartbeat, poll BIOS-unlock and MDM, yet silently fail every wipe-queue poll
+  with `curl: (60)` and never claim a staged erase. They now retry once without
+  TLS verification, mirroring presence/MDM/BIOS-unlock.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.20_2025.11_30_x86-64_v0.41_20261007-dc877a79.iso`
+  (166 MB) sha256 `a0195fb73734de5c532f063556d2993d7afe14e947a83e77c9385798acb981f6`.
+- Standalone script `tscrub.sh` (v1.11.20) sha256 `69ff7a9ba995c0141da83a870badedc161526bf0a15cd50d3768b10ea64fafae`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `51b8302cd0c7a2b8bbb39ed9880205ce365df53b174582110a7e242a4e650b30`.
+
 ## [v1.11.19] - 2026-10-07
 
 ### Changed
