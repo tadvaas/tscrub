@@ -241,6 +241,7 @@ table::build() {
         devrow["$dev.capability"]="$cap"
         devrow["$dev.status"]="PLANNED"
         devrow["$dev.eta_mins"]=""
+        devrow["$dev.eta_sec"]=""
         devrow["$dev.wipe_start"]=""
 
         device::classify "$dev"
@@ -270,15 +271,17 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
-# Indeterminate "wipe wave" for the STATUS cell: a █▓▒░ comet that sweeps
+# Indeterminate "wipe wave" for the STATUS cell: a █▓▒ comet that sweeps
 # left-to-right and wraps, replacing the static RUNNING word for drives doing a
 # firmware erasure (no % to report). Pure and TTY-independent — echoes a
 # width-column string from (frame, width) so the full render, delta repaint and
-# in-place tick all paint the same frame. Falls back to the word RUNNING when
-# the cell is narrower than the 4-glyph wave (never today: STATUS min is 9).
+# in-place tick all paint the same frame. The light-shade ░ (U+2591) is
+# deliberately avoided: on the blue fbcon screen it is nearly invisible and
+# reads as a stray artifact. Falls back to the word RUNNING below 3 columns
+# (never today: STATUS min is 9).
 ui::wave_cell() {
     local frame="${1:-0}" w="${2:-9}" c d glyph out=""
-    if (( w < 4 )); then
+    if (( w < 3 )); then
         printf 'RUNNING'
         return 0
     fi
@@ -290,7 +293,6 @@ ui::wave_cell() {
             0) glyph='█' ;;
             1) glyph='▓' ;;
             2) glyph='▒' ;;
-            3) glyph='░' ;;
             *) glyph=' ' ;;
         esac
         out+="$glyph"
@@ -454,6 +456,22 @@ ui::eta_text_for() {
                     else
                         printf "~%dmin" "$eta_mins"
                     fi
+                fi
+            elif [[ "${devrow[$dev.eta_sec]:-}" =~ ^[0-9]+$ ]]; then
+                # NVMe/nwipe drives have no ATA word-89 eta_mins; the aggregate
+                # recompute stores a per-drive seconds-remaining estimate in
+                # devrow[DEV.eta_sec], so show the same live countdown here.
+                remain=${devrow[$dev.eta_sec]}
+                (( remain < 0 )) && remain=0
+                rh=$(( remain / 3600 ))
+                rm=$(( (remain % 3600) / 60 ))
+                rs=$(( remain % 60 ))
+                if (( rh > 0 )); then
+                    printf "~%dh%dm%ds" "$rh" "$rm" "$rs"
+                elif (( rm > 0 )); then
+                    printf "~%dm%ds" "$rm" "$rs"
+                else
+                    printf "~%ds" "$rs"
                 fi
             else
                 printf "N/A"

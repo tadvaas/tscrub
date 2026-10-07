@@ -214,7 +214,14 @@ status::recompute_progress() {
                     eta=$(( elapsed * (100 - pct) / pct ))   # NVMe extrapolation
                 fi
                 if [[ $eta -ge 0 ]]; then
+                    # Per-drive countdown for the console ETA cell (NVMe/nwipe
+                    # have no ATA word-89 eta_mins; ui::eta_text_for falls back
+                    # to this). Cleared when the drive has no estimate yet so a
+                    # stale value can never linger.
+                    devrow["$dev.eta_sec"]="$eta"
                     [[ $eta -gt $eta_max ]] && eta_max=$eta
+                else
+                    devrow["$dev.eta_sec"]=""
                 fi
                 ;;
         esac
