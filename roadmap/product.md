@@ -277,8 +277,14 @@ point back to that master's section numbering.
 
 ### 4.11 Hot-plug & discovery
 
-- [ ] Hot-plug drive detection — `device::discover` runs once at boot, so a
+- [x] Hot-plug drive detection — `device::discover` runs once at boot, so a
       drive connected after tScrub starts is invisible until reboot. Watch for
       hot-plug (udev monitor, or a periodic re-scan of `/dev/sd*`/`nvme*`/
       `mmcblk*`) and re-run discovery so newly connected drives appear in the
       triage/wipe flow and the diagnostics report without a reboot.
+      → **Shipped v1.11.21** (2026-10-07): a `/sys/block` poll (devtmpfs image,
+      no udev) diffs the device set; on change `device::rediscover` re-scans,
+      probes only the newcomer (capability + pre-wipe SMART), re-renders with a
+      `[+]/[-]` notice and re-pushes the diagnostics snapshot. Gated to the idle
+      triage screen (never mid-wipe); USB-attached drives stay excluded.
+      Plan: `research/hot-plug-drive-detection/plan.md`.
