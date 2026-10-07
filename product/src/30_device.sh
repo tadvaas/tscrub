@@ -51,6 +51,20 @@ device::identity_fallback() {
     fi
 }
 
+# True (exit 0) when the drive's identity looks like a hypervisor/emulated disk
+# (QEMU/KVM, VMware, VirtualBox, Hyper-V, Xen, virtio). These can never be OPAL
+# SEDs, so the OPAL probe is skipped — sedutil's SG_IO ioctl on such disks is
+# noisy (and on QEMU can even trap), so probing them is pure console noise.
+device::is_virtual_disk() {
+    local needle
+    needle="$(printf '%s %s' "${1:-}" "${2:-}" | tr '[:lower:]' '[:upper:]')"
+    case "$needle" in
+        *QEMU*|*VMWARE*|*VBOX*|*VIRTUALBOX*|*VIRTIO*|*XEN*|*HYPER-V*|*MSFT\ VIRTUAL*|*VIRTUAL\ DISK*)
+            return 0 ;;
+    esac
+    return 1
+}
+
 device::discover() {
     devices=()
     NO_SUPPORTED_DRIVES=0
@@ -99,14 +113,19 @@ device::discover() {
             device::identity_fallback "$dev" "$block_dir"
             
             # OPAL/SED lock state (three-way: locked / not locked / unsupported).
+            # Emulated disks (QEMU/VMware/…) can never be SEDs — skip the probe.
             local _sedout
-            _sedout="$(sedutil-cli --query "$ctrl_dev" 2>/dev/null)"
-            if grep -q "Locked = Y" <<<"$_sedout"; then
-                opal_locked[$dev]="YES"
-            elif grep -q "Locked = N" <<<"$_sedout"; then
-                opal_locked[$dev]="NO"
-            else
+            if device::is_virtual_disk "${model[$dev]}" "${serial[$dev]}"; then
                 opal_locked[$dev]="NA"
+            else
+                _sedout="$(sedutil-cli --query "$ctrl_dev" 2>/dev/null)"
+                if grep -q "Locked = Y" <<<"$_sedout"; then
+                    opal_locked[$dev]="YES"
+                elif grep -q "Locked = N" <<<"$_sedout"; then
+                    opal_locked[$dev]="NO"
+                else
+                    opal_locked[$dev]="NA"
+                fi
             fi
 
             # Firmware revision (NVMe: `fr`), logical sector size, total sectors.
@@ -166,15 +185,20 @@ device::discover() {
                 model[$dev]=$(hdparm -I /dev/$dev 2>/dev/null | awk -F': *' '/^[[:space:]]*Model Number/ {print $2}' | xargs | tr -d '\000-\037\177')
                 device::identity_fallback "$dev" "$block_dir"
                 
-                # OPAL/SED lock state (three-way).
+                # OPAL/SED lock state (three-way). Emulated disks (QEMU/VMware/…)
+                # can never be SEDs — skip the noisy SG_IO probe.
                 local _sedout _hpa _dco
-                _sedout="$(sedutil-cli --query "/dev/$dev" 2>/dev/null)"
-                if grep -q "Locked = Y" <<<"$_sedout"; then
-                    opal_locked[$dev]="YES"
-                elif grep -q "Locked = N" <<<"$_sedout"; then
-                    opal_locked[$dev]="NO"
-                else
+                if device::is_virtual_disk "${model[$dev]}" "${serial[$dev]}"; then
                     opal_locked[$dev]="NA"
+                else
+                    _sedout="$(sedutil-cli --query "/dev/$dev" 2>/dev/null)"
+                    if grep -q "Locked = Y" <<<"$_sedout"; then
+                        opal_locked[$dev]="YES"
+                    elif grep -q "Locked = N" <<<"$_sedout"; then
+                        opal_locked[$dev]="NO"
+                    else
+                        opal_locked[$dev]="NA"
+                    fi
                 fi
 
                 # Firmware revision + logical sector size, and ATA hidden-area

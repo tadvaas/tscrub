@@ -4,8 +4,8 @@ if [[ "$1" == "-I" ]]; then
     mode="${FAKE_HDPARM_MODE:-enhanced}"
     printf '%s:\n\n' "$dev"
     printf 'ATA device, with non-removable media\n'
-    printf '\tModel Number:       FAKE DISK\n'
-    printf '\tSerial Number:      S123456789\n'
+    printf '\tModel Number:       %s\n' "${FAKE_HDPARM_MODEL:-FAKE DISK}"
+    printf '\tSerial Number:      %s\n' "${FAKE_HDPARM_SERIAL:-S123456789}"
     printf 'Security:\n'
     printf '\tMaster password revision code = 65534\n'
     case "$mode" in
