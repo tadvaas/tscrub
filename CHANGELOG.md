@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.26] - 2026-10-07
+
+### Fixed
+
+- **ETA artefact bleeding into the STATUS cell on first paint** — the appliance
+  shell runs in the C locale, where `${val:0:w}` and `%-*.*s` count **bytes**
+  and each `█` is 3 UTF-8 bytes. The 9-column wipe wave was being truncated to
+  3 glyphs on the full render (and cut mid-glyph in the in-place tick), which
+  shifted the ETA cell 6 columns left so the elapsed time rendered as an
+  artefact inside the STATUS cell until the tick repainted it. The wave is now
+  emitted verbatim in both paths (`table::row_text` and `ui::tick_inplace`), so
+  it always occupies exactly its 9-column slot.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.26_2025.11_30_x86-64_v0.41_20261007-aed6b8eb.iso`
+  (166 MB) sha256 `2dd371241d73079d6cd8da7adc840852f1de333c7920a9f9221cfd8aead18b2d`.
+- Standalone script `tscrub.sh` (v1.11.26) sha256 `1544f973ea14a1e95262cf4b9f28d13228afe8b9bb7b3545dd22e39888b05c0e`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `9cd6c4478005a457f194414e34c6be9240e682f78663e5e5c78245671dc48bd6`.
+
 ## [v1.11.25] - 2026-10-07
 
 ### Fixed
