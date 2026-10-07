@@ -855,6 +855,50 @@ function product_key_id_from_key(string $key): string {
 }
 
 /**
+ * Seed a freshly stored diagnostics report with the previous report's manual
+ * annotations (refurb grade + operator notes) for the same machine, keyed by
+ * device_key(). Copy-forward only — each report still owns its own values, so
+ * editing or clearing them on one report never mutates another and every PDF
+ * stays a self-contained snapshot. Non-fatal: a lookup hiccup must never block
+ * report storage.
+ */
+function diagnostics_carry_annotations(int $reportId, int $userId, array $payload): void {
+    try {
+        $key = device_key($payload);
+        if ($key === '') return;
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        // Walk recent diagnostics reports newest-first (excluding the one just
+        // inserted); the previous report for this machine is the first whose
+        // device_key matches. A bounded window keeps this cheap — carry-forward
+        // is a convenience, not a guarantee, so a machine absent from the last
+        // 200 reports simply starts blank again.
+        $stmt = db()->prepare(
+            "SELECT grade, notes, payload FROM reports
+             WHERE id <> ? AND user_id IN ($ph) AND report_type = 'diagnostics'
+             ORDER BY uploaded_at DESC, id DESC LIMIT 200"
+        );
+        $stmt->execute(array_merge([$reportId], $ids));
+        $grade = '';
+        $notes = '';
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $g = json_decode((string)$r['payload'], true);
+            if (!is_array($g)) continue;
+            if (device_key($g) === $key) {
+                $grade = (string)($r['grade'] ?? '');
+                $notes = (string)($r['notes'] ?? '');
+                break;
+            }
+        }
+        if ($grade === '' && $notes === '') return;
+        db()->prepare('UPDATE reports SET grade = ?, notes = ? WHERE id = ?')
+            ->execute([$grade, $notes, $reportId]);
+    } catch (Throwable $e) {
+        error_log('diagnostics carry annotations error: ' . $e->getMessage());
+    }
+}
+
+/**
  * Ingest a boot-time diagnostics report (identity + hardware + attached drive
  * inventory) into the `reports` table with report_type = 'diagnostics'. The
  * payload is stored as a JSON envelope in the same shape as an erasure group
@@ -981,7 +1025,13 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
             count($drives),
             json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
-        return (int)db()->lastInsertId();
+        $reportId = (int)db()->lastInsertId();
+
+        // Carry the previous report's operator grade + notes forward so a new
+        // snapshot doesn't arrive blank — still fully editable per report.
+        diagnostics_carry_annotations($reportId, $userId, $payload);
+
+        return $reportId;
     } catch (Throwable $e) {
         error_log('store diagnostics report error: ' . $e->getMessage());
         return 0;
