@@ -115,7 +115,7 @@ diag::ram() {
 # Storage short self-test, aggregated across every discovered drive. Wraps the
 # existing selftest::storage_* modules (legacy devrow[selftest_run] kept).
 diag::storage() {
-    local dev v n=0 any_pass=0 any_fail=0 any_other=0
+    local dev v n=0 any_pass=0 any_fail=0 any_unknown=0 any_unsup=0
     for dev in "${devices[@]}"; do
         n=$((n + 1))
         if [[ "$dev" == nvme* ]]; then
@@ -127,19 +127,22 @@ diag::storage() {
         fi
         v="${devrow[$dev.selftest_run]:-UNSUP}"
         case "$v" in
-            PASS) any_pass=1 ;;
-            FAIL) any_fail=1 ;;
-            *)    any_other=1 ;;
+            PASS)    any_pass=1 ;;
+            FAIL)    any_fail=1 ;;
+            UNKNOWN) any_unknown=1 ;;
+            *)       any_unsup=1 ;;
         esac
     done
     if [[ "$n" -eq 0 ]]; then
         diag::record storage N/A "no drives discovered"
     elif [[ "$any_fail" -eq 1 ]]; then
         diag::record storage FAIL "a drive short self-test failed"
-    elif [[ "$any_pass" -eq 1 && "$any_other" -eq 0 ]]; then
+    elif [[ "$any_pass" -eq 1 && "$any_unknown" -eq 0 && "$any_unsup" -eq 0 ]]; then
         diag::record storage PASS "all drives passed short self-test"
     elif [[ "$any_pass" -eq 1 ]]; then
         diag::record storage SKIP "some drives inconclusive"
+    elif [[ "$any_unknown" -eq 1 ]]; then
+        diag::record storage SKIP "short self-test inconclusive"
     else
         diag::record storage UNSUP "no storage self-test tooling"
     fi

@@ -54,7 +54,7 @@ t::assert_contains "$DIAG_RESULTS" "network=N/A" "network: N/A when no NIC"
 
 # --- automatic tier (diag::run) ---
 export FAKE_SMART_SELFTEST="Completed without error       00%"
-export FAKE_NVME_SELFTEST_RESULT="success"
+export FAKE_NVME_SELFTEST_RESULT="0"
 diag::_init
 diag::run
 t::assert_eq 7 "$DIAG_RUN" "run: 7 automatic tests"
@@ -105,7 +105,7 @@ rm -rf "$tmp"
 
 # --- guided suite (headless: 13 tests, guided ones SKIP) ---
 export FAKE_SMART_SELFTEST="Completed without error       00%"
-export FAKE_NVME_SELFTEST_RESULT="success"
+export FAKE_NVME_SELFTEST_RESULT="0"
 diag::_init
 diag::prompt() { printf 'skip\n'; }
 diag::guided

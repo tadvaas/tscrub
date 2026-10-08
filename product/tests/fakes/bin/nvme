@@ -40,7 +40,22 @@ case "$sub" in
         exit "${FAKE_NVME_SELFTEST_RC:-0}"
         ;;
     self-test-log)
-        printf 'Self test result[0]:\n  Operation result : %s\n' "${FAKE_NVME_SELFTEST_RESULT:-success}"
+        printf 'Current operation  : 0\n'
+        printf 'Current Completion : 0%%\n'
+        case "${FAKE_NVME_SELFTEST_RESULT:-0}" in
+            ''|f|F|0xf|0xF)
+                printf 'Self Test Result[0]:\n'
+                printf '  Operation Result             : 0xf\n'
+                ;;
+            *)
+                printf 'Self Test Result[0]:\n'
+                printf '  Operation Result             : %s\n' "${FAKE_NVME_SELFTEST_RESULT}"
+                printf '  Self Test Code               : 1\n'
+                printf '  Valid Diagnostic Information : 0\n'
+                printf '  Power on hours (POH)         : 0x12fa\n'
+                printf '  Vendor Specific              : 0 0\n'
+                ;;
+        esac
         ;;
 esac
 exit 0

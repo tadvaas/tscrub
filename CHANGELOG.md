@@ -6,6 +6,32 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.29] - 2026-10-08
+
+### Fixed
+
+- **Diagnostics storage self-test stuck for 6 minutes and reported `UNSUP`** —
+  `selftest::storage_nvme` polled for the literal `Self test result` (lowercase),
+  but nvme-cli prints `Self Test Result[0]:` (capital R), so the poll loop never
+  matched and always burned its full 72×5s budget; the verdict greps
+  (`without error|success`) also didn't match nvme-cli's `Operation Result : 0`
+  format, so the test always landed on `UNKNOWN`. It now runs
+  `nvme device-self-test -s 1 -w` (nvme-cli blocks until completion) and reads
+  the newest result's `Operation Result` field (0 = PASS, 1..9 = FAIL). A short
+  test now resolves in ~2 minutes instead of 6, with a correct verdict.
+- **`diag::storage` mislabelled an inconclusive result** — all-`UNKNOWN` used to
+  record `UNSUP "no storage self-test tooling"` even though the tooling ran.
+  It now records `SKIP "short self-test inconclusive"`, reserving `UNSUP` for
+  genuinely missing tooling.
+- **No timeout on the storage self-test probes** — the ATA path (`smartctl
+  -t/-c/-l selftest`) now runs through `smart::run`, and the NVMe path carries
+  a 6-minute `-t` timeout, so a drive that stops responding can no longer hang
+  the whole diagnostics run indefinitely.
+
+### Release
+
+- Standalone script `tscrub.sh` (v1.11.29) sha256 `29c86e82d3f28fa49910b414d3952f3735de60cdc9a4b0a86f9661a6ecb0bd04` (script-only release; appliance ISO and PXE unchanged).
+
 ## [v1.11.28] - 2026-10-08
 
 ### Fixed

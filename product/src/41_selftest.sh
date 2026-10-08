@@ -36,13 +36,14 @@ selftest::cpu() {
 selftest::storage_ata() {
     local dev="$1" out i
     command -v smartctl >/dev/null 2>&1 || { devrow["$dev.selftest_run"]="UNSUP"; return; }
-    smartctl -t short "/dev/$dev" >/dev/null 2>&1 || { devrow["$dev.selftest_run"]="UNSUP"; return; }
+    smart::run "$SMART_TIMEOUT" smartctl -t short "/dev/$dev" >/dev/null 2>&1 \
+        || { devrow["$dev.selftest_run"]="UNSUP"; return; }
     for ((i = 0; i < 72; i++)); do   # up to ~6 min at 5 s intervals
-        out="$(smartctl -c "/dev/$dev" 2>/dev/null)"
+        out="$(smart::run "$SMART_TIMEOUT" smartctl -c "/dev/$dev" 2>/dev/null)"
         grep -qi 'in progress' <<<"$out" || break
         sleep 5
     done
-    out="$(smartctl -l selftest "/dev/$dev" 2>/dev/null)"
+    out="$(smart::run "$SMART_TIMEOUT" smartctl -l selftest "/dev/$dev" 2>/dev/null)"
     if grep -qi 'completed without error' <<<"$out"; then
         devrow["$dev.selftest_run"]="PASS"
     elif grep -qiE 'completed.*(read failure|write failure|element failure)' <<<"$out"; then
@@ -53,21 +54,31 @@ selftest::storage_ata() {
 }
 
 # Storage short self-test (NVMe via nvme-cli). Starts a short (2-minute)
-# device self-test, waits for a result entry in the self-test log, then maps
-# the operation result to PASS/FAIL/UNKNOWN.
+# device self-test with `-w` so nvme-cli blocks until it finishes (or the
+# timeout elapses) — no hand-rolled polling and no risk of scoring a stale
+# historical entry. The verdict is read from the NEWEST result's Operation
+# Result field (0 = completed without error; 1..9 = aborted/failed).
 selftest::storage_nvme() {
-    local dev="$1" log="" i
+    local dev="$1" log="" op_result="" rc
     command -v nvme >/dev/null 2>&1 || { devrow["$dev.selftest_run"]="UNSUP"; return; }
-    nvme device-self-test -s 1 "/dev/$dev" >/dev/null 2>&1 || { devrow["$dev.selftest_run"]="UNSUP"; return; }
-    for ((i = 0; i < 72; i++)); do
-        log="$(nvme self-test-log "/dev/$dev" 2>/dev/null)"
-        grep -q 'Self test result' <<<"$log" && break
-        sleep 5
-    done
-    if grep -qiE 'without error|success' <<<"$log"; then
+
+    # -w waits for completion; -t 360000 caps it at 6 min (short test ≈ 2 min).
+    nvme device-self-test -s 1 -w -t 360000 "/dev/$dev" >/dev/null 2>&1
+    rc=$?
+
+    log="$(nvme self-test-log "/dev/$dev" 2>/dev/null)"
+    # nvme-cli prints the newest entry first as "Self Test Result[0]:".
+    op_result="$(awk '/Self Test Result\[0\]/{f=1; next} f && /Operation Result/{print $NF; exit}' <<<"$log")"
+
+    if [[ "$op_result" == "0" ]]; then
         devrow["$dev.selftest_run"]="PASS"
-    elif grep -qiE 'failure|error' <<<"$log"; then
+    elif [[ "$op_result" =~ ^[0-9]+$ ]]; then
         devrow["$dev.selftest_run"]="FAIL"
+    elif (( rc != 0 )); then
+        # No result written and -w returned non-zero: aborted or timed out.
+        grep -qiE 'abort|fatal' <<<"$log" \
+            && devrow["$dev.selftest_run"]="FAIL" \
+            || devrow["$dev.selftest_run"]="UNKNOWN"
     else
         devrow["$dev.selftest_run"]="UNKNOWN"
     fi

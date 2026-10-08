@@ -31,19 +31,27 @@ export FAKE_SMART_SELFTEST="Aborted by host               -0%"
 selftest::storage_ata sda
 t::assert_eq "UNKNOWN" "${devrow[sda.selftest_run]}" "selftest: ata storage UNKNOWN"
 
-# --- NVMe storage self-test: PASS ---
-export FAKE_NVME_SELFTEST_RESULT="success"
+# --- NVMe storage self-test: PASS (Operation Result 0) ---
+export FAKE_NVME_SELFTEST_RC=0
+export FAKE_NVME_SELFTEST_RESULT="0"
 selftest::storage_nvme nvme0n1
 t::assert_eq "PASS" "${devrow[nvme0n1.selftest_run]}" "selftest: nvme storage PASS"
 
-# --- NVMe storage self-test: FAIL ---
-export FAKE_NVME_SELFTEST_RESULT="failure"
+# --- NVMe storage self-test: FAIL (non-zero Operation Result) ---
+export FAKE_NVME_SELFTEST_RESULT="5"
 selftest::storage_nvme nvme0n1
 t::assert_eq "FAIL" "${devrow[nvme0n1.selftest_run]}" "selftest: nvme storage FAIL"
 
+# --- NVMe storage self-test: UNKNOWN (aborted/timeout, no valid result) ---
+export FAKE_NVME_SELFTEST_RC=1
+export FAKE_NVME_SELFTEST_RESULT="f"
+selftest::storage_nvme nvme0n1
+t::assert_eq "UNKNOWN" "${devrow[nvme0n1.selftest_run]}" "selftest: nvme storage UNKNOWN"
+
 # --- orchestration ---
 export FAKE_SMART_SELFTEST="Completed without error       00%"
-export FAKE_NVME_SELFTEST_RESULT="success"
+export FAKE_NVME_SELFTEST_RC=0
+export FAKE_NVME_SELFTEST_RESULT="0"
 selftest::run
 t::assert_eq "PASS" "$SELFTEST_CPU" "selftest: run sets CPU verdict"
 t::assert_eq "PASS" "${devrow[sda.selftest_run]}" "selftest: run sets sda verdict"
