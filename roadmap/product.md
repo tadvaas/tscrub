@@ -149,7 +149,10 @@ they ship and note the release that carries each.
 
 Long tail — pick up as milestone room allows. Folded in from the former
 `ROADMAP.md` §6 / §8 / §9 / §11 (retired 2026-10-07); the `(§x.y)` refs below
-point back to that master's section numbering.
+point back to that master's section numbering. Competitive-gap sources:
+`research/bitraser/README.md` (teardown), `research/blancco/*.md` (product
+sheets), `research/dsecuretech/README.md`. Items already shipped are ticked
+with the release that carried them (per `CHANGELOG.md`).
 
 - [x] Fleet wipe job queue — dashboard queues a wipe per serial; appliance polls.
       (§9.3)
@@ -184,6 +187,12 @@ point back to that master's section numbering.
       cover it). (§11.1)
 - [ ] eMMC/MMC media — add `mmcblk*` to `device::discover` (currently excluded),
       erase via `blkdiscard` (no ATA/NVMe sanitise available). (§11.1)
+- [ ] Reformat SATA/SAS drives after erasure — leave a drive in a clean,
+      re-partitioned state (Blancco ships this; auditors sometimes expect a
+      blank partition table rather than an unformatted disk). (§11.1)
+- [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
+      power or was aborted without re-consuming a licence (Blancco). Today a
+      worker death normalises to `UNKNOWN`, no resume. (§11.1)
 
 ### 4.2 Media & platform coverage (§9.1, §6)
 
@@ -199,10 +208,18 @@ point back to that master's section numbering.
 
 ### 4.3 Verification & trust (§6, §9.2, §9.4)
 
-- [ ] Canary self-audit on every wipe — write an unforgeable sentinel to random
+- [x] Canary self-audit on every wipe — write an unforgeable sentinel to random
       LBAs before erasing, verify it's gone after, record the result. (§6)
+      → **Shipped v1.10.15** (2026-10-04): per-run sentinel planted at 5 fixed
+      positions (0/25/50/75/tail), read back post-wipe and sha256-compared;
+      modes `none|sampled|full`, recorded as `Verify/VerifySectors/VerifyResult`
+      (see §1). Remaining nuance: positions are fixed, not random-LBA.
 - [ ] Offline / air-gapped verification — self-contained certificate QR
       (embedded signature + key) so a phone verifies with zero network. (§6)
+- [ ] Overwrite-pattern verification + hexviewer — verify software-overwrite
+      patterns were actually written (read-back compare) and add a hexviewer
+      visual check for compliance (Blancco). Distinct from the sentinel check
+      above — this audits the overwrite itself, not just the final state. (§9.2)
 - [x] IEEE 2883 awareness — audit `compliance.html`/`docs.html`; map methods to
       IEEE 2883 terminology or state the NIST 800-88 target explicitly. (§9.2)
       → **Shipped**: compliance copy states the NIST 800-88 target explicitly
@@ -223,6 +240,20 @@ point back to that master's section numbering.
       header fields, column visibility) applied in `render_cert.php`. (§9.3)
 - [ ] Customer-customized ISO — `make branded-iso CUSTOMER=…` target in the
       build fork + a one-page how-to. (§9.3)
+- [ ] Report search & export API + embed reports on the drive — public
+      search/export over stored reports, and the ability to write the report
+      onto the wiped drive for fast offline audit (Blancco). (§9.3)
+- [ ] Out-of-band deployment — boot/erase via iLO / iDRAC / Cisco UCS / Intel
+      AMT (Blancco deploys this way); today only ISO + PXE bzImage. (§9.3)
+- [ ] USB Creator tool — mass-produce configured boot sticks (Blancco's creator
+      does up to 10 at once). (§9.3)
+- [ ] Offline / on-prem licensing — air-gapped fleets need a Lock-Key-style
+      dongle (BitRaser) or a self-hosted licence server (BitRaser "Network"
+      mode); today licences are `.lic` files only. (§9.3)
+- [ ] WLAN + 802.1x appliance networking — the image has no Wi-Fi
+      (`CONFIG_CFG80211` unset, no `wpa_supplicant`), so Wi-Fi-only sites and
+      802.1x-port-authenticated networks can't upload reports (Blancco/BitRaser
+      support both). (§9.3)
 
 ### 4.5 Inventory & MDM (§6)
 
@@ -245,10 +276,27 @@ point back to that master's section numbering.
 
 ### 4.7 Hardware diagnostics (§11.2)
 
-- [ ] Hardware-diagnostics test suite — RAM stress, battery, input, display,
+- [x] Hardware-diagnostics test suite — RAM stress, battery, input, display,
       audio/mic, webcam, USB, network, fingerprint, CMOS/accelerometer.
       (§11.2) → Plan: `research/hardware-diagnostics/plan.md` (tiered diag:: suite;
-      Shift+D triage flow; JSON-only results; audio/webcam UNSUP without packages)
+      Shift+D triage flow; JSON-only results).
+      → **Shipped v1.11.27** (2026-10-08): 13-test PASS/FAIL component check
+      entered via `D` on triage (or `tscrub_diag=1`) — automatic tier
+      cpu / ram / storage (SMART self-test) / network / battery / peripherals /
+      webcam (presence-only), guided tier display / keyboard / touchpad / USB /
+      speaker / mic; ALSA added so speaker plays a real 1 kHz tone and the mic
+      records + auto-scores a capture. Surfaced as `diagnostics` +
+      `diagnostics_summary` in the report and Devices tab. **v1.11.29** fixed
+      the storage self-test stall (`Self Test Result[0]` case + `Operation
+      Result` verdict); **v1.11.30** fixed the muted-mic false-FAIL (amixer +
+      pre-record unmute/boost), added mic/speaker timeouts, reconciled the RAM
+      figure with the panel, and made the network test require a real IPv4
+      route (not carrier alone).
+- [ ] Diagnostics breadth vs Blancco/BitRaser — still missing **fingerprint,
+      touchscreen, Bluetooth, CMOS/RTC, accelerometer/angle sensor, optical
+      drive and BIOS-logo** tests; the battery test reads capacity only
+      (Blancco also runs a discharge test), and webcam stays presence-only
+      (UNSUP without a camera package). (§11.2)
 
 ### 4.8 Autopilot robustness (§11.3)
 
@@ -267,6 +315,8 @@ point back to that master's section numbering.
       label" (TCPDF), validate barcode against the device record. (§11.4)
 - [ ] i18n + keyboard layout + network proxy — locale string table +
       `tscrub_proxy=` passthrough; defer until a non-UK ask. (§11.4)
+- [ ] Accessibility (Section 508-style) — audio prompts / text-to-speech for
+      visually-impaired operators (Blancco advertises 508 support). (§11.4)
 
 ### 4.10 Drive-side niceties (§11.1)
 
