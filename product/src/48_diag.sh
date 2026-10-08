@@ -251,7 +251,16 @@ diag::_guided() {
     esac
 }
 
-diag::display()  { diag::wash; diag::_guided display "Display colour wash — any dead pixels?" "operator PASS"; }
+diag::display() {
+    diag::wash
+    # The colour wash blanks the whole screen — restore the panels + test list
+    # before asking the operator for a verdict.
+    if ui::terminal_controls_supported; then
+        table::render
+        diag::render
+    fi
+    diag::_guided display "Display colour wash — any dead pixels?" "operator PASS"
+}
 diag::keyboard() { diag::_guided keyboard "Press every key, then Y/N/S" "operator PASS"; }
 diag::touchpad() { diag::_guided touchpad "Move the pointer / touch the screen, then Y/N/S" "operator PASS"; }
 diag::usb()      { diag::_guided usb "Plug a stick into each USB port, then Y/N/S" "operator PASS"; }
@@ -294,14 +303,19 @@ diag::mic() {
 # One rendered test row (no indent, no newline): name, mode, coloured verdict,
 # detail.
 diag::entry_line() {
-    local id="$1" rec verdict detail esc="" reset=""
-    rec="${DIAG_LOOKUP[$id]:-}"
-    if [[ -n "$rec" ]]; then
-        verdict="${rec%%|*}"
-        detail="${rec#*|}"
+    local id="$1" ov="${2:-}" od="${3:-}" rec verdict detail esc="" reset=""
+    if [[ -n "$ov" ]]; then
+        verdict="$ov"
+        detail="$od"
     else
-        verdict="…"
-        detail="pending"
+        rec="${DIAG_LOOKUP[$id]:-}"
+        if [[ -n "$rec" ]]; then
+            verdict="${rec%%|*}"
+            detail="${rec#*|}"
+        else
+            verdict="…"
+            detail="pending"
+        fi
     fi
     if [[ -t 1 ]]; then
         case "$verdict" in
@@ -339,51 +353,74 @@ diag::render() {
 
 # Repaint one test row in place.
 diag::paint_row() {
-    local id="$1" idx=0 o
+    local id="$1" ov="${2:-}" od="${3:-}" idx=0 o
     [[ "$DIAG_HEADER_ROW" -gt 0 ]] || return 0
     [[ -t 1 ]] || return 0
     for o in "${DIAG_ORDER[@]}"; do
         [[ "$o" == "$id" ]] && break
         idx=$((idx+1))
     done
-    printf "\033[%d;1H\033[K%s  %s" "$((DIAG_HEADER_ROW + 3 + idx))" "$TABLE_INDENT" "$(diag::entry_line "$id")"
+    printf "\033[%d;1H\033[K%s  %s" "$((DIAG_HEADER_ROW + 3 + idx))" "$TABLE_INDENT" "$(diag::entry_line "$id" "$ov" "$od")"
 }
 
-# Guided suite: automatic tier, then the operator tests. Paints the middle band
-# over the triage screen (panels stay), walks the guided tests with live
-# repaint, then shows the summary. The caller re-pushes the snapshot so the
-# dashboard sees the full results.
+# Run the whole suite (automatic tier, then the operator tests) with live row
+# repaint. The slow storage short self-test is flagged "running" before it
+# starts so the console never looks frozen. Used by the interactive start key
+# and by diag::guided's headless fallback.
+diag::_run_suite() {
+    diag::cpu;         diag::paint_row cpu
+    diag::ram;         diag::paint_row ram
+    diag::paint_row storage "…" "running short self-tests…"
+    diag::storage;     diag::paint_row storage
+    diag::network;     diag::paint_row network
+    diag::battery;     diag::paint_row battery
+    diag::peripherals; diag::paint_row peripherals
+    diag::webcam;      diag::paint_row webcam
+    diag::display;     diag::paint_row display
+    diag::keyboard;    diag::paint_row keyboard
+    diag::touchpad;    diag::paint_row touchpad
+    diag::usb;         diag::paint_row usb
+    diag::speaker;     diag::paint_row speaker
+    diag::mic;         diag::paint_row mic
+}
+
+# Guided suite (Shift+D from the triage screen): repaint the middle band as the
+# diagnostics screen IMMEDIATELY and notify the operator, but do not run any
+# tests until the operator presses Shift+D again (Esc/q returns to triage). The
+# caller re-pushes the snapshot so the dashboard sees the results.
 diag::guided() {
     diag::_init
-    diag::cpu
-    diag::ram
-    diag::storage
-    diag::network
-    diag::battery
-    diag::peripherals
-    diag::webcam
 
-    if ui::terminal_controls_supported; then
-        ui::cursor_hide
-        UI_COMPLETE_THEME=4
-        table::render
-        diag::render
+    # Headless: nothing to notify or confirm — run the full suite directly so
+    # unattended boots still record all 13 tests.
+    if ! ui::terminal_controls_supported; then
+        diag::_run_suite
+        return 0
     fi
 
-    diag::display;  diag::paint_row display
-    diag::keyboard; diag::paint_row keyboard
-    diag::touchpad; diag::paint_row touchpad
-    diag::usb;      diag::paint_row usb
-    diag::speaker;  diag::paint_row speaker
-    diag::mic;      diag::paint_row mic
+    ui::cursor_hide
+    UI_COMPLETE_THEME=4
+    table::render
+    diag::render
+    printf '%s  Diagnostics — %d hardware tests. Press Shift+D to run, Esc to return\n' \
+        "$TABLE_INDENT" "${#DIAG_ORDER[@]}" > /dev/tty 2>/dev/null || true
 
-    if ui::terminal_controls_supported; then
-        printf '\n%s\n' "$(diag::summary)" > /dev/tty 2>/dev/null || true
-        printf 'press any key to return to triage...' > /dev/tty 2>/dev/null || true
-        read -rsn1 < /dev/tty 2>/dev/null || true
-    fi
-
-    return 0
+    local key
+    while :; do
+        IFS= read -rsn1 key < /dev/tty 2>/dev/null || { return 0; }
+        case "$key" in
+            D|d)
+                diag::_run_suite
+                printf '\n%s  %s\n' "$TABLE_INDENT" "$(diag::summary)" > /dev/tty 2>/dev/null || true
+                printf '%s  press any key to return to triage...' "$TABLE_INDENT" > /dev/tty 2>/dev/null || true
+                read -rsn1 < /dev/tty 2>/dev/null || true
+                return 0
+                ;;
+            $'\e'|q|Q)
+                return 0
+                ;;
+        esac
+    done
 }
 
 # --- orchestration ----------------------------------------------------------
