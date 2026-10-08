@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.28] - 2026-10-08
+
+### Fixed
+
+- **Diagnostics screen froze when opened from the triage screen** — pressing
+  Shift+D ran the whole suite (including a per-drive SMART short self-test
+  that can take minutes) synchronously *before* repainting, so the console
+  looked hung. The diagnostics screen now repaints and notifies immediately
+  on Shift+D, and the tests only run once the operator presses Shift+D again
+  (Esc/q returns to triage). The storage row is flagged "running" while its
+  self-test is in flight, and the display colour-wash restores the screen
+  before asking for a verdict.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.28_2025.11_30_x86-64_v0.41_20261008-8f2d12e4.iso`
+  (168 MB) sha256 `cc512830954a08b96daa1b8b01cfc0c4580428338bf63b783b0b9c0b5a1becc1`.
+- Standalone script `tscrub.sh` (v1.11.28) sha256 `325214fcb4def53fb462bd276f33df837a05ebbd65b43283ccd46db5dc8f1bd9`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `40bace02b4a8a5f6c91c9337c1f130fca4482b178a00e41aaeefb148846a6479`.
+
 ## [v1.11.27] - 2026-10-08
 
 ### Added
