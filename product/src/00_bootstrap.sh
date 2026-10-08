@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.26"
+SCRIPT_VERSION="v1.11.27"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -15,6 +15,7 @@ COCID=""
 CONFIG_USB_DEBUG=""
 AUTONUKE=0
 SELFTEST=0
+DIAG=0
 SELFTEST_CPU=""
 LOG_FILE="/$SCRIPT_NAME.log"
 DRY_RUN=0
@@ -687,6 +688,15 @@ parse_args() {
                     *)             SELFTEST=0 ;;
                 esac
                 ;;
+            --diag)
+                DIAG=1
+                ;;
+            --diag=*)
+                case "${arg#*=}" in
+                    true|1|yes|on|all) DIAG=1 ;;
+                    *)                 DIAG=0 ;;
+                esac
+                ;;
             --autopilotcheck)
                 TSCRUB_AUTOPILOTCHECK=1
                 ;;
@@ -866,6 +876,18 @@ cmdline::selftest() {
     [[ -n "$param" ]] || return 1
     case "${param//\"/}" in
         true|1|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Hardware diagnostics suite can be forced from the kernel command line
+# (tscrub_diag=1) — same PXE-fleet convenience as tscrub_selftest=.
+cmdline::diag() {
+    local param
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_diag=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    case "${param//\"/}" in
+        true|1|yes|on|all) return 0 ;;
         *) return 1 ;;
     esac
 }

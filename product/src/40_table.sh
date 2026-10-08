@@ -1143,7 +1143,7 @@ select::run() {
 
 # Triage (idle) screen key legend, shown in the sticky footer.
 triage::legend() {
-    printf 'Shift+T=erase  R=restart  S=shutdown  Esc=quit'
+    printf 'Shift+T=erase  D=diagnostics  R=restart  S=shutdown  Esc=quit'
 }
 
 # Persistent triage screen: shows the live diagnostics table (timer, LAN IP,
@@ -1306,6 +1306,12 @@ triage::run() {
                     UI_INPLACE=1
                 fi
                 ui::cursor_hide
+                ;;
+            D|d)
+                diag::guided
+                { register::push; } 3>&- &
+                mdm::sync_state
+                table::render
                 ;;
             R|r) TRIAGE_MODE=0; select::reboot; return 0 ;;
             S|s) TRIAGE_MODE=0; select::shutdown; return 0 ;;

@@ -112,6 +112,8 @@ function diag_stored_to_raw(array $p): array {
         'media_source'       => (string)($p['media_source'] ?? ''),
         'media_destination'  => (string)($p['media_destination'] ?? ''),
         'selftest_cpu'       => (string)($p['selftest_cpu'] ?? ''),
+        'diagnostics'        => is_array($p['diagnostics'] ?? null) ? $p['diagnostics'] : [],
+        'diagnostics_summary'=> (string)($p['diagnostics_summary'] ?? ''),
         'usb_devices'        => (string)($p['usb_devices'] ?? ''),
         'pci_devices'        => (string)($p['pci_devices'] ?? ''),
         'smbios'             => (string)($p['smbios'] ?? ''),
@@ -880,14 +882,16 @@ function render_diagnostics_pdf(array $d, array $issuer = [], bool $canSign = fa
 
     // ---- diagnostics-type / self-test summary line ----
     $cpuTest = strtoupper(trim((string)($d['selftest_cpu'] ?? '')));
+    $diagSummary = trim((string)($d['diagnostics_summary'] ?? ''));
     $hasStorage = false;
     foreach ($drives as $dv) {
         if (trim((string)($dv['selftest_run'] ?? '')) !== '') { $hasStorage = true; break; }
     }
-    if ($cpuTest === '' && !$hasStorage) {
+    if ($cpuTest === '' && !$hasStorage && $diagSummary === '') {
         $diag = 'DIAGNOSTICS TYPE: Information — no component self-tests were run';
     } else {
         $parts = ['DIAGNOSTICS TYPE: Information'];
+        if ($diagSummary !== '') { $parts[] = 'Hardware diagnostics: ' . $diagSummary; }
         if ($cpuTest !== '') { $parts[] = 'CPU self-test: ' . $cpuTest; }
         if ($hasStorage)     { $parts[] = 'Storage self-test: performed'; }
         $diag = implode('     ·     ', $parts);

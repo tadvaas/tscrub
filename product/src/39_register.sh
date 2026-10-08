@@ -93,6 +93,11 @@ register::json_body() {
         "$(report::_json_field "${SYS_BATTERY_CHEM:-}")"
     printf ',"selftest_cpu":"%s"' \
         "$(report::_json_field "${SELFTEST_CPU:-}")"
+    if [[ "${DIAG_RUN:-0}" -gt 0 ]]; then
+        printf ',"diagnostics":%s' "$(diag::json)"
+        printf ',"diagnostics_summary":"%s"' \
+            "$(report::_json_field "$(diag::summary)")"
+    fi
     printf ',"operator":"%s","validator":"%s","media_source":"%s","media_destination":"%s"' \
         "$(report::_json_field "${OPERATOR_NAME:-}")" \
         "$(report::_json_field "${VALIDATOR_NAME:-}")" \

@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.27] - 2026-10-08
+
+### Added
+
+- **Hardware diagnostics test suite** — a 13-test component health check that
+  turns the boot-time hardware capture into PASS/FAIL results. Press `D` on
+  the triage screen (or boot with `tscrub_diag=1`) to enter the diagnostics
+  screen; the automatic tier covers CPU, RAM (recognised, not a memtest),
+  storage (SMART self-test), network, battery, peripherals and webcam
+  (presence-only), while the guided tier walks the operator through display,
+  keyboard, touchpad, USB, speaker and microphone with Y/N/S prompts.
+- **ALSA support** — the image now ships `alsa-lib` + `alsa-utils`, and the
+  kernel has HDA (Realtek/Conexant/generic codecs) enabled, so the speaker
+  test plays a real 1 kHz tone (`speaker-test`) and the microphone test
+  records and auto-scores a 3-second capture (`arecord` + peak detection)
+  instead of just asking the operator.
+- **Diagnostics surfacing** — the boot report and dashboard device cards now
+  carry the per-test `diagnostics` array and a `diagnostics_summary` line, so
+  component results are visible in the report and on the Devices tab.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.27_2025.11_30_x86-64_v0.41_20261008-a2e79715.iso`
+  (168 MB) sha256 `c0ed7aa6ae48966ca56dc87895721428fa1451bd6a71631ff416024922206ca9`.
+- Standalone script `tscrub.sh` (v1.11.27) sha256 `c473469f4f88e7ad5585e25cdde1e5bc5689181364d212766094659f2c254a88`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `d03c5b07f6b5fc79297879dc91e881856085c823cae2a9d6dd274828cd4b12ce`.
+
 ## [v1.11.26] - 2026-10-07
 
 ### Fixed
