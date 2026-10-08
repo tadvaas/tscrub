@@ -36,6 +36,10 @@ printf 'MemTotal:        8123456 kB\n' > "$tmp/meminfo"
 diag::_init
 DIAG_MEMINFO_FILE="$tmp/meminfo" diag::ram
 t::assert_contains "$DIAG_RESULTS" "ram=PASS:memory recognised: 8 GB" "ram: recognises total"
+printf 'MemTotal:       16195052 kB\n' > "$tmp/meminfo"
+diag::_init
+DIAG_MEMINFO_FILE="$tmp/meminfo" diag::ram
+t::assert_contains "$DIAG_RESULTS" "ram=PASS:memory recognised: 16 GB" "ram: power-of-2 rounding (16 GB)"
 DIAG_MEMINFO_FILE="$tmp/nonexistent" diag::ram
 t::assert_contains "$DIAG_RESULTS" "ram=N/A" "ram: N/A when absent"
 rm -rf "$tmp"
@@ -46,8 +50,15 @@ mkdir -p "$tmp/eth0/device"
 printf '1\n' > "$tmp/eth0/carrier"
 diag::_init
 DIAG_NET_DIR="$tmp" diag::network
-t::assert_contains "$DIAG_RESULTS" "network=PASS" "network: carrier up"
+t::assert_contains "$DIAG_RESULTS" "network=PASS" "network: carrier + default route"
+
+diag::_init
+export FAKE_IP_NO_ROUTE=1
+DIAG_NET_DIR="$tmp" diag::network
+unset FAKE_IP_NO_ROUTE
+t::assert_contains "$DIAG_RESULTS" "network=SKIP" "network: carrier but no route"
 rm -rf "$tmp"
+
 diag::_init
 DIAG_NET_DIR="$(mktemp -d)" diag::network
 t::assert_contains "$DIAG_RESULTS" "network=N/A" "network: N/A when no NIC"
@@ -101,6 +112,15 @@ printf '\x00\x00\xff\x7f' > "$tmp/loud.raw"
 t::assert_eq "32767" "$(diag::mic_peak "$tmp/loud.raw")" "mic_peak: detects 32767"
 printf '\x00\x00\x00\x00' > "$tmp/silent.raw"
 t::assert_eq "0" "$(diag::mic_peak "$tmp/silent.raw")" "mic_peak: silence is 0"
+rm -rf "$tmp"
+
+# mic_unmute: unmutes + boosts capture/mic controls (best-effort)
+tmp="$(mktemp -d)"
+export FAKE_AMIXER_LOG="$tmp/amixer.log"
+diag::mic_unmute
+unset FAKE_AMIXER_LOG
+t::assert_contains "$(cat "$tmp/amixer.log")" "Capture unmute" "mic_unmute: unmutes Capture"
+t::assert_contains "$(cat "$tmp/amixer.log")" "Mic Boost 100%" "mic_unmute: boosts Mic Boost"
 rm -rf "$tmp"
 
 # --- guided suite (headless: 13 tests, guided ones SKIP) ---

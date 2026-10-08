@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Fake amixer for the diagnostics mic test. `scontrols` lists a realistic set
+# of simple controls; `sset` appends "control verb value" to $FAKE_AMIXER_LOG.
+# Real invocations are `amixer -q sset <control> <verb>`, so strip a leading -q.
+[[ "$1" == "-q" ]] && shift
+if [[ "$1" == "scontrols" ]]; then
+    printf "Simple mixer control 'Master',0\n"
+    printf "Simple mixer control 'Capture',0\n"
+    printf "Simple mixer control 'Mic Boost',0\n"
+    printf "Simple mixer control 'Auto-Mute Mode',0\n"
+    exit 0
+fi
+if [[ "$1" == "sset" ]]; then
+    printf '%s %s %s\n' "$2" "$3" "${4:-}" >> "${FAKE_AMIXER_LOG:-/dev/null}"
+    exit 0
+fi
+exit 0

@@ -6,6 +6,30 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.30] - 2026-10-08
+
+### Fixed
+
+- **Microphone test always failed with a muted input** — ALSA comes up muted on
+  a fresh boot and the image had no `amixer`, so `diag::mic` read all-zero and
+  reported `FAIL "capture silent"`. `amixer` is now in the image, and the mic
+  test unmutes + boosts the capture input before recording.
+- **No timeout on the mic/speaker probes** — `arecord` is now bounded (via the
+  existing timeout wrapper) so a wedged ALSA device can't hang the suite, and
+  the speaker test kills its tone process more robustly.
+- **RAM figure disagreed with the panel** — `diag::ram` reported `/proc/meminfo`
+  MemTotal rounded to the nearest integer (15 GB) while the panel rounds to the
+  nearest power-of-2 (16 GB). Both now agree.
+- **Network test passed on carrier alone** — a port with link but no DHCP
+  address/route now reports `SKIP "link up · no IPv4 route"` instead of PASS.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.30_2025.11_30_x86-64_v0.41_20261008-60ecfbc0.iso`
+  (168 MB) sha256 `f6aab8b6ffd80117bee771e4c3eef965f938f54c390cd5bee8bbc688c1594f22`.
+- Standalone script `tscrub.sh` (v1.11.30) sha256 `098f06628fb6d58b954512c45a6552f37e85376f47aec913921bc9262175e328`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `3654904ffa42af76a9cf3bcec18192c39af63e545996d5330e1817e2902611d7`.
+
 ## [v1.11.29] - 2026-10-08
 
 ### Fixed

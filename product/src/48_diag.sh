@@ -106,7 +106,15 @@ diag::ram() {
     local kb
     kb="$(awk '/^MemTotal:/ {print $2}' "$DIAG_MEMINFO_FILE" 2>/dev/null | head -n 1)"
     if [[ -n "$kb" ]] && [[ "$kb" =~ ^[0-9]+$ ]]; then
-        diag::record ram PASS "memory recognised: $(( (kb + 524288) / 1048576 )) GB"
+        # Round to the nearest power-of-2 GB, matching the panel's SYS_RAM_GB
+        # (MemTotal excludes hardware-reserved memory, so a "16 GB" DIMM set
+        # reports ~15.4 GB — the two surfaces must agree).
+        diag::record ram PASS "memory recognised: $(awk -v kb="$kb" 'BEGIN {
+            val = (kb * 1024) / 1000000000
+            p = 1; while (p * 2 < val) p *= 2
+            if (val - p >= p * 2 - val) p = p * 2
+            printf "%d", p
+        }') GB"
     else
         diag::record ram N/A "no memory info"
     fi
@@ -162,7 +170,12 @@ diag::network() {
     if [[ "$found" -eq 0 ]]; then
         diag::record network N/A "no hardware NIC"
     elif [[ "$carrier" -eq 1 ]]; then
-        diag::record network PASS "link up on a hardware NIC"
+        # Carrier alone isn't a usable link — require an IPv4 default route.
+        if command -v ip >/dev/null 2>&1 && ip route 2>/dev/null | grep -q '^default'; then
+            diag::record network PASS "link up · default route present"
+        else
+            diag::record network SKIP "link up · no IPv4 route"
+        fi
     else
         diag::record network SKIP "no link — cable/sink not connected"
     fi
@@ -277,6 +290,7 @@ diag::speaker() {
     local pid=$!
     diag::_guided speaker "Tone playing — heard it? Y/N/S" "tone confirmed · operator PASS"
     kill "$pid" 2>/dev/null || true
+    kill -9 "$pid" 2>/dev/null || true
 }
 # Peak sample amplitude (16-bit signed LE) — the "is it silent" signal for the
 # mic test. Pure and unit-testable.
@@ -284,15 +298,30 @@ diag::mic_peak() {
     local f="$1"
     od -An -td2 "$f" 2>/dev/null | awk '{for(i=1;i<=NF;i++){v=$i;if(v<0)v=-v;if(v>m)m=v}}END{print m+0}'
 }
+# Best-effort: unmute and boost the capture input so a freshly-booted image
+# (ALSA comes up muted) can actually hear the microphone. No-op when amixer is
+# absent; never fails the test on its own.
+diag::mic_unmute() {
+    command -v amixer >/dev/null 2>&1 || return 0
+    local ctl
+    while IFS= read -r ctl; do
+        [[ -n "$ctl" ]] || continue
+        amixer -q sset "$ctl" unmute 2>/dev/null || true
+        amixer -q sset "$ctl" 100% 2>/dev/null || true
+    done < <(amixer scontrols 2>/dev/null | sed -n "s/.*'\(.*\)'.*/\1/p" | grep -iE 'capture|mic')
+}
+
 diag::mic() {
     if ! command -v arecord >/dev/null 2>&1; then
         diag::record mic UNSUP "no ALSA tools"
         return 0
     fi
+    diag::mic_unmute
     if ui::terminal_controls_supported; then
         printf 'Speak into the microphone...\n' > /dev/tty 2>/dev/null || true
     fi
-    arecord -q -d 3 -t raw -f S16_LE -r 16000 /tmp/tscrub-mic.raw 2>/dev/null
+    # Bound the record so a wedged ALSA device can't hang the suite.
+    smart::run 15 arecord -q -d 3 -t raw -f S16_LE -r 16000 /tmp/tscrub-mic.raw 2>/dev/null
     local peak
     peak="$(diag::mic_peak /tmp/tscrub-mic.raw)"
     rm -f /tmp/tscrub-mic.raw
