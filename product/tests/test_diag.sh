@@ -64,19 +64,40 @@ diag::prompt() { printf 'pass\n'; }
 diag::display
 t::assert_contains "$DIAG_RESULTS" "display=PASS" "guided: pass -> PASS"
 
-# keyboard: keypresses are the test, not the verdict — consume them until Y/N/S.
+# _seen_add: distinct, first-press-order set for the live "seen" readout.
+t::assert_eq "ab" "$(diag::_seen_add "a" "b")" "seen_add: appends a new key"
+t::assert_eq "abc" "$(diag::_seen_add "abc" "b")" "seen_add: dedupes an existing key"
+t::assert_eq "a*" "$(diag::_seen_add "a" "*")" "seen_add: * treated literally"
+t::assert_eq "a[" "$(diag::_seen_add "a" "[")" "seen_add: [ treated literally"
+
+# keyboard: Y/N/S are ordinary keys while mashing; the verdict is a separate
+# phase after Esc (or EOF/timeout when headless).
 tmp="$(mktemp -d)"
 printf 'abcY' > "$tmp/kbd"
 DIAG_TTY_FILE="$tmp/kbd"
 diag::_init
+diag::prompt() { printf 'fail\n'; }
 diag::keyboard
-t::assert_contains "$DIAG_RESULTS" "keyboard=PASS" "keyboard: keys ignored, Y -> PASS"
+t::assert_contains "$DIAG_RESULTS" "keyboard=FAIL:operator reported failure" "keyboard: Y is a key, not a verdict"
+
+printf 'abcYs' > "$tmp/kbd"
+DIAG_TTY_FILE="$tmp/kbd"
+diag::_init
+diag::prompt() { printf 'pass\n'; }
+diag::keyboard
+t::assert_contains "$DIAG_RESULTS" "keyboard=PASS:operator PASS (5 keys)" "keyboard: Y/s counted as keys"
+
+printf 'abc\033' > "$tmp/kbd"    # a,b,c then a bare Esc at EOF = finish
+DIAG_TTY_FILE="$tmp/kbd"
+diag::_init
+diag::keyboard
+t::assert_contains "$DIAG_RESULTS" "keyboard=PASS:operator PASS (3 keys)" "keyboard: Esc finishes the mash"
 
 printf '' > "$tmp/kbd_empty"
 DIAG_TTY_FILE="$tmp/kbd_empty"
 diag::_init
 diag::keyboard
-t::assert_contains "$DIAG_RESULTS" "keyboard=SKIP" "keyboard: no input -> SKIP"
+t::assert_contains "$DIAG_RESULTS" "keyboard=SKIP:no keys registered" "keyboard: no input -> SKIP"
 
 DIAG_TTY_FILE="/nonexistent/console"
 diag::_init

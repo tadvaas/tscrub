@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.41] - 2026-10-09
+
+### Changed
+
+- **Keyboard test is now two-phase** — the operator mashes keys while a live
+  "seen" readout shows the distinct printable keys registered (with a running
+  count), and a bare `Esc` ends the mash. `Y`/`N`/`S` are ordinary keys during
+  the mash, so they can no longer accidentally end the test; the verdict is a
+  separate prompt after `Esc` (or after timeout). Arrow/function-key escape
+  sequences are drained so they register as single special keys instead of
+  leaking bytes or falsely finishing the test.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.41_2025.11_30_x86-64_v0.41_20261009-302ccdde.iso`
+  (169 MB) sha256 `131f310b16555405c28669c23e07e02eca48420ad56d7b4f96fec4ea0659f8b6`.
+- Standalone script `tscrub.sh` (v1.11.41) sha256 `e0d11e90d1af2f8195d7b8ca499740cc159f84bef6a8169ba5733804dbb535fd`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `fb77ac9d92701c435b5a8c96e395c35dd485f97deb73742d56278ae8b81b6494`.
+
 ## [v1.11.40] - 2026-10-09
 
 ### Removed

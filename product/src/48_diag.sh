@@ -174,27 +174,75 @@ diag::_instruct_clear() {
         printf '\033[%d;1H\033[K' "$((DIAG_HEADER_ROW + 18))"
     fi
 }
+# Append a printable key to the "seen" set (distinct, first-press order). The
+# char-by-char compare is deliberate: interpolating $ch into a case/[[ ]] glob
+# would treat * ? [ as metacharacters.
+diag::_seen_add() {
+    local seen="$1" ch="$2" i
+    [[ -n "$ch" ]] || { printf '%s' "$seen"; return 0; }
+    for (( i=0; i < ${#seen}; i++ )); do
+        [[ "${seen:i:1}" == "$ch" ]] && { printf '%s' "$seen"; return 0; }
+    done
+    printf '%s%s' "$seen" "$ch"
+}
+
+# Two-phase keyboard test. Phase 1: the operator mashes keys while a live
+# "seen" readout shows the distinct printable keys registered. Y/N/S are just
+# ordinary keys here — only a bare Esc ends the mash (Esc followed by [ or O is
+# an arrow/function key, whose continuation bytes we drain so they don't leak
+# as keypresses). Phase 2: a separate Y/N/S verdict, so the answer is always
+# deliberate.
 diag::keyboard() {
-    local key count=0
+    local key ch o seen="" special=0 count=0 ans
     if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
         diag::record keyboard SKIP "operator skipped"
         return 0
     fi
-    # Pressing every key IS the test — consume each keypress without mistaking
-    # it for the verdict; only Y/N/S ends the test.
-    diag::_instruct "Press every key — received: $count — then Y=pass / N=fail / S=skip"
-    # Redirect on the LOOP (not the read) so the file/terminal is opened once
-    # and each read advances the position — a `< file` on the read reopens it
-    # every iteration (and on a regular file that re-reads the first byte).
-    while IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" key 2>/dev/null; do
-        case "$key" in
-            y|Y) diag::record keyboard PASS "operator PASS ($count keys)" ; return 0 ;;
-            n|N) diag::record keyboard FAIL "operator reported failure" ; return 0 ;;
-            s|S) diag::record keyboard SKIP "operator skipped" ; return 0 ;;
-            *) count=$((count+1)); diag::_instruct "Press every key — received: $count — then Y=pass / N=fail / S=skip" ;;
-        esac
-    done < "$DIAG_TTY_FILE"
-    diag::record keyboard SKIP "operator skipped"
+    diag::_instruct "Press every key — seen: (none) — Esc to finish"
+    # Open the console once; each read advances the position (a `< file` on the
+    # read reopens it every iteration and re-reads the first byte).
+    exec {DIAG_KB_FD}<"$DIAG_TTY_FILE" 2>/dev/null \
+        || { diag::record keyboard SKIP "operator skipped"; return 0; }
+    while IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" -u "$DIAG_KB_FD" key 2>/dev/null; do
+        if [[ "$key" == $'\x1b' ]]; then
+            if IFS= read -rsn1 -t 0.05 -u "$DIAG_KB_FD" ch 2>/dev/null \
+               && [[ "$ch" == '[' || "$ch" == 'O' ]]; then
+                # Arrow/function key: drain the rest of its escape sequence.
+                while IFS= read -rsn1 -t 0.05 -u "$DIAG_KB_FD" ch 2>/dev/null; do :; done
+                special=$((special+1))
+            else
+                break   # bare Esc = finish mashing
+            fi
+        elif [[ -n "$key" ]]; then
+            o="$(printf '%d' "'$key" 2>/dev/null)"
+            if [[ -n "$o" ]] && (( o >= 32 && o <= 126 )); then
+                seen="$(diag::_seen_add "$seen" "$key")"
+            else
+                special=$((special+1))
+            fi
+        else
+            # read -n1 swallowed a line terminator (Enter) — still a keypress.
+            special=$((special+1))
+        fi
+        count=$((count+1))
+        diag::_instruct "Press every key — seen: ${seen:-(none)} ($count) — Esc to finish"
+    done
+    exec {DIAG_KB_FD}<&-
+
+    if (( count == 0 )); then
+        diag::record keyboard SKIP "no keys registered"
+        diag::_instruct_clear
+        return 0
+    fi
+    # Verdict is a separate phase: the operator is no longer mashing keys, so
+    # Y/N/S here is deliberate rather than an accidental keypress.
+    ans="$(diag::prompt "Keyboard — $count key(s) captured. Working?")"
+    diag::_instruct_clear
+    case "$ans" in
+        pass) diag::record keyboard PASS "operator PASS ($count keys)" ;;
+        fail) diag::record keyboard FAIL "operator reported failure" ;;
+        *)    diag::record keyboard SKIP "operator skipped" ;;
+    esac
 }
 diag::touchpad() {
     local ev n
