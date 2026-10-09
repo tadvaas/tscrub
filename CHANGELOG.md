@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.42] - 2026-10-09
+
+### Fixed
+
+- **Operator instructions indented to table edge** — diagnostics test
+  instructions and the guided Y/N/S prompt now align with the results table
+  instead of starting at the left margin.
+- **USB test no longer times out** — the USB detect loop now stays live until
+  the operator answers Y/N/S (or the input closes), instead of silently
+  skipping after 15 seconds.
+- **Speaker test now produces a continuous tone** — the sine tone loops until
+  the operator answers, rather than playing a single sub-second burst.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.42_2025.11_30_x86-64_v0.41_20261009-019366da.iso`
+  (169 MB) sha256 `6d6bab9722e6ffb7ce0a345ac13b0716693026d018c8fd9dafed6a0b13dcf2c0`.
+- Standalone script `tscrub.sh` (v1.11.42) sha256 `90b1a7df5419446865e1b66c77b3342d5ae8668c54f9efff5f12282abb696f77`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `0e7d696a9fb192d15ca2e57f948dabdd7b6a79f0670f9d5ebce1b78752dba55b`.
+
 ## [v1.11.41] - 2026-10-09
 
 ### Changed

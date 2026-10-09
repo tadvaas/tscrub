@@ -30,6 +30,12 @@ t::assert_eq '[{"test":"cpu","verdict":"PASS","detail":"sum-of-squares ok"},{"te
 t::assert_eq "3 run, 1 passed, 1 failed, 0 skipped, 1 unsupported" \
     "$(diag::summary)" "summary: counts"
 
+# --- _instruct: indents the instruction to the table's left edge ---
+DIAG_HEADER_ROW=10
+TABLE_INDENT="    "
+t::assert_eq $'\033[28;1H\033[K    hello' "$(diag::_instruct 'hello')" "_instruct: indents to the table edge"
+DIAG_HEADER_ROW=0
+
 # --- automatic tier (diag::run): no automatic tests remain ---
 diag::_init
 diag::run

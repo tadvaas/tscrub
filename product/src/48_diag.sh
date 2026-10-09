@@ -126,7 +126,7 @@ diag::prompt() {
     if (( DIAG_HEADER_ROW > 0 )); then
         printf '\033[%d;1H\033[K' "$((DIAG_HEADER_ROW + 18))" > "$DIAG_TTY_FILE" 2>/dev/null || true
     fi
-    printf '%s  [Y=pass / N=fail / S=skip]\n' "$label" > "$DIAG_TTY_FILE" 2>/dev/null || true
+    printf '%s%s  [Y=pass / N=fail / S=skip]\n' "${TABLE_INDENT:-}" "$label" > "$DIAG_TTY_FILE" 2>/dev/null || true
     IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" key < "$DIAG_TTY_FILE" 2>/dev/null
     case "$key" in
         y|Y) printf 'pass\n' ;;
@@ -158,11 +158,12 @@ diag::display() {
     diag::_guided display "Display colour wash — any dead pixels?" "operator PASS"
 }
 diag::_instruct() {
-    # Print an operator instruction on a clear line below the test list. Used by
-    # the keyboard test, which runs directly (stdout is the console) rather than
+    # Print an operator instruction on a clear line below the test list, at the
+    # table's left indent so it lines up with the list above. Used by the
+    # keyboard test, which runs directly (stdout is the console) rather than
     # inside diag::_guided's command substitution.
     if (( DIAG_HEADER_ROW > 0 )); then
-        printf '\033[%d;1H\033[K%s' "$((DIAG_HEADER_ROW + 18))" "${1:-}"
+        printf '\033[%d;1H\033[K%s%s' "$((DIAG_HEADER_ROW + 18))" "${TABLE_INDENT:-}" "${1:-}"
     else
         printf '%s\n' "${1:-}"
     fi
@@ -310,7 +311,7 @@ diag::_usb_device_count() {
 # feedback, then confirms with Y/N/S. Open the console once (so the position
 # advances across reads) while re-checking the device count between keypresses.
 diag::usb() {
-    local key n prev waited=0
+    local key n prev
     if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
         diag::record usb SKIP "operator skipped"
         return 0
@@ -319,7 +320,9 @@ diag::usb() {
         || { diag::record usb SKIP "operator skipped"; return 0; }
     prev="$(diag::_usb_device_count)"
     diag::_instruct "Plug a stick into each USB port — devices: $prev — then Y=pass / N=fail / S=skip"
-    while (( waited < DIAG_GUIDED_TIMEOUT_SECS )); do
+    # Stay on this test until the operator answers Y/N/S (no time limit); poll
+    # the device count each second so a freshly-plugged stick is announced.
+    while :; do
         n="$(diag::_usb_device_count)"
         if [[ "$n" != "$prev" ]]; then
             diag::_instruct "Device detected — USB devices: $n — plug into each port, then Y=pass / N=fail / S=skip"
@@ -332,8 +335,10 @@ diag::usb() {
                 n|N) exec {DIAG_USB_FD}<&-; diag::record usb FAIL "operator reported failure" ; return 0 ;;
                 s|S) exec {DIAG_USB_FD}<&-; diag::record usb SKIP "operator skipped" ; return 0 ;;
             esac
+        elif [[ ! -t "$DIAG_USB_FD" ]]; then
+            # Non-terminal input (test fixture) at EOF — stop polling.
+            break
         fi
-        waited=$((waited+1))
     done
     exec {DIAG_USB_FD}<&-
     diag::record usb SKIP "operator skipped"
@@ -347,12 +352,15 @@ diag::speaker() {
     # and raise the playback path before sounding the tone — at a reduced level
     # so the 1 kHz sine doesn't blast the operator.
     diag::speaker_unmute "$DIAG_SPEAKER_VOLUME"
-    # Play a 1 kHz tone while the operator listens, then confirm.
-    speaker-test -t sine -f 1000 -l 1 >/dev/null 2>&1 &
+    # Play a 1 kHz tone continuously while the operator listens, then confirm.
+    # -l 0 loops forever (a single loop can be too short to hear on some
+    # hardware); we kill it once the operator has answered.
+    speaker-test -t sine -f 1000 -l 0 >/dev/null 2>&1 &
     local pid=$!
     # Detach the tone from the job table so bash doesn't print a "Killed"
     # notification on the console when we stop it.
     disown "$pid" 2>/dev/null || true
+    sleep 1   # let ALSA open the device so the tone is audible before the prompt
     diag::_guided speaker "Tone playing — heard it?" "tone confirmed · operator PASS"
     kill "$pid" 2>/dev/null || true
     kill -9 "$pid" 2>/dev/null || true
