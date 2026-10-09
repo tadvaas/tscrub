@@ -26,13 +26,13 @@ UI_SPINNER_FRAME=4
 t::assert_eq "|" "$(ui::spinner)" "spinner wraps to 0"
 
 # --- ui::wave_cell ---
-t::assert_eq "███      " "$(ui::wave_cell 0)"     "wave frame 0 (9 cols)"
-t::assert_eq " ███     " "$(ui::wave_cell 1)"     "wave frame 1"
-t::assert_eq "    ███  " "$(ui::wave_cell 4)"     "wave frame 4"
-t::assert_eq "██      █" "$(ui::wave_cell 8)"     "wave frame 8 wraps head/tail"
-t::assert_eq "███      " "$(ui::wave_cell 9)"     "wave wraps to 0 at frame 9"
-t::assert_eq " ███     " "$(ui::wave_cell 100)"   "wave large frame folds mod width"
-t::assert_eq "███"      "$(ui::wave_cell 0 3)"   "wave fits exactly at width 3"
+t::assert_eq "[ ###   ]" "$(ui::wave_cell 0)"     "wave frame 0 (9 cols)"
+t::assert_eq "[  ###  ]" "$(ui::wave_cell 1)"     "wave frame 1"
+t::assert_eq "[ ##  # ]" "$(ui::wave_cell 4)"     "wave frame 4"
+t::assert_eq "[ #  ## ]" "$(ui::wave_cell 8)"     "wave frame 8 wraps head/tail"
+t::assert_eq "[ ##  # ]" "$(ui::wave_cell 9)"     "wave wraps to 4 at frame 9"
+t::assert_eq "[ ###   ]" "$(ui::wave_cell 100)"   "wave large frame folds mod width"
+t::assert_eq "RUNNING"  "$(ui::wave_cell 0 3)"   "wave guard: narrow cell -> RUNNING"
 t::assert_eq "RUNNING"  "$(ui::wave_cell 0 2)"   "wave guard: narrow cell -> RUNNING"
 
 # --- ui::eta_text_for ---
@@ -143,16 +143,16 @@ UI_COMPLETE_THEME=0
 SELECT_MODE=0; SELECT_CURSOR=""
 UI_WAVE_FRAME=0
 row="$(table::row_text d1 0)"
-t::assert_contains "$row" "███" "row_text RUNNING shows the wave"
+t::assert_contains "$row" "[ ###   ]" "row_text RUNNING shows the bracketed bar"
 t::check "row_text RUNNING drops the word" '[[ "$row" != *RUNNING* ]]'
-# The appliance shell runs in the C locale where ${val:0:w} counts bytes, so
-# the multi-byte wave must not be truncated (3 glyphs + 6 spaces = 9 columns).
+# The wave is plain ASCII (# + brackets + spaces), so it survives the C locale
+# without byte-truncation and stays exactly 9 columns.
 LC_ALL=C row="$(table::row_text d1 0)"
-t::assert_contains "$row" "███      " "row_text wave not byte-truncated (C locale)"
+t::assert_contains "$row" "[ ###   ]" "row_text wave not truncated (C locale)"
 devrow[d1.status]="42%"
 row="$(table::row_text d1 0)"
 t::assert_contains "$row" "42%" "row_text keeps the NN% value"
-t::check "row_text NN% shows no wave" '[[ "$row" != *█* ]]'
+t::check "row_text NN% shows no wave" '[[ "$row" != *#* ]]'
 
 # --- delta repaint: ui::state_key / ui::changed_rows / ui::layout_changed ---
 devices=(d1 d2)

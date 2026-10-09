@@ -511,15 +511,14 @@ diag::paint_row() {
     printf "\033[%d;1H\033[K%s  %s" "$((DIAG_HEADER_ROW + 3 + idx))" "$TABLE_INDENT" "$(diag::entry_line "$id" "$ov" "$od")"
 }
 
-# Run the whole suite (automatic tier, then the operator tests) with live row
-# repaint. The slow storage short self-test is flagged "running" before it
-# starts so the console never looks frozen. Used by the interactive start key
-# and by diag::guided's headless fallback.
+# Run the whole suite with live row repaint. The fast automatic tier runs first,
+# then the operator (guided) tests — so the operator never waits on the slow
+# storage short self-test before the guided tests become available. Storage runs
+# LAST and is flagged "running" before it starts so the console never looks
+# frozen. Used by the interactive start key and diag::guided's headless fallback.
 diag::_run_suite() {
     diag::cpu;         diag::paint_row cpu
     diag::ram;         diag::paint_row ram
-    diag::paint_row storage "..." "running short self-tests..."
-    diag::storage;     diag::paint_row storage
     diag::network;     diag::paint_row network
     diag::battery;     diag::paint_row battery
     diag::peripherals; diag::paint_row peripherals
@@ -530,6 +529,8 @@ diag::_run_suite() {
     diag::usb;         diag::paint_row usb
     diag::speaker;     diag::paint_row speaker
     diag::mic;         diag::paint_row mic
+    diag::paint_row storage "..." "running short self-tests..."
+    diag::storage;     diag::paint_row storage
 }
 
 # Guided suite (Shift+D from the triage screen): repaint the middle band as the

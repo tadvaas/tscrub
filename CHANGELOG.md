@@ -6,6 +6,26 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.36] - 2026-10-09
+
+### Changed
+
+- **Storage self-test now runs last in the guided diagnostics suite** — the
+  fast automatic tier (cpu/ram/network/battery/peripherals/webcam) runs first,
+  then the operator tests (display/keyboard/touchpad/usb/speaker/mic), so the
+  operator no longer waits on the slow SMART short self-test before the guided
+  tests become available. Storage still pre-paints "running" before it starts.
+- **Wipe progress indicator restyled** — the indeterminate running-drive bar is
+  now `[ #… ]` with square brackets, one space of padding inside each bracket,
+  and `#` symbols (was a bare `█` block).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.36_2025.11_30_x86-64_v0.41_20261009-05f82668.iso`
+  (168 MB) sha256 `abca0a95ea4f7dda6bfd893fc6db9d9ae1d24aba6632154240c20a9251649eb6`.
+- Standalone script `tscrub.sh` (v1.11.36) sha256 `4ca43e68c7a1b94ff7cc12e926e5ba9b5823d43b831c5a7821d6f30a089036fd`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `b8448fcf98c2c40ccea0d6f35b60270b7b55732a080c96ff06804b891b2c9d33`.
+
 ## [v1.11.35] - 2026-10-09
 
 ### Fixed

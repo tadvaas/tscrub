@@ -185,11 +185,9 @@ table::row_text() {
             fi
         fi
 
-        # The wipe wave is multi-byte (each █ is 3 UTF-8 bytes); the appliance
-        # shell runs in the C locale where ${val:0:w} counts BYTES, so the
-        # generic truncation below would cut a 9-column wave to 3 glyphs and
-        # shift every following cell (ETA) 6 columns left. The wave is already
-        # exactly $w columns — use it verbatim.
+        # The wipe wave is already exactly $w columns (brackets + a padded `#`
+        # bar) — use it verbatim so the fixed-width cell never shifts the
+        # following ETA column.
         if [[ "$label" == "STATUS" && "${devrow[$dev.status]}" == "RUNNING" ]]; then
             cell="$val"
         else
@@ -280,31 +278,34 @@ ui::spinner() {
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
 }
 
-# Indeterminate "wipe wave" for the STATUS cell: a 3-wide █ segment that
-# marches left-to-right and wraps, replacing the static RUNNING word for drives
-# doing a firmware erasure (no % to report). Pure and TTY-independent — echoes
-# a width-column string from (frame, width) so the full render, delta repaint
-# and in-place tick all paint the same frame. Only U+2588 (full block) is used:
-# the shade glyphs ░▒▓ do NOT render on the fbcon console font, so the sweep is
-# built from █ + spaces only — the safest possible in-row indicator. Falls back
-# to the word RUNNING below 3 columns (never today: STATUS min is 9).
+# Indeterminate "wipe wave" for the STATUS cell: a bracketed `#` progress bar
+# that marches left-to-right and wraps, replacing the static RUNNING word for
+# drives doing a firmware erasure (no % to report). Pure and TTY-independent —
+# echoes a width-column string from (frame, width) so the full render, delta
+# repaint and in-place tick all paint the same frame. The bar is `[ #... ]` with
+# one space of padding inside each bracket and a 3-wide `#` segment marching in
+# between; `#` is plain ASCII so there is no multi-byte truncation to manage.
+# Falls back to the word RUNNING below 7 columns (never today: STATUS min is 9).
 ui::wave_cell() {
-    local frame="${1:-0}" w="${2:-9}" c d glyph out=""
-    if (( w < 3 )); then
+    local frame="${1:-0}" w="${2:-9}" c d inner out=""
+    if (( w < 7 )); then
         printf 'RUNNING'
         return 0
     fi
-    frame=$(( frame % w ))
-    for (( c = 0; c < w; c++ )); do
+    inner=$(( w - 4 ))       # columns between the padded brackets
+    (( inner < 3 )) && inner=3
+    frame=$(( frame % inner ))
+    out='[ '
+    for (( c = 0; c < inner; c++ )); do
         d=$(( c - frame ))
-        (( d < 0 )) && d=$(( d + w ))
+        (( d < 0 )) && d=$(( d + inner ))
         if (( d < 3 )); then
-            glyph='█'
+            out+='#'
         else
-            glyph=' '
+            out+=' '
         fi
-        out+="$glyph"
     done
+    out+=' ]'
     printf '%s' "$out"
 }
 
@@ -538,9 +539,8 @@ ui::tick_inplace() {
         eta_col="$(ui::eta_text_for "$dev" "$now")"
         printf "\033[%d;%dH%-*.*s" "$row" "$UI_ETA_COL" "$UI_ETA_W" "$UI_ETA_W" "$eta_col"
         if [[ "${devrow[$dev.status]}" == "RUNNING" ]]; then
-            # %s (no width/precision): the wave is multi-byte and exactly
-            # UI_STATUS_W columns; %-*.*s would truncate it at UI_STATUS_W
-            # bytes (C locale) and cut mid-glyph.
+            # %s (no width/precision): the wave is already exactly UI_STATUS_W
+            # columns; %-*.*s would pad/truncate it and shift the bar.
             printf "\033[%d;%dH%s" "$row" "$UI_STATUS_COL" "$(ui::wave_cell "$UI_WAVE_FRAME" "$UI_STATUS_W")"
         fi
     done
