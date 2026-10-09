@@ -219,6 +219,15 @@ t::assert_contains "$(cat "$tmp/amixer.log")" "Speaker 100%" "speaker_unmute: ra
 t::assert_contains "$(cat "$tmp/amixer.log")" "PCM 100%" "speaker_unmute: raises PCM"
 rm -rf "$tmp"
 
+# speaker_unmute: honours a reduced volume percent
+tmp="$(mktemp -d)"
+export FAKE_AMIXER_LOG="$tmp/amixer.log"
+diag::speaker_unmute 50
+unset FAKE_AMIXER_LOG
+t::assert_contains "$(cat "$tmp/amixer.log")" "Master 50%" "speaker_unmute: Master at requested 50%"
+t::assert_contains "$(cat "$tmp/amixer.log")" "Speaker 50%" "speaker_unmute: Speaker at requested 50%"
+rm -rf "$tmp"
+
 # --- guided suite (headless: 13 tests, guided ones SKIP) ---
 export FAKE_SMART_SELFTEST="Completed without error       00%"
 export FAKE_NVME_SELFTEST_RESULT="0"

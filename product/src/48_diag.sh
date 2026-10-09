@@ -32,6 +32,9 @@ DIAG_RUN=0 DIAG_PASS=0 DIAG_FAIL=0 DIAG_SKIP=0 DIAG_UNSUP=0 DIAG_NA=0
 DIAG_ORDER=(cpu ram storage network battery peripherals webcam display keyboard touchpad usb speaker mic)
 DIAG_GUIDED_TIMEOUT_SECS="${DIAG_GUIDED_TIMEOUT_SECS:-15}"
 DIAG_MIC_PEAK_THRESHOLD="${DIAG_MIC_PEAK_THRESHOLD:-400}"
+# Playback level for the speaker tone (percent). 100% is uncomfortably loud for
+# an operator, so default to a gentler 50.
+DIAG_SPEAKER_VOLUME="${DIAG_SPEAKER_VOLUME:-50}"
 # Console device the guided prompts talk to (overridable in tests). Defaults to
 # the controlling terminal; headless runs have none, so probing it fails fast.
 DIAG_TTY_FILE="${DIAG_TTY_FILE:-/dev/tty}"
@@ -438,8 +441,9 @@ diag::speaker() {
         return 0
     fi
     # A freshly-booted image brings ALSA up muted (Master off at 0%), so unmute
-    # and raise the playback path before sounding the tone.
-    diag::speaker_unmute
+    # and raise the playback path before sounding the tone — at a reduced level
+    # so the 1 kHz sine doesn't blast the operator.
+    diag::speaker_unmute "$DIAG_SPEAKER_VOLUME"
     # Play a 1 kHz tone while the operator listens, then confirm.
     speaker-test -t sine -f 1000 -l 1 >/dev/null 2>&1 &
     local pid=$!
@@ -471,16 +475,17 @@ diag::mic_unmute() {
 }
 
 # Best-effort: unmute and raise the playback controls so a freshly-booted image
-# (ALSA comes up with Master muted at 0%) actually emits the speaker tone.
-# No-op when amixer is absent; never fails the test on its own. Playback
-# switches use the `unmute` verb (the capture `cap` verb is rejected here).
+# (ALSA comes up with Master muted at 0%) actually emits the speaker tone. Takes
+# an optional volume percent (default 100). No-op when amixer is absent; never
+# fails the test on its own. Playback switches use the `unmute` verb (the
+# capture `cap` verb is rejected here).
 diag::speaker_unmute() {
     command -v amixer >/dev/null 2>&1 || return 0
-    local ctl
+    local ctl vol="${1:-100}"
     while IFS= read -r ctl; do
         [[ -n "$ctl" ]] || continue
         amixer -q sset "$ctl" unmute 2>/dev/null || true
-        amixer -q sset "$ctl" 100% 2>/dev/null || true
+        amixer -q sset "$ctl" "${vol}%" 2>/dev/null || true
     done < <(amixer scontrols 2>/dev/null | sed -n "s/.*'\(.*\)'.*/\1/p" | grep -iE 'master|speaker|headphone|pcm')
 }
 

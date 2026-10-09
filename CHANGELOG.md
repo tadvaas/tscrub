@@ -6,6 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.38] - 2026-10-09
+
+### Changed
+
+- **Speaker test tone is quieter** — the 1 kHz test tone now plays at 50% volume
+  (previously 100%, which was painfully loud for operators). `diag::speaker_unmute`
+  accepts a volume percent and `diag::speaker` passes `DIAG_SPEAKER_VOLUME`
+  (default 50, overridable).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.38_2025.11_30_x86-64_v0.41_20261009-9f216d97.iso`
+  (168 MB) sha256 `1ca97425210bc2b75769460f86757c0a8930e0ff1e25145cad669594ed4a0722`.
+- Standalone script `tscrub.sh` (v1.11.38) sha256 `bf1b4f1984e4beb35588df12eda2f2b09fef737fde59ce057d6ac22c0fbef0b5`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `3a9b2b80cba4c8068887865beb7fb547d68276f223e21c2fa1f0237c2b0d0dde`.
+
 ## [v1.11.37] - 2026-10-09
 
 ### Fixed
