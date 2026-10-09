@@ -6,6 +6,24 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.39] - 2026-10-09
+
+### Fixed
+
+- **I2C-HID touchpads were not detected** (e.g. the HP ZBook Fury's Elan
+  touchpad, ACPI `ELAN074F`/`ELAN2513`). The kernel shipped the HID/multitouch
+  drivers but not the I2C **controller** drivers they sit on, so the touchpad
+  never enumerated and the diagnostics touchpad test reported "no touchpad
+  detected". Enabled `I2C_DESIGNWARE_CORE/PLATFORM/PCI` and `I2C_I801` in the
+  kernel config.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.39_2025.11_30_x86-64_v0.41_20261009-ab73a38d.iso`
+  (169 MB) sha256 `ac20fe95331a0d9a7ec5e59b7add0f582da644c274a0d0726aac7ccb7db9bb47`.
+- Standalone script `tscrub.sh` (v1.11.39) sha256 `1713a23cda8235beb260a8e0ff4e6fee17cb22918c4e427a618d628f8d023287`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ccd9fe043599b5cd12c53eaf4fb78e0e71be8aef4cb5a6a9aa8e1f27ede82634`.
+
 ## [v1.11.38] - 2026-10-09
 
 ### Changed
