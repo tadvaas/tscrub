@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.35] - 2026-10-09
+
+### Fixed
+
+- **Speaker test produced no sound** — ALSA boots with `Master` muted at 0%
+  (like the earlier microphone bug), so the 1 kHz tone was silent even though
+  `Speaker`/`PCM` were up. A new `diag::speaker_unmute` unmutes and raises the
+  playback controls (`master|speaker|headphone|pcm`, `unmute` verb) before the
+  tone plays.
+- **Mic instruction concatenated onto the previous prompt line** — the
+  "Speak into the microphone…" notice printed at the cursor instead of on the
+  dedicated instruction row; it now uses `diag::_instruct` like the keyboard
+  test.
+- **Stale prompt lingered after the suite finished** — the post-suite summary
+  now clears the prompt row before printing, so it never overlaps "press any
+  key to return".
+- **USB test gave no feedback when a stick was plugged in** — the test now
+  polls the USB device count and shows "Device detected" the moment a new
+  device appears, before the operator confirms with `Y`/`N`/`S`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.35_2025.11_30_x86-64_v0.41_20261009-6eb22ec1.iso`
+  (168 MB) sha256 `eede9926b2d09da1920b0eadc03ea9103cd35515a0e4630f1523695155cd5392`.
+- Standalone script `tscrub.sh` (v1.11.35) sha256 `4551eac4f82cd81213504f921759fff702d1f3128f0ef742b3d1c27761798e98`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `8c421abb40b70c53d109da37207ebb60e91e09837ef3a4bcd2c59bd0041c3add`.
+
 ## [v1.11.34] - 2026-10-09
 
 ### Fixed

@@ -21,6 +21,7 @@ DIAG_BAT_DIR="${DIAG_BAT_DIR:-/sys/class/power_supply}"
 DIAG_NET_DIR="${DIAG_NET_DIR:-/sys/class/net}"
 DIAG_ASOUND_CARDS_FILE="${DIAG_ASOUND_CARDS_FILE:-/proc/asound/cards}"
 DIAG_VIDEO_GLOB="${DIAG_VIDEO_GLOB:-/dev/video*}"
+DIAG_USB_DIR="${DIAG_USB_DIR:-/sys/bus/usb/devices}"
 
 # --- state -------------------------------------------------------------------
 DIAG_ENTRIES=()      # ordered "test|verdict|detail" list
@@ -330,12 +331,58 @@ diag::keyboard() {
     diag::record keyboard SKIP "operator skipped"
 }
 diag::touchpad() { diag::_guided touchpad "Move the pointer / touch the screen" "operator PASS"; }
-diag::usb()      { diag::_guided usb "Plug a stick into each USB port" "operator PASS"; }
+# Count non-hub USB devices (idVendor present, excluding the Linux Foundation
+# root hubs 1d6b) — the "is something plugged in" signal for the USB test.
+diag::_usb_device_count() {
+    local d vid n=0
+    for d in "$DIAG_USB_DIR"/*/; do
+        [[ -r "${d}idVendor" ]] || continue
+        vid="$(tr -d '\n' < "${d}idVendor" 2>/dev/null)"
+        [[ "$vid" == "1d6b" ]] && continue
+        n=$((n+1))
+    done
+    printf '%d' "$n"
+}
+# USB: the operator plugs a stick while we poll for new devices and show live
+# feedback, then confirms with Y/N/S. Open the console once (so the position
+# advances across reads) while re-checking the device count between keypresses.
+diag::usb() {
+    local key n prev waited=0
+    if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
+        diag::record usb SKIP "operator skipped"
+        return 0
+    fi
+    exec {DIAG_USB_FD}<"$DIAG_TTY_FILE" 2>/dev/null \
+        || { diag::record usb SKIP "operator skipped"; return 0; }
+    prev="$(diag::_usb_device_count)"
+    diag::_instruct "Plug a stick into each USB port — devices: $prev — then Y=pass / N=fail / S=skip"
+    while (( waited < DIAG_GUIDED_TIMEOUT_SECS )); do
+        n="$(diag::_usb_device_count)"
+        if [[ "$n" != "$prev" ]]; then
+            diag::_instruct "Device detected — USB devices: $n — plug into each port, then Y=pass / N=fail / S=skip"
+            prev="$n"
+        fi
+        IFS= read -rsn1 -t 1 -u "$DIAG_USB_FD" key 2>/dev/null
+        if (( $? == 0 )); then
+            case "$key" in
+                y|Y) exec {DIAG_USB_FD}<&-; diag::record usb PASS "operator PASS" ; return 0 ;;
+                n|N) exec {DIAG_USB_FD}<&-; diag::record usb FAIL "operator reported failure" ; return 0 ;;
+                s|S) exec {DIAG_USB_FD}<&-; diag::record usb SKIP "operator skipped" ; return 0 ;;
+            esac
+        fi
+        waited=$((waited+1))
+    done
+    exec {DIAG_USB_FD}<&-
+    diag::record usb SKIP "operator skipped"
+}
 diag::speaker() {
     if ! command -v speaker-test >/dev/null 2>&1; then
         diag::record speaker UNSUP "no ALSA tools"
         return 0
     fi
+    # A freshly-booted image brings ALSA up muted (Master off at 0%), so unmute
+    # and raise the playback path before sounding the tone.
+    diag::speaker_unmute
     # Play a 1 kHz tone while the operator listens, then confirm.
     speaker-test -t sine -f 1000 -l 1 >/dev/null 2>&1 &
     local pid=$!
@@ -366,6 +413,20 @@ diag::mic_unmute() {
     done < <(amixer scontrols 2>/dev/null | sed -n "s/.*'\(.*\)'.*/\1/p" | grep -iE 'capture|mic')
 }
 
+# Best-effort: unmute and raise the playback controls so a freshly-booted image
+# (ALSA comes up with Master muted at 0%) actually emits the speaker tone.
+# No-op when amixer is absent; never fails the test on its own. Playback
+# switches use the `unmute` verb (the capture `cap` verb is rejected here).
+diag::speaker_unmute() {
+    command -v amixer >/dev/null 2>&1 || return 0
+    local ctl
+    while IFS= read -r ctl; do
+        [[ -n "$ctl" ]] || continue
+        amixer -q sset "$ctl" unmute 2>/dev/null || true
+        amixer -q sset "$ctl" 100% 2>/dev/null || true
+    done < <(amixer scontrols 2>/dev/null | sed -n "s/.*'\(.*\)'.*/\1/p" | grep -iE 'master|speaker|headphone|pcm')
+}
+
 diag::mic() {
     if ! command -v arecord >/dev/null 2>&1; then
         diag::record mic UNSUP "no ALSA tools"
@@ -373,7 +434,7 @@ diag::mic() {
     fi
     diag::mic_unmute
     if ui::terminal_controls_supported; then
-        printf 'Speak into the microphone...\n' > /dev/tty 2>/dev/null || true
+        diag::_instruct "Speak into the microphone..."
     fi
     # Bound the record so a wedged ALSA device can't hang the suite.
     smart::run 15 arecord -q -d 3 -t raw -f S16_LE -r 16000 /tmp/tscrub-mic.raw 2>/dev/null
@@ -489,6 +550,9 @@ diag::guided() {
     UI_COMPLETE_THEME=4
     table::render
     diag::render
+    if (( DIAG_HEADER_ROW > 0 )); then
+        printf '\033[%d;1H\033[K' "$((DIAG_HEADER_ROW + 18))" > /dev/tty 2>/dev/null || true
+    fi
     printf '%s  Diagnostics — %d hardware tests. Press Shift+D to run, Esc to return\n' \
         "$TABLE_INDENT" "${#DIAG_ORDER[@]}" > /dev/tty 2>/dev/null || true
 
@@ -498,7 +562,12 @@ diag::guided() {
         case "$key" in
             D|d)
                 diag::_run_suite
-                printf '\n%s  %s\n' "$TABLE_INDENT" "$(diag::summary)" > /dev/tty 2>/dev/null || true
+                # Clear the prompt row before the summary so a stale instruction
+                # never lingers below "press any key".
+                if (( DIAG_HEADER_ROW > 0 )); then
+                    printf '\033[%d;1H\033[K' "$((DIAG_HEADER_ROW + 18))" > /dev/tty 2>/dev/null || true
+                fi
+                printf '%s  %s\n' "$TABLE_INDENT" "$(diag::summary)" > /dev/tty 2>/dev/null || true
                 printf '%s  press any key to return to triage...' "$TABLE_INDENT" > /dev/tty 2>/dev/null || true
                 read -rsn1 < /dev/tty 2>/dev/null || true
                 return 0

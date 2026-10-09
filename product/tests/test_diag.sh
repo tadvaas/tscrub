@@ -181,6 +181,16 @@ t::assert_contains "$(cat "$tmp/amixer.log")" "Capture cap" "mic_unmute: caps Ca
 t::assert_contains "$(cat "$tmp/amixer.log")" "Mic Boost 100%" "mic_unmute: boosts Mic Boost"
 rm -rf "$tmp"
 
+# speaker_unmute: unmutes + raises playback controls (best-effort)
+tmp="$(mktemp -d)"
+export FAKE_AMIXER_LOG="$tmp/amixer.log"
+diag::speaker_unmute
+unset FAKE_AMIXER_LOG
+t::assert_contains "$(cat "$tmp/amixer.log")" "Master unmute" "speaker_unmute: unmutes Master"
+t::assert_contains "$(cat "$tmp/amixer.log")" "Speaker 100%" "speaker_unmute: raises Speaker"
+t::assert_contains "$(cat "$tmp/amixer.log")" "PCM 100%" "speaker_unmute: raises PCM"
+rm -rf "$tmp"
+
 # --- guided suite (headless: 13 tests, guided ones SKIP) ---
 export FAKE_SMART_SELFTEST="Completed without error       00%"
 export FAKE_NVME_SELFTEST_RESULT="0"
@@ -192,5 +202,43 @@ unset DIAG_TTY_FILE
 t::assert_eq 13 "$DIAG_RUN" "guided: 13 tests recorded"
 t::assert_contains "$DIAG_RESULTS" "display=SKIP" "guided: headless display SKIP"
 t::assert_contains "$DIAG_RESULTS" "mic=UNSUP" "guided: headless mic UNSUP"
+
+# --- usb(): live device detection + verdict keys ---
+# _usb_device_count: counts non-hub USB devices (idVendor present, 1d6b root
+# hubs excluded) — the "is something plugged in" signal the test polls.
+tmp="$(mktemp -d)"
+mkdir -p "$tmp/1-1" "$tmp/1-2" "$tmp/empty"
+printf '1d6b\n' > "$tmp/1-1/idVendor"   # Linux Foundation root hub — excluded
+printf '0781\n' > "$tmp/1-2/idVendor"   # SanDisk stick
+DIAG_USB_DIR="$tmp"
+t::assert_eq "1" "$(diag::_usb_device_count)" "usb: counts non-hub devices"
+DIAG_USB_DIR="$tmp/empty"
+t::assert_eq "0" "$(diag::_usb_device_count)" "usb: 0 when no devices"
+rm -rf "$tmp"
+
+# interactive usb(): polls for a newly-plugged device (count increments), shows
+# "Device detected" feedback, and honours the Y/N/S verdict keys.
+tmp="$(mktemp -d)"
+printf 'y' > "$tmp/usb"
+printf '0' > "$tmp/counter"
+diag::_usb_device_count() {
+    local c; c="$(cat "$tmp/counter" 2>/dev/null || printf '0')"
+    c=$((c+1)); printf '%d' "$c" > "$tmp/counter"; printf '%d' "$c"
+}
+diag::_instruct() { printf '%s\n' "$1" >> "$tmp/instr"; }
+DIAG_TTY_FILE="$tmp/usb"
+diag::_init
+diag::usb
+unset DIAG_TTY_FILE
+t::assert_contains "$DIAG_RESULTS" "usb=PASS" "usb: Y -> PASS"
+t::assert_contains "$(cat "$tmp/instr")" "Device detected" "usb: shows device-detection feedback"
+rm -rf "$tmp"
+
+# usb headless: no console -> SKIP
+DIAG_TTY_FILE="/nonexistent/console"
+diag::_init
+diag::usb
+unset DIAG_TTY_FILE
+t::assert_contains "$DIAG_RESULTS" "usb=SKIP" "usb: headless -> SKIP"
 
 t::summary

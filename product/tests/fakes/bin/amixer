@@ -5,6 +5,9 @@
 [[ "$1" == "-q" ]] && shift
 if [[ "$1" == "scontrols" ]]; then
     printf "Simple mixer control 'Master',0\n"
+    printf "Simple mixer control 'Speaker',0\n"
+    printf "Simple mixer control 'Headphone',0\n"
+    printf "Simple mixer control 'PCM',0\n"
     printf "Simple mixer control 'Capture',0\n"
     printf "Simple mixer control 'Mic Boost',0\n"
     printf "Simple mixer control 'Auto-Mute Mode',0\n"
