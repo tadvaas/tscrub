@@ -341,12 +341,22 @@ with the release that carried them (per `CHANGELOG.md`).
 
 ## 5. Dashboard & scale
 
-- [ ] **Devices tab SQL-side pagination** — `load_devices()` currently
+- [x] **Devices tab SQL-side pagination** — `load_devices()` currently
       JSON-decodes every report payload on every load; denormalize a small
       summary (`device_key`/`summary_json`/`search_text`) onto `reports` and
       switch to a two-phase read (metadata over distinct devices + detail for
       the page only), keeping search/sort/API byte-identical.
-      → Plan: `research/devices-pagination/README.md`.
-- [ ] **Drives tab SQL-side pagination** — same treatment for `load_drives()`
+      → **Shipped 2026-10-08** (commit `004653f`, server + dashboard): `reports`
+      gains `device_key`/`summary_json`/`drive_serials` + the
+      `idx_reports_user_type_{ts,key}` indexes (self-healing in
+      `reports_ensure_schema()`); `load_devices($id, $query)` folds
+      mdm/remote/presence + filter/sort/pagination internally and `/api/devices`
+      is now a thin wrapper. Page-1 93ms → 53ms — most of the cost was the
+      idempotent `*_ensure_schema` DDL re-running on the read path, now guarded
+      by `db_table_exists()`. Plan: `research/devices-pagination/README.md`.
+- [x] **Drives tab SQL-side pagination** — same treatment for `load_drives()`
       (erasure payloads are fully decoded today). Defer until devices is proven.
+      → **Shipped 2026-10-08** (same commit): `load_drives($id, $query)` with a
+      `drives_paged()` fast path for the default (no-search) view; search/export
+      keep the full-decode path so results stay byte-identical.
       → Plan: same `research/devices-pagination/README.md` (see open questions).
