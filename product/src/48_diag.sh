@@ -258,9 +258,13 @@ diag::prompt() {
     # captures the answer via `ans="$(diag::prompt …)"`, which turns stdout into
     # a pipe — so `[[ -t 1 ]]` (ui::terminal_controls_supported) is FALSE here
     # even on the console, and the prompt was skipped without ever being shown.
-    if ! : < "$DIAG_TTY_FILE" 2>/dev/null; then
+    if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
         printf 'skip\n'
         return 0
+    fi
+    # Show the instruction on a clear line below the test list (never mid-list).
+    if (( DIAG_HEADER_ROW > 0 )); then
+        printf '\033[%d;1H\033[K' "$((DIAG_HEADER_ROW + 18))" > "$DIAG_TTY_FILE" 2>/dev/null || true
     fi
     printf '%s  [Y=pass / N=fail / S=skip]\n' "$label" > "$DIAG_TTY_FILE" 2>/dev/null || true
     IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" key < "$DIAG_TTY_FILE" 2>/dev/null
@@ -293,9 +297,40 @@ diag::display() {
     fi
     diag::_guided display "Display colour wash — any dead pixels?" "operator PASS"
 }
-diag::keyboard() { diag::_guided keyboard "Press every key, then Y/N/S" "operator PASS"; }
-diag::touchpad() { diag::_guided touchpad "Move the pointer / touch the screen, then Y/N/S" "operator PASS"; }
-diag::usb()      { diag::_guided usb "Plug a stick into each USB port, then Y/N/S" "operator PASS"; }
+diag::_instruct() {
+    # Print an operator instruction on a clear line below the test list. Used by
+    # the keyboard test, which runs directly (stdout is the console) rather than
+    # inside diag::_guided's command substitution.
+    if (( DIAG_HEADER_ROW > 0 )); then
+        printf '\033[%d;1H\033[K%s' "$((DIAG_HEADER_ROW + 18))" "${1:-}"
+    else
+        printf '%s\n' "${1:-}"
+    fi
+}
+diag::keyboard() {
+    local key count=0
+    if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
+        diag::record keyboard SKIP "operator skipped"
+        return 0
+    fi
+    # Pressing every key IS the test — consume each keypress without mistaking
+    # it for the verdict; only Y/N/S ends the test.
+    diag::_instruct "Press every key — received: $count — then Y=pass / N=fail / S=skip"
+    # Redirect on the LOOP (not the read) so the file/terminal is opened once
+    # and each read advances the position — a `< file` on the read reopens it
+    # every iteration (and on a regular file that re-reads the first byte).
+    while IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" key 2>/dev/null; do
+        case "$key" in
+            y|Y) diag::record keyboard PASS "operator PASS ($count keys)" ; return 0 ;;
+            n|N) diag::record keyboard FAIL "operator reported failure" ; return 0 ;;
+            s|S) diag::record keyboard SKIP "operator skipped" ; return 0 ;;
+            *) count=$((count+1)); diag::_instruct "Press every key — received: $count — then Y=pass / N=fail / S=skip" ;;
+        esac
+    done < "$DIAG_TTY_FILE"
+    diag::record keyboard SKIP "operator skipped"
+}
+diag::touchpad() { diag::_guided touchpad "Move the pointer / touch the screen" "operator PASS"; }
+diag::usb()      { diag::_guided usb "Plug a stick into each USB port" "operator PASS"; }
 diag::speaker() {
     if ! command -v speaker-test >/dev/null 2>&1; then
         diag::record speaker UNSUP "no ALSA tools"
@@ -307,7 +342,7 @@ diag::speaker() {
     # Detach the tone from the job table so bash doesn't print a "Killed"
     # notification on the console when we stop it.
     disown "$pid" 2>/dev/null || true
-    diag::_guided speaker "Tone playing — heard it? Y/N/S" "tone confirmed · operator PASS"
+    diag::_guided speaker "Tone playing — heard it?" "tone confirmed · operator PASS"
     kill "$pid" 2>/dev/null || true
     kill -9 "$pid" 2>/dev/null || true
 }

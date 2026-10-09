@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.34] - 2026-10-09
+
+### Fixed
+
+- **Keyboard test skipped as soon as the operator pressed a key** — the test
+  read a single key and treated it as the verdict, so pressing any key (as part
+  of "press every key") returned `skip`. It now consumes every keypress —
+  showing a live `received: N` counter — and only `Y`/`N`/`S` ends the test.
+- **Operator instructions landed mid-list** — the guided prompts printed at the
+  cursor left over from the previous row repaint, overwriting the test list.
+  They now print on a dedicated line below the list.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.34_2025.11_30_x86-64_v0.41_20261009-bea5b380.iso`
+  (168 MB) sha256 `3cc263845e263089008d317af78dc55e3d3ea406bc0145da0e5daaf5ad8e5679`.
+- Standalone script `tscrub.sh` (v1.11.34) sha256 `1236f6846d45665a65b12dbb85c8ac73b26cf503aaedd9c42e9293f0f49808e1`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `7ad5169541c5343aa7ba7c3af6f33b7ee21813af8064f43507add6c7cc5c7f25`.
+
 ## [v1.11.33] - 2026-10-09
 
 ### Fixed

@@ -127,6 +127,7 @@ unset DIAG_TTY_FILE
 # The harness runs in a terminal, so force the guided tier down its
 # non-interactive path — otherwise diag::guided would render + prompt on /dev/tty.
 diag::wash() { :; }
+diag::_instruct() { :; }
 ui::terminal_controls_supported() { return 1; }
 
 diag::_init
@@ -134,10 +135,26 @@ diag::prompt() { printf 'pass\n'; }
 diag::display
 t::assert_contains "$DIAG_RESULTS" "display=PASS" "guided: pass -> PASS"
 
+# keyboard: keypresses are the test, not the verdict — consume them until Y/N/S.
+tmp="$(mktemp -d)"
+printf 'abcY' > "$tmp/kbd"
+DIAG_TTY_FILE="$tmp/kbd"
 diag::_init
-diag::prompt() { printf 'fail\n'; }
 diag::keyboard
-t::assert_contains "$DIAG_RESULTS" "keyboard=FAIL" "guided: fail -> FAIL"
+t::assert_contains "$DIAG_RESULTS" "keyboard=PASS" "keyboard: keys ignored, Y -> PASS"
+
+printf '' > "$tmp/kbd_empty"
+DIAG_TTY_FILE="$tmp/kbd_empty"
+diag::_init
+diag::keyboard
+t::assert_contains "$DIAG_RESULTS" "keyboard=SKIP" "keyboard: no input -> SKIP"
+
+DIAG_TTY_FILE="/nonexistent/console"
+diag::_init
+diag::keyboard
+t::assert_contains "$DIAG_RESULTS" "keyboard=SKIP" "keyboard: headless -> SKIP"
+unset DIAG_TTY_FILE
+rm -rf "$tmp"
 
 # speaker/mic: UNSUP without ALSA tools; mic_peak is pure and testable
 diag::_init
@@ -169,7 +186,9 @@ export FAKE_SMART_SELFTEST="Completed without error       00%"
 export FAKE_NVME_SELFTEST_RESULT="0"
 diag::_init
 diag::prompt() { printf 'skip\n'; }
+DIAG_TTY_FILE="/nonexistent/console"
 diag::guided
+unset DIAG_TTY_FILE
 t::assert_eq 13 "$DIAG_RUN" "guided: 13 tests recorded"
 t::assert_contains "$DIAG_RESULTS" "display=SKIP" "guided: headless display SKIP"
 t::assert_contains "$DIAG_RESULTS" "mic=UNSUP" "guided: headless mic UNSUP"
