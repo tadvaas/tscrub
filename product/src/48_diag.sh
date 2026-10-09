@@ -1,26 +1,21 @@
 #!/usr/bin/env bash
 
 # =============================================================================
-# HARDWARE DIAGNOSTICS SUITE — turn boot-time hardware capture into a small
-# suite of PASS/FAIL tests whose verdicts land in the diagnostics snapshot
-# (JSON "diagnostics" array + "diagnostics_summary" string).
+# HARDWARE DIAGNOSTICS SUITE — operator-guided component tests (display,
+# keyboard, touchpad, USB, speaker, mic) whose verdicts land in the diagnostics
+# snapshot (JSON "diagnostics" array + "diagnostics_summary" string).
 #
-# Opt-in (--diag / tscrub_diag=1). Tier 1 (automatic) runs unattended at boot;
-# Tier 2 (guided: display/keyboard/touchpad/USB/speaker/mic) runs interactively
-# from the triage screen (Shift+D) and is stubbed here until Phase B.
+# Entered from the triage screen with Shift+D. The automatic tier
+# (CPU/RAM/storage/network/battery/peripherals/webcam) has been removed — the
+# suite is guided-only.
 #
 # Verdict vocabulary: PASS | FAIL | SKIP | UNSUP | N/A. Results are recorded
 # through diag::record into DIAG_ENTRIES (ordered list) and serialised by
-# diag::json / diag::summary. Webcam is presence-only (uvcvideo deferred); RAM
-# is a "memory recognised" check, not a stress (memtester declined).
+# diag::json / diag::summary.
 # =============================================================================
 
 # --- test-overridable sources (mirror 46_hardware.sh / battery::capture) -----
-DIAG_MEMINFO_FILE="${DIAG_MEMINFO_FILE:-/proc/meminfo}"
-DIAG_BAT_DIR="${DIAG_BAT_DIR:-/sys/class/power_supply}"
-DIAG_NET_DIR="${DIAG_NET_DIR:-/sys/class/net}"
 DIAG_ASOUND_CARDS_FILE="${DIAG_ASOUND_CARDS_FILE:-/proc/asound/cards}"
-DIAG_VIDEO_GLOB="${DIAG_VIDEO_GLOB:-/dev/video*}"
 DIAG_USB_DIR="${DIAG_USB_DIR:-/sys/bus/usb/devices}"
 DIAG_INPUT_DEVICES_FILE="${DIAG_INPUT_DEVICES_FILE:-/proc/bus/input/devices}"
 
@@ -29,7 +24,7 @@ DIAG_ENTRIES=()      # ordered "test|verdict|detail" list
 declare -Ag DIAG_LOOKUP   # id -> "verdict|detail" for the renderer
 DIAG_RESULTS=""      # flat "; "-joined "test=verdict:detail" (log/human)
 DIAG_RUN=0 DIAG_PASS=0 DIAG_FAIL=0 DIAG_SKIP=0 DIAG_UNSUP=0 DIAG_NA=0
-DIAG_ORDER=(cpu ram storage network battery peripherals webcam display keyboard touchpad usb speaker mic)
+DIAG_ORDER=(display keyboard touchpad usb speaker mic)
 DIAG_GUIDED_TIMEOUT_SECS="${DIAG_GUIDED_TIMEOUT_SECS:-15}"
 DIAG_MIC_PEAK_THRESHOLD="${DIAG_MIC_PEAK_THRESHOLD:-400}"
 # Playback level for the speaker tone (percent). 100% is uncomfortably loud for
@@ -97,150 +92,10 @@ diag::summary() {
         "$DIAG_RUN" "$DIAG_PASS" "$DIAG_FAIL" "$DIAG_SKIP" "$DIAG_UNSUP"
 }
 
-# --- Tier 1 (automatic) -----------------------------------------------------
-
-diag::cpu() {
-    selftest::cpu
-    if [[ "$SELFTEST_CPU" == "PASS" ]]; then
-        diag::record cpu PASS "sum-of-squares ok"
-    else
-        diag::record cpu FAIL "sum-of-squares mismatch"
-    fi
-}
-
-# Memory-recognised, not a stress (memtester declined): total RAM from
-# /proc/meminfo (kB) rounded to GB.
-diag::ram() {
-    local kb
-    kb="$(awk '/^MemTotal:/ {print $2}' "$DIAG_MEMINFO_FILE" 2>/dev/null | head -n 1)"
-    if [[ -n "$kb" ]] && [[ "$kb" =~ ^[0-9]+$ ]]; then
-        # Round to the nearest power-of-2 GB, matching the panel's SYS_RAM_GB
-        # (MemTotal excludes hardware-reserved memory, so a "16 GB" DIMM set
-        # reports ~15.4 GB — the two surfaces must agree).
-        diag::record ram PASS "memory recognised: $(awk -v kb="$kb" 'BEGIN {
-            val = (kb * 1024) / 1000000000
-            p = 1; while (p * 2 < val) p *= 2
-            if (val - p >= p * 2 - val) p = p * 2
-            printf "%d", p
-        }') GB"
-    else
-        diag::record ram N/A "no memory info"
-    fi
-}
-
-# Storage short self-test, aggregated across every discovered drive. Wraps the
-# existing selftest::storage_* modules (legacy devrow[selftest_run] kept).
-diag::storage() {
-    local dev v n=0 any_pass=0 any_fail=0 any_unknown=0 any_unsup=0
-    for dev in "${devices[@]}"; do
-        n=$((n + 1))
-        if [[ "$dev" == nvme* ]]; then
-            selftest::storage_nvme "$dev"
-        elif [[ "$dev" == sd* ]]; then
-            selftest::storage_ata "$dev"
-        else
-            devrow["$dev.selftest_run"]="UNSUP"
-        fi
-        v="${devrow[$dev.selftest_run]:-UNSUP}"
-        case "$v" in
-            PASS)    any_pass=1 ;;
-            FAIL)    any_fail=1 ;;
-            UNKNOWN) any_unknown=1 ;;
-            *)       any_unsup=1 ;;
-        esac
-    done
-    if [[ "$n" -eq 0 ]]; then
-        diag::record storage N/A "no drives discovered"
-    elif [[ "$any_fail" -eq 1 ]]; then
-        diag::record storage FAIL "a drive short self-test failed"
-    elif [[ "$any_pass" -eq 1 && "$any_unknown" -eq 0 && "$any_unsup" -eq 0 ]]; then
-        diag::record storage PASS "all drives passed short self-test"
-    elif [[ "$any_pass" -eq 1 ]]; then
-        diag::record storage SKIP "some drives inconclusive"
-    elif [[ "$any_unknown" -eq 1 ]]; then
-        diag::record storage SKIP "short self-test inconclusive"
-    else
-        diag::record storage UNSUP "no storage self-test tooling"
-    fi
-}
-
-# Link probe: a hardware-backed NIC with carrier. No carrier is ambiguous
-# (cable/sink unplugged vs dead port), so it is SKIP rather than FAIL.
-diag::network() {
-    local d name found=0 carrier=0
-    for d in "$DIAG_NET_DIR"/*/; do
-        [[ -e "${d}device" ]] || continue
-        name="${d%/}"; name="${name##*/}"
-        case "$name" in lo|sit*|tun*|tap*|veth*|br*|bond*|docker*|virbr*|vlan*|gre*|ip6tnl*) continue ;; esac
-        found=1
-        [[ "$(cat "${d}carrier" 2>/dev/null)" == "1" ]] && carrier=1
-    done
-    if [[ "$found" -eq 0 ]]; then
-        diag::record network N/A "no hardware NIC"
-    elif [[ "$carrier" -eq 1 ]]; then
-        # Carrier alone isn't a usable link — require an IPv4 default route.
-        if command -v ip >/dev/null 2>&1 && ip route 2>/dev/null | grep -q '^default'; then
-            diag::record network PASS "link up · default route present"
-        else
-            diag::record network SKIP "link up · no IPv4 route"
-        fi
-    else
-        diag::record network SKIP "no link — cable/sink not connected"
-    fi
-}
-
-# Battery presence + the already-captured health string. A full charge/discharge
-# drain test is hours long and out of scope at boot.
-diag::battery() {
-    local bat found=0
-    for bat in "$DIAG_BAT_DIR"/BAT*; do
-        [[ -d "$bat" ]] || continue
-        found=1
-        break
-    done
-    if [[ "$found" -eq 0 ]]; then
-        diag::record battery N/A "no battery"
-    elif [[ -n "${SYS_BATTERY:-}" ]]; then
-        diag::record battery PASS "${SYS_BATTERY}"
-    else
-        diag::record battery PASS "battery present"
-    fi
-}
-
-# Peripheral presence (fingerprint/CMOS/accelerometer/…) from the static capture.
-diag::peripherals() {
-    if [[ -n "${SYS_PERIPHERALS:-}" ]] && [[ "${SYS_PERIPHERALS:-}" != "N/A" ]]; then
-        # "webcam:1" means a peripheral is actually present; an all-zero
-        # capture (webcam:0; touchscreen:0; …) is "none detected", not PASS.
-        if [[ "${SYS_PERIPHERALS:-}" == *":1"* ]]; then
-            diag::record peripherals PASS "${SYS_PERIPHERALS}"
-        else
-            diag::record peripherals N/A "no peripherals detected"
-        fi
-    else
-        diag::record peripherals N/A "no peripheral capture"
-    fi
-}
-
-# Webcam: functional frame-grab is deferred (no uvcvideo in the image), so this
-# is presence-only from the static USB/peripherals capture.
-diag::webcam() {
-    # Match the VALUE (webcam:1), not the key — SYS_PERIPHERALS always carries
-    # a "webcam:N" field, so matching "webcam" reported a camera on machines
-    # with none (webcam:0).
-    if [[ "${SYS_USB_LIST:-}" == *amera* || "${SYS_PERIPHERALS:-}" == *webcam:1* ]]; then
-        diag::record webcam UNSUP "camera present · functional test pending"
-    else
-        diag::record webcam N/A "no camera"
-    fi
-}
-
-# --- Tier 2 (guided) --------------------------------------------------------
+# --- Guided tests ------------------------------------------------------------
 diag::mode_of() {
-    case "$1" in
-        cpu|ram|storage|network|battery|peripherals|webcam) printf 'auto' ;;
-        *) printf 'guided' ;;
-    esac
+    # Every remaining test is operator-guided.
+    printf 'guided'
 }
 
 # Colour wash for the display test: cycle the console background through a few
@@ -574,28 +429,15 @@ diag::paint_row() {
     printf "\033[%d;1H\033[K%s  %s" "$((DIAG_HEADER_ROW + 3 + idx))" "$TABLE_INDENT" "$(diag::entry_line "$id" "$ov" "$od")"
 }
 
-# Run the whole suite with live row repaint. The fast automatic tier runs first,
-# then the operator (guided) tests — so the operator never waits on the slow
-# storage short self-test before the guided tests become available. Storage runs
-# LAST and is flagged "running" before it starts so the console never looks
-# frozen. Used by the interactive start key and diag::guided's headless fallback.
+# Run the whole (guided) suite with live row repaint. Used by the interactive
+# start key (Shift+D) and diag::guided's headless fallback.
 diag::_run_suite() {
-    diag::cpu;         diag::paint_row cpu
-    diag::ram;         diag::paint_row ram
-    diag::network;     diag::paint_row network
-    diag::battery;     diag::paint_row battery
-    diag::peripherals; diag::paint_row peripherals
-    diag::webcam;      diag::paint_row webcam
     diag::display;     diag::paint_row display
     diag::keyboard;    diag::paint_row keyboard
     diag::touchpad;    diag::paint_row touchpad
     diag::usb;         diag::paint_row usb
     diag::speaker;     diag::paint_row speaker
     diag::mic;         diag::paint_row mic
-    diag::_instruct "Running storage short self-test — please wait…"
-    diag::paint_row storage "..." "running short self-tests..."
-    diag::storage;     diag::paint_row storage
-    diag::_instruct_clear
 }
 
 # Guided suite (Shift+D from the triage screen): repaint the middle band as the
@@ -606,7 +448,7 @@ diag::guided() {
     diag::_init
 
     # Headless: nothing to notify or confirm — run the full suite directly so
-    # unattended boots still record all 13 tests.
+    # unattended boots still record all 6 tests.
     if ! ui::terminal_controls_supported; then
         diag::_run_suite
         return 0
@@ -646,16 +488,9 @@ diag::guided() {
 }
 
 # --- orchestration ----------------------------------------------------------
-# Automatic tier: run everything that needs no operator, record the rest as a
-# full suite. Called at boot when --diag / tscrub_diag=1 is set, BEFORE the
-# background registration so the results land in the diagnostics snapshot.
+# Boot-time entry point (--diag / tscrub_diag=1). No automatic tests remain —
+# the suite is guided-only (Shift+D), so this just initialises an empty result
+# set. Kept so the boot-time flag continues to parse cleanly.
 diag::run() {
     diag::_init
-    diag::cpu
-    diag::ram
-    diag::storage
-    diag::network
-    diag::battery
-    diag::peripherals
-    diag::webcam
 }

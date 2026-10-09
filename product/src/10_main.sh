@@ -224,8 +224,8 @@ fn_main() {
 
     # Optional hardware self-tests / diagnostics suite (opt-in: --selftest /
     # tscrub_selftest=1 for the fast CPU+storage pair, or --diag / tscrub_diag=1
-    # for the full automatic tier). Storage short self-tests take ~2 min/drive,
-    # so they only run on request; verdicts land in the diagnostics snapshot.
+    # for the diagnostics suite — now guided-only, run from the triage screen
+    # with Shift+D). Verdicts land in the diagnostics snapshot.
     if [[ "$DIAG" -eq 1 ]] || cmdline::diag; then
         DIAG=1
         ui::spinner_start "Running hardware diagnostics..."

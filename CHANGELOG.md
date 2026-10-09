@@ -6,6 +6,23 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.40] - 2026-10-09
+
+### Removed
+
+- **Automatic diagnostics tier** — the hardware diagnostics suite no longer
+  runs CPU, RAM, storage, network, battery, peripherals, or webcam tests. The
+  suite is now guided-only: display, keyboard, touchpad, USB, speaker, and
+  microphone, run from the triage screen (Shift+D). The `--selftest` opt-in
+  (CPU + per-drive SMART/NVMe short self-test) is unchanged.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.40_2025.11_30_x86-64_v0.41_20261009-23ced19b.iso`
+  (169 MB) sha256 `7783d7ea01dd20d60bde31de941b64f9d496e143a1642a8664bd21628430b71a`.
+- Standalone script `tscrub.sh` (v1.11.40) sha256 `104308ac30b26670fe4bcbab8ad297d13f3252e00d6c1b0ba20acb9b19dde764`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `aa86366b9b9a61f87cff989b72bca9b44ad534c4e21adc70da86a83a2c2d5c52`.
+
 ## [v1.11.39] - 2026-10-09
 
 ### Fixed

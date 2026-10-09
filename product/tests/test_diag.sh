@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Hardware diagnostics suite: verdict recording, JSON/summary serialisation,
-# the automatic tier (diag::run), and the --diag opt-in flag.
+# Hardware diagnostics suite (guided): verdict recording, JSON/summary
+# serialisation, the guided tier (Shift+D), and the --diag opt-in flag.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 t::setup_env
 t::source_src
@@ -30,81 +30,10 @@ t::assert_eq '[{"test":"cpu","verdict":"PASS","detail":"sum-of-squares ok"},{"te
 t::assert_eq "3 run, 1 passed, 1 failed, 0 skipped, 1 unsupported" \
     "$(diag::summary)" "summary: counts"
 
-# --- ram() with a fixture ---
-tmp="$(mktemp -d)"
-printf 'MemTotal:        8123456 kB\n' > "$tmp/meminfo"
-diag::_init
-DIAG_MEMINFO_FILE="$tmp/meminfo" diag::ram
-t::assert_contains "$DIAG_RESULTS" "ram=PASS:memory recognised: 8 GB" "ram: recognises total"
-printf 'MemTotal:       16195052 kB\n' > "$tmp/meminfo"
-diag::_init
-DIAG_MEMINFO_FILE="$tmp/meminfo" diag::ram
-t::assert_contains "$DIAG_RESULTS" "ram=PASS:memory recognised: 16 GB" "ram: power-of-2 rounding (16 GB)"
-DIAG_MEMINFO_FILE="$tmp/nonexistent" diag::ram
-t::assert_contains "$DIAG_RESULTS" "ram=N/A" "ram: N/A when absent"
-rm -rf "$tmp"
-
-# --- network() with a carrier-up fixture ---
-tmp="$(mktemp -d)"
-mkdir -p "$tmp/eth0/device"
-printf '1\n' > "$tmp/eth0/carrier"
-diag::_init
-DIAG_NET_DIR="$tmp" diag::network
-t::assert_contains "$DIAG_RESULTS" "network=PASS" "network: carrier + default route"
-
-diag::_init
-export FAKE_IP_NO_ROUTE=1
-DIAG_NET_DIR="$tmp" diag::network
-unset FAKE_IP_NO_ROUTE
-t::assert_contains "$DIAG_RESULTS" "network=SKIP" "network: carrier but no route"
-rm -rf "$tmp"
-
-diag::_init
-DIAG_NET_DIR="$(mktemp -d)" diag::network
-t::assert_contains "$DIAG_RESULTS" "network=N/A" "network: N/A when no NIC"
-
-# --- automatic tier (diag::run) ---
-export FAKE_SMART_SELFTEST="Completed without error       00%"
-export FAKE_NVME_SELFTEST_RESULT="0"
+# --- automatic tier (diag::run): no automatic tests remain ---
 diag::_init
 diag::run
-t::assert_eq 7 "$DIAG_RUN" "run: 7 automatic tests"
-t::assert_contains "$DIAG_RESULTS" "cpu=PASS" "run: cpu PASS"
-t::assert_contains "$DIAG_RESULTS" "storage=PASS" "run: storage PASS (fake smartctl)"
-t::assert_contains "$DIAG_RESULTS" "webcam=" "run: webcam recorded"
-
-# --- webcam / peripherals presence logic ---
-diag::_init
-SYS_USB_LIST="N/A"
-SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
-diag::webcam
-t::assert_contains "$DIAG_RESULTS" "webcam=N/A:no camera" "webcam: N/A when webcam:0"
-
-diag::_init
-SYS_PERIPHERALS="webcam:1; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
-diag::webcam
-t::assert_contains "$DIAG_RESULTS" "webcam=UNSUP" "webcam: UNSUP when webcam:1"
-
-diag::_init
-SYS_USB_LIST="05c8:0383 HP HD Camera"
-SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
-diag::webcam
-t::assert_contains "$DIAG_RESULTS" "webcam=UNSUP" "webcam: UNSUP from USB camera name"
-
-diag::_init
-SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:0"
-diag::peripherals
-t::assert_contains "$DIAG_RESULTS" "peripherals=N/A:no peripherals detected" "peripherals: N/A when none present"
-
-diag::_init
-SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
-diag::peripherals
-t::assert_contains "$DIAG_RESULTS" "peripherals=PASS" "peripherals: PASS when any present"
-
-diag::_init
-SYS_PERIPHERALS=""
-diag::peripherals
-t::assert_contains "$DIAG_RESULTS" "peripherals=N/A:no peripheral capture" "peripherals: N/A when no capture"
+t::assert_eq 0 "$DIAG_RUN" "run: 0 automatic tests (guided-only suite)"
 
 # --- opt-in flag parsing ---
 DIAG=0
@@ -228,15 +157,13 @@ t::assert_contains "$(cat "$tmp/amixer.log")" "Master 50%" "speaker_unmute: Mast
 t::assert_contains "$(cat "$tmp/amixer.log")" "Speaker 50%" "speaker_unmute: Speaker at requested 50%"
 rm -rf "$tmp"
 
-# --- guided suite (headless: 13 tests, guided ones SKIP) ---
-export FAKE_SMART_SELFTEST="Completed without error       00%"
-export FAKE_NVME_SELFTEST_RESULT="0"
+# --- guided suite (headless: 6 tests, guided ones SKIP) ---
 diag::_init
 diag::prompt() { printf 'skip\n'; }
 DIAG_TTY_FILE="/nonexistent/console"
 diag::guided
 unset DIAG_TTY_FILE
-t::assert_eq 13 "$DIAG_RUN" "guided: 13 tests recorded"
+t::assert_eq 6 "$DIAG_RUN" "guided: 6 tests recorded"
 t::assert_contains "$DIAG_RESULTS" "display=SKIP" "guided: headless display SKIP"
 t::assert_contains "$DIAG_RESULTS" "mic=UNSUP" "guided: headless mic UNSUP"
 
