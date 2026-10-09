@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.31] - 2026-10-08
+
+### Fixed
+
+- **Mic unmute used the wrong `amixer` verb** — `diag::mic_unmute` issued
+  `amixer sset <ctl> unmute`, which alsa-utils 1.2.14 rejects with
+  `amixer: Invalid command!` (capture switches take `cap`/`nocap`, not
+  `unmute`/`on`). The mic test now flips each `capture|mic` control with
+  `cap` and then sets it to `100%`, so a freshly-booted muted ALSA input
+  actually unmutes. Live-verified end-to-end on a bench appliance (speaker
+  tone → `arecord`): peak 10479, well above the 400 PASS threshold.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.31_2025.11_30_x86-64_v0.41_20261009-aa3f4a5a.iso`
+  (168 MB) sha256 `e342b56a3e5bf44af560bfa88a67523436ac8dea7d8018f73305a4cb4df73010`.
+- Standalone script `tscrub.sh` (v1.11.31) sha256 `f4d4e015dd82825f693a05811913291ebcc16e1dc76cfca84ace36b88f2fae7b`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `e164ff848aea5fdbcf65e811917c11f4707d2d4202127f6b5f4b9f2085a7de8e`.
+
 ## [v1.11.30] - 2026-10-08
 
 ### Fixed

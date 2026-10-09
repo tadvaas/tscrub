@@ -119,7 +119,7 @@ tmp="$(mktemp -d)"
 export FAKE_AMIXER_LOG="$tmp/amixer.log"
 diag::mic_unmute
 unset FAKE_AMIXER_LOG
-t::assert_contains "$(cat "$tmp/amixer.log")" "Capture unmute" "mic_unmute: unmutes Capture"
+t::assert_contains "$(cat "$tmp/amixer.log")" "Capture cap" "mic_unmute: caps Capture"
 t::assert_contains "$(cat "$tmp/amixer.log")" "Mic Boost 100%" "mic_unmute: boosts Mic Boost"
 rm -rf "$tmp"
 

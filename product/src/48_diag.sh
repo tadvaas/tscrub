@@ -300,13 +300,14 @@ diag::mic_peak() {
 }
 # Best-effort: unmute and boost the capture input so a freshly-booted image
 # (ALSA comes up muted) can actually hear the microphone. No-op when amixer is
-# absent; never fails the test on its own.
+# absent; never fails the test on its own. Capture switches use the `cap` verb
+# (`unmute`/`on` are rejected by this alsa-utils build).
 diag::mic_unmute() {
     command -v amixer >/dev/null 2>&1 || return 0
     local ctl
     while IFS= read -r ctl; do
         [[ -n "$ctl" ]] || continue
-        amixer -q sset "$ctl" unmute 2>/dev/null || true
+        amixer -q sset "$ctl" cap 2>/dev/null || true
         amixer -q sset "$ctl" 100% 2>/dev/null || true
     done < <(amixer scontrols 2>/dev/null | sed -n "s/.*'\(.*\)'.*/\1/p" | grep -iE 'capture|mic')
 }
