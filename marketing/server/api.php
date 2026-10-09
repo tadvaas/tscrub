@@ -1420,6 +1420,18 @@ if ($method === 'POST' && $route === '/devices/commands') {
 
     $options = [];
     if ($command === 'wipe') {
+        // Reject staging a wipe while the device is actively erasing. The
+        // dashboard's own "wiping" gate is up to a heartbeat window stale, so
+        // enforce it server-side too — fail fast with a clear message instead
+        // of silently queueing behind an in-progress wipe.
+        $presence = presence_map((int)$u['id']);
+        if (presence_is_online($serial, $uuid, $presence)) {
+            $erasure = presence_erasure($serial, $uuid, $presence);
+            if (is_array($erasure) && ($erasure['phase'] ?? '') === 'wiping') {
+                fail(409, 'A wipe is already in progress on this device.');
+            }
+        }
+
         $raw = $d['options'] ?? null;
         if ($raw !== null && !is_array($raw)) {
             fail(400, 'Options must be an object.');

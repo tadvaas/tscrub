@@ -1363,7 +1363,13 @@ function presence_heartbeat(int $userId, string $serial, string $uuid, string $l
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())
                  ON DUPLICATE KEY UPDATE
                    lan_ip = IF(VALUES(lan_ip) = \'\', lan_ip, VALUES(lan_ip)),
-                   phase = IF((phase IN (\'done\',\'failed\')) AND VALUES(phase) = \'wiping\', phase, VALUES(phase)),
+                   -- Once a wipe finishes (done/failed), ignore a stale in-flight
+                   -- "wiping" heartbeat (which still reports drives already
+                   -- finished, so drives_done + drives_failed > 0). But a NEW
+                   -- erasure cycle starts with drives_done = 0 AND
+                   -- drives_failed = 0, so let that legitimately reset the phase
+                   -- back to "wiping" (repeatable erasure: Shift+T / remote wipe).
+                   phase = IF((phase IN (\'done\',\'failed\')) AND VALUES(phase) = \'wiping\' AND (VALUES(drives_done) + VALUES(drives_failed)) > 0, phase, VALUES(phase)),
                    drives_total  = IF(VALUES(phase) = \'\', 0, VALUES(drives_total)),
                    drives_done   = IF(VALUES(phase) = \'\', 0, VALUES(drives_done)),
                    drives_failed = IF(VALUES(phase) = \'\', 0, VALUES(drives_failed)),

@@ -142,6 +142,11 @@ status::erase_start() {
         [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && n=$((n+1))
     done
     status::write wiping "$n" 0 0
+    # The "wiping, 0 done, 0 failed" heartbeat is how the dashboard recognises a
+    # NEW erasure cycle (vs a stale in-flight ping from the previous, finished
+    # cycle). Always fire it immediately — don't let the 2s ping debounce skip
+    # it just because the last drive's terminal ping fired moments ago.
+    STATUS_LAST_PING_TS=""
     status::ping_now
 }
 
