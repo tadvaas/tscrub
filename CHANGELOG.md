@@ -6,6 +6,27 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.37] - 2026-10-09
+
+### Fixed
+
+- **Touchpad test is now a real movement test** — it locates the touchpad input
+  device (`/proc/bus/input/devices`) and reads its event stream while the
+  operator moves a finger, recording PASS on movement, FAIL when idle, and SKIP
+  when no touchpad exists (previously it was only a Y/N/S confirmation).
+- **Guided suite looked hung after the mic test** — the "Speak into the
+  microphone…" instruction stayed on screen while the (now-last) storage short
+  self-test ran silently, so the operator thought it was stuck and couldn't
+  exit. The instruction line is now cleared after the mic capture and storage
+  shows "Running storage short self-test — please wait…" before starting.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.37_2025.11_30_x86-64_v0.41_20261009-77896183.iso`
+  (168 MB) sha256 `0f7e4627239a5452e7b294dcce2ac5f7d3e712aa51f932995b0d43672c547e04`.
+- Standalone script `tscrub.sh` (v1.11.37) sha256 `eab75f3ab998d05ac9c266499c29ec633c2c40f4c3da9de3b4e31cd50e1b505d`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `9ccf1d21103f46bd327b6a2982545e0efa729268bf4588d12dcab384d62dab24`.
+
 ## [v1.11.36] - 2026-10-09
 
 ### Changed

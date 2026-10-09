@@ -22,6 +22,7 @@ DIAG_NET_DIR="${DIAG_NET_DIR:-/sys/class/net}"
 DIAG_ASOUND_CARDS_FILE="${DIAG_ASOUND_CARDS_FILE:-/proc/asound/cards}"
 DIAG_VIDEO_GLOB="${DIAG_VIDEO_GLOB:-/dev/video*}"
 DIAG_USB_DIR="${DIAG_USB_DIR:-/sys/bus/usb/devices}"
+DIAG_INPUT_DEVICES_FILE="${DIAG_INPUT_DEVICES_FILE:-/proc/bus/input/devices}"
 
 # --- state -------------------------------------------------------------------
 DIAG_ENTRIES=()      # ordered "test|verdict|detail" list
@@ -308,6 +309,13 @@ diag::_instruct() {
         printf '%s\n' "${1:-}"
     fi
 }
+# Clear the instruction line (row DIAG_HEADER_ROW + 18) so a stale prompt never
+# lingers while a non-interactive test (e.g. the storage self-test) runs.
+diag::_instruct_clear() {
+    if (( DIAG_HEADER_ROW > 0 )); then
+        printf '\033[%d;1H\033[K' "$((DIAG_HEADER_ROW + 18))"
+    fi
+}
 diag::keyboard() {
     local key count=0
     if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
@@ -330,7 +338,56 @@ diag::keyboard() {
     done < "$DIAG_TTY_FILE"
     diag::record keyboard SKIP "operator skipped"
 }
-diag::touchpad() { diag::_guided touchpad "Move the pointer / touch the screen" "operator PASS"; }
+diag::touchpad() {
+    local ev n
+    if ! { : < "$DIAG_TTY_FILE"; } 2>/dev/null; then
+        diag::record touchpad SKIP "operator skipped"
+        return 0
+    fi
+    ev="$(diag::_touchpad_device)"
+    if [[ -z "$ev" ]]; then
+        diag::record touchpad SKIP "no touchpad detected"
+        return 0
+    fi
+    if ui::terminal_controls_supported; then
+        diag::_instruct "Move your finger across the touchpad..."
+    fi
+    n="$(diag::_motion_events "/dev/input/event$ev" 5)"
+    if (( n > 0 )); then
+        diag::record touchpad PASS "movement detected ($n events)"
+    else
+        diag::record touchpad FAIL "no touchpad movement detected"
+    fi
+    diag::_instruct_clear
+}
+# Find the first touchpad/trackpad pointing device in the input table and echo
+# its eventN number (no /dev/input/ prefix). Empty when no touchpad is present.
+diag::_touchpad_device() {
+    awk '
+        /^I:/ { in_tp = 0 }
+        /^N: Name=/ {
+            name = $0; sub(/^N: Name=/, "", name)
+            in_tp = (name ~ /[Tt]ouch[Pp]ad|[Gg]lide[Pp]oint|Synaptics|ALPS/)
+            next
+        }
+        in_tp && /^H: Handlers=/ {
+            for (i = 2; i <= NF; i++)
+                if ($i ~ /^event/) { e = $i; gsub(/[^0-9]/, "", e); print e; exit }
+            in_tp = 0
+        }
+    ' "$DIAG_INPUT_DEVICES_FILE" 2>/dev/null
+}
+# Count motion/click events (EV_KEY/EV_REL/EV_ABS with a non-zero value) read
+# from an input event device for up to $secs seconds. Echoes the count (0 idle).
+# Each struct input_event is 24 bytes: type is the low 16 bits of word 5 and the
+# signed value is word 6 (little-endian), so `od -td4 -w24` = one event per line.
+diag::_motion_events() {
+    local dev="$1" secs="${2:-5}"
+    command -v timeout >/dev/null 2>&1 || { printf '0\n'; return 0; }
+    timeout "$secs" dd bs=24 count=512 if="$dev" 2>/dev/null \
+        | od -An -td4 -w24 2>/dev/null \
+        | awk '{ t=$5%65536; v=$6; if(v<0)v=-v; if((t==1||t==2||t==3)&&v>0) n++ } END{ print n+0 }'
+}
 # Count non-hub USB devices (idVendor present, excluding the Linux Foundation
 # root hubs 1d6b) — the "is something plugged in" signal for the USB test.
 diag::_usb_device_count() {
@@ -441,6 +498,7 @@ diag::mic() {
     local peak
     peak="$(diag::mic_peak /tmp/tscrub-mic.raw)"
     rm -f /tmp/tscrub-mic.raw
+    diag::_instruct_clear
     if [[ -n "$peak" ]] && [[ "$peak" =~ ^[0-9]+$ ]] && (( peak >= DIAG_MIC_PEAK_THRESHOLD )); then
         diag::record mic PASS "speech captured · peak $peak"
     else
@@ -529,8 +587,10 @@ diag::_run_suite() {
     diag::usb;         diag::paint_row usb
     diag::speaker;     diag::paint_row speaker
     diag::mic;         diag::paint_row mic
+    diag::_instruct "Running storage short self-test — please wait…"
     diag::paint_row storage "..." "running short self-tests..."
     diag::storage;     diag::paint_row storage
+    diag::_instruct_clear
 }
 
 # Guided suite (Shift+D from the triage screen): repaint the middle band as the

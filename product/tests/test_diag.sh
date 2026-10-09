@@ -156,6 +156,34 @@ t::assert_contains "$DIAG_RESULTS" "keyboard=SKIP" "keyboard: headless -> SKIP"
 unset DIAG_TTY_FILE
 rm -rf "$tmp"
 
+# touchpad: find the input device, then detect real movement events
+tmp="$(mktemp -d)"
+printf 'I: Bus=0011\nN: Name="AlpsPS/2 ALPS GlidePoint"\nH: Handlers=mouse1 event9\n' > "$tmp/input"
+DIAG_INPUT_DEVICES_FILE="$tmp/input"
+t::assert_eq "9" "$(diag::_touchpad_device)" "touchpad: finds GlidePoint event device"
+printf 'I: Bus=0019\nN: Name="AT Translated Set 2 keyboard"\nH: Handlers=kbd event6\n' > "$tmp/input"
+t::assert_eq "" "$(diag::_touchpad_device)" "touchpad: empty when no touchpad"
+
+printf '' > "$tmp/tty"
+DIAG_TTY_FILE="$tmp/tty"
+diag::_touchpad_device() { printf '9\n'; }
+diag::_motion_events() { printf '5\n'; }
+diag::_init
+diag::touchpad
+t::assert_contains "$DIAG_RESULTS" "touchpad=PASS:movement detected (5 events)" "touchpad: movement -> PASS"
+
+diag::_motion_events() { printf '0\n'; }
+diag::_init
+diag::touchpad
+t::assert_contains "$DIAG_RESULTS" "touchpad=FAIL:no touchpad movement detected" "touchpad: idle -> FAIL"
+
+diag::_touchpad_device() { printf '\n'; }
+diag::_init
+diag::touchpad
+t::assert_contains "$DIAG_RESULTS" "touchpad=SKIP:no touchpad detected" "touchpad: no device -> SKIP"
+unset DIAG_TTY_FILE
+rm -rf "$tmp"
+
 # speaker/mic: UNSUP without ALSA tools; mic_peak is pure and testable
 diag::_init
 diag::speaker
