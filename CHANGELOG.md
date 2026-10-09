@@ -6,6 +6,29 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.32] - 2026-10-09
+
+### Fixed
+
+- **Webcam test reported "camera present" on machines with no camera** —
+  `diag::webcam` matched the literal `webcam` key in `SYS_PERIPHERALS`, which
+  always carries a `webcam:0|1` field, so a `webcam:0` capture still returned
+  `UNSUP "camera present"`. It now matches the value `webcam:1` (plus a
+  "Camera" USB name), and reports `N/A "no camera"` when none is present.
+- **Peripherals test always reported PASS** — an all-zero capture
+  (`webcam:0; touchscreen:0; …`) still reported PASS. It now reports
+  `N/A "no peripherals detected"` when no field is `1`.
+- **Pending `…` misaligned the diagnostics list** — the U+2026 ellipsis is 3
+  bytes but the verdict column pads by byte in the C locale, shifting the
+  detail column left. Replaced with ASCII `...`.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.32_2025.11_30_x86-64_v0.41_20261009-626ff8a3.iso`
+  (168 MB) sha256 `b2cd4735862ee980388d1721a941c767b4a82ca4ee7eaea701e3844f06fcfb03`.
+- Standalone script `tscrub.sh` (v1.11.32) sha256 `68cfa1661caf946844a1c934aa3a3cc1f023f65723dd7730fea0f661275fc8e2`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `98ba1a48ad60c088be9b6774b482c7e20acd757701da6abd0f20a50ded610219`.
+
 ## [v1.11.31] - 2026-10-08
 
 ### Fixed

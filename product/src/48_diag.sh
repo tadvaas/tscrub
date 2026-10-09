@@ -202,7 +202,13 @@ diag::battery() {
 # Peripheral presence (fingerprint/CMOS/accelerometer/…) from the static capture.
 diag::peripherals() {
     if [[ -n "${SYS_PERIPHERALS:-}" ]] && [[ "${SYS_PERIPHERALS:-}" != "N/A" ]]; then
-        diag::record peripherals PASS "${SYS_PERIPHERALS}"
+        # "webcam:1" means a peripheral is actually present; an all-zero
+        # capture (webcam:0; touchscreen:0; …) is "none detected", not PASS.
+        if [[ "${SYS_PERIPHERALS:-}" == *":1"* ]]; then
+            diag::record peripherals PASS "${SYS_PERIPHERALS}"
+        else
+            diag::record peripherals N/A "no peripherals detected"
+        fi
     else
         diag::record peripherals N/A "no peripheral capture"
     fi
@@ -211,7 +217,10 @@ diag::peripherals() {
 # Webcam: functional frame-grab is deferred (no uvcvideo in the image), so this
 # is presence-only from the static USB/peripherals capture.
 diag::webcam() {
-    if [[ "${SYS_USB_LIST:-}" == *amera* || "${SYS_PERIPHERALS:-}" == *ebcam* ]]; then
+    # Match the VALUE (webcam:1), not the key — SYS_PERIPHERALS always carries
+    # a "webcam:N" field, so matching "webcam" reported a camera on machines
+    # with none (webcam:0).
+    if [[ "${SYS_USB_LIST:-}" == *amera* || "${SYS_PERIPHERALS:-}" == *webcam:1* ]]; then
         diag::record webcam UNSUP "camera present · functional test pending"
     else
         diag::record webcam N/A "no camera"
@@ -346,7 +355,7 @@ diag::entry_line() {
             verdict="${rec%%|*}"
             detail="${rec#*|}"
         else
-            verdict="…"
+            verdict="..."
             detail="pending"
         fi
     fi
@@ -403,7 +412,7 @@ diag::paint_row() {
 diag::_run_suite() {
     diag::cpu;         diag::paint_row cpu
     diag::ram;         diag::paint_row ram
-    diag::paint_row storage "…" "running short self-tests…"
+    diag::paint_row storage "..." "running short self-tests..."
     diag::storage;     diag::paint_row storage
     diag::network;     diag::paint_row network
     diag::battery;     diag::paint_row battery

@@ -73,6 +73,39 @@ t::assert_contains "$DIAG_RESULTS" "cpu=PASS" "run: cpu PASS"
 t::assert_contains "$DIAG_RESULTS" "storage=PASS" "run: storage PASS (fake smartctl)"
 t::assert_contains "$DIAG_RESULTS" "webcam=" "run: webcam recorded"
 
+# --- webcam / peripherals presence logic ---
+diag::_init
+SYS_USB_LIST="N/A"
+SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
+diag::webcam
+t::assert_contains "$DIAG_RESULTS" "webcam=N/A:no camera" "webcam: N/A when webcam:0"
+
+diag::_init
+SYS_PERIPHERALS="webcam:1; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
+diag::webcam
+t::assert_contains "$DIAG_RESULTS" "webcam=UNSUP" "webcam: UNSUP when webcam:1"
+
+diag::_init
+SYS_USB_LIST="05c8:0383 HP HD Camera"
+SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
+diag::webcam
+t::assert_contains "$DIAG_RESULTS" "webcam=UNSUP" "webcam: UNSUP from USB camera name"
+
+diag::_init
+SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:0"
+diag::peripherals
+t::assert_contains "$DIAG_RESULTS" "peripherals=N/A:no peripherals detected" "peripherals: N/A when none present"
+
+diag::_init
+SYS_PERIPHERALS="webcam:0; touchscreen:0; fingerprint:0; accelerometer:0; audio:1"
+diag::peripherals
+t::assert_contains "$DIAG_RESULTS" "peripherals=PASS" "peripherals: PASS when any present"
+
+diag::_init
+SYS_PERIPHERALS=""
+diag::peripherals
+t::assert_contains "$DIAG_RESULTS" "peripherals=N/A:no peripheral capture" "peripherals: N/A when no capture"
+
 # --- opt-in flag parsing ---
 DIAG=0
 parse_args --diag
