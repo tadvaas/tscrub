@@ -21,8 +21,11 @@ require_once __DIR__ . '/org.php';
 
 /** Lazily create the device_commands table (idempotent — mirrors schema.sql). */
 function remote_ensure_schema(): void {
+    static $ensured = false;
+    if ($ensured) return;   // CREATE TABLE IF NOT EXISTS + column probe are ~10ms; run once per request
+    $ensured = true;
     try {
-        db()->exec(
+        if (!db_table_exists('device_commands')) db()->exec(
             'CREATE TABLE IF NOT EXISTS device_commands (
                id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                user_id       BIGINT UNSIGNED NOT NULL,

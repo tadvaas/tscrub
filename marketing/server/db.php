@@ -27,6 +27,28 @@ function db_base_url(): string {
     return rtrim((string)$url, '/');
 }
 
+/**
+ * Cheap idempotent table-existence probe, cached per request. Used by the
+ * *_ensure_schema() helpers to skip a ~10ms `CREATE TABLE IF NOT EXISTS`
+ * parse/check when the table already exists (the common case on read paths).
+ * Returns false on any error so callers fall back to an idempotent CREATE.
+ */
+function db_table_exists(string $table): bool {
+    static $known = [];
+    if (array_key_exists($table, $known)) return $known[$table];
+    try {
+        $stmt = db()->prepare(
+            'SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+        );
+        $stmt->execute([$table]);
+        $known[$table] = (int)$stmt->fetchColumn() > 0;
+    } catch (Throwable $e) {
+        $known[$table] = false;
+    }
+    return $known[$table];
+}
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {

@@ -48,6 +48,7 @@
       <input id="search-input" type="text" placeholder="Search devices — serial, system, COCID, BIOS, MDM, hardware…" autocomplete="off"
              class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
       <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
+      <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the device inventory">Export</button>
     </div>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
@@ -106,6 +107,34 @@
           <button id="erasure-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
         </div>
         <div id="erasure-modal-body" class="flex-1 overflow-y-auto p-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="export-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
+    <div id="export-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+      <div class="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
+          <h2 id="export-modal-title" class="text-lg font-bold text-ink-900 dark:text-white">Export devices</h2>
+          <button id="export-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
+        </div>
+        <div class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-5 py-2">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Fields to include</span>
+          <div class="flex gap-3">
+            <button id="export-all" type="button" class="text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline">Select all</button>
+            <button id="export-none" type="button" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Select none</button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5">
+          <div id="export-fields" class="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3"></div>
+          <p class="mt-4 text-xs text-slate-400 dark:text-slate-500">If no fields are selected, every field is exported.</p>
+        </div>
+        <div id="export-modal-footer" class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-5 py-3">
+          <button id="export-json" type="button" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800" title="Export the selected fields as JSON">JSON</button>
+          <button id="export-csv" type="button" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800" title="Export the selected fields as CSV">CSV</button>
+          <button id="export-xls" type="button" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Export the selected fields as an Excel spreadsheet">XLS</button>
+        </div>
       </div>
     </div>
   </div>
@@ -176,6 +205,13 @@
         return span;
       }
 
+      // Apple hardware is never enrolled in Windows Autopilot, so MDM checks
+      // are meaningless — BIOS vendor "Apple Inc." is the reliable marker.
+      function isAppleDevice(dev) {
+        return String(dev.bios_vendor || '').toLowerCase().indexOf('apple') !== -1
+            || String(dev.system || '').toLowerCase().indexOf('apple') !== -1;
+      }
+
       function mdmBadge(dev) {
         var st = String(dev.mdm_status || '');
         var v = String(dev.mdm_verdict || '').toLowerCase();
@@ -188,6 +224,12 @@
         // the server's own wording (mdm_label) so wording changes server-side
         // without a dashboard release.
         var L = function (d) { return serverLabel || d; };
+
+        if (isAppleDevice(dev)) {
+          var n = b('bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'N/A');
+          n.title = 'Apple devices are not enrolled in Windows Autopilot';
+          return n;
+        }
 
         if (st === 'checking') return b('bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', L('Checking…'));
         if (st === 'queued') return b('bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', L('Queued'));
@@ -236,9 +278,10 @@
           var total = e.drives_total || 0;
           var finished = (e.drives_done || 0) + (e.drives_failed || 0);
           var failed = e.drives_failed || 0;
-          // "finished" = any terminal drive (done + failed); the fraction is
-          // only meaningful with 2+ drives (a single drive just shows "Wiping").
-          var label = 'Wiping' + (total > 1 ? ' ' + finished + '/' + total : '');
+          // "finished" = any terminal drive (done + failed). The per-drive
+          // fraction stays out of the visible label and lives in the hover
+          // title below, so the row simply reads "Wiping".
+          var label = 'Wiping';
           var title = 'Erasure in progress — ' + finished + ' of ' + total + ' drives finished' + (failed > 0 ? ' (' + failed + ' failed)' : '');
           var pct = (typeof e.progress_pct === 'number') ? e.progress_pct : -1;
           var etaSec = (typeof e.progress_eta_sec === 'number') ? e.progress_eta_sec : -1;
@@ -385,12 +428,64 @@
         loadDevices();
       });
 
+      var EXPORT_FIELDS = [
+        ['system','System'], ['sysserial','Serial'], ['bbserial','Baseboard serial'], ['chassisserial','Chassis serial'], ['systemuuid','System UUID'],
+        ['cpu','CPU'], ['cpu_spec','CPU spec'], ['gpu','GPU'], ['ram','RAM'], ['display','Display'], ['wifi','Wi-Fi'], ['sku','SKU'], ['asset_tag','Asset tag'],
+        ['bios_vendor','BIOS vendor'], ['biosversion','BIOS version'], ['biosdate','BIOS date'], ['board','Motherboard'],
+        ['bioslock','BIOS lock'], ['bioslockmethod','BIOS lock method'], ['tpm','TPM'], ['macs','MAC address'], ['storage_controllers','Storage controllers'],
+        ['battery','Battery'], ['secure_boot','Secure boot'], ['dimms','DIMMs'], ['product_key','Windows product key'], ['product_key_id','Product key ID'],
+        ['mdm_status','MDM status'], ['mdm_verdict','MDM verdict'], ['mdm_label','MDM label'], ['refurb_grade','Refurb grade'], ['notes','Notes'],
+        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['drive_count','Drives'], ['first','First report'], ['last','Last report'],
+        ['report_id','Report ID'], ['digital_identifier','Digital identifier']
+      ];
+      function buildExportFields() {
+        var box = document.getElementById('export-fields');
+        box.innerHTML = '';
+        EXPORT_FIELDS.forEach(function (f) {
+          var lbl = el('label', 'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-50 dark:hover:bg-ink-800');
+          var cb = el('input', 'rounded border-slate-300 dark:border-slate-700 text-brand-600 focus:ring-brand-500');
+          cb.type = 'checkbox'; cb.value = f[0]; cb.checked = true;
+          lbl.appendChild(cb);
+          lbl.appendChild(el('span', 'text-sm text-slate-700 dark:text-slate-300', f[1]));
+          box.appendChild(lbl);
+        });
+      }
+      function setAllExportFields(on) {
+        document.querySelectorAll('#export-fields input[type=checkbox]').forEach(function (c) { c.checked = on; });
+      }
+      function exportFieldKeys() {
+        return Array.prototype.slice.call(document.querySelectorAll('#export-fields input[type=checkbox]:checked')).map(function (c) { return c.value; });
+      }
+      function doExport(format, ext) {
+        var a = document.createElement('a');
+        a.href = '/api/devices/export?format=' + format + '&q=' + encodeURIComponent(currentQ) + '&fields=' + encodeURIComponent(exportFieldKeys().join(','));
+        a.download = 'tscrub-devices.' + ext;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      var exportModal = document.getElementById('export-modal');
+      function openExportModal() { buildExportFields(); exportModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+      function closeExportModal() { exportModal.classList.add('hidden'); document.body.style.overflow = ''; }
+      document.getElementById('export-btn').addEventListener('click', openExportModal);
+      document.getElementById('export-json').addEventListener('click', function () { doExport('json', 'json'); });
+      document.getElementById('export-csv').addEventListener('click', function () { doExport('csv', 'csv'); });
+      document.getElementById('export-xls').addEventListener('click', function () { doExport('xls', 'xls'); });
+      document.getElementById('export-all').addEventListener('click', function () { setAllExportFields(true); });
+      document.getElementById('export-none').addEventListener('click', function () { setAllExportFields(false); });
+      document.getElementById('export-modal-close').addEventListener('click', closeExportModal);
+      document.getElementById('export-modal-backdrop').addEventListener('click', closeExportModal);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !exportModal.classList.contains('hidden')) closeExportModal();
+      });
+
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
         loadDevices();
       });
 
       function loadDevices() {
+        lastFullRefresh = Date.now();
         var seq = ++devicesFetchSeq;
         var params = new URLSearchParams({
           page: String(page), per: String(per), q: currentQ,
@@ -402,6 +497,7 @@
         }).then(function (d) {
           if (!d) return;
           if (seq !== devicesFetchSeq) return;   // a newer request superseded this one
+          if (d.version) devicesVersion = d.version;
           var json = JSON.stringify(d.devices || []) + '|' + (d.total || 0);
           if (json === lastDevicesJson) return;   // nothing changed — keep the current view
           lastDevicesJson = json;
@@ -425,9 +521,23 @@
       }
 
       // Auto-refresh: new diagnostics, BIOS/MDM results, and online/offline
-      // flips show up without a manual reload. Polling re-fetches only the
-      // current page (search/sort/pagination run server-side).
-      setInterval(function () { loadDevices(); }, 10000);
+      // flips show up without a manual reload. Each 10s tick first checks a
+      // cheap change fingerprint; only when the underlying data changed does it
+      // re-fetch the full (expensive) /api/devices aggregation. A forced full
+      // refresh every 60s keeps the presence dot fresh even when nothing else
+      // changed.
+      var devicesVersion = null;
+      var lastFullRefresh = 0;
+      function tickDevices() {
+        if (Date.now() - lastFullRefresh >= 60000) { loadDevices(); return; }
+        fetch('/api/devices/version').then(function (r) {
+          if (r.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return null; }
+          return r.json();
+        }).then(function (d) {
+          if (d && d.version && d.version !== devicesVersion) loadDevices();
+        });
+      }
+      setInterval(tickDevices, 10000);
 
       function render() {
         var list = document.getElementById('device-list');
@@ -1213,8 +1323,10 @@
         return chip;
       }
 
-      // A report row: fixed timestamp, type badge, single-line detail chips, actions.
-      function reportRow(h, badge, details, actions) {
+      // A report row: fixed timestamp, type badge, an optional always-visible
+      // extra badge (e.g. the inbound refurb grade), single-line detail chips,
+      // then actions.
+      function reportRow(h, badge, details, actions, extra) {
         var row = el('div', 'flex items-center gap-3 border-b border-slate-100 dark:border-ink-800 py-2');
         var ts = el('div', 'w-32 shrink-0 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(h.uploaded_at) || '—');
         ts.title = String(h.uploaded_at || '');
@@ -1222,6 +1334,11 @@
         var tb = el('div', 'shrink-0');
         tb.appendChild(badge);
         row.appendChild(tb);
+        if (extra) {
+          var ex = el('div', 'shrink-0');
+          ex.appendChild(extra);
+          row.appendChild(ex);
+        }
         var body = el('div', 'min-w-0 flex-1 truncate');
         details.forEach(function (d) { body.appendChild(d); });
         row.appendChild(body);
@@ -1290,13 +1407,14 @@
         if (h.cocid) {
           details.unshift(detail('COCID', h.cocid, h.cocid));
         }
-        if (h.grade) {
-          details.push(detail('Grade', refurbBadge(h.grade), 'Operator-assigned inbound grade for this report'));
-        }
         if (h.notes) {
           details.push(detail('Notes', h.notes, 'Operator notes for this report'));
         }
-        return reportRow(h, reportTypeBadge('diagnostics'), details, actions);
+        // The inbound refurb grade lives in a fixed, always-visible slot next
+        // to the type badge, so it survives the truncating detail-chip row.
+        var gradeBadge = h.grade ? refurbBadge(h.grade) : null;
+        if (gradeBadge) gradeBadge.title = 'Operator-assigned inbound grade for this report';
+        return reportRow(h, reportTypeBadge('diagnostics'), details, actions, gradeBadge);
       }
 
       // MDM check row: verdict and source.
@@ -1570,6 +1688,12 @@
         head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Check MDM lock'));
         head.appendChild(mdmBadge(dev) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
         card.appendChild(head);
+
+        if (isAppleDevice(dev)) {
+          card.appendChild(el('p', 'mt-3 text-sm text-slate-500 dark:text-slate-400', 'Apple devices are not enrolled in Windows Autopilot — MDM checks do not apply.'));
+          host.appendChild(card);
+          return;
+        }
 
         var hasHash = !!dev.mdm_status;
         var btn = el('button', 'mt-3 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Check now');

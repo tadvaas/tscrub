@@ -30,7 +30,19 @@
 # real hardware (see tests/test_bios.sh).
 
 # --- configuration / test overrides ------------------------------------------
-BIOS_FA_ROOT="${BIOS_FA_ROOT:-/sys/class/firmware_attributes}"
+# Resolve the firmware_attributes class directory. Kernel 6.18+ registers the
+# class as "firmware-attributes" (hyphen); older kernels used
+# "firmware_attributes" (underscore). Prefer whichever exists. An explicitly
+# set BIOS_FA_ROOT (tests use a fake tree) always wins; the base directory is
+# overridable for tests via BIOS_FA_CLASS_BASE.
+BIOS_FA_CLASS_BASE="${BIOS_FA_CLASS_BASE:-/sys/class}"
+if [[ -z "${BIOS_FA_ROOT:-}" ]]; then
+    if [[ -d "$BIOS_FA_CLASS_BASE/firmware-attributes" ]]; then
+        BIOS_FA_ROOT="$BIOS_FA_CLASS_BASE/firmware-attributes"
+    else
+        BIOS_FA_ROOT="$BIOS_FA_CLASS_BASE/firmware_attributes"
+    fi
+fi
 BIOS_HP_WMI_FILE="${BIOS_HP_WMI_FILE:-/sys/devices/platform/hp-wmi/bios_password}"
 BIOS_TP_ACPI_FILE="${BIOS_TP_ACPI_FILE:-/sys/devices/platform/thinkpad_acpi/pws_setting}"
 BIOS_DMIDECODE_CMD="${BIOS_DMIDECODE_CMD:-dmidecode}"

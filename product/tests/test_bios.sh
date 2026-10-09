@@ -70,6 +70,17 @@ printf 'Enabled\n' > "$tmpdir/fa/x/attributes/PasswordBypass/current_value"
 BIOS_FA_ROOT="$tmpdir/fa"
 check_verdict "UNKNOWN" "NONE" "sysfs: PasswordBypass=Enabled is not a lock"
 
+# Default BIOS_FA_ROOT resolution: prefer the kernel 6.18+ hyphen spelling,
+# fall back to the legacy underscore spelling. (Explicit overrides are covered
+# by every test above.)
+reset_env
+mkdir -p "$tmpdir/cls/firmware-attributes"
+got="$( ( unset BIOS_FA_ROOT; BIOS_FA_CLASS_BASE="$tmpdir/cls"; source "$ROOT_DIR/src/36_bios.sh" >/dev/null 2>&1; printf '%s' "$BIOS_FA_ROOT" ) )"
+t::assert_eq "$tmpdir/cls/firmware-attributes" "$got" "fa default: hyphen spelling preferred (kernel 6.18+)"
+
+got="$( ( unset BIOS_FA_ROOT; BIOS_FA_CLASS_BASE="$tmpdir/cls-missing"; source "$ROOT_DIR/src/36_bios.sh" >/dev/null 2>&1; printf '%s' "$BIOS_FA_ROOT" ) )"
+t::assert_eq "$tmpdir/cls-missing/firmware_attributes" "$got" "fa default: underscore fallback (legacy kernel)"
+
 # --- Layer 2: legacy vendor sysfs --------------------------------------------
 reset_env
 printf '1\n' > "$tmpdir/hp"; BIOS_HP_WMI_FILE="$tmpdir/hp"

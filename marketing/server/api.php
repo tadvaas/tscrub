@@ -1558,6 +1558,9 @@ if ($method === 'POST' && $route === '/mdm/recheck') {
     if (mdm_staged_hash((int)$u['id'], $serial, $uuid) === null) {
         fail(404, 'No captured hash for that device.');
     }
+    if (mdm_device_is_apple((int)$u['id'], $serial, $uuid)) {
+        fail(400, 'Apple devices are not enrolled in Windows Autopilot.');
+    }
     $mdmGate = mdm_gate((int)$u['id']);
     if (!$mdmGate['allowed']) {
         fail(402, $mdmGate['reason'] === 'free_tier'
@@ -1586,6 +1589,14 @@ if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'reports' && $seg[1] =
     json_out(['ok' => true, 'cocids' => distinct_cocids((int)$u['id'])]);
 }
 
+// GET /api/devices/version — cheap change fingerprint for the Devices tab.
+// The dashboard polls this every 10s and only re-fetches /api/devices when it
+// changes, so an idle page doesn't re-decode every report payload each tick.
+if ($method === 'GET' && $route === '/devices/version') {
+    $u = auth_require();
+    json_out(['ok' => true, 'version' => devices_list_version((int)$u['id'])]);
+}
+
 // GET /api/devices — aggregated machine (hardware/firmware) inventory, with
 // the MDM (Autopilot) registry folded in per device. Search (q), sort (sort,
 // dir) and pagination (page, per) run server-side so the dashboard only ever
@@ -1598,9 +1609,47 @@ if ($method === 'GET' && $route === '/devices') {
     $sort = (string)($_GET['sort'] ?? 'status');
     $dir = (($_GET['dir'] ?? '') === 'asc') ? 1 : -1;
 
-    $devices = remote_fold_devices((int)$u['id'], mdm_fold_devices((int)$u['id'], load_devices((int)$u['id'])));
+    $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per, 'sort' => $sort, 'dir' => $dir]);
 
-    // Free-text filter over the same fields the dashboard searches.
+    json_out([
+        'ok'      => true,
+        'devices' => $res['devices'],
+        'total'   => $res['total'],
+        'page'    => $page,
+        'per'     => $per,
+        'version' => devices_list_version((int)$u['id']),
+    ]);
+}
+
+// GET /api/devices/export — download the full device inventory as CSV, JSON or
+// XLS, restricted to the requested `fields`. Accepts the same `q` search as
+// GET /api/devices but is unpaginated. Session auth.
+if ($method === 'GET' && $route === '/devices/export') {
+    $u = auth_require();
+    $q = trim((string)($_GET['q'] ?? ''));
+    $format = strtolower(trim((string)($_GET['format'] ?? 'csv')));
+    if (!in_array($format, ['csv', 'json', 'xls'], true)) $format = 'csv';
+
+    $cols = [
+        'system' => 'System', 'sysserial' => 'Serial', 'bbserial' => 'Baseboard serial',
+        'chassisserial' => 'Chassis serial', 'systemuuid' => 'System UUID',
+        'cpu' => 'CPU', 'cpu_spec' => 'CPU spec', 'gpu' => 'GPU', 'ram' => 'RAM',
+        'display' => 'Display', 'wifi' => 'Wi-Fi', 'sku' => 'SKU', 'asset_tag' => 'Asset tag',
+        'bios_vendor' => 'BIOS vendor', 'biosversion' => 'BIOS version', 'biosdate' => 'BIOS date',
+        'board' => 'Motherboard', 'bioslock' => 'BIOS lock', 'bioslockmethod' => 'BIOS lock method',
+        'tpm' => 'TPM', 'macs' => 'MAC address', 'storage_controllers' => 'Storage controllers',
+        'battery' => 'Battery', 'secure_boot' => 'Secure boot', 'dimms' => 'DIMMs',
+        'product_key' => 'Windows product key', 'product_key_id' => 'Product key ID',
+        'mdm_status' => 'MDM status', 'mdm_verdict' => 'MDM verdict', 'mdm_label' => 'MDM label',
+        'refurb_grade' => 'Refurb grade', 'notes' => 'Notes',
+        'status' => 'Status', 'lan_ip' => 'LAN IP', 'last_seen_at' => 'Last seen',
+        'drive_count' => 'Drives', 'first' => 'First report', 'last' => 'Last report',
+        'report_id' => 'Report ID', 'digital_identifier' => 'Digital identifier',
+    ];
+    $selected = export_field_keys($cols, $_GET['fields'] ?? null);
+
+    $devices = load_devices((int)$u['id']);
+
     if ($q !== '') {
         $needle = strtolower($q);
         $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms', 'product_key', 'product_key_id'];
@@ -1608,8 +1657,6 @@ if ($method === 'GET' && $route === '/devices') {
             foreach ($fields as $f) {
                 if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
             }
-            // A device's reports (diagnostics + erasure) carry their own COCID;
-            // searching one should surface the machine those reports belong to.
             foreach (($d['history'] ?? []) as $h) {
                 if (strpos(strtolower((string)($h['cocid'] ?? '')), $needle) !== false) return true;
             }
@@ -1617,44 +1664,30 @@ if ($method === 'GET' && $route === '/devices') {
         }));
     }
 
-    // Sort mirrors the dashboard: system/serial/bios are text, mdm/status are ranks.
-    $mdmRank = function (array $d): int {
-        $st = strtolower((string)($d['mdm_status'] ?? ''));
-        $v = strtolower((string)($d['mdm_verdict'] ?? ''));
-        $rep = strtolower((string)($d['mdm'] ?? ''));
-        $REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
-        if ($st === 'checking') return 90;
-        if ($st === 'queued') return 80;
-        if ($st === 'unchecked') return 10;
-        $verdict = in_array($v, $REAL, true) ? $v : (in_array($rep, $REAL, true) ? $rep : ($st === 'done' && $v === 'unknown' ? 'unknown' : ''));
-        $r = ['locked_other' => 70, 'locked_this' => 70, 'ms_error' => 60, 'hash_invalid' => 50, 'offline' => 40, 'unlocked' => 30, 'unknown' => 20];
-        return $r[$verdict] ?? 0;
-    };
-    $sortVal = function (array $d) use ($sort, $mdmRank) {
-        switch ($sort) {
-            case 'system': return strtolower((string)($d['system'] ?? $d['sysserial'] ?? ''));
-            case 'serial': return strtolower((string)($d['sysserial'] ?? ''));
-            case 'bios':   return strtolower((string)($d['bioslock'] ?? ''));
-            case 'mdm':    return $mdmRank($d);
-            case 'status': return !empty($d['online']) ? 1 : 0;
-        }
-        return '';
-    };
-    usort($devices, function ($a, $b) use ($sortVal, $dir) {
-        $va = $sortVal($a);
-        $vb = $sortVal($b);
-        $cmp = (is_int($va) && is_int($vb)) ? ($va <=> $vb) : strcmp((string)$va, (string)$vb);
-        return $dir * $cmp;
+    // Stable, readable order for the export (the JSON endpoint re-sorts per the dashboard's client request).
+    usort($devices, function ($a, $b) {
+        $c = strcasecmp((string)($a['system'] ?? $a['sysserial'] ?? ''), (string)($b['system'] ?? $b['sysserial'] ?? ''));
+        if ($c !== 0) return $c;
+        return strcasecmp((string)($a['sysserial'] ?? ''), (string)($b['sysserial'] ?? ''));
     });
 
-    $total = count($devices);
-    json_out([
-        'ok'      => true,
-        'devices' => array_values(array_slice($devices, ($page - 1) * $per, $per)),
-        'total'   => $total,
-        'page'    => $page,
-        'per'     => $per,
-    ]);
+    $labels = [];
+    foreach ($selected as $key) $labels[] = $cols[$key];
+
+    $value = static function (string $key, array $d) {
+        if ($key === 'status') return !empty($d['online']) ? 'Online' : 'Offline';
+        if ($key === 'drive_count') return (int)($d['drive_count'] ?? 0);
+        return (string)($d[$key] ?? '');
+    };
+
+    $rows = [];
+    foreach ($devices as $d) {
+        $row = [];
+        foreach ($selected as $key) $row[] = $value($key, $d);
+        $rows[] = $row;
+    }
+
+    export_send($format, 'tscrub-devices', $labels, $rows);
 }
 
 // POST /api/devices/grade — set (or clear, grade='') the operator's manual
@@ -1737,6 +1770,48 @@ if ($method === 'GET' && $route === '/drives') {
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = min(100, max(1, (int)($_GET['per'] ?? 10)));
 
+    $res = load_drives((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per]);
+
+    json_out([
+        'ok'     => true,
+        'drives' => $res['drives'],
+        'total'  => $res['total'],
+        'page'   => $page,
+        'per'    => $per,
+    ]);
+}
+
+// GET /api/drives/export — download the full drive inventory as CSV, JSON or
+// XLS, restricted to the requested `fields`. Accepts the same `q` search as
+// GET /api/drives but is unpaginated. Session auth.
+if ($method === 'GET' && $route === '/drives/export') {
+    $u = auth_require();
+    $q = trim((string)($_GET['q'] ?? ''));
+    $format = strtolower(trim((string)($_GET['format'] ?? 'csv')));
+    if (!in_array($format, ['csv', 'json', 'xls'], true)) $format = 'csv';
+
+    $cols = [
+        'serial' => 'Serial', 'model' => 'Model', 'size' => 'Size', 'bus' => 'Bus', 'type' => 'Type',
+        'status' => 'Status', 'cls' => 'Class', 'method' => 'Method', 'cert' => 'Certification',
+        'ts' => 'Wiped', 'cocid' => 'CoC', 'system' => 'System', 'sysserial' => 'System serial',
+        'grade' => 'Grade', 'grade_reason' => 'Grade reason',
+        'smart' => 'SMART (pre)', 'tempc' => 'Temp C (pre)', 'poweronhours' => 'Power-on hours (pre)',
+        'powercycles' => 'Power cycles', 'reallocsectors' => 'Reallocated sectors',
+        'pctused' => 'Used %', 'availspare' => 'Available spare', 'tbw_tb' => 'TBW (TB)',
+        'smartpost' => 'SMART (post)', 'tempcpost' => 'Temp C (post)', 'poweronhourspost' => 'Power-on hours (post)',
+        'firmware' => 'Firmware', 'sector_size' => 'Sector size', 'sectors' => 'Sectors',
+        'hpa' => 'HPA', 'dco' => 'DCO', 'hpa_result' => 'HPA result', 'dco_result' => 'DCO result',
+        'sed_status' => 'SED status', 'selftest' => 'Self-test', 'reallocsectorspost' => 'Reallocated (post)',
+        'verify_result' => 'Verification', 'verify_sectors' => 'Verified sectors',
+        'start_time' => 'Start time', 'end_time' => 'End time', 'duration_secs' => 'Duration (s)',
+        'sku' => 'SKU', 'asset_tag' => 'Asset tag', 'bios_vendor' => 'BIOS vendor', 'board' => 'Motherboard',
+        'tpm' => 'TPM', 'macs' => 'MAC address', 'storage_controllers' => 'Storage controllers',
+        'tool_version' => 'Tool version', 'operator' => 'Operator', 'validator' => 'Validator',
+        'media_source' => 'Media source', 'media_destination' => 'Media destination',
+        'reports' => 'Reports', 'report_id' => 'Report ID', 'uploaded_at' => 'Uploaded',
+    ];
+    $selected = export_field_keys($cols, $_GET['fields'] ?? null);
+
     $drives = load_drives((int)$u['id']);
     if ($q !== '') {
         $needle = strtolower($q);
@@ -1748,14 +1823,23 @@ if ($method === 'GET' && $route === '/drives') {
             return false;
         }));
     }
-    $total = count($drives);
-    json_out([
-        'ok'     => true,
-        'drives' => array_values(array_slice($drives, ($page - 1) * $per, $per)),
-        'total'  => $total,
-        'page'   => $page,
-        'per'    => $per,
-    ]);
+
+    $labels = [];
+    foreach ($selected as $key) $labels[] = $cols[$key];
+
+    $value = static function (string $key, array $d) {
+        if ($key === 'reports') return (int)($d['reports'] ?? 0);
+        return (string)($d[$key] ?? '');
+    };
+
+    $rows = [];
+    foreach ($drives as $d) {
+        $row = [];
+        foreach ($selected as $key) $row[] = $value($key, $d);
+        $rows[] = $row;
+    }
+
+    export_send($format, 'tscrub-drives', $labels, $rows);
 }
 
 // GET /api/signing-key — vendor public key + fingerprint (authenticated only,

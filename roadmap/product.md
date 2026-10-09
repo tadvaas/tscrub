@@ -338,3 +338,15 @@ with the release that carried them (per `CHANGELOG.md`).
       `[+]/[-]` notice and re-pushes the diagnostics snapshot. Gated to the idle
       triage screen (never mid-wipe); USB-attached drives stay excluded.
       Plan: `research/hot-plug-drive-detection/plan.md`.
+
+## 5. Dashboard & scale
+
+- [ ] **Devices tab SQL-side pagination** — `load_devices()` currently
+      JSON-decodes every report payload on every load; denormalize a small
+      summary (`device_key`/`summary_json`/`search_text`) onto `reports` and
+      switch to a two-phase read (metadata over distinct devices + detail for
+      the page only), keeping search/sort/API byte-identical.
+      → Plan: `research/devices-pagination/README.md`.
+- [ ] **Drives tab SQL-side pagination** — same treatment for `load_drives()`
+      (erasure payloads are fully decoded today). Defer until devices is proven.
+      → Plan: same `research/devices-pagination/README.md` (see open questions).

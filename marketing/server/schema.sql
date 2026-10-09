@@ -143,10 +143,16 @@ CREATE TABLE IF NOT EXISTS reports (
   devices     INT UNSIGNED    NOT NULL DEFAULT 0,
   runs        INT UNSIGNED    NOT NULL DEFAULT 0,
   payload     JSON            NOT NULL,
+  device_key    VARCHAR(255)    NOT NULL DEFAULT '',
+  summary_json  JSON            NULL,
+  drive_serials JSON            NULL,
   uploaded_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_reports_user (user_id, uploaded_at),
   KEY idx_reports_cocid (user_id, cocid),
+  KEY idx_reports_user_type_ts (user_id, report_type, uploaded_at, id),
+  KEY idx_reports_user_type_key (user_id, report_type, device_key, id),
   CONSTRAINT fk_reports_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -304,6 +310,7 @@ CREATE TABLE IF NOT EXISTS mdm_jobs (
   PRIMARY KEY (id),
   KEY idx_mdm_jobs_status (status, created_at),
   KEY idx_mdm_jobs_device (user_id, serial, uuid, id),
+  KEY idx_mdm_jobs_user_status_ts (user_id, status, updated_at, id),
   CONSTRAINT fk_mdm_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

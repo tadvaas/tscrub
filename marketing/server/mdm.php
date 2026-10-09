@@ -1079,9 +1079,24 @@ function mdm_devices(int $userId): array {
         $ph = implode(',', array_fill(0, count($ids), '?'));
         $stmt = db()->prepare("SELECT serial, uuid, model, created_at AS captured_at FROM mdm_staged_hash WHERE user_id IN ($ph) ORDER BY created_at DESC");
         $stmt->execute($ids);
+        $hashes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Latest job per (serial, uuid) in ONE query (id DESC → first-seen
+        // wins) instead of a mdm_latest_job() round-trip per staged hash (N+1).
+        $latest = [];
+        $jstmt = db()->prepare("SELECT serial, uuid, status, verdict, created_at, updated_at FROM mdm_jobs WHERE user_id IN ($ph) ORDER BY id DESC");
+        $jstmt->execute($ids);
+        foreach ($jstmt->fetchAll(PDO::FETCH_ASSOC) as $j) {
+            $k = strtolower(trim((string)$j['serial'])) . "\x1F" . strtolower(trim((string)$j['uuid']));
+            if (!isset($latest[$k])) {
+                $latest[$k] = $j;
+            }
+        }
+
         $out = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $h) {
-            $j = mdm_latest_job($userId, (string)$h['serial'], (string)$h['uuid']);
+        foreach ($hashes as $h) {
+            $k = strtolower(trim((string)$h['serial'])) . "\x1F" . strtolower(trim((string)$h['uuid']));
+            $j = $latest[$k] ?? null;
             // A staged hash with no job yet = info acquired but the check was
             // never initiated — surfaced as 'unchecked' (Re-check runs it).
             $status  = $j !== null ? (string)($j['status'] ?? '') : 'unchecked';
@@ -1102,6 +1117,44 @@ function mdm_devices(int $userId): array {
     } catch (Throwable $e) {
         error_log('mdm devices error: ' . $e->getMessage());
         return [];
+    }
+}
+
+/**
+ * True when the device's latest diagnostics profile identifies Apple hardware
+ * (BIOS vendor "Apple Inc." or system manufacturer "Apple Inc."). Apple
+ * machines are never enrolled in Windows Autopilot, so an MDM check would
+ * spend credits on a check that can only return N/A.
+ */
+function mdm_device_is_apple(int $userId, string $serial, string $uuid): bool {
+    try {
+        $ids = org_member_ids($userId);
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $keys = [];
+        $s = strtolower(trim($serial));
+        $u = strtolower(trim($uuid));
+        if ($s !== '' && $s !== 'n/a') $keys[] = $s;
+        if ($u !== '' && $u !== 'n/a') $keys[] = $u;
+        if ($keys === []) return false;
+
+        $kp = implode(',', array_fill(0, count($keys), '?'));
+        $stmt = db()->prepare(
+            "SELECT summary_json FROM reports
+             WHERE user_id IN ($ph) AND report_type = 'diagnostics' AND device_key IN ($kp)
+             ORDER BY uploaded_at DESC, id DESC LIMIT 1"
+        );
+        $stmt->execute(array_merge($ids, $keys));
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) return false;
+
+        $summary = json_decode((string)($row['summary_json'] ?? ''), true);
+        if (!is_array($summary)) return false;
+        $bios   = strtolower(trim((string)($summary['bios_vendor'] ?? '')));
+        $system = strtolower(trim((string)($summary['system'] ?? '')));
+        return strpos($bios, 'apple') !== false || strpos($system, 'apple') !== false;
+    } catch (Throwable $e) {
+        error_log('mdm apple detect error: ' . $e->getMessage());
+        return false;
     }
 }
 
@@ -1222,8 +1275,11 @@ function mdm_probe(string $serial, string $hash, int $pollTimeout = 300): array 
 
 /** Lazily create the mdm_log table (idempotent — mirrors schema.sql). */
 function mdm_ensure_schema(): void {
+    static $ensured = false;
+    if ($ensured) return;   // CREATE TABLE IF NOT EXISTS + index probes are ~28ms; run once per request
+    $ensured = true;
     try {
-        db()->exec(
+        if (!db_table_exists('mdm_log')) db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_log (
                id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                user_id    BIGINT UNSIGNED NOT NULL,
@@ -1238,7 +1294,7 @@ function mdm_ensure_schema(): void {
                CONSTRAINT fk_mdm_log_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
-        db()->exec(
+        if (!db_table_exists('mdm_staged_hash')) db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_staged_hash (
                id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                user_id             BIGINT UNSIGNED NULL,
@@ -1322,6 +1378,7 @@ function mdm_ensure_schema(): void {
                PRIMARY KEY (id),
                KEY idx_mdm_jobs_status (status, created_at),
                KEY idx_mdm_jobs_device (user_id, serial, uuid, id),
+               KEY idx_mdm_jobs_user_status_ts (user_id, status, updated_at, id),
                CONSTRAINT fk_mdm_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
@@ -1334,6 +1391,16 @@ function mdm_ensure_schema(): void {
         )->fetchColumn();
         if ((int)$hasForce === 0) {
             db()->exec('ALTER TABLE mdm_jobs ADD COLUMN `force` TINYINT(1) NOT NULL DEFAULT 0');
+        }
+        // Index for the dashboard's MDM history fold: WHERE user_id IN (...)
+        // AND status IN (...) ORDER BY updated_at DESC, id DESC.
+        $jobsIdx = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mdm_jobs'
+               AND INDEX_NAME = 'idx_mdm_jobs_user_status_ts'"
+        )->fetchColumn();
+        if ($jobsIdx === 0) {
+            db()->exec('ALTER TABLE mdm_jobs ADD KEY idx_mdm_jobs_user_status_ts (user_id, status, updated_at, id)');
         }
         db()->exec(
             'CREATE TABLE IF NOT EXISTS mdm_ingest_log (

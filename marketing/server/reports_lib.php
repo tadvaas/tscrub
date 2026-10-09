@@ -70,11 +70,18 @@ function licence_pub_keys(int $userId): array {
  * them from schema.sql; an existing server self-heals on first use.
  */
 function reports_ensure_schema(): void {
+    static $ensured = false;
+    if ($ensured) return;   // column/index probes + ALTERs are ~ms each; run once per request
+    $ensured = true;
     try {
         $wanted = [
             'report_type' => "ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure' AFTER source",
             'grade'       => "VARCHAR(8) NOT NULL DEFAULT '' AFTER report_type",
             'notes'       => "TEXT NULL AFTER grade",
+            'updated_at'  => "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER uploaded_at",
+            'device_key'    => "VARCHAR(255) NOT NULL DEFAULT '' AFTER payload",
+            'summary_json'  => "JSON NULL AFTER device_key",
+            'drive_serials' => "JSON NULL AFTER summary_json",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -87,11 +94,108 @@ function reports_ensure_schema(): void {
             }
             db()->exec("ALTER TABLE reports ADD COLUMN $col $ddl");
         }
+        // Composite index for the dashboard's typed report queries
+        // (load_devices / load_drives): filter by report_type AND order by
+        // uploaded_at without scanning the user's whole report set. Added
+        // idempotently for pre-existing tables.
+        $idx = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports'
+               AND INDEX_NAME = 'idx_reports_user_type_ts'"
+        )->fetchColumn();
+        if ($idx === 0) {
+            db()->exec('ALTER TABLE reports ADD KEY idx_reports_user_type_ts (user_id, report_type, uploaded_at, id)');
+        }
+        // Index for the two-phase device/drive pagination: GROUP BY device_key
+        // per report_type (MAX(id) wins).
+        $keyIdx = (int)db()->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reports'
+               AND INDEX_NAME = 'idx_reports_user_type_key'"
+        )->fetchColumn();
+        if ($keyIdx === 0) {
+            db()->exec('ALTER TABLE reports ADD KEY idx_reports_user_type_key (user_id, report_type, device_key, id)');
+        }
     } catch (Throwable $e) {
         // Non-fatal: report_type is a typed-report optimisation; pdf_sha and
         // pdf_path are only needed for the diagnostics PDF download.
         error_log('reports ensure schema: ' . $e->getMessage());
     }
+}
+
+/**
+ * Derive the denormalized columns written at ingest so the dashboard list
+ * queries never decode the full payload for every report. `$withSummary`
+ * controls whether the list-level `summary_json` is produced (diagnostics) or
+ * left NULL (erasure — which only needs `device_key` + `drive_serials`).
+ */
+function reports_denormalize(array $payload, bool $withSummary = false): array {
+    $summary = null;
+    if ($withSummary) {
+        $summary = [
+            'system'         => (string)($payload['system'] ?? ''),
+            'sysserial'      => (string)($payload['sysserial'] ?? $payload['sysSerial'] ?? ''),
+            'bbserial'       => (string)($payload['bbserial'] ?? $payload['bbSerial'] ?? ''),
+            'chassisserial'  => (string)($payload['chassisserial'] ?? ''),
+            'chassistype'    => (string)($payload['chassistype'] ?? ''),
+            'systemuuid'     => (string)($payload['systemuuid'] ?? ''),
+            'sku'            => (string)($payload['sku'] ?? ''),
+            'asset_tag'      => (string)($payload['asset_tag'] ?? ''),
+            'bios_vendor'    => (string)($payload['bios_vendor'] ?? ''),
+            'biosversion'    => (string)($payload['biosversion'] ?? ''),
+            'biosdate'       => (string)($payload['biosdate'] ?? ''),
+            'board'          => (string)($payload['board'] ?? ''),
+            'bioslock'       => (string)($payload['bioslock'] ?? ''),
+            'bioslockmethod' => (string)($payload['bioslockmethod'] ?? ''),
+            'cpu'            => (string)($payload['cpu'] ?? ''),
+            'cpu_spec'       => (string)($payload['cpu_spec'] ?? ''),
+            'gpu'            => (string)($payload['gpu'] ?? ''),
+            'ram'            => (string)($payload['ram'] ?? ''),
+            'display'        => (string)($payload['display'] ?? ''),
+            'wifi'           => (string)($payload['wifi'] ?? ''),
+            'tpm'            => (string)($payload['tpm'] ?? ''),
+            'macs'           => (string)($payload['macs'] ?? ''),
+            'storage_controllers' => (string)($payload['storage_controllers'] ?? ''),
+            'battery'        => (string)($payload['battery'] ?? ''),
+            'secure_boot'    => (string)($payload['secure_boot'] ?? ''),
+            'dimms'          => (string)($payload['dimms'] ?? ''),
+            'product_key'    => (string)($payload['product_key'] ?? ''),
+            'product_key_id' => product_key_id_from_key((string)($payload['product_key'] ?? '')),
+            'tool_version'   => (string)($payload['tool_version'] ?? ''),
+            'operator'       => (string)($payload['operator'] ?? ''),
+            'validator'      => (string)($payload['validator'] ?? ''),
+            'media_source'   => (string)($payload['media_source'] ?? ''),
+            'media_destination' => (string)($payload['media_destination'] ?? ''),
+            'drive_count'    => count(is_array($payload['drives'] ?? null) ? $payload['drives'] : []),
+            'report_id'      => (string)($payload['report_id'] ?? ''),
+            'digital_identifier' => (string)($payload['digital_identifier'] ?? ''),
+            'selftest_cpu'   => (string)($payload['selftest_cpu'] ?? ''),
+            'mdm'            => (string)($payload['enrollment'] ?? ''),
+        ];
+    }
+    return [
+        'device_key'    => device_key($payload),
+        'summary'       => $summary,
+        'drive_serials' => reports_drive_serials($payload),
+    ];
+}
+
+/**
+ * Lowercased, deduped drive serials for an erasure report (with the model for
+ * the sort tiebreak) — the index the Drives tab pages over. The original
+ * serials live in the payload.
+ */
+function reports_drive_serials(array $payload): array {
+    $out = [];
+    $seen = [];
+    foreach (($payload['drives'] ?? []) as $d) {
+        if (!is_array($d)) continue;
+        $s = strtolower(trim((string)($d['serial'] ?? '')));
+        if ($s === '' || isset($seen[$s])) continue;
+        $seen[$s] = true;
+        $out[] = ['s' => $s, 'm' => (string)($d['model'] ?? '')];
+    }
+    return $out;
 }
 
 /**
@@ -780,12 +884,13 @@ function user_ingested_shas(int $userId): array {
 function store_reports(array $groups, int $userId, string $source, string $reportType = 'erasure'): array {
     $ids = [];
     $q = db()->prepare(
-        'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, report_type, devices, runs, payload)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, report_type, devices, runs, payload, device_key, summary_json, drive_serials)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     foreach ($groups as $g) {
         $names = array_map(fn($r) => (string)($r['name'] ?? ''), $g['reports'] ?? []);
         $filename = implode(', ', array_slice($names, 0, 5));
+        $den = reports_denormalize($g, $reportType === 'diagnostics');
         $q->execute([
             $userId,
             (string)($g['cocid'] ?? ''),
@@ -797,6 +902,9 @@ function store_reports(array $groups, int $userId, string $source, string $repor
             count($g['drives'] ?? []),
             count($g['reports'] ?? []),
             json_encode($g, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            $den['device_key'],
+            $den['summary'] === null ? null : json_encode($den['summary'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            json_encode($den['drive_serials'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
         $ids[] = (int)db()->lastInsertId();
     }
@@ -1017,15 +1125,18 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
     ];
 
     try {
+        $den = reports_denormalize($payload, true);
         db()->prepare(
-            'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, report_type, devices, runs, payload)
-             VALUES (?, ?, ?, "unverified", "none", "api", "diagnostics", ?, 1, ?)'
+            'INSERT INTO reports (user_id, cocid, filename, sha_state, sig_state, source, report_type, devices, runs, payload, device_key, summary_json)
+             VALUES (?, ?, ?, "unverified", "none", "api", "diagnostics", ?, 1, ?, ?, ?)'
         )->execute([
             $userId,
             '',
             'diagnostics',
             count($drives),
             json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            $den['device_key'],
+            json_encode($den['summary'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
         $reportId = (int)db()->lastInsertId();
 
@@ -1276,6 +1387,8 @@ function presence_heartbeat(int $userId, string $serial, string $uuid, string $l
 
 /** Map a user's presence rows to ['serial' => ts, 'uuid' => ts, 'ip' => ip, 'erasure' => state] (lowercased). */
 function presence_map(int $userId): array {
+    static $cache = [];
+    if (array_key_exists($userId, $cache)) return $cache[$userId];   // read twice per devices load
     $map = ['serial' => [], 'uuid' => [], 'ip' => [], 'erasure' => []];
     try {
         $ids = org_member_ids($userId);
@@ -1301,6 +1414,7 @@ function presence_map(int $userId): array {
     } catch (Throwable $e) {
         error_log('presence map error: ' . $e->getMessage());
     }
+    $cache[$userId] = $map;
     return $map;
 }
 
@@ -1389,6 +1503,8 @@ function device_register(int $userId, string $serial, string $uuid, array $paylo
 
 /** Fetch a user's registration snapshots (newest first). */
 function load_registered_devices(int $userId): array {
+    static $cache = [];
+    if (array_key_exists($userId, $cache)) return $cache[$userId];   // read twice per devices load
     $out = [];
     try {
         $ids = org_member_ids($userId);
@@ -1409,7 +1525,42 @@ function load_registered_devices(int $userId): array {
     } catch (Throwable $e) {
         error_log('register load error: ' . $e->getMessage());
     }
+    $cache[$userId] = $out;
     return $out;
+}
+
+/**
+ * Cheap change fingerprint for the Devices tab. Returns a stable value that
+ * only changes when the account's reports (including in-place grade/notes via
+ * updated_at), registrations, MDM jobs, presence heartbeats or remote commands
+ * change. The dashboard polls it every 10s and re-fetches the full /api/devices
+ * aggregation only when it differs — so an idle page stops re-decoding every
+ * report payload on each tick.
+ */
+function devices_list_version(int $userId): string {
+    reports_ensure_schema();
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $sig = [];
+
+    $agg = static function (string $sql) use ($ph, $ids): array {
+        try {
+            $stmt = db()->prepare($sql);
+            $stmt->execute($ids);
+            $r = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $r === false ? [] : array_map(static fn($v) => (string)$v, $r);
+        } catch (Throwable $e) {
+            return [];
+        }
+    };
+
+    $sig['reports']       = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt, MAX(updated_at) AS max_upd FROM reports WHERE user_id IN ($ph)");
+    $sig['registrations'] = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt FROM device_registrations WHERE user_id IN ($ph)");
+    $sig['mdm_jobs']      = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt FROM mdm_jobs WHERE user_id IN ($ph)");
+    $sig['presence']      = $agg("SELECT MAX(last_seen_ts) AS max_seen, COUNT(*) AS cnt FROM device_presence WHERE user_id IN ($ph)");
+    $sig['commands']      = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt FROM device_commands WHERE user_id IN ($ph)");
+
+    return sha1(json_encode($sig));
 }
 
 /**
@@ -1495,12 +1646,237 @@ function report_notes_set(int $userId, int $reportId, string $notes): bool {
  * `history` (newest first) and first/last seen are accumulated. This feeds
  * the dashboard "Devices" tab.
  */
-function load_devices(int $userId): array {
+/**
+ * Phase A of the Devices-tab pagination: one candidate per distinct machine,
+ * built from the small `summary_json` (no full-payload decode). Returns
+ * [device_key => summary + '_key'/'_latest_id'/'_cocids'/refurb_grade/notes/first/last].
+ * Legacy boot-time registrations without a diagnostics report are folded in.
+ */
+function devices_candidates(array $ids, string $ph, int $userId): array {
+    $devices = [];
+
+    // Newest diagnostics report per device (MAX(id) wins).
+    $stmt = db()->prepare("SELECT device_key, MAX(id) AS latest_id FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' AND device_key <> '' GROUP BY device_key");
+    $stmt->execute($ids);
+    $latest = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $latest[(string)$r['device_key']] = (int)$r['latest_id'];
+    }
+
+    if ($latest !== []) {
+        $idPh = implode(',', array_fill(0, count($latest), '?'));
+        // Don't pull the full `payload` blob here — summary_json covers the
+        // list/search/sort fields. Payloads are fetched lazily below only for
+        // the rare rows that predate summary_json (NULL cache).
+        $stmt = db()->prepare("SELECT id, device_key, uploaded_at, summary_json, grade, notes FROM reports WHERE id IN ($idPh) ORDER BY uploaded_at DESC, id DESC");
+        $stmt->execute(array_values($latest));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $missingIds = [];
+        foreach ($rows as $r) {
+            if (!is_array(json_decode((string)$r['summary_json'], true))) $missingIds[] = (int)$r['id'];
+        }
+        $payloads = [];
+        if ($missingIds !== []) {
+            $mp = implode(',', array_fill(0, count($missingIds), '?'));
+            $ps = db()->prepare("SELECT id, payload FROM reports WHERE id IN ($mp)");
+            $ps->execute($missingIds);
+            foreach ($ps->fetchAll(PDO::FETCH_ASSOC) as $pr) $payloads[(int)$pr['id']] = (string)$pr['payload'];
+        }
+
+        foreach ($rows as $r) {
+            $key = (string)$r['device_key'];
+            $s = json_decode((string)$r['summary_json'], true);
+            if (!is_array($s)) {
+                $g = json_decode($payloads[(int)$r['id']] ?? '', true);
+                $s = is_array($g) ? (reports_denormalize($g, true)['summary'] ?? []) : [];
+            }
+            if (!is_array($s)) $s = [];
+            $devices[$key] = $s + [
+                '_key'         => $key,
+                '_latest_id'   => (int)$r['id'],
+                '_cocids'      => '',
+                'refurb_grade' => (string)($r['grade'] ?? ''),
+                'notes'        => (string)($r['notes'] ?? ''),
+                'first'        => ts_local((string)($r['uploaded_at'] ?? '')),
+                'last'         => ts_local((string)($r['uploaded_at'] ?? '')),
+            ];
+        }
+
+        // first/last across ALL reports (diagnostics + erasure) for the device.
+        $stmt = db()->prepare("SELECT device_key, MIN(uploaded_at) AS first_up, MAX(uploaded_at) AS last_up FROM reports WHERE user_id IN ($ph) AND device_key <> '' GROUP BY device_key");
+        $stmt->execute($ids);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $key = (string)$r['device_key'];
+            if (isset($devices[$key])) {
+                $devices[$key]['first'] = ts_local((string)$r['first_up']);
+                $devices[$key]['last']  = ts_local((string)$r['last_up']);
+            }
+        }
+
+        // Distinct COCIDs across all reports (search by CoC surfaces the machine).
+        $stmt = db()->prepare("SELECT device_key, GROUP_CONCAT(DISTINCT cocid SEPARATOR '\n') AS cocids FROM reports WHERE user_id IN ($ph) AND device_key <> '' AND cocid <> '' GROUP BY device_key");
+        $stmt->execute($ids);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $key = (string)$r['device_key'];
+            if (isset($devices[$key])) $devices[$key]['_cocids'] = (string)$r['cocids'];
+        }
+    }
+
+    // Legacy registrations for devices with no diagnostics report.
+    foreach (load_registered_devices($userId) as $reg) {
+        $p = $reg['payload'];
+        $serial = strtolower(trim((string)($p['serial'] ?? $reg['serial'])));
+        $uuid   = strtolower(trim((string)($p['uuid'] ?? $reg['uuid'])));
+        $matched = false;
+        foreach ($devices as $dv) {
+            $mSerial = strtolower(trim((string)($dv['sysserial'] ?? '')));
+            $mUuid   = strtolower(trim((string)($dv['systemuuid'] ?? '')));
+            if (($serial !== '' && $serial === $mSerial) || ($uuid !== '' && $uuid === $mUuid)) { $matched = true; break; }
+        }
+        if ($matched) continue;
+
+        $key = $serial !== '' ? $serial : $uuid;
+        if ($key === '') continue;
+
+        $seen = ts_local((string)$reg['registered_at']);
+        $devices[$key] = [
+            '_key'         => $key,
+            '_latest_id'   => 0,
+            '_cocids'      => '',
+            'system'       => trim((string)($p['manufacturer'] ?? '') . ' ' . (string)($p['product'] ?? '')),
+            'sysserial'    => (string)($p['serial'] ?? $reg['serial']),
+            'bbserial'     => '',
+            'chassisserial'=> (string)($p['chassis_serial'] ?? ''),
+            'chassistype'  => (string)($p['chassis_type'] ?? ''),
+            'systemuuid'   => (string)($p['uuid'] ?? $reg['uuid']),
+            'sku'          => (string)($p['sku'] ?? ''),
+            'asset_tag'    => (string)($p['asset_tag'] ?? ''),
+            'bios_vendor'  => (string)($p['bios_vendor'] ?? ''),
+            'biosversion'  => (string)($p['bios_version'] ?? ''),
+            'biosdate'     => (string)($p['bios_date'] ?? ''),
+            'board'        => (string)($p['board'] ?? ''),
+            'bioslock'     => (string)($p['bios_lock'] ?? ''),
+            'bioslockmethod' => (string)($p['bios_lock_method'] ?? ''),
+            'cpu'          => (string)($p['cpu'] ?? ''),
+            'cpu_spec'     => (string)($p['cpu_spec'] ?? ''),
+            'gpu'          => (string)($p['gpu'] ?? ''),
+            'ram'          => (string)($p['ram'] ?? ''),
+            'display'      => (string)($p['display'] ?? ''),
+            'wifi'         => (string)($p['wifi'] ?? ''),
+            'tpm'          => (string)($p['tpm'] ?? ''),
+            'macs'         => (string)($p['macs'] ?? ''),
+            'storage_controllers' => (string)($p['storage_controllers'] ?? ''),
+            'battery'      => (string)($p['battery'] ?? ''),
+            'secure_boot'  => (string)($p['secure_boot'] ?? ''),
+            'dimms'        => (string)($p['dimms'] ?? ''),
+            'product_key'  => (string)($p['product_key'] ?? ''),
+            'product_key_id' => product_key_id_from_key((string)($p['product_key'] ?? '')),
+            'tool_version' => (string)($p['tool_version'] ?? ''),
+            'operator'     => (string)($p['operator'] ?? ''),
+            'validator'    => (string)($p['validator'] ?? ''),
+            'media_source' => (string)($p['media_source'] ?? ''),
+            'media_destination' => (string)($p['media_destination'] ?? ''),
+            'drive_count'  => count(is_array($p['drives'] ?? null) ? $p['drives'] : []),
+            'report_id'    => (string)($p['report_id'] ?? ''),
+            'digital_identifier' => (string)($p['digital_identifier'] ?? ''),
+            'selftest_cpu' => (string)($p['selftest_cpu'] ?? ''),
+            'mdm'          => '',
+            'refurb_grade' => '',
+            'notes'        => '',
+            'first'        => $seen,
+            'last'         => $seen,
+        ];
+    }
+
+    return $devices;
+}
+
+function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = db()->prepare("SELECT id, uploaded_at, grade, notes, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
-    $stmt->execute($ids);
+
+    // ---- Phase A (paginated only): pick the page's device keys from the small
+    // summary cache, then restrict the full-payload loops below to those keys. ----
+    $onlyKeys = null;
+    $total = 0;
+    if ($query !== null) {
+        $q = trim((string)($query['q'] ?? ''));
+        $page = max(1, (int)($query['page'] ?? 1));
+        $per = min(100, max(1, (int)($query['per'] ?? 10)));
+        $sort = (string)($query['sort'] ?? 'status');
+        $dir = (($query['dir'] ?? '') === 'asc') ? 1 : -1;
+
+        $cand = devices_candidates($ids, $ph, $userId);
+        $presence = presence_map($userId);
+        foreach ($cand as $key => &$c) {
+            $lastSeen = presence_last_seen((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
+            $c['online']       = presence_is_online((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
+            $c['lan_ip']       = presence_lan_ip((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
+            $c['erasure']      = presence_erasure((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
+            $c['last_seen']    = $lastSeen !== null ? ts_rel($lastSeen) : null;
+            $c['last_seen_at'] = $lastSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $lastSeen)) : null;
+            unset($c);
+        }
+        if (function_exists('mdm_fold_devices')) $cand = mdm_fold_devices($userId, $cand);
+        // remote_fold_devices is deliberately NOT applied here: remote command
+        // state isn't used by the search filter or sort key, and it would re-run
+        // a schema-ensure + stale-expiry write on every list load. It's applied
+        // once to the final page below.
+
+        $list = array_values($cand);
+        if ($q !== '') {
+            $needle = strtolower($q);
+            $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms', 'product_key', 'product_key_id'];
+            $list = array_values(array_filter($list, function ($d) use ($needle, $fields) {
+                foreach ($fields as $f) {
+                    if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
+                }
+                if (strpos(strtolower((string)($d['_cocids'] ?? '')), $needle) !== false) return true;
+                return false;
+            }));
+        }
+
+        $mdmRank = function (array $d): int {
+            $st = strtolower((string)($d['mdm_status'] ?? ''));
+            $v = strtolower((string)($d['mdm_verdict'] ?? ''));
+            $rep = strtolower((string)($d['mdm'] ?? ''));
+            $REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
+            if ($st === 'checking') return 90;
+            if ($st === 'queued') return 80;
+            if ($st === 'unchecked') return 10;
+            $verdict = in_array($v, $REAL, true) ? $v : (in_array($rep, $REAL, true) ? $rep : ($st === 'done' && $v === 'unknown' ? 'unknown' : ''));
+            $r = ['locked_other' => 70, 'locked_this' => 70, 'ms_error' => 60, 'hash_invalid' => 50, 'offline' => 40, 'unlocked' => 30, 'unknown' => 20];
+            return $r[$verdict] ?? 0;
+        };
+        $sortVal = function (array $d) use ($sort, $mdmRank) {
+            switch ($sort) {
+                case 'system': return strtolower((string)($d['system'] ?? $d['sysserial'] ?? ''));
+                case 'serial': return strtolower((string)($d['sysserial'] ?? ''));
+                case 'bios':   return strtolower((string)($d['bioslock'] ?? ''));
+                case 'mdm':    return $mdmRank($d);
+                case 'status': return !empty($d['online']) ? 1 : 0;
+            }
+            return '';
+        };
+        usort($list, function ($a, $b) use ($sortVal, $dir) {
+            $va = $sortVal($a);
+            $vb = $sortVal($b);
+            $cmp = (is_int($va) && is_int($vb)) ? ($va <=> $vb) : strcmp((string)$va, (string)$vb);
+            return $dir * $cmp;
+        });
+
+        $total = count($list);
+        $onlyKeys = [];
+        foreach (array_slice($list, ($page - 1) * $per, $per) as $d) {
+            $onlyKeys[] = $d['_key'];
+        }
+    }
+
+    $keySql = $onlyKeys !== null ? ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')' : '';
+    $stmt = db()->prepare("SELECT id, uploaded_at, grade, notes, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics'" . $keySql . " ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute($onlyKeys !== null ? array_merge($ids, $onlyKeys) : $ids);
 
     $devices = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -1673,8 +2049,9 @@ function load_devices(int $userId): array {
 
     // Fold erasure reports into the same machine history so the Devices tab
     // shows when drives were wiped alongside the boot-time snapshots.
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
-    $stmt->execute($ids);
+    $keySql = $onlyKeys !== null ? ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')' : '';
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure'" . $keySql . " ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute($onlyKeys !== null ? array_merge($ids, $onlyKeys) : $ids);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $g = json_decode((string)$r['payload'], true);
         if (!is_array($g) || empty($g['drives'])) continue;
@@ -1790,6 +2167,12 @@ function load_devices(int $userId): array {
         }
         if ($matched) continue;
 
+        // Paginated path: only materialise legacy-only devices that are on this page.
+        if ($onlyKeys !== null) {
+            $rk = $serial !== '' ? $serial : $uuid;
+            if (!in_array($rk, $onlyKeys, true)) continue;
+        }
+
         $drives = is_array($p['drives'] ?? null) ? $p['drives'] : [];
         $seen   = ts_local((string)$reg['registered_at']);
         $profile = [
@@ -1861,7 +2244,23 @@ function load_devices(int $userId): array {
         ];
     }
 
-    return $out;
+    // Fold MDM (Autopilot) + remote command state (previously done by the
+    // caller). Re-applied here so sort/output stay consistent; cheap.
+    if (function_exists('mdm_fold_devices')) $out = mdm_fold_devices($userId, $out);
+    if (function_exists('remote_fold_devices')) $out = remote_fold_devices($userId, $out);
+
+    if ($query === null) {
+        return $out;
+    }
+
+    // Order the page to match the candidate order computed in Phase A.
+    $ordered = [];
+    foreach ($onlyKeys as $key) {
+        foreach ($out as $d) {
+            if (device_key($d) === $key) { $ordered[] = $d; break; }
+        }
+    }
+    return ['devices' => $ordered, 'total' => $total];
 }
 
 /**
@@ -1871,11 +2270,22 @@ function load_devices(int $userId): array {
  * (the Drives tab expands it when a drive has multiple reports). Sorted by
  * model, then serial.
  */
-function load_drives(int $userId): array {
+function load_drives(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type <> 'diagnostics' ORDER BY uploaded_at DESC, id DESC");
+
+    $q = trim((string)($query['q'] ?? ''));
+    $page = max(1, (int)($query['page'] ?? 1));
+    $per = min(100, max(1, (int)($query['per'] ?? 10)));
+
+    // Fast path: no search → paginate over the small `drive_serials` cache
+    // without decoding every erasure payload.
+    if ($query !== null && $q === '') {
+        return drives_paged($ids, $ph, $page, $per);
+    }
+
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($ids);
 
     $drives = [];
@@ -1932,5 +2342,110 @@ function load_drives(int $userId): array {
         if ($m !== 0) return $m;
         return strcasecmp((string)($a['serial'] ?? ''), (string)($b['serial'] ?? ''));
     });
-    return $out;
+
+    if ($query === null) {
+        return $out;
+    }
+
+    if ($q !== '') {
+        $needle = strtolower($q);
+        $fields = ['serial', 'model', 'size', 'type', 'status', 'method', 'bus', 'cocid', 'system', 'sysserial'];
+        $out = array_values(array_filter($out, function ($d) use ($needle, $fields) {
+            foreach ($fields as $f) {
+                if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
+            }
+            return false;
+        }));
+    }
+    $total = count($out);
+    return ['drives' => array_slice($out, ($page - 1) * $per, $per), 'total' => $total];
+}
+
+/**
+ * Drives-tab pagination without search: pick the page's drive serials from the
+ * `drive_serials` cache (no full-payload decode), then fetch payloads only for
+ * the reports those drives appear in.
+ */
+function drives_paged(array $ids, string $ph, int $page, int $per): array {
+    $stmt = db()->prepare("SELECT id, uploaded_at, drive_serials FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute($ids);
+    $newest = [];
+    $reportSerials = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $serials = json_decode((string)$r['drive_serials'], true);
+        if (!is_array($serials)) continue;
+        $rid = (int)$r['id'];
+        $up = (string)$r['uploaded_at'];
+        foreach ($serials as $idx) {
+            $s = (string)($idx['s'] ?? '');
+            if ($s === '') continue;
+            if (!isset($newest[$s])) $newest[$s] = ['id' => $rid, 'uploaded_at' => $up, 'model' => (string)($idx['m'] ?? '')];
+            $reportSerials[$s][] = $rid;
+        }
+    }
+
+    $serials = array_keys($newest);
+    usort($serials, function ($a, $b) use ($newest) {
+        $c = strcmp((string)$newest[$b]['uploaded_at'], (string)$newest[$a]['uploaded_at']);
+        if ($c !== 0) return $c;
+        $m = strcasecmp((string)$newest[$a]['model'], (string)$newest[$b]['model']);
+        if ($m !== 0) return $m;
+        return strcasecmp((string)$a, (string)$b);
+    });
+
+    $total = count($serials);
+    $pageSerials = array_slice($serials, ($page - 1) * $per, $per);
+    if ($pageSerials === []) return ['drives' => [], 'total' => $total];
+
+    $needIds = [];
+    foreach ($pageSerials as $s) {
+        foreach ($reportSerials[$s] ?? [] as $rid) $needIds[$rid] = true;
+    }
+    $idPh = implode(',', array_fill(0, count($needIds), '?'));
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE id IN ($idPh) ORDER BY uploaded_at DESC, id DESC");
+    $stmt->execute(array_keys($needIds));
+
+    $drives = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $g = json_decode((string)$r['payload'], true);
+        if (!is_array($g) || empty($g['drives'])) continue;
+        foreach ($g['drives'] as $d) {
+            if (!is_array($d)) continue;
+            $serial = trim((string)($d['serial'] ?? ''));
+            $key = $serial !== '' ? strtolower($serial) : '';
+            if ($key === '' || !isset($newest[$key])) continue;
+
+            $entry = $d;
+            $entry['report_id']      = (int)$r['id'];
+            $entry['cocid']          = (string)$r['cocid'];
+            $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
+            $entry['ts']             = ts_local((string)($d['ts'] ?? ''));
+            $entry['report_devices'] = (int)$r['devices'];
+
+            if (!isset($drives[$key])) {
+                $drives[$key] = $entry;
+                $drives[$key]['history'] = [$entry];
+            } else {
+                $drives[$key]['history'][] = $entry;
+            }
+        }
+    }
+
+    $out = array_values($drives);
+    foreach ($out as &$dv) {
+        $dv['reports']  = count($dv['history']);
+        $dv['multiple'] = $dv['reports'] > 1;
+        $g = drive_grade($dv);
+        $dv['grade'] = $g['grade'];
+        $dv['grade_reason'] = implode('; ', $g['reasons']);
+        $dv['graded'] = $g['graded'];
+        unset($dv);
+    }
+
+    $byKey = [];
+    foreach ($out as $dv) $byKey[strtolower((string)($dv['serial'] ?? ''))] = $dv;
+    $ordered = [];
+    foreach ($pageSerials as $s) if (isset($byKey[$s])) $ordered[] = $byKey[$s];
+
+    return ['drives' => $ordered, 'total' => $total];
 }
