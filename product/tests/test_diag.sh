@@ -115,6 +115,14 @@ DIAG=1
 parse_args --diag=0
 t::check "flag: --diag=0 disables" '[[ "$DIAG" -eq 0 ]]'
 
+# --- real prompt: headless detection probes the console, not stdout ---
+# (regression: diag::_guided calls diag::prompt via command substitution, where
+# stdout is a pipe — the old `[[ -t 1 ]]` check returned "headless" on the
+# console and every guided test skipped without prompting)
+DIAG_TTY_FILE="/nonexistent/console"
+t::assert_eq "skip" "$(diag::prompt 'Q?')" "prompt: headless (no console) -> skip"
+unset DIAG_TTY_FILE
+
 # --- guided tier (headless-safe logic) ---
 # The harness runs in a terminal, so force the guided tier down its
 # non-interactive path — otherwise diag::guided would render + prompt on /dev/tty.

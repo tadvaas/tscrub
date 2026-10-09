@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.33] - 2026-10-09
+
+### Fixed
+
+- **Guided diagnostics skipped without prompting the operator** —
+  `diag::_guided` captures the operator's answer with
+  `ans="$(diag::prompt …)"`, which turns stdout into a pipe inside the prompt.
+  `diag::prompt`'s headless check used `ui::terminal_controls_supported` (which
+  tests `[[ -t 1 ]]`), so it wrongly decided it was headless on the console and
+  returned `skip` before ever showing the `[Y=pass / N=fail / S=skip]` prompt.
+  It now probes the console (`/dev/tty`) directly.
+- **`Killed speaker-test` message leaked onto the console** — the background
+  tone is now `disown`ed so bash doesn't print a job-death notification when it
+  is stopped.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.33_2025.11_30_x86-64_v0.41_20261009-4c3d4c84.iso`
+  (168 MB) sha256 `b1cd3d08bbe269fc8b41774732ae986426c54c3e813739c375a95f87037791f7`.
+- Standalone script `tscrub.sh` (v1.11.33) sha256 `7c9e06c0f06c594f8a0d3bb20d4e7769f2b4acf6bdb0b7d6be83c04dcb8d8d3e`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `c2741414cf79b057620d95cfed3112804da5b4cbc1138f8c6cd8582a3b34dd5e`.
+
 ## [v1.11.32] - 2026-10-09
 
 ### Fixed

@@ -30,6 +30,9 @@ DIAG_RUN=0 DIAG_PASS=0 DIAG_FAIL=0 DIAG_SKIP=0 DIAG_UNSUP=0 DIAG_NA=0
 DIAG_ORDER=(cpu ram storage network battery peripherals webcam display keyboard touchpad usb speaker mic)
 DIAG_GUIDED_TIMEOUT_SECS="${DIAG_GUIDED_TIMEOUT_SECS:-15}"
 DIAG_MIC_PEAK_THRESHOLD="${DIAG_MIC_PEAK_THRESHOLD:-400}"
+# Console device the guided prompts talk to (overridable in tests). Defaults to
+# the controlling terminal; headless runs have none, so probing it fails fast.
+DIAG_TTY_FILE="${DIAG_TTY_FILE:-/dev/tty}"
 DIAG_HEADER_ROW=0
 
 # --- helpers ----------------------------------------------------------------
@@ -251,12 +254,16 @@ diag::wash() {
 # -> skip. Headless -> skip. Overridable in tests.
 diag::prompt() {
     local label="$1" key
-    if ! ui::terminal_controls_supported; then
+    # Headless detection must probe the console itself, NOT stdout: diag::_guided
+    # captures the answer via `ans="$(diag::prompt …)"`, which turns stdout into
+    # a pipe — so `[[ -t 1 ]]` (ui::terminal_controls_supported) is FALSE here
+    # even on the console, and the prompt was skipped without ever being shown.
+    if ! : < "$DIAG_TTY_FILE" 2>/dev/null; then
         printf 'skip\n'
         return 0
     fi
-    printf '%s  [Y=pass / N=fail / S=skip]\n' "$label" > /dev/tty 2>/dev/null || true
-    IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" key < /dev/tty 2>/dev/null
+    printf '%s  [Y=pass / N=fail / S=skip]\n' "$label" > "$DIAG_TTY_FILE" 2>/dev/null || true
+    IFS= read -rsn1 -t "$DIAG_GUIDED_TIMEOUT_SECS" key < "$DIAG_TTY_FILE" 2>/dev/null
     case "$key" in
         y|Y) printf 'pass\n' ;;
         n|N) printf 'fail\n' ;;
@@ -297,6 +304,9 @@ diag::speaker() {
     # Play a 1 kHz tone while the operator listens, then confirm.
     speaker-test -t sine -f 1000 -l 1 >/dev/null 2>&1 &
     local pid=$!
+    # Detach the tone from the job table so bash doesn't print a "Killed"
+    # notification on the console when we stop it.
+    disown "$pid" 2>/dev/null || true
     diag::_guided speaker "Tone playing — heard it? Y/N/S" "tone confirmed · operator PASS"
     kill "$pid" 2>/dev/null || true
     kill -9 "$pid" 2>/dev/null || true
