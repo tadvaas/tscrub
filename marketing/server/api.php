@@ -1361,9 +1361,10 @@ if ($method === 'POST' && $route === '/bios/unlock/result') {
     }
 
     $d = json_body();
-    $id     = (int)($d['id'] ?? 0);
-    $result = trim((string)($d['result'] ?? ''));
-    $detail = trim((string)($d['detail'] ?? ''));
+    $id      = (int)($d['id'] ?? 0);
+    $result  = trim((string)($d['result'] ?? ''));
+    $detail  = trim((string)($d['detail'] ?? ''));
+    $verdict = trim((string)($d['verdict'] ?? ''));
     if ($id <= 0) {
         fail(400, 'Invalid command id.');
     }
@@ -1371,7 +1372,9 @@ if ($method === 'POST' && $route === '/bios/unlock/result') {
         fail(400, 'Invalid result.');
     }
 
-    if (!unlock_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255))) {
+    // unlock_report() clips the detail to its column and derives the verdict
+    // when the appliance did not send one.
+    if (!unlock_report((int)$owner['id'], $id, $result, $detail, $verdict)) {
         fail(409, 'Command is not dispatched.');
     }
     json_out(['ok' => true]);

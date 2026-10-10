@@ -1546,21 +1546,98 @@
         if (s === 'pending') return { kind: 'staged', data: u };
         if (s === 'dispatched') return { kind: 'inprogress', data: u };
         if (s === 'done') return { kind: 'cleared', data: u };
-        if (s === 'failed') return { kind: 'failed', data: u };
-        if (s === 'unsupported') return { kind: 'unsupported', data: u };
+        // A clear that did not succeed arrives as "failed" for two very
+        // different reasons — a wrong password (retry with the right one) and a
+        // firmware with no clear path from Linux (retrying can never work).
+        // The server reduces result+detail to `verdict`; fall back to the raw
+        // status so an older appliance still renders.
+        if (s === 'failed' || s === 'unsupported') {
+          return { kind: (u && u.verdict) ? u.verdict : s, data: u };
+        }
         return { kind: 'idle', data: u };   // none / cancelled / superseded
       }
 
       function unlockBadge(kind) {
+        var RED = 'rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold';
+        var AMBER = 'rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-semibold';
+        var GREY = 'rounded-full bg-slate-200 text-slate-600 px-2.5 py-1 text-xs font-semibold';
         switch (kind) {
           case 'staged': return el('span', 'rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-semibold', 'Staged');
           case 'inprogress': return el('span', 'rounded-full bg-sky-100 text-sky-700 px-2.5 py-1 text-xs font-semibold animate-pulse', 'Clearing…');
           case 'cleared': return el('span', 'rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold', 'Cleared');
-          case 'failed': return el('span', 'rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold', 'Failed');
-          case 'unsupported': return el('span', 'rounded-full bg-slate-200 text-slate-600 px-2.5 py-1 text-xs font-semibold', 'Unsupported');
+          case 'wrong_password': return el('span', RED, 'Wrong password');
+          case 'policy': return el('span', RED, 'Rejected by policy');
+          case 'failed': return el('span', RED, 'Failed');
+          case 'no_clear_path': return el('span', AMBER, 'No clear path');
+          case 'not_supported': return el('span', AMBER, 'Not supported');
+          case 'needs_privilege': return el('span', AMBER, 'Not permitted');
+          case 'read_only': return el('span', GREY, 'Read-only');
+          case 'no_interface': return el('span', GREY, 'No interface');
+          case 'unsupported': return el('span', GREY, 'Unsupported');
           default: return null;
         }
       }
+
+      // Outcome wording for a clear that did not succeed. The verdict is derived
+      // server-side from the appliance's result+detail (see
+      // marketing/server/bios_unlock.php / unlock_verdict) so `retry` is only
+      // offered where a different password could actually change the outcome.
+      var UNLOCK_OUTCOME = {
+        wrong_password: {
+          cls: 'text-red-600 dark:text-red-400',
+          headline: 'Wrong BIOS password',
+          hint: 'The firmware evaluated that password and rejected it — check the current password and retry.',
+          retry: true
+        },
+        policy: {
+          cls: 'text-red-600 dark:text-red-400',
+          headline: 'Rejected by the firmware password policy',
+          hint: 'The value does not meet this firmware’s password rules. Retry with one that does.',
+          retry: true
+        },
+        failed: {
+          cls: 'text-red-600 dark:text-red-400',
+          headline: 'Clear failed',
+          hint: 'The firmware reported a failure that could not be classified — see the detail above.',
+          retry: true
+        },
+        no_clear_path: {
+          cls: 'text-amber-600 dark:text-amber-400',
+          headline: 'Cannot be cleared from Linux',
+          hint: 'The password was accepted — the firmware simply exposes no reset path, so retrying will not change it. Clear it pre-boot instead (BIOS setup, vendor SMC, or SPI reflash). The password is not the problem here.',
+          retry: false
+        },
+        not_supported: {
+          cls: 'text-amber-600 dark:text-amber-400',
+          headline: 'Firmware cannot set or clear passwords',
+          hint: 'This driver never forwards a new value to the firmware, so no password entered here can clear it.',
+          retry: false
+        },
+        needs_privilege: {
+          cls: 'text-amber-600 dark:text-amber-400',
+          headline: 'Not permitted',
+          hint: 'The driver required elevated privileges (CAP_SYS_ADMIN) to write the password attribute.',
+          retry: false
+        },
+        read_only: {
+          cls: 'text-slate-600 dark:text-slate-300',
+          headline: 'Password interface is read-only',
+          hint: 'The password object publishes no write path on this machine.',
+          retry: false
+        },
+        no_interface: {
+          cls: 'text-slate-600 dark:text-slate-300',
+          headline: 'No BIOS password interface',
+          hint: 'The kernel published no firmware-attributes password object on this machine.',
+          retry: false
+        },
+        unsupported: {
+          cls: 'text-slate-600 dark:text-slate-300',
+          headline: 'Not supported on this machine',
+          hint: 'No writable BIOS password interface was found.',
+          retry: false
+        }
+      };
 
       function loadUnlockState(dev, online, host) {
         fetch('/api/bios/unlock?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
@@ -1655,23 +1732,28 @@
         } else if (kind === 'cleared') {
           card.appendChild(el('p', 'mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-400', 'BIOS password cleared.'));
           if (u && u.detail) card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400', u.detail));
-        } else if (kind === 'failed') {
-          var err = el('p', 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400', 'Clear failed');
-          if (u && u.detail) err.appendChild(document.createTextNode(' — ' + u.detail));
-          card.appendChild(err);
-          var rform = el('div', 'mt-3 flex flex-wrap items-center gap-2');
-          var rinp = el('input', 'min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
-          rinp.type = 'text';
-          rinp.autocomplete = 'off';
-          rinp.placeholder = 'Current BIOS password';
-          var rbtn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Retry');
-          rform.appendChild(rinp); rform.appendChild(rbtn);
-          card.appendChild(rform);
-          var rst = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-          card.appendChild(rst);
-          rbtn.addEventListener('click', function () { sendUnlock(dev, online, host, rinp, rbtn, rst); });
-        } else if (kind === 'unsupported') {
-          card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'Not supported on this machine' + (u && u.detail ? ' — ' + u.detail : '') + '.'));
+        } else {
+          // Everything else is a non-cleared outcome. The server's `verdict`
+          // picks the wording; only the retryable ones offer another attempt, so
+          // an operator is never invited to re-enter a password that cannot help.
+          var v = UNLOCK_OUTCOME[kind] || UNLOCK_OUTCOME.failed;
+          var msg = el('p', 'mt-3 text-sm font-semibold ' + v.cls, v.headline);
+          if (u && u.detail) msg.appendChild(document.createTextNode(' — ' + u.detail));
+          card.appendChild(msg);
+          if (v.hint) card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400', v.hint));
+          if (v.retry) {
+            var rform = el('div', 'mt-3 flex flex-wrap items-center gap-2');
+            var rinp = el('input', 'min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
+            rinp.type = 'text';
+            rinp.autocomplete = 'off';
+            rinp.placeholder = 'Current BIOS password';
+            var rbtn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Retry');
+            rform.appendChild(rinp); rform.appendChild(rbtn);
+            card.appendChild(rform);
+            var rst = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+            card.appendChild(rst);
+            rbtn.addEventListener('click', function () { sendUnlock(dev, online, host, rinp, rbtn, rst); });
+          }
         }
 
         host.appendChild(card);

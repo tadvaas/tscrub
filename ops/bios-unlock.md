@@ -87,3 +87,41 @@ head -n $((n-1)) ts.sh > lib.sh
 Unit tests: `product/tests/test_bios_unlock.sh` (Dell sysfs, HP `authentication/`
 + `is_enabled`, orphaned tree, read-only interface, no-interface, slot priority,
 re-verify, JSON parsing).
+
+## 4. Telling "wrong password" apart from "this firmware cannot clear"
+
+A clear that does not succeed arrives at the dashboard as `failed`, but the two
+cases need opposite action — one is retried with a different password, the other
+can never succeed from Linux. So the **server** reduces `result` + `detail` to a
+single `verdict` (`marketing/server/bios_unlock.php` → `unlock_verdict()`), which
+`GET /api/bios/unlock` returns alongside the detail and
+`dashboard/devices.html` renders. The wording lives server-side on purpose:
+one place owns the operator-facing vocabulary, and it works for appliances
+already in the field (v1.11.44's wording is ambiguous and contains the words
+"wrong password", so the no-clear-path family is matched first).
+
+| verdict | how it is produced | dashboard | retry offered |
+|---|---|---|---|
+| `cleared` | the slot re-read as not set | green *Cleared* | — |
+| `wrong_password` | a **rejected write**: `write error: Permission denied` (Dell `map_wmi_error(3)` → `-EACCES`) | red *Wrong BIOS password* | yes |
+| `policy` | `write error: Invalid argument` | red *Rejected by the firmware password policy* | yes |
+| `no_clear_path` | writes **accepted** (`BIOS_UNLOCK_WRITE_ERR` empty) but the flag is unchanged — or the detail says *no clear path / no reset path from Linux* | amber *Cannot be cleared from Linux* | **no** |
+| `not_supported` | `write error: Operation not supported` | amber *Firmware cannot set or clear passwords* | no |
+| `needs_privilege` | `write error: Operation not permitted` | amber *Not permitted* | no |
+| `read_only` | the `open()` failed — `sh: <path>: Permission denied`, i.e. no write path | grey *Password interface is read-only* | no |
+| `no_interface` | no attribute at all (class dir empty, no orphaned tree) | grey *No BIOS password interface* | no |
+| `failed` | anything not classified above | red *Clear failed* | yes |
+
+Anything that stops matching degrades to `failed` with the detail shown verbatim,
+so no information is lost — but if you reword `_write_error_reason()` in
+`product/src/38_bios_unlock.sh`, keep this classifier in step. An appliance may
+also send an explicit `verdict` field, which always wins.
+
+Harness: `research/bios-unlock/test_unlock_verdict.php` (21 assertions over the
+real v1.11.44 **and** v1.11.45 wordings — run it on the server beside
+`bios_unlock.php`). It is `research/`-local (gitignored), like the other server
+smoke tests.
+
+> Note: `detail` is `VARCHAR(512)`. The v1.11.45 no-clear-path explanation is
+> 253 characters — it only just fitted the original `VARCHAR(255)`, and with an
+> absolute sysfs path it is 284 and was truncated mid-sentence.

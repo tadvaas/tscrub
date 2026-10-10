@@ -25,6 +25,27 @@ and this project uses date-based versioning (`v1.x`).
   new `marketing/server/cert_terms.php` so the PDF and the machine-readable twin
   cannot drift apart. Plan: `research/cert-destruction-evidence/README.md`.
 
+### Fixed
+
+- **The dashboard now says *why* a remote BIOS unlock did not succeed.** A clear
+  that fails arrives as a single status for two completely different reasons — a
+  wrong password (retry with the right one) and a firmware that has no reset path
+  from Linux (retrying can never work) — and the dashboard showed the same "Clear
+  failed" plus a retry box for both, inviting the operator to keep re-entering a
+  password that was already correct. The server now derives a machine-readable
+  `verdict` from the appliance's result + detail (`bios_unlock.php` →
+  `unlock_verdict()`, returned by `GET /api/bios/unlock`), which the dashboard
+  renders as *Wrong BIOS password* / *Rejected by the firmware password policy* /
+  *Cannot be cleared from Linux* / *Firmware cannot set or clear passwords* /
+  *Password interface is read-only* / *No BIOS password interface*; a retry box is
+  only offered where a different password could actually change the outcome.
+  `bios_unlock.detail` was also widened `VARCHAR(255)` → `VARCHAR(512)`: the
+  v1.11.45 no-clear-path explanation is 253 characters, and 284 with an absolute
+  sysfs path, so it was being clipped mid-sentence. Commands resolved before this
+  change are classified on read, so they render correctly too — the v1.11.44
+  wording ("wrong password, or this firmware exposes no reset path from Linux")
+  now correctly resolves to *no clear path* rather than *wrong password*.
+
 ## [v1.11.45] - 2026-10-10
 
 ### Fixed

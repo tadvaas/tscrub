@@ -26,7 +26,8 @@ function unlock_ensure_schema(): void {
                password_enc  VARCHAR(512)    NOT NULL DEFAULT "",
                status        VARCHAR(16)     NOT NULL DEFAULT "pending",
                result        VARCHAR(16)     NOT NULL DEFAULT "",
-               detail        VARCHAR(255)    NOT NULL DEFAULT "",
+               detail        VARCHAR(512)    NOT NULL DEFAULT "",
+               verdict       VARCHAR(24)     NOT NULL DEFAULT "",
                created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
                dispatched_at DATETIME        NULL,
                resolved_at   DATETIME        NULL,
@@ -35,6 +36,20 @@ function unlock_ensure_schema(): void {
                KEY idx_unlock_status (status, id)
             )'
         );
+        // `verdict` landed after the first release, and `detail` had to be
+        // widened to hold the appliance's honest explanation of a clear that
+        // cannot work on this firmware (~253 chars). Both are idempotent
+        // migrations; information_schema rather than SHOW COLUMNS LIKE ? which
+        // rejects bound placeholders.
+        $stmt = db()->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bios_unlock' AND COLUMN_NAME = 'verdict'");
+        if ((int)$stmt->fetchColumn() === 0) {
+            db()->exec('ALTER TABLE bios_unlock ADD COLUMN verdict VARCHAR(24) NOT NULL DEFAULT "" AFTER detail');
+        }
+        $stmt = db()->query("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bios_unlock' AND COLUMN_NAME = 'detail'");
+        $len = $stmt->fetchColumn();
+        if ($len !== false && $len !== null && (int)$len < 512) {
+            db()->exec('ALTER TABLE bios_unlock MODIFY COLUMN detail VARCHAR(512) NOT NULL DEFAULT ""');
+        }
     } catch (Throwable $e) {
         error_log('unlock ensure schema error: ' . $e->getMessage());
     }
@@ -136,15 +151,79 @@ function unlock_claim(int $userId, string $serial, string $uuid): ?array {
     }
 }
 
+/** Trim a value to a column's character length (multibyte-safe). */
+function unlock_clip(string $s, int $max): string {
+    $s = trim($s);
+    return mb_strlen($s) > $max ? mb_substr($s, 0, $max - 1) . '…' : $s;
+}
+
+/**
+ * Reduce an appliance result + its free-text detail to a single machine-readable
+ * verdict, so the dashboard can say "wrong password" or "this firmware has no
+ * clear path from Linux" instead of a generic "failed". A clear returns
+ * `failed` for both of those cases, and they need opposite operator action —
+ * one is retried, the other can never succeed from Linux.
+ *
+ * The wording matched here is emitted by product/src/38_bios_unlock.sh
+ * (bios_unlock::_write_error_reason + bios_unlock::clear). Anything that stops
+ * matching degrades to 'failed'; the detail is shown verbatim either way, so no
+ * information is lost. The wording lives server-side on purpose — one place
+ * owns the operator-facing vocabulary.
+ *
+ * ORDER MATTERS: the v1.11.44 wording for "writes accepted but the password is
+ * unchanged" also contained the words "wrong password, or this firmware exposes
+ * no reset path from Linux", so the no-clear-path family is tested first —
+ * removing exactly that ambiguity is why this function exists.
+ */
+function unlock_verdict(string $result, string $detail, string $stored = ''): string {
+    $stored = trim($stored);
+    if ($stored !== '') {
+        return $stored;   // an explicit verdict from the appliance wins
+    }
+    $d = strtolower($detail);
+    $has = static fn(string $needle): bool => str_contains($d, $needle);
+
+    if ($result === 'cleared') {
+        return 'cleared';
+    }
+    if ($has('no clear path from linux') || $has('no reset path from linux') || $has('the writes were accepted')) {
+        return 'no_clear_path';
+    }
+    if ($has('wrong password')) {
+        return 'wrong_password';
+    }
+    if ($has('password policy')) {
+        return 'policy';
+    }
+    if ($has('does not support setting or clearing')) {
+        return 'not_supported';
+    }
+    if ($has('cap_sys_admin')) {
+        return 'needs_privilege';
+    }
+    if ($has('read-only') || $has('is not writable')) {
+        return 'read_only';
+    }
+    if ($has('no firmware-attributes device published') || $has('no writable bios password interface')) {
+        return 'no_interface';
+    }
+    return $result === 'unsupported' ? 'unsupported' : 'failed';
+}
+
 /** Record the appliance's result for a dispatched command; purge the password.
  *  Returns false (and writes nothing) when the row is not dispatched. */
-function unlock_report(int $userId, int $id, string $result, string $detail): bool {
+function unlock_report(int $userId, int $id, string $result, string $detail, string $verdict = ''): bool {
     $status = $result === 'cleared' ? 'done' : $result;
+    // Classify from the FULL detail (the phrases matched sit at the start, but
+    // never risk a truncation hiding them), then clip only what we store.
+    $verdict = unlock_verdict($result, $detail, $verdict);
+    $detail  = unlock_clip($detail, 512);
+    $verdict = unlock_clip($verdict, 24);
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("UPDATE bios_unlock SET status = ?, result = ?, detail = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id IN ($ph) AND status = 'dispatched'");
-        $stmt->execute(array_merge([$status, $result, $detail, $id], $ids));
+        $stmt = db()->prepare("UPDATE bios_unlock SET status = ?, result = ?, detail = ?, verdict = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id IN ($ph) AND status = 'dispatched'");
+        $stmt->execute(array_merge([$status, $result, $detail, $verdict, $id], $ids));
         if ($stmt->rowCount() === 0) {
             return false;
         }
@@ -178,7 +257,7 @@ function unlock_latest(int $userId, string $serial): array {
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("SELECT id, status, result, detail, created_at, resolved_at FROM bios_unlock WHERE user_id IN ($ph) AND serial = ? ORDER BY id DESC LIMIT 1");
+        $stmt = db()->prepare("SELECT id, status, result, detail, verdict, created_at, resolved_at FROM bios_unlock WHERE user_id IN ($ph) AND serial = ? ORDER BY id DESC LIMIT 1");
         $stmt->execute(array_merge($ids, [$serial]));
         $r = $stmt->fetch();
         if ($r === false) {
@@ -188,6 +267,9 @@ function unlock_latest(int $userId, string $serial): array {
             'id'          => (int)$r['id'],
             'status'      => (string)$r['status'],
             'result'      => (string)$r['result'],
+            /* Rows written before the verdict column existed are classified on
+               read, so already-resolved commands render correctly too. */
+            'verdict'     => unlock_verdict((string)$r['result'], (string)$r['detail'], (string)($r['verdict'] ?? '')),
             'detail'      => (string)$r['detail'],
             'created_at'  => (string)$r['created_at'],
             'resolved_at' => $r['resolved_at'] === null ? null : (string)$r['resolved_at'],
