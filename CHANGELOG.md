@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Remote BIOS unlock now finds the password interface on HP and Dell
+  appliances, and reports honestly when a vendor has no clear path.** The
+  kernel's `firmware-attributes` class directory was empty on the appliance:
+  `hp-bioscfg` and `dell-wmi-sysman` are linked before
+  `firmware_attributes_class.o` in `drivers/platform/x86/Makefile` and use the
+  same initcall level, so their class device was created before the class was
+  registered and was left **orphaned at `/sys/devices/<driver>`** with no
+  `/sys/class/firmware-attributes` symlink. Fixes: (a) a kernel patch registers
+  the class before its users, so Dell/Lenovo resets work again; (b)
+  `bios_unlock::clear` now also scans orphaned device trees, HP's
+  `authentication/` password objects and the `is_enabled` "still set" signal;
+  (c) the failure text distinguishes "no interface published by the kernel" and
+  "interface is read-only" instead of the generic message. On HP (hp-bioscfg)
+  the BIOS password cannot be cleared from Linux — it exposes authentication
+  (to change other BIOS settings) but no password reset, and its `new_password`
+  attribute is a no-op — so those machines now report the real reason and keep
+  the pre-boot route (HP SMC / SPI).
+
 ## [v1.11.43] - 2026-10-10
 
 ### Fixed

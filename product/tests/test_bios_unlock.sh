@@ -6,6 +6,9 @@ t::source_src
 
 tmpdir="$(mktemp -d)"
 
+# Deterministic: never let the orphan scan touch the real /sys/devices tree.
+export BIOS_FA_ORPHAN_GLOB="$tmpdir/no-orphan/*"
+
 t::assert_eq "https://tscrub.com/api/bios/unlock/pending" \
     "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' bios_unlock::pending_endpoint)" \
     "unlock pending endpoint: built-in reports URL"
@@ -69,6 +72,71 @@ printf '0' > "$BIOS_FA_ROOT/dell-wmi-sysman/attributes/AdminPassword/is_password
 BIOS_UNLOCK_RESULT=""
 bios_unlock::clear "hunter2"
 t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "re-verify: is_password_set=0 -> cleared"
+
+# --- HP: password objects live under authentication/; signal is is_enabled ---
+hpdir="$tmpdir/hp"
+mkdir -p "$hpdir/hp-bioscfg/authentication/Setup Password" \
+         "$hpdir/hp-bioscfg/authentication/Power-On Password"
+printf 'old' > "$hpdir/hp-bioscfg/authentication/Setup Password/current_password"
+printf 'old' > "$hpdir/hp-bioscfg/authentication/Setup Password/new_password"
+printf '1'   > "$hpdir/hp-bioscfg/authentication/Setup Password/is_enabled"
+printf 'bios-admin' > "$hpdir/hp-bioscfg/authentication/Setup Password/role"
+printf 'old' > "$hpdir/hp-bioscfg/authentication/Power-On Password/current_password"
+printf 'old' > "$hpdir/hp-bioscfg/authentication/Power-On Password/new_password"
+printf '0'   > "$hpdir/hp-bioscfg/authentication/Power-On Password/is_enabled"
+printf 'power-on' > "$hpdir/hp-bioscfg/authentication/Power-On Password/role"
+BIOS_FA_ROOT="$hpdir"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "failed" "$BIOS_UNLOCK_RESULT" "HP auth: is_enabled still 1 -> failed"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "Setup Password" "HP auth: detail names the setup slot"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "hp-bioscfg" "HP auth: detail names the driver"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "still set" "HP auth: detail says still set"
+t::assert_eq "hpinvent" "$(cat "$hpdir/hp-bioscfg/authentication/Setup Password/current_password")" "HP auth: current_password written"
+t::assert_eq "old" "$(cat "$hpdir/hp-bioscfg/authentication/Power-On Password/current_password")" "HP auth: power-on slot untouched (admin preferred)"
+
+# --- HP auth: is_enabled=0 -> cleared ---------------------------------------
+printf '0' > "$hpdir/hp-bioscfg/authentication/Setup Password/is_enabled"
+BIOS_UNLOCK_RESULT=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "HP auth: is_enabled=0 -> cleared"
+
+# --- orphaned device tree (kernel never linked it into the class) ------------
+orph="$tmpdir/orphan/devices/hp-bioscfg"
+mkdir -p "$orph/authentication/Setup Password"
+printf 'old' > "$orph/authentication/Setup Password/current_password"
+printf 'old' > "$orph/authentication/Setup Password/new_password"
+printf '0'   > "$orph/authentication/Setup Password/is_enabled"
+mkdir -p "$tmpdir/empty-class"
+BIOS_FA_ROOT="$tmpdir/empty-class"
+BIOS_FA_ORPHAN_GLOB="$tmpdir/orphan/devices/*"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "orphan root: found + cleared"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "Setup Password" "orphan root: detail names the slot"
+t::assert_eq "hpinvent" "$(cat "$orph/authentication/Setup Password/current_password")" "orphan root: password written"
+
+# --- no interface at all -> unsupported with an explanatory detail -----------
+BIOS_FA_ROOT="$tmpdir/absent"
+BIOS_FA_ORPHAN_GLOB="$tmpdir/absent-orphans/*"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "unsupported" "$BIOS_UNLOCK_RESULT" "no interface: unsupported"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "no firmware-attributes device" "no interface: detail explains why"
+
+# --- read-only interface (password object with no write path) ---------------
+rodir="$tmpdir/ro"
+mkdir -p "$rodir/hp-bioscfg/authentication/Setup Password"
+printf 'bios-admin' > "$rodir/hp-bioscfg/authentication/Setup Password/role"
+BIOS_FA_ROOT="$rodir"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "unsupported" "$BIOS_UNLOCK_RESULT" "read-only interface: unsupported"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "read-only" "read-only interface: detail explains why"
 
 # --- parse: base64 password field -------------------------------------------
 t::assert_eq $'7\nhunter2' "$(bios_unlock::_parse_pending '{"id":7,"password":"x","password_b64":"aHVudGVyMg=="}')" "parse: base64 password decodes"
