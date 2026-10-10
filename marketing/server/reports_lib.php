@@ -1092,6 +1092,13 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
         'media_destination' => (string)($d['media_destination'] ?? ''),
         'battery'        => (string)($d['battery'] ?? ''),
         'secure_boot'    => (string)($d['secure_boot'] ?? ''),
+        // UEFI-variable evidence sent by the appliance (v1.11.49+): a one-line
+        // fingerprint summary plus the raw firmware state variables. NOTE this
+        // list is an explicit whitelist, so ANY new appliance field must be
+        // added here or it is dropped on ingest without an error — which is
+        // exactly what happened to these two on the first v1.11.49 reports.
+        'efivars'        => (string)($d['efivars'] ?? ''),
+        'efivars_b64'    => (string)($d['efivars_b64'] ?? ''),
         'dimms'          => (string)($d['dimms'] ?? ''),
         'cpu_spec'       => (string)($d['cpu_spec'] ?? ''),
         'display'        => (string)($d['display'] ?? ''),
