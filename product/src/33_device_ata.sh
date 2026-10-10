@@ -95,10 +95,14 @@ device::reset_hpa_dco() {
 # Clear the temporary security password set for the erase so the drive is not
 # left "security enabled" (which locks it on the next power cycle). Best-effort:
 # the erase outcome is already decided, and a failed disable must never flip a
-# completed erase to FAILED.
+# completed erase to FAILED. Some firmwares end the erase in the "locked" state,
+# so if a plain disable is rejected, unlock first and retry once.
 device::ata_clear_password() {
     local dev="$1"
-    hdparm --user-master u --security-disable p /dev/$dev >&5 2>&5 || true
+    if ! hdparm --user-master u --security-disable p /dev/$dev >&5 2>&5; then
+        hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
+        hdparm --user-master u --security-disable p /dev/$dev >&5 2>&5 || true
+    fi
 }
 
 device::exec_ata() {

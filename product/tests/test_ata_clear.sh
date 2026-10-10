@@ -36,4 +36,29 @@ rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "clear_notime: erase -> COMPLETED"
 t::check "clear_notime: erase does NOT emit FAILED" '[[ "$captured" != *"sda STATUS FAILED"* ]]'
 
+# Password cleanup: a plain --security-disable is tried first; when it fails
+# (drive ended the erase locked), an unlock is issued and the disable retried.
+ATA_CLEAR_CALLS=()
+FAKE_DISABLE_FAIL_ONCE=1
+hdparm() {
+    case "$3" in
+        --security-disable)
+            ATA_CLEAR_CALLS+=("disable")
+            if [[ "${FAKE_DISABLE_FAIL_ONCE:-0}" -eq 1 ]]; then
+                FAKE_DISABLE_FAIL_ONCE=0
+                return 1
+            fi
+            return 0
+            ;;
+        --security-unlock)
+            ATA_CLEAR_CALLS+=("unlock")
+            return 0
+            ;;
+    esac
+    return 0
+}
+device::ata_clear_password sda
+t::check "ata_clear: unlock retried after failed disable" '[[ "${ATA_CLEAR_CALLS[*]}" == "disable unlock disable" ]]'
+unset -f hdparm
+
 t::summary
