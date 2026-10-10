@@ -6,6 +6,23 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Fixed
+
+- **BIOS unlock now distinguishes a wrong password from a firmware that cannot
+  clear one, and clears with a newline instead of an empty write.** The
+  `new_password` value is now a single `\n` (every driver strips it to "no new
+  password"); an empty string is a 0-byte write that can be dropped before it
+  reaches the driver's store, so a Dell/Lenovo clear may never have reached the
+  firmware. Write failures are classified from the shell error text — a
+  *rejected write* (`write error: Permission denied` = wrong password, `Invalid
+  argument` = password policy, `Operation not supported` = this firmware cannot
+  set/clear passwords, `Operation not permitted` = needs `CAP_SYS_ADMIN`) versus
+  an unwritable attribute — and "writes accepted but the password is unchanged"
+  now reports *no clear path from Linux, password cannot be validated here*
+  instead of implying the password might simply be wrong.
+
 ## [v1.11.44] - 2026-10-10
 
 ### Fixed

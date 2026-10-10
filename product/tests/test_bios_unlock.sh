@@ -138,6 +138,56 @@ bios_unlock::clear "hpinvent"
 t::assert_eq "unsupported" "$BIOS_UNLOCK_RESULT" "read-only interface: unsupported"
 t::assert_contains "$BIOS_UNLOCK_DETAIL" "read-only" "read-only interface: detail explains why"
 
+# --- write-error classification (wrong password vs unsupported) -------------
+t::assert_contains "$(bios_unlock::_write_error_reason 'sh: printf: write error: Permission denied')" \
+    "wrong password" "classify: EACCES (write rejected) -> wrong password"
+t::assert_contains "$(bios_unlock::_write_error_reason 'sh: printf: write error: Invalid argument')" \
+    "policy" "classify: EINVAL -> password policy"
+t::assert_contains "$(bios_unlock::_write_error_reason 'sh: printf: write error: Operation not supported')" \
+    "does not support" "classify: EOPNOTSUPP -> firmware does not support"
+t::assert_contains "$(bios_unlock::_write_error_reason 'sh: printf: write error: Operation not permitted')" \
+    "not permitted" "classify: EPERM -> needs CAP_SYS_ADMIN"
+t::assert_contains "$(bios_unlock::_write_error_reason 'sh: /sys/x/is_enabled: Permission denied')" \
+    "not writable" "classify: open failure -> attribute not writable"
+t::assert_contains "$(bios_unlock::_write_error_reason 'sh: printf: write error: Input/output error')" \
+    "Input/output" "classify: unknown errno -> firmware failure text"
+
+# --- _write_attr surfaces a rejected write ----------------------------------
+roroot="$tmpdir/roattr"
+mkdir -p "$roroot"
+: > "$roroot/attr"
+chmod 400 "$roroot/attr"
+BIOS_UNLOCK_WRITE_ERR=""
+if bios_unlock::_write_attr "$roroot/attr" "value"; then wrc=0; else wrc=1; fi
+t::assert_eq "1" "$wrc" "_write_attr: unwritable file fails"
+t::assert_contains "$BIOS_UNLOCK_WRITE_ERR" "Permission denied" "_write_attr: captures the shell error text"
+t::assert_contains "$(bios_unlock::_write_error_reason "$BIOS_UNLOCK_WRITE_ERR")" \
+    "not writable" "_write_attr: open failure classified"
+
+# --- the blank new_password value is a newline (drivers strip it) -----------
+wcroot="$tmpdir/wc"
+mkdir -p "$wcroot/dell-wmi-sysman/attributes/AdminPassword"
+printf 'old' > "$wcroot/dell-wmi-sysman/attributes/AdminPassword/current_password"
+printf 'old' > "$wcroot/dell-wmi-sysman/attributes/AdminPassword/new_password"
+bios_unlock::_write_clear "$wcroot/dell-wmi-sysman/attributes/AdminPassword" "hpinvent"
+t::assert_eq "hpinvent" "$(cat "$wcroot/dell-wmi-sysman/attributes/AdminPassword/current_password")" "_write_clear: current_password written"
+t::assert_eq "1" "$(wc -c < "$wcroot/dell-wmi-sysman/attributes/AdminPassword/new_password" | awk '{print $1}')" "_write_clear: new_password is 1 byte (newline)"
+t::assert_eq "10" "$(od -An -tu1 "$wcroot/dell-wmi-sysman/attributes/AdminPassword/new_password" | awk '{print $1}')" "_write_clear: that byte is LF"
+
+# --- accepted writes + still set -> no clear path, not a wrong password -----
+nrp="$tmpdir/noreset"
+mkdir -p "$nrp/hp-bioscfg/authentication/Setup Password"
+printf 'old' > "$nrp/hp-bioscfg/authentication/Setup Password/current_password"
+printf 'old' > "$nrp/hp-bioscfg/authentication/Setup Password/new_password"
+printf '1'   > "$nrp/hp-bioscfg/authentication/Setup Password/is_enabled"
+BIOS_FA_ROOT="$nrp"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "failed" "$BIOS_UNLOCK_RESULT" "no-reset driver: writes accepted -> failed"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "no clear path" "no-reset driver: detail says no clear path"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "cannot be validated" "no-reset driver: detail says password unverifiable"
+
 # --- parse: base64 password field -------------------------------------------
 t::assert_eq $'7\nhunter2' "$(bios_unlock::_parse_pending '{"id":7,"password":"x","password_b64":"aHVudGVyMg=="}')" "parse: base64 password decodes"
 

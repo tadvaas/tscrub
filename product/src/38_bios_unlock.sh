@@ -63,13 +63,64 @@ bios_unlock::result_endpoint() {
     printf '%s/api/bios/unlock/result' "$url"
 }
 
-# Write the current password + a blank new password to a firmware_attributes
-# admin-password attribute dir. Returns 0 on success.
+# Write a value to a firmware-attributes file, capturing the shell's own error
+# text in BIOS_UNLOCK_WRITE_ERR. The text distinguishes the two failure modes:
+#   "<shell>: <path>: <reason>"              the open() failed — the attribute is
+#                                            not writable (read-only/permission)
+#   "<shell>: printf: write error: <reason>" the driver/firmware REJECTED the
+#                                            value (this is the informative one)
+# Returns 1 on failure.
+bios_unlock::_write_attr() {
+    local f="$1" v="$2" err
+    err="$( { printf '%s' "$v" > "$f"; } 2>&1 )" || {
+        BIOS_UNLOCK_WRITE_ERR="${err:-write failed}"
+        return 1
+    }
+    BIOS_UNLOCK_WRITE_ERR=""
+    return 0
+}
+
+# Turn a captured shell error into a reason an operator can act on. Only a
+# "write error" means the firmware evaluated the value; the errno then says why.
+bios_unlock::_write_error_reason() {
+    local e="$1"
+    case "$e" in
+        *"write error"*)
+            case "$e" in
+                *"Permission denied"*)
+                    printf 'wrong password — the firmware rejected the current password' ;;
+                *"Invalid argument"*)
+                    printf 'rejected — the value does not meet the firmware password policy' ;;
+                *"Operation not supported"*)
+                    printf 'this firmware/driver does not support setting or clearing BIOS passwords' ;;
+                *"Operation not permitted"*)
+                    printf 'not permitted — root / CAP_SYS_ADMIN is required' ;;
+                *"Read-only file system"*)
+                    printf 'the password attribute is read-only' ;;
+                *)
+                    printf 'the firmware reported a failure (%s)' "${e##*: }" ;;
+            esac ;;
+        *"Permission denied"*)
+            printf 'the password attribute is not writable' ;;
+        *"No such file"*)
+            printf 'the password attribute is missing' ;;
+        *)
+            printf 'could not write the password attribute (%s)' "${e##*: }" ;;
+    esac
+}
+
+# Write the current password, then a blank new password, to a firmware
+# attributes admin-password attribute dir. Returns 0 when the writes were
+# ACCEPTED — which is not a claim that the password changed; re-read to confirm.
+#
+# The "blank" value is a single newline, not an empty string: a 0-byte write can
+# be dropped before it reaches the driver's store, and every driver strips a
+# trailing newline (so "\n" == "no new password" == clear).
 bios_unlock::_write_clear() {
     local base="$1" unlock_pwd="$2"
     [[ -f "$base/current_password" && -f "$base/new_password" ]] || return 1
-    printf '%s' "$unlock_pwd" > "$base/current_password" 2>/dev/null || return 1
-    printf '' > "$base/new_password" 2>/dev/null || return 1
+    bios_unlock::_write_attr "$base/current_password" "$unlock_pwd" || return 1
+    bios_unlock::_write_attr "$base/new_password" $'\n' || return 1
     return 0
 }
 
@@ -166,6 +217,7 @@ bios_unlock::clear() {
     local devs_seen=0 ro_dirs=0
     BIOS_UNLOCK_RESULT="unsupported"
     BIOS_UNLOCK_DETAIL="no writable BIOS password interface found"
+    BIOS_UNLOCK_WRITE_ERR=""
 
     # Layer 1 — firmware-attributes sysfs (Dell dell-wmi-sysman, Lenovo
     # think_lmi, HP hp-bioscfg, …). Password objects live under attributes/ on
@@ -200,18 +252,18 @@ bios_unlock::clear() {
 
     if [[ -n "$best_base" ]]; then
         if bios_unlock::_write_clear "$best_base" "$unlock_pwd"; then
-            # Confirm the clear actually took effect before claiming success.
+            # The writes were accepted — confirm the password actually went away.
             if bios_unlock::_verify_cleared "$best_base"; then
                 BIOS_UNLOCK_RESULT="cleared"
                 BIOS_UNLOCK_DETAIL="sysfs: ${best_rel}"
                 return 0
             fi
             BIOS_UNLOCK_RESULT="failed"
-            BIOS_UNLOCK_DETAIL="password still set after clear (sysfs: ${best_rel}) — wrong password, or this firmware exposes no reset path from Linux"
+            BIOS_UNLOCK_DETAIL="password still set after clear — the writes were accepted (nothing was rejected) but the password is unchanged, so this firmware exposes no clear path from Linux and the password cannot be validated here (sysfs: ${best_rel})"
             return 1
         fi
         BIOS_UNLOCK_RESULT="failed"
-        BIOS_UNLOCK_DETAIL="write failed (sysfs: ${best_rel}) — wrong password?"
+        BIOS_UNLOCK_DETAIL="$(bios_unlock::_write_error_reason "$BIOS_UNLOCK_WRITE_ERR") (sysfs: ${best_rel})"
         return 1
     fi
 
