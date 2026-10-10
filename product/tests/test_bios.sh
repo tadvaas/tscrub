@@ -14,8 +14,10 @@ reset_env() {
     BIOS_HP_WMI_FILE="$tmpdir/empty-hp"
     BIOS_TP_ACPI_FILE="$tmpdir/empty-tp"
     BIOS_DMIDECODE_CMD="__no_such_dmidecode__"
+    BIOS_EFIVARS_ROOT="$tmpdir/empty-efi"
     unset FAKE_DMI24
-    rm -rf "$tmpdir/empty" "$tmpdir/empty-hp" "$tmpdir/empty-tp" "$tmpdir/fa"
+    rm -rf "$tmpdir/empty" "$tmpdir/empty-hp" "$tmpdir/empty-tp" \
+           "$tmpdir/fa" "$tmpdir/efi" "$tmpdir/empty-efi"
 }
 reset_env
 
@@ -112,12 +114,59 @@ BIOS_DMIDECODE_CMD="dmidecode"
 export FAKE_DMI24="Power-On Password Status: Disabled"
 check_verdict "UNLOCKED" "SMBIOS Type 24" "smbios: Disabled -> UNLOCKED"
 
+# --- Layer 3b: UEFI UserCred "AdminPW" credential record (HP business) -------
+# Evidence: two IDENTICAL EliteBook 830 G5 units, one locked and one unlocked,
+# differ only by a UTF-16LE "AdminPW" record inside UserCred (and the locked
+# ZBook/820 G3 carry it too — 4/4 against SMBIOS Type 24, from an independent
+# source). See research/bios-unlock/20-insyde-setup-password-state.md §4.
+#
+# The real variable starts 07 00 00 00 (attributes), then the record. The
+# name's UUID is immaterial to the detector — the glob only needs the name.
+write_usercred() {  # <printf-format strings>
+    mkdir -p "$tmpdir/efi"
+    rm -f "$tmpdir/efi"/UserCred-*
+    printf "$@" > "$tmpdir/efi/UserCred-f66687ff-8cf3-4a19-b4ac-f5f0b78e4d18"
+    BIOS_EFIVARS_ROOT="$tmpdir/efi"
+}
+
+# Locked sample, byte-for-byte from the 830 G5 (.172).
+reset_env
+write_usercred '\x07\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x41\x00\x64\x00\x6d\x00\x69\x00\x6e\x00\x50\x00\x57\x00\x00\x00'
+check_verdict "LOCKED" "UserCred" "usercred: AdminPW record -> LOCKED"
+
+# Unlocked sample from the 830 G5 (.171): unset sentinel, no record name.
+reset_env
+write_usercred '\x07\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00'
+check_verdict "UNKNOWN" "NONE" "usercred: unset sentinel, no AdminPW -> no signal"
+
+# A DIFFERENT credential name must not be read as the admin password — we do not
+# guess at names we have not observed. ("PowerOn" in UTF-16LE.)
+reset_env
+write_usercred '\x07\x00\x00\x00\x50\x00\x6f\x00\x77\x00\x65\x00\x72\x00\x4f\x00\x6e\x00'
+check_verdict "UNKNOWN" "NONE" "usercred: a different credential name is not a lock"
+
+# Variable absent entirely (the consumer Insyde machine): no signal.
+reset_env
+check_verdict "UNKNOWN" "NONE" "usercred: variable absent -> no signal"
+
 # --- Cascade precedence: LOCKED later beats UNLOCKED earlier -----------------
 reset_env
 write_fa_tree "dell-wmi-sysman" "SetupPwd=0"
 BIOS_DMIDECODE_CMD="dmidecode"
 export FAKE_DMI24="Administrator Password Status: Enabled"
 check_verdict "LOCKED" "SMBIOS Type 24" "cascade: sysfs unlocked but SMBIOS locked -> LOCKED"
+
+# Layer 3b must beat earlier UNLOCKED evidence from BOTH layers above it.
+reset_env
+write_fa_tree "dell-wmi-sysman" "SetupPwd=0"
+write_usercred '\x07\x00\x00\x00\x41\x00\x64\x00\x6d\x00\x69\x00\x6e\x00\x50\x00\x57\x00'
+check_verdict "LOCKED" "UserCred" "cascade: sysfs unlocked but AdminPW record -> LOCKED"
+
+reset_env
+write_usercred '\x07\x00\x00\x00\x41\x00\x64\x00\x6d\x00\x69\x00\x6e\x00\x50\x00\x57\x00'
+BIOS_DMIDECODE_CMD="dmidecode"
+export FAKE_DMI24="Administrator Password Status: Disabled"
+check_verdict "LOCKED" "UserCred" "cascade: SMBIOS says unlocked but AdminPW record -> LOCKED"
 
 # --- ui::bios_render ---------------------------------------------------------
 esc_green=$'\033[32m'

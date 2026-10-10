@@ -46,6 +46,43 @@ and this project uses date-based versioning (`v1.x`).
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
 
+## [v1.11.50] - 2026-10-10
+
+### Added
+
+- **BIOS-lock detection gained a second, independent source on HP business
+  machines.** The existing cascade (firmware-attributes sysfs → legacy vendor
+  sysfs → SMBIOS Type 24) reports `UNKNOWN` for any firmware that publishes no
+  Type 24 table. A new **final** layer reads the UEFI variable
+  `UserCred-f66687ff-8cf3-4a19-b4ac-f5f0b78e4d18`, which holds a credential
+  record named literally `AdminPW` (UTF-16LE) while an admin/setup password is
+  set, and an `0xFFFFFFFF` unset marker once it is cleared. The layer is
+  consulted **last**, so it can never contradict a verdict the stronger layers
+  already reached — it corroborates them, and covers HP business firmware that
+  omits the Type 24 table. It is a record-*presence* test: the password itself is
+  never read, and the opaque digest that follows the name is not decoded.
+
+  The finding came from a **natural A/B pair** — two identical EliteBook 830 G5
+  units, one locked and one unlocked — diffed across their entire UEFI variable
+  set without touching a single BIOS setting, and it agreed 4/4 with SMBIOS
+  Type 24 from a completely independent source (UEFI variable vs SMBIOS table).
+  Note the variable *size* is not the signal: a locked ZBook and an unlocked
+  830 G5 share 4548 B, while a locked 820 G3 and a locked 830 G5 share 3540 B —
+  only the record matters. The consumer Insyde platform (e.g. the ENVY m6) has no
+  `UserCred` variable at all, so the `UNKNOWN` class those machines sit in is
+  unchanged, and **on the current fleet this changes no verdict** — every machine
+  carrying the record already resolves `LOCKED` through Type 24; what it adds is
+  coverage and corroboration. Full diff:
+  `research/bios-unlock/20-insyde-setup-password-state.md` §4.
+
+### Changed
+
+- **The diagnostics payload records a `UserCred` fingerprint** (`name:size:sha16`)
+  alongside the existing firmware-state evidence. The blob itself is deliberately
+  **not** shipped — it is credential-derived — but the detector's verdict already
+  travels in `bioslock` / `bioslockmethod`, so the fleet data cross-checks this
+  layer for free.
+
 ## [v1.11.49] - 2026-10-10
 
 ### Added

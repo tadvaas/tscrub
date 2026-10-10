@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.49"
+SCRIPT_VERSION="v1.11.50"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -647,6 +647,13 @@ system::gather_info() {
         _ev_out="$(efivars::b64 "$_ev_name" || true)"
         [[ -n "$_ev_out" ]] && _ev_b64="${_ev_b64}${_ev_b64:+;}$_ev_name=$_ev_out"
     done
+    # UserCred carries the HP "AdminPW" credential record that 36_bios.sh
+    # Layer 3b detects. Fingerprint ONLY (name:size:sha16) — the blob is
+    # credential-derived, so unlike the four above it is deliberately NOT
+    # shipped. The detector's verdict already travels in bioslock/bioslockmethod,
+    # so the fleet data cross-checks this layer for free.
+    _ev_fp="$(efivars::fingerprint UserCred || true)"
+    [[ -n "$_ev_fp" ]] && SYS_EFIVARS="$SYS_EFIVARS; $_ev_fp"
     SYS_EFIVARS_B64="$_ev_b64"
 
     # Per-DIMM inventory (size/mfr/type/form-factor/speed/part#/serial).

@@ -13,6 +13,8 @@
 #   Layer 1  /sys/class/firmware_attributes/*  (kernel 5.11+ unified model)
 #   Layer 2  legacy sysfs — hp-wmi, thinkpad_acpi
 #   Layer 3  SMBIOS Type 24 "Hardware Security" (dmidecode -t 24)
+#   Layer 3b UEFI variable UserCred (HP business: an "AdminPW" credential
+#            record exists iff an admin/setup password is set)
 #   Layer 4  UNKNOWN
 #
 # NOTE: detects BIOS *passwords*, NOT TCG "Block SID" drive lockdown (0x4286),
@@ -46,6 +48,10 @@ fi
 BIOS_HP_WMI_FILE="${BIOS_HP_WMI_FILE:-/sys/devices/platform/hp-wmi/bios_password}"
 BIOS_TP_ACPI_FILE="${BIOS_TP_ACPI_FILE:-/sys/devices/platform/thinkpad_acpi/pws_setting}"
 BIOS_DMIDECODE_CMD="${BIOS_DMIDECODE_CMD:-dmidecode}"
+# Layer 3b reads a UEFI variable. The appliance mounts efivarfs read-only in
+# system::gather_info(), which runs BEFORE bios::detect() (10_main.sh), so the
+# variables are already visible here; tests point this at a fake tree.
+BIOS_EFIVARS_ROOT="${BIOS_EFIVARS_ROOT:-${EFIVARS_BASE:-/sys/firmware/efi/efivars}}"
 
 # --- state --------------------------------------------------------------------
 BIOS_PASSWORD_STATUS="UNKNOWN"   # LOCKED / UNLOCKED / UNKNOWN
@@ -214,6 +220,55 @@ bios::probe_smbios() {
 }
 
 # ------------------------------------------------------------------------------
+# Layer 3b — UEFI variable UserCred (HP business EliteBook/ZBook, 2018-era+)
+# ------------------------------------------------------------------------------
+# Found on 2026-10-10 by diffing two IDENTICAL EliteBook 830 G5 units — one with
+# an admin password, one without — across their entire UEFI variable set. See
+# research/bios-unlock/20-insyde-setup-password-state.md §4.
+#
+#   UserCred-f66687ff-8cf3-4a19-b4ac-f5f0b78e4d18
+#     LOCKED   : 07 00 00 00 | 02 00 00 00 … 41 00 64 00 6d 00 69 00 6e 00 50 …
+#                                             └─ "AdminPW" in UTF-16LE
+#     UNLOCKED : 07 00 00 00 | 05 00 00 00 … ff ff ff ff …  (unset sentinel)
+#
+# The firmware keeps a credential RECORD named "AdminPW" only while an
+# admin/setup password is set; clearing the password drops the name and leaves
+# the 0xFFFFFFFF unset mark. Correlated 4/4 against SMBIOS Type 24 on hardware.
+#
+# NOTE the variable SIZE is NOT the signal: a locked ZBook and an unlocked
+# 830 G5 share the same 4548 B, while a locked 820 G3 and a locked 830 G5 share
+# 3540 B. Only the record matters.
+#
+# ⚠ Record-PRESENCE only — the password itself is never read (an opaque digest
+#   follows the name and is deliberately not decoded).
+# ⚠ HP-business only: the consumer Insyde machine (.170) has no UserCred
+#   variable at all, so this does NOT resolve the UNKNOWN class. It corroborates
+#   machines Type 24 already covers, and covers HP business firmware that omits
+#   the Type 24 table.
+BIOS_USERCRED_VAR="UserCred"
+# "AdminPW" as UTF-16LE hex (matches `od -An -tx1` output, lower case).
+BIOS_USERCRED_ADMINPW_HEX="410064006d0069006e00500057"
+
+# Return: 1 = LOCKED, 0 = no signal. Deliberately never claims UNLOCKED —
+# absence of the record is not yet validated widely enough to assert the
+# negative (see the note in the research doc).
+bios::probe_efivars() {
+    local f="" hx=""
+    for f in "$BIOS_EFIVARS_ROOT/$BIOS_USERCRED_VAR"-*; do
+        [[ -r "$f" ]] || continue
+        hx="$(od -An -tx1 -v "$f" 2>/dev/null | tr -d ' \n')"
+        [[ -n "$hx" ]] || continue
+        case "$hx" in
+            *"$BIOS_USERCRED_ADMINPW_HEX"*)
+                BIOS_PASSWORD_STATUS="LOCKED"
+                BIOS_DETECTION_METHOD="UEFI var UserCred (AdminPW credential record)"
+                return 1 ;;
+        esac
+    done
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Orchestrator — cascade with "LOCKED wins, then UNLOCKED evidence, else UNKNOWN"
 # ------------------------------------------------------------------------------
 bios::detect() {
@@ -228,6 +283,12 @@ bios::detect() {
     [[ $rc -eq 1 ]] && return 1
 
     bios::probe_smbios; rc=$?
+    [[ $rc -eq 1 ]] && return 1
+
+    # Layer 3b runs LAST on purpose: it is a corroborating source that only
+    # speaks when everything above is silent, so it can never contradict a
+    # verdict the stronger layers already reached.
+    bios::probe_efivars; rc=$?
     [[ $rc -eq 1 ]] && return 1
 
     # The probes already set UNLOCKED+method when they found positive
