@@ -149,6 +149,61 @@ check_verdict "UNKNOWN" "NONE" "usercred: a different credential name is not a l
 reset_env
 check_verdict "UNKNOWN" "NONE" "usercred: variable absent -> no signal"
 
+# --- Layer 4: an UNKNOWN verdict explains itself ------------------------------
+# "Unknown" used to be one amber badge covering three different situations. The
+# layer now records what was present and what could not be read, so an operator
+# can tell "this firmware publishes no password state" from "we could not look".
+# Measured on hardware: dmidecode exits 0 and prints a 3-line header even when
+# the firmware has NO Type 24 record (67 bytes, 0 "Password Status" lines) — so
+# presence can only be told from a Password Status line, never from non-empty
+# output.
+
+# Nothing present, and SMBIOS was readable -> the firmware simply publishes none.
+reset_env
+BIOS_DMIDECODE_CMD="dmidecode"
+check_verdict "UNKNOWN" "no password interface published" \
+    "unknown: nothing present -> 'no interface published'"
+
+# A password interface exists (hp-bioscfg) but publishes no password setting —
+# this is the real consumer-HP case (the ENVY m6 that started all this). Built by
+# hand rather than with write_fa_tree: that helper writes is_password_set for
+# every attribute, but the kernel only creates that file for PASSWORD attributes,
+# and the primary signal trusts it (so the helper would fake a LOCKED).
+reset_env
+mkdir -p "$tmpdir/fa/hp-bioscfg/attributes/Internal Network Adapter Boot"
+printf 'Enabled\n' > "$tmpdir/fa/hp-bioscfg/attributes/Internal Network Adapter Boot/current_value"
+BIOS_FA_ROOT="$tmpdir/fa"
+BIOS_DMIDECODE_CMD="dmidecode"
+check_verdict "UNKNOWN" "no password state published; sources present: firmware-attributes" \
+    "unknown: interface present -> 'no state published'"
+
+# A Type 24 record exists but every status reads "Unknown" -> present, no verdict.
+reset_env
+BIOS_DMIDECODE_CMD="dmidecode"
+export FAKE_DMI24="Administrator Password Status: Unknown"
+check_verdict "UNKNOWN" "no password state published; sources present: SMBIOS Type 24" \
+    "unknown: T24 present but inconclusive"
+
+# dmidecode absent is NOT "nothing published" — report that the read could not run.
+reset_env
+check_verdict "UNKNOWN" "no verdict; dmidecode is not installed" \
+    "unknown: dmidecode missing is reported"
+
+# dmidecode refusing (typically: not root) is likewise not "nothing published".
+reset_env
+printf '#!/bin/sh\nexit 1\n' > "$tmpdir/dmidecode-deny"
+chmod +x "$tmpdir/dmidecode-deny"
+BIOS_DMIDECODE_CMD="$tmpdir/dmidecode-deny"
+check_verdict "UNKNOWN" "no verdict; dmidecode could not read SMBIOS" \
+    "unknown: dmidecode refusing is reported"
+
+# A decided verdict must never carry the UNKNOWN explanation.
+reset_env
+BIOS_DMIDECODE_CMD="dmidecode"
+export FAKE_DMI24="Administrator Password Status: Enabled"
+check_verdict "LOCKED" "SMBIOS Type 24 (Administrator Password Status)" \
+    "unknown: reason never overrides a decided verdict"
+
 # --- Cascade precedence: LOCKED later beats UNLOCKED earlier -----------------
 reset_env
 write_fa_tree "dell-wmi-sysman" "SetupPwd=0"

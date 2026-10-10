@@ -62,6 +62,8 @@ fn_main() {
     FINISH_MSG=""
     BIOS_PASSWORD_STATUS=""
     BIOS_DETECTION_METHOD=""
+    BIOS_SRC_SEEN=""
+    BIOS_SRC_UNREADABLE=""
     mdm_pid=""
     presence_pid=""
     remote_pid=""

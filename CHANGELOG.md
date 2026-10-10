@@ -46,6 +46,35 @@ and this project uses date-based versioning (`v1.x`).
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
 
+## [v1.11.51] - 2026-10-10
+
+### Changed
+
+- **An `UNKNOWN` BIOS-lock verdict now says why.** `UNKNOWN` covered three quite
+  different situations — a firmware that publishes no password state at all, one
+  whose interface exists but exposes no password setting (the consumer HP case),
+  and one whose SMBIOS we could not read — and all three rendered as the same
+  bare amber "Unknown", so an operator could not tell "this machine has no
+  password state to report" from "we failed to look". `36_bios.sh` now tracks
+  which password interfaces were **present** and whether any **refused to be
+  read**, and records the reason in `BIOSLockMethod`, e.g.
+  `NONE (no password state published; sources present: firmware-attributes)` or
+  `NONE (no verdict; dmidecode is not installed)`. It reaches the CSV, the
+  manifest, the diagnostics PDF and the dashboard, where the BIOS-lock badge's
+  tooltip now shows it (the machine-readable `NONE (…)` wrapper is stripped for
+  readability). **No verdict changes** — only the explanation appears.
+
+### Fixed
+
+- **The SMBIOS presence test was dead code and could not tell "no record" from
+  "not readable".** `bios::probe_smbios` guarded on non-empty
+  `dmidecode -t 24` output, but dmidecode exits 0 and prints a three-line header
+  even when the requested type does not exist — measured on a firmware with no
+  Type 24 record: 67 bytes, zero `Password Status` lines, exit code 0. Presence
+  is now taken from a `Password Status` line, and a dmidecode that refuses to run
+  (not installed, or not root) is reported as unreadable rather than as a
+  firmware that publishes nothing.
+
 ## [v1.11.50] - 2026-10-10
 
 ### Added

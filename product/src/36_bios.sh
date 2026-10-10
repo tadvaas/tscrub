@@ -15,7 +15,11 @@
 #   Layer 3  SMBIOS Type 24 "Hardware Security" (dmidecode -t 24)
 #   Layer 3b UEFI variable UserCred (HP business: an "AdminPW" credential
 #            record exists iff an admin/setup password is set)
-#   Layer 4  UNKNOWN
+#   Layer 4  UNKNOWN — the layer records WHY in BIOS_DETECTION_METHOD (which
+#            interfaces were present, and whether any could not be read), so an
+#            operator can tell "this firmware publishes no password state" from
+#            "a source existed but we could not read it". Both used to render as
+#            the same bare amber "Unknown".
 #
 # NOTE: detects BIOS *passwords*, NOT TCG "Block SID" drive lockdown (0x4286),
 # which device::nvme_fail already reports as BLOCKED.
@@ -56,6 +60,36 @@ BIOS_EFIVARS_ROOT="${BIOS_EFIVARS_ROOT:-${EFIVARS_BASE:-/sys/firmware/efi/efivar
 # --- state --------------------------------------------------------------------
 BIOS_PASSWORD_STATUS="UNKNOWN"   # LOCKED / UNLOCKED / UNKNOWN
 BIOS_DETECTION_METHOD="NONE"     # human-readable source of the verdict
+
+# Layer 4 explanation state. BIOS_SRC_SEEN lists the password interfaces that
+# were actually PRESENT (whether or not they produced a verdict);
+# BIOS_SRC_UNREADABLE records the first source that refused to be read — which is
+# a different answer from "this firmware publishes nothing", and must not be
+# reported as if it were.
+BIOS_SRC_SEEN=""
+BIOS_SRC_UNREADABLE=""
+
+# Note that a password interface was present. Deduped, order preserved.
+bios::_saw() {
+    case ";$BIOS_SRC_SEEN;" in
+        *";$1;"*) return 0 ;;
+    esac
+    BIOS_SRC_SEEN="${BIOS_SRC_SEEN:+$BIOS_SRC_SEEN, }$1"
+}
+
+# The human reason for an UNKNOWN verdict.
+bios::_unknown_method() {
+    local msg=""
+    if [[ -n "$BIOS_SRC_SEEN" ]]; then
+        msg="no password state published; sources present: $BIOS_SRC_SEEN"
+        [[ -n "$BIOS_SRC_UNREADABLE" ]] && msg="$msg; $BIOS_SRC_UNREADABLE"
+    elif [[ -n "$BIOS_SRC_UNREADABLE" ]]; then
+        msg="no verdict; $BIOS_SRC_UNREADABLE"
+    else
+        msg="no password interface published"
+    fi
+    printf 'NONE (%s)' "$msg"
+}
 
 # Read a single-value sysfs-style file; print trimmed contents on stdout.
 # Returns non-zero when the file is missing/unreadable.
@@ -107,6 +141,7 @@ bios::probe_sysfs() {
 
     for driver in "$BIOS_FA_ROOT"/*/; do
         [[ -d "${driver}attributes" ]] || continue
+        bios::_saw "firmware-attributes"
         for attr in "${driver}"attributes/*/; do
             name="$(basename "$attr")"
 
@@ -155,6 +190,7 @@ bios::probe_legacy() {
     # moved to hp-bioscfg / Layer 1); it only exists on older kernels, so this
     # branch is effectively for standalone runs on legacy systems.
     if [[ -f "$BIOS_HP_WMI_FILE" ]]; then
+        bios::_saw "legacy hp-wmi"
         v="$(bios::_read "$BIOS_HP_WMI_FILE")" || v=""
         if bios::_truthy "$v"; then
             BIOS_PASSWORD_STATUS="LOCKED"
@@ -168,6 +204,7 @@ bios::probe_legacy() {
 
     # Lenovo ThinkPad: /sys/devices/platform/thinkpad_acpi/pws_setting.
     if [[ -f "$BIOS_TP_ACPI_FILE" ]]; then
+        bios::_saw "legacy thinkpad_acpi"
         v="$(bios::_read "$BIOS_TP_ACPI_FILE")" || v=""
         case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in
             *enabled*|*set*|*locked*)
@@ -190,13 +227,27 @@ bios::probe_legacy() {
 # Any "… Password Status: Enabled" => LOCKED. All Disabled / Not Implemented /
 # Cleared with no Enabled => UNLOCKED evidence. "Unknown" contributes nothing.
 bios::probe_smbios() {
-    local out line val label evidence=0
-    command -v "$BIOS_DMIDECODE_CMD" >/dev/null 2>&1 || return 0
-    out="$("$BIOS_DMIDECODE_CMD" -t 24 2>/dev/null)" || return 0
-    [[ -n "$out" ]] || return 0
+    local out line val label evidence=0 saw_record=0
+    command -v "$BIOS_DMIDECODE_CMD" >/dev/null 2>&1 || {
+        BIOS_SRC_UNREADABLE="${BIOS_SRC_UNREADABLE:-dmidecode is not installed}"
+        return 0
+    }
+    # A non-zero exit means dmidecode REFUSED (normally: not running as root),
+    # which is a different answer from "this firmware publishes no Type 24" — do
+    # not report one as the other.
+    if ! out="$("$BIOS_DMIDECODE_CMD" -t 24 2>/dev/null)"; then
+        BIOS_SRC_UNREADABLE="${BIOS_SRC_UNREADABLE:-dmidecode could not read SMBIOS}"
+        return 0
+    fi
+    # NOTE: deliberately NOT guarded by `[[ -n "$out" ]]` (the previous code
+    # was). dmidecode exits 0 AND prints a 3-line header even when the requested
+    # type does not exist — measured on a firmware with no Type 24 record: 67
+    # bytes, 0 "Password Status" lines. The record's existence can only be told
+    # from a Password Status line, which is what sets saw_record below.
 
     while IFS= read -r line; do
         [[ "$line" == *"Password Status"* ]] || continue
+        saw_record=1
         val="$(printf '%s' "$line" | sed -E 's/^[[:space:]]*[^:]+:[[:space:]]*//' | tr '[:upper:]' '[:lower:]')"
         # dmidecode indents Type 24 lines with a TAB — strip it (and any other
         # surrounding whitespace) from the label or it breaks the TUI alignment.
@@ -210,6 +261,10 @@ bios::probe_smbios() {
                 evidence=1 ;;
         esac
     done <<< "$out"
+
+    if (( saw_record )); then
+        bios::_saw "SMBIOS Type 24"
+    fi
 
     if [[ $evidence -eq 1 ]]; then
         BIOS_PASSWORD_STATUS="UNLOCKED"
@@ -256,6 +311,7 @@ bios::probe_efivars() {
     local f="" hx=""
     for f in "$BIOS_EFIVARS_ROOT/$BIOS_USERCRED_VAR"-*; do
         [[ -r "$f" ]] || continue
+        bios::_saw "UEFI UserCred"
         hx="$(od -An -tx1 -v "$f" 2>/dev/null | tr -d ' \n')"
         [[ -n "$hx" ]] || continue
         case "$hx" in
@@ -275,6 +331,8 @@ bios::detect() {
     local rc
     BIOS_PASSWORD_STATUS="UNKNOWN"
     BIOS_DETECTION_METHOD="NONE"
+    BIOS_SRC_SEEN=""
+    BIOS_SRC_UNREADABLE=""
 
     bios::probe_sysfs; rc=$?
     [[ $rc -eq 1 ]] && return 1
@@ -291,7 +349,11 @@ bios::detect() {
     bios::probe_efivars; rc=$?
     [[ $rc -eq 1 ]] && return 1
 
-    # The probes already set UNLOCKED+method when they found positive
-    # "not set" evidence; if none did, the default UNKNOWN/NONE stands.
+    # Nothing produced a verdict: say WHY rather than leaving a bare "Unknown".
+    # The probes set UNLOCKED + method themselves when they found positive "not
+    # set" evidence, so only a still-UNKNOWN verdict needs explaining.
+    if [[ "$BIOS_PASSWORD_STATUS" == "UNKNOWN" ]]; then
+        BIOS_DETECTION_METHOD="$(bios::_unknown_method)"
+    fi
     return 0
 }
