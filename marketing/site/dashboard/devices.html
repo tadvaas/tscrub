@@ -1396,7 +1396,10 @@
       }
 
       function logRow(e) {
-        var row = el('tr', 'border-b border-slate-100 dark:border-ink-800');
+        // Hover is one step darker than the panel itself (bg-slate-50 /
+        // dark:bg-ink-800), not the outer tables' hover:bg-slate-50, which
+        // would be invisible against the expansion background.
+        var row = el('tr', 'border-b border-slate-100 dark:border-ink-800 hover:bg-slate-100 dark:hover:bg-ink-700');
         var tdTs = el('td', 'truncate px-2 py-2 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(e.at) || '—');
         tdTs.title = String(e.at || '');
         row.appendChild(tdTs);
