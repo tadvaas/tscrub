@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.44] - 2026-10-10
 
 ### Fixed
 
@@ -27,6 +27,16 @@ and this project uses date-based versioning (`v1.x`).
   (to change other BIOS settings) but no password reset, and its `new_password`
   attribute is a no-op — so those machines now report the real reason and keep
   the pre-boot route (HP SMC / SPI).
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.44_2025.11_30_x86-64_v0.41_20261010-06b9f61a.iso`
+  (169 MB) sha256
+  `d839478ff6e921ebfca6b94e6075ed073cec8b76a2c7e7130e3476d05d7a5180`.
+- Standalone script `tscrub.sh` (v1.11.44) sha256
+  `aa2f0d0981c5c5e8bff0215e4ba168dfb94d43f842d0e652f9baec5c8a720998`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256
+  `08630065dde2d6d187223ee04d334b7158344a38a3c32ccce61d2d6f952b00a9`.
 
 ## [v1.11.43] - 2026-10-10
 
