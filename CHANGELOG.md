@@ -8,6 +8,25 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- **Certificates now state how the data was destroyed.** The Certificate of
+  Destruction title is unchanged (it is what buyers search for), but the
+  document now carries the evidence to back it: page 1 gained a `Technique` line
+  and a `Media disposition` line — e.g. *"3 media sanitised in place (data
+  destroyed; hardware reusable); 1 media physically destroyed"* — the outcome
+  banner now reads `DATA DESTROYED ON ALL N DEVICE(S)` (amber `N DEVICE(S) NOT
+  DESTROYED` when any drive failed), and the attestation states the *data* was
+  destroyed by in-place sanitisation (Clear/Purge) or by physical destruction
+  where recorded. Annex A gained a **DESTRUCTION METHOD SUMMARY** block (one line
+  per method: label, NIST SP 800-88 level, technique, device count). The signed
+  JSON-LD twin carries the same evidence (`sanitizationTechnique` + `nistLevel`
+  per drive, `mediaDisposition` at chain level). Shared vocabulary lives in the
+  new `marketing/server/cert_terms.php` so the PDF and the machine-readable twin
+  cannot drift apart. Plan: `research/cert-destruction-evidence/README.md`.
+
+## [v1.11.45] - 2026-10-10
+
 ### Fixed
 
 - **BIOS unlock now distinguishes a wrong password from a firmware that cannot
@@ -22,6 +41,16 @@ and this project uses date-based versioning (`v1.x`).
   an unwritable attribute — and "writes accepted but the password is unchanged"
   now reports *no clear path from Linux, password cannot be validated here*
   instead of implying the password might simply be wrong.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.45_2025.11_30_x86-64_v0.41_20261010-f6db78a4.iso`
+  (169 MB) sha256
+  `aa26331b5dee4cf066d532726bb63f6f5a0b2a80538e6f4f64223e9ead7e8a8e`.
+- Standalone script `tscrub.sh` (v1.11.45) sha256
+  `7c75cab12fc60ad1f83eec30fcaf0f2bdc43a8c61318c100a05a581b27d97356`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256
+  `8eca5a9fc0fda1dccdc4583c4906b0f9beba781e13c375781befc2ad19197ef8`.
 
 ## [v1.11.44] - 2026-10-10
 
