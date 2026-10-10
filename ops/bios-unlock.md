@@ -117,6 +117,19 @@ so no information is lost — but if you reword `_write_error_reason()` in
 `product/src/38_bios_unlock.sh`, keep this classifier in step. An appliance may
 also send an explicit `verdict` field, which always wins.
 
+> ⚠️ **On HP the errno is uninformative — read the kernel log instead.**
+> `hp_wmi_error_and_message()` maps the BIOS status byte to errno lossily:
+> `INVALID_CMD_TYPE` (0x4), `INVALID_CMD_PARAM` (0x6) **and**
+> `INVALID_BIOS_AUTH` all become `-EINVAL`. Measured on the bench fleet, writing
+> a setting's own value back gives `EINVAL` plus
+> `hp_bioscfg: Returned error 0x6, "Invalid command parameter"` (830 G5) or
+> `0x4, "Invalid command type"` (820 G3, ZBook Fury G8). Neither is an
+> authentication result, so do **not** read `EINVAL` on HP as "wrong password"
+> or "password policy". The rows above describe a *rejected write*, which HP
+> never reaches: writing `current_password` and `new_password` on HP issues no
+> WMI call at all (no dmesg entry), so any value returns success and
+> `INVALID_BIOS_AUTH` never appears — the password is simply never evaluated.
+
 Harness: `research/bios-unlock/test_unlock_verdict.php` (21 assertions over the
 real v1.11.44 **and** v1.11.45 wordings — run it on the server beside
 `bios_unlock.php`). It is `research/`-local (gitignored), like the other server
