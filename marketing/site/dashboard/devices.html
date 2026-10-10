@@ -1603,8 +1603,8 @@
         },
         no_clear_path: {
           cls: 'text-amber-600 dark:text-amber-400',
-          headline: 'Cannot be cleared from Linux',
-          hint: 'The password was accepted — the firmware simply exposes no reset path, so retrying will not change it. Clear it pre-boot instead (BIOS setup, vendor SMC, or SPI reflash). The password is not the problem here.',
+          headline: 'No clear path through this interface',
+          hint: 'The driver accepted the writes but never forwards the password to the firmware, so nothing changed — the password supplied is not what is in question. HP setup passwords CAN be cleared from Linux: an appliance running v1.11.46 or newer sends the firmware\'s own request, so reboot the unit into the new image and re-run this unlock. Otherwise clear it pre-boot (BIOS setup, vendor SMC, or SPI reflash).',
           retry: false
         },
         not_supported: {
