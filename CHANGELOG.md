@@ -6,6 +6,31 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.43] - 2026-10-10
+
+### Fixed
+
+- **A second wipe now shows correctly in the dashboard** — a re-erase (pressed
+  `Shift+T` on the finish screen, or a dashboard-staged wipe) previously left
+  the device pinned at "Complete" because the server refused to move the phase
+  back to "wiping" once a wipe had finished. The heartbeat now distinguishes a
+  stale in-flight "wiping" ping (ignored) from a genuinely new cycle (`drives_done`
+  + `drives_failed` = 0), so the status updates correctly.
+- **Staging a wipe while one is in progress is rejected** — the dashboard API
+  now returns `409` instead of silently queueing a wipe behind the current one.
+- **ATA drives are no longer left locked after erasure** — the temporary ATA
+  security password is cleared after the erase (with an unlock retry), so a
+  wiped drive isn't left "security enabled" and locking on its next power cycle.
+- **Erase start always announces immediately** — the fresh "wiping" heartbeat is
+  no longer skipped by the ping debounce when a new erase cycle begins.
+
+### Release
+
+- Appliance ISO `tscrub-v1.11.43_2025.11_30_x86-64_v0.41_20261010-e4ada4a5.iso`
+  (169 MB) sha256 `458982fa269a93108b779f4f9a1c162a8ee70b688773b00c5e158cc349064c49`.
+- Standalone script `tscrub.sh` (v1.11.43) sha256 `eb173c67c5a67396a9e2a5789a39f966879e2b6cafcedb386de44daff3e792d5`.
+- PXE bzImage signed (My iPXE Vendor Key) sha256 `ca543caa9060b87c9db0ce9ba9a851167bc0b18e80c128644d37fa20ac45b6bd`.
+
 ## [v1.11.42] - 2026-10-09
 
 ### Fixed
