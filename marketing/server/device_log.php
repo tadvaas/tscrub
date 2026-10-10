@@ -121,7 +121,10 @@ function device_events(int $userId, string $serial, string $uuid = '', int $limi
                 // tables at once, and device_commands.id, mdm_jobs.id and a
                 // certificate id are independent sequences that can collide on
                 // the same number without being the same record.
-                $id  = 'command ' . (int)$c['id'];
+                // One record per remote command, and the ref is its handle. Short
+                // on purpose: it shares the column with certificate ids, which
+                // are long enough that the reader stops scanning if it grows.
+                $id  = 'cmd ' . (int)$c['id'];
                 $add((string)$c['created_at'], $cmd, $noun($cmd) . ' requested', 'pending', '', $id);
                 if (!empty($c['dispatched_at'])) {
                     $add((string)$c['dispatched_at'], $cmd, $noun($cmd) . ' picked up by the appliance', 'pending', '', $id);

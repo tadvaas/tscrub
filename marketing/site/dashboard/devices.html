@@ -1429,8 +1429,10 @@
         if (e.ref) {
           // Ids come from several tables with their own sequences (remote
           // commands, Autopilot jobs, certificates), so two refs can carry the
-          // same number without being the same record. Say which one this is.
-          tdRef.title = refTitle(e.kind) + ' — every Log ref names the record it belongs to; each table numbers its own rows, so the same number can appear twice.';
+          // same number without being the same record. The abbreviation says
+          // which table, and the full id rides in the title because a
+          // certificate id is far too long for this column and truncates.
+          tdRef.title = refTitle(e.kind) + ' (' + e.ref + ') — every Log ref names the record it belongs to; each table numbers its own rows, so the same number can appear twice.';
         }
         row.appendChild(tdRef);
         // The actions column is always present, even when the row has none: an
@@ -1443,9 +1445,9 @@
       }
 
       function refTitle(kind) {
-        if (kind === 'mdm') return 'Autopilot job id';
+        if (kind === 'mdm') return 'job = Autopilot job id';
         if (kind === 'certificate' || kind === 'drive') return 'Certificate id';
-        return 'Remote command id';
+        return 'cmd = remote command id';
       }
 
       // Indeterminate spinner (same construction as the pager's), used while the
@@ -1488,11 +1490,11 @@
         var thead = el('thead');
         var hr = el('tr', '', '');
         [['Time', 'w-[15%]', 'text-left'],
-         ['Type', 'w-[8%]', 'text-left'],
-         ['Event', 'w-[36%]', 'text-left'],
-         ['CoC', 'w-[15%]', 'text-left'],
-         ['Ref', 'w-[12%]', 'text-right'],
-         ['', 'w-[14%]', 'text-right']].forEach(function (c) {
+         ['Type', 'w-[11%]', 'text-left'],
+         ['Event', 'w-[42%]', 'text-left'],
+         ['CoC', 'w-[10%]', 'text-left'],
+         ['Ref', 'w-[9%]', 'text-right'],
+         ['', 'w-[13%]', 'text-right']].forEach(function (c) {
           hr.appendChild(el('th', c[1] + ' ' + c[2] + ' truncate border-b border-slate-200 dark:border-ink-700 px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', c[0]));
         });
         thead.appendChild(hr);
