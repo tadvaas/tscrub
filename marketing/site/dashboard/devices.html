@@ -362,10 +362,13 @@
       var logEvents = {};   // device key -> events fetched for this open
       var logShown = {};    // events revealed
       var logPer = 12;
-      // Ease the panel in on the two moments that are real transitions rather
-      // than re-renders: opening it, and its content arriving. Consumed by the
-      // next render, so the 10s table poll never re-animates an open log.
+      // Ease the panel open — but only on the click that opens it. The content
+      // arriving must NOT re-animate: a fresh render restarts the keyframe from
+      // max-height 0, so the panel would collapse and grow again, which reads as
+      // a jump. It is swapped into the node below instead, and the height change
+      // is animated from the old height to the new one.
       var logAnim = {};
+      var logBodies = {};   // device key -> the panel node the fetch swaps into
       var sortKey = 'status';   // initial sort: Status column
       var sortDir = -1;         // descending (Online first)
       var lastDevicesJson = '';
@@ -1470,19 +1473,32 @@
         var anim = logAnim[key];
         if (anim) delete logAnim[key];
         var wrap = el('div', anim ? 'row-expand' : '');
+        // The wrapper is created once and left alone, so the open animation can
+        // never restart; everything inside it is rebuilt in place.
+        var inner = el('div', '');
+        wrap.appendChild(inner);
+        logBodies[key] = inner;
+        logFill(dev, key, inner);
+        return wrap;
+      }
+
+      // Rebuilds the panel's contents in place — on the first paint (fetch out),
+      // when the events arrive, and on Load more. Never by re-rendering the table.
+      function logFill(dev, key, inner) {
+        inner.innerHTML = '';
         if (logEvents[key] === undefined) {
           // The log is fetched when the button is clicked, so the panel says so:
           // a spinner plus a line, in the place the rows will appear.
           var loading = el('div', 'flex items-center gap-2');
           loading.appendChild(logSpinner());
           loading.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Loading log…'));
-          wrap.appendChild(loading);
-          return wrap;
+          inner.appendChild(loading);
+          return;
         }
         var all = logMerged(dev, key);
         if (!all.length) {
-          wrap.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'Nothing recorded for this machine yet.'));
-          return wrap;
+          inner.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'Nothing recorded for this machine yet.'));
+          return;
         }
         var shown = logShown[key] || logPer;
         // A real table with FIXED column widths, so Time, Type, CoC and Ref sit
@@ -1505,13 +1521,39 @@
         var tbody = el('tbody');
         all.slice(0, shown).forEach(function (e) { tbody.appendChild(logRow(e)); });
         tbl.appendChild(tbody);
-        wrap.appendChild(tbl);
+        inner.appendChild(tbl);
         if (all.length > shown) {
           var mbtn = el('button', 'mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + (all.length - shown) + ' remaining)');
-          mbtn.addEventListener('click', function () { logShown[key] = shown + logPer; render(); });
-          wrap.appendChild(mbtn);
+          mbtn.addEventListener('click', function () {
+            logShown[key] = shown + logPer;
+            logSwap(inner, function () { logFill(dev, key, inner); });
+          });
+          inner.appendChild(mbtn);
         }
-        return wrap;
+      }
+
+      // Swaps the panel's contents and animates the resulting height change, so
+      // replacing the loading line with a dozen rows slides instead of jumping.
+      // A transition of a MEASURED height — a keyframe would restart from zero,
+      // which is exactly the collapse-and-grow that reads as a jump.
+      function logSwap(inner, fill) {
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var from = inner.offsetHeight;
+        fill();
+        var to = inner.offsetHeight;
+        if (reduce || !from || from === to) return;
+        inner.style.overflow = 'hidden';
+        inner.style.maxHeight = from + 'px';
+        void inner.offsetHeight;                    // flush the start value
+        inner.style.transition = 'max-height 260ms cubic-bezier(0.22, 1, 0.36, 1)';
+        inner.style.maxHeight = to + 'px';
+        window.setTimeout(function () {
+          // The element's natural height is now the animated one, so clearing
+          // these is invisible — and it keeps the panel unclipped afterwards.
+          inner.style.transition = '';
+          inner.style.maxHeight = '';
+          inner.style.overflow = '';
+        }, 280);
       }
 
       // Opening the log always re-fetches: it is a record of what happened, so a
@@ -1527,7 +1569,15 @@
           fetch(url).then(function (r) { return r.json(); })
             .then(function (d) { logEvents[key] = (d && d.events) || []; })
             .catch(function () { logEvents[key] = []; })
-            .then(function () { logAnim[key] = true; render(); });   // …and ease the rows in
+            .then(function () {
+              // Swap into the panel that is already open, so the spinner is
+              // replaced in place rather than the panel being torn down and
+              // rebuilt. If a full render happened while the fetch was out (the
+              // poll, a sort), that node is gone and rendering is the only option.
+              var inner = logBodies[key];
+              if (inner && inner.isConnected) logSwap(inner, function () { logFill(dev, key, inner); });
+              else render();
+            });
         }
         render();
       }
