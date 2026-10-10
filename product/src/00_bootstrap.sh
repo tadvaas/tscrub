@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.46"
+SCRIPT_VERSION="v1.11.47"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""

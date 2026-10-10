@@ -177,22 +177,30 @@ bios_unlock::_verify_cleared() {
 # so the narrow hp_biospw module carries the frame (hardcoded GUID/method id,
 # the password never logged).
 
-BIOS_WMI_GUID="${BIOS_WMI_GUID:-1F4C91EB-DC5C-460b-951D-C7CB9B4D8D5E}"
+BIOS_WMI_GUID="${BIOS_WMI_GUID:-1F4C91EB-DC5C-460b-951D-C7CB9B4B8D5E}"
 BIOS_WMI_PW_SLOT="${BIOS_WMI_PW_SLOT:-Setup Password}"
 BIOS_WMI_MODULE="${BIOS_WMI_MODULE:-/lib/modules/$(uname -r)/extra/hp_biospw.ko}"
 BIOS_WMI_PROC="${BIOS_WMI_PROC:-/proc/hp_biospw}"
 # A setting that is refused without administrator rights while a password is
 # set, and accepted once it is gone. This is the corroboration probe.
 BIOS_WMI_PROBE_SETTING="${BIOS_WMI_PROBE_SETTING:-Ownership Tag}"
-BIOS_WMI_PROBE_GLOB="${BIOS_WMI_PROBE_GLOB:-/sys/bus/wmi/devices/${BIOS_WMI_GUID}-*}"
+BIOS_WMI_DEVICE_DIR="${BIOS_WMI_DEVICE_DIR:-/sys/bus/wmi/devices}"
 
 # Does this machine offer the HP BIOS-settings WMI block at all?
+#
+# Match on the FIRST GUID field, case-insensitively, and do not repeat the whole
+# GUID. Two traps have already bitten here:
+#   * the kernel renders the GUID with UPPERCASE hex (…-DC5C-460B-…) while the
+#     driver's #define spells digits lowercase (…-DC5C-460b-…);
+#   * v1.11.46 shipped a GUID with a hand-typed typo in the LAST field
+#     (…C7CB9B4D8D5E instead of …C7CB9B4B8D5E), copied from a line-wrapped read.
+# Together they made this match fail on every HP machine, silently skipping the
+# whole layer — which let the sysfs path below report a false 'cleared' while the
+# BIOS still demanded the password. A short, stable prefix avoids both. The
+# module keeps the driver's exact GUID (it must: the kernel matches it exactly);
+# this function only answers "is the interface here".
 bios_unlock::_wmi_applicable() {
-    local d
-    for d in $BIOS_WMI_PROBE_GLOB; do
-        [[ -d "$d" ]] && return 0
-    done
-    return 1
+    ls "$BIOS_WMI_DEVICE_DIR" 2>/dev/null | grep -qi "^${BIOS_WMI_GUID%%-*}-"
 }
 
 # Make /proc/hp_biospw available. A caller override implies availability (tests).
@@ -448,11 +456,28 @@ bios_unlock::clear() {
     if [[ -n "$best_base" ]]; then
         if bios_unlock::_write_clear "$best_base" "$unlock_pwd"; then
             # The writes were accepted — confirm the password actually went away.
-            # Reached only when the HP WMI transport is unavailable (Layer 3
-            # above runs first wherever it can work), so this is the best signal
-            # there is. Where the WMI layer could run, it already corroborated
-            # its own verdict against the firmware.
             if bios_unlock::_verify_cleared "$best_base"; then
+                # Do NOT trust this verdict if we can ask the firmware directly:
+                # those attributes are cached by the driver from probe time, so
+                # this reports success while the BIOS still demands a password —
+                # measured live twice, most recently on a shipped v1.11.46 image
+                # where the WMI layer was skipped and this path claimed 'cleared'
+                # with the password demonstrably still set.
+                #
+                # Deliberately NOT gated on _wmi_applicable: when that gate was
+                # wrong (the case-sensitivity bug) it was exactly this path that
+                # over-claimed. On a machine without the HP interface the probe
+                # answers nothing, so this is skipped anyway.
+                if bios_unlock::_wmi_available; then
+                    local confirm
+                    confirm="$(bios_unlock::_wmi_probe)"
+                    rmmod hpbiospw 2>/dev/null
+                    if [[ -n "$confirm" && "$confirm" != "0x00" ]]; then
+                        BIOS_UNLOCK_RESULT="failed"
+                        BIOS_UNLOCK_DETAIL="the sysfs password attributes reported the password cleared (${best_rel}) but the firmware still requires it (privileged write refused, status ${confirm}) — the sysfs verdict is not trustworthy on this firmware"
+                        return 1
+                    fi
+                fi
                 BIOS_UNLOCK_RESULT="cleared"
                 BIOS_UNLOCK_DETAIL="sysfs: ${best_rel}"
                 return 0

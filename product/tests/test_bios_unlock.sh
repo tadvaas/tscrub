@@ -11,8 +11,8 @@ export BIOS_FA_ORPHAN_GLOB="$tmpdir/no-orphan/*"
 
 # Deterministic: the WMI layer must not fire just because the machine running
 # the suite happens to have the HP BIOS-settings WMI block. Cases that exercise
-# it opt back in with their own BIOS_WMI_PROBE_GLOB.
-export BIOS_WMI_PROBE_GLOB="$tmpdir/no-wmi/*"
+# it opt back in with their own BIOS_WMI_DEVICE_DIR.
+export BIOS_WMI_DEVICE_DIR="$tmpdir/no-wmi"
 
 t::assert_eq "https://tscrub.com/api/bios/unlock/pending" \
     "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' bios_unlock::pending_endpoint)" \
@@ -213,7 +213,10 @@ t::check "parse: no id -> empty" '[[ -z "$(bios_unlock::_parse_pending "{\"pendi
 # the state machine with a fake transport; the frame encoder itself is covered
 # byte-exactly by board/shredos/modules/hp_biospw.
 wmi_dir="$tmpdir/wmi"
-mkdir -p "$wmi_dir/devices/1F4C91EB-DC5C-460b-951D-C7CB9B4D8D5E-10"
+# The device name is the real one: UPPERCASE hex, and the last field is …B4B8D5E.
+# v1.11.46 matched neither (lowercase in the pattern, and a typo'd …B4D8D5E), which
+# is how a false 'cleared' reached a shipped image — so this name is the test.
+mkdir -p "$wmi_dir/devices/1F4C91EB-DC5C-460B-951D-C7CB9B4B8D5E-6"
 cat > "$wmi_dir/call.sh" <<'EOS'
 #!/bin/sh
 # argv: name value [credential]. The status for each successive call comes from
@@ -226,7 +229,7 @@ tail -n +2 "$seq" > "$seq.next" && mv "$seq.next" "$seq"
 printf '%s' "$line"
 EOS
 chmod +x "$wmi_dir/call.sh"
-export BIOS_WMI_PROBE_GLOB="$wmi_dir/devices/1F4C91EB-*"
+export BIOS_WMI_DEVICE_DIR="$wmi_dir/devices"
 export BIOS_WMI_CALL_CMD="$wmi_dir/call.sh"
 export WMI_FAKE_SEQ="$wmi_dir/seq"
 BIOS_FA_ROOT="$tmpdir/wmi-fa"
@@ -275,11 +278,31 @@ wmi_case 0x06
 t::assert_contains "$BIOS_UNLOCK_DETAIL" "did not complete" "wmi: no status -> transport failure"
 
 # A machine without the interface falls through to the generic message.
-BIOS_WMI_PROBE_GLOB="$tmpdir/wmi/devices/nope-*"
+BIOS_WMI_DEVICE_DIR="$tmpdir/wmi/devices-empty"
+mkdir -p "$BIOS_WMI_DEVICE_DIR"
 BIOS_UNLOCK_RESULT=""
 BIOS_UNLOCK_DETAIL=""
 bios_unlock::clear "hpinvent"
 t::assert_eq "unsupported" "$BIOS_UNLOCK_RESULT" "wmi: not applicable -> unsupported"
+
+# The sysfs verdict must not be able to over-claim: with the transport present
+# and the firmware still refusing privileged writes, a 'cleared' from the sysfs
+# path is reported as failed. The device gate is deliberately LEFT OFF here —
+# that is precisely the v1.11.46 scenario (gate wrong, transport available),
+# which is how this false positive reached a shipped image.
+sysfs_fa="$tmpdir/overclaim"
+mkdir -p "$sysfs_fa/hp-bioscfg/authentication/Setup Password"
+printf 'x' > "$sysfs_fa/hp-bioscfg/authentication/Setup Password/current_password"
+printf 'x' > "$sysfs_fa/hp-bioscfg/authentication/Setup Password/new_password"
+printf '0' > "$sysfs_fa/hp-bioscfg/authentication/Setup Password/is_enabled"
+BIOS_FA_ROOT="$sysfs_fa"
+BIOS_WMI_DEVICE_DIR="$tmpdir/wmi/devices-empty"
+printf '0x06\n' > "$WMI_FAKE_SEQ"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "failed" "$BIOS_UNLOCK_RESULT" "sysfs verdict corroborated -> failed"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "not trustworthy" "sysfs verdict: detail explains"
 
 # The frame's field separator must be a real NUL: 14 + NUL + 9 + NUL + 17 = 42.
 t::assert_eq "42" \

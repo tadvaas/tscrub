@@ -46,6 +46,33 @@ and this project uses date-based versioning (`v1.x`).
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
 
+## [v1.11.47] - 2026-10-10
+
+### Fixed
+
+- **v1.11.46 could report an HP BIOS password as cleared while it was still
+  set.** The new WMI clear layer was gated on the presence of the firmware's
+  WMI device, and the gate never matched: the GUID literal had been retyped by
+  hand from a line-wrapped read and carried a wrong digit in its last field
+  (`…C7CB9B4D8D5E` instead of `…C7CB9B4B8D5E`), and the kernel renders the GUID
+  in uppercase hex where the driver's spelling is lowercase. Every HP machine
+  therefore skipped the WMI layer and fell through to the sysfs password path —
+  which accepts the writes, reads back as cleared (`is_enabled` is cached by the
+  driver from probe time) and reported success, while the firmware still
+  demanded the password. Measured on a machine booted from v1.11.46: the
+  dashboard said `cleared`, the BIOS still refused privileged writes (`0x06`).
+  - the gate now matches the GUID's first field, case-insensitively, so a
+    mistyped GUID cannot silently disable the layer again;
+  - the sysfs path can no longer over-claim: before reporting success it asks
+    the firmware (when the transport is available) and reports **failed** if a
+    privileged write is still refused, with a detail that says the sysfs verdict
+    is not trustworthy on that firmware;
+  - the tests use the machine's real device name, so they fail if either the
+    case or the GUID literal is wrong again.
+  Validated on hardware: the same command that reported a false `cleared` on
+  v1.11.46 now clears the password over the firmware's own interface, corroborates
+  it against the firmware, and leaves the machine genuinely unlocked.
+
 ## [v1.11.46] - 2026-10-10
 
 ### Added
