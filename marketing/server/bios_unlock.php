@@ -2,21 +2,34 @@
 declare(strict_types=1);
 
 /**
- * Remote BIOS password clear — server side.
+ * Remote BIOS password clear — vocabulary, crypto and compatibility layer.
  *
- * The dashboard stages a clear command (operator pastes the plaintext BIOS
- * password); the booted appliance pulls it (API-token auth), clears the admin/
- * setup password on-device, and reports back. Passwords are encrypted at rest
- * with libsodium (sodium_crypto_secretbox); the key is config.json `secret_key`
- * (64 hex chars) with a deterministic fallback for un-configured installs.
+ * The clear itself is a `bios_unlock` command in the unified command queue
+ * (remote.php): the dashboard stages it, the booted appliance pulls it, clears
+ * the setup password on-device and reports back. Keeping it in that queue is
+ * what lets an operator see a queued erase and a staged unlock in one place.
+ *
+ * This file owns what is specific to an unlock — the operator-facing verdict
+ * vocabulary (`unlock_verdict`), the password crypto, and the behaviour of the
+ * legacy /api/bios/unlock* routes, which still serve appliances already in the
+ * field. Passwords are encrypted at rest with libsodium
+ * (sodium_crypto_secretbox); the key is config.json `secret_key` (64 hex chars)
+ * with a deterministic fallback for un-configured installs. They live in the
+ * queue row's `options` and are purged as soon as the command resolves.
  */
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/org.php';
+require_once __DIR__ . '/remote.php';
 
 /** Lazily create the bios_unlock table (idempotent — mirrors schema.sql). */
 function unlock_ensure_schema(): void {
+    static $ensured = false;
+    if ($ensured) return;   // runs on the modal's 4 s poll; probe once per request
+    $ensured = true;
     try {
+        // HISTORY ONLY — nothing writes this table any more (the unified queue
+        // does). It is kept so pre-merge unlocks stay auditable.
         db()->exec(
             'CREATE TABLE IF NOT EXISTS bios_unlock (
                id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -50,8 +63,55 @@ function unlock_ensure_schema(): void {
         if ($len !== false && $len !== null && (int)$len < 512) {
             db()->exec('ALTER TABLE bios_unlock MODIFY COLUMN detail VARCHAR(512) NOT NULL DEFAULT ""');
         }
+        // `tool_version` records which appliance build produced a verdict. The
+        // appliance's own behaviour changes between builds — HP setup passwords
+        // became clearable in v1.11.46 — so without it a stored failure looks
+        // exactly like a current one and operators keep acting on advice that a
+        // newer build has made obsolete.
+        $stmt = db()->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bios_unlock' AND COLUMN_NAME = 'tool_version'");
+        if ((int)$stmt->fetchColumn() === 0) {
+            db()->exec('ALTER TABLE bios_unlock ADD COLUMN tool_version VARCHAR(32) NOT NULL DEFAULT "" AFTER verdict');
+        }
+        // Pre-merge rows are the audit trail the dashboard's command log reads
+        // — carry them into the queue once (see unlock_backfill_legacy).
+        unlock_backfill_legacy();
     } catch (Throwable $e) {
         error_log('unlock ensure schema error: ' . $e->getMessage());
+    }
+}
+
+/** Move the legacy bios_unlock history into the unified command queue (once).
+ *
+ *  Rows written before the queue merge are the audit trail, and the dashboard's
+ *  command log reads the queue — without this, pre-merge unlocks vanish from the
+ *  operator's view (including the verdicts they were told to act on). The
+ *  password is deliberately NOT carried over, and a legacy command that never
+ *  resolved is closed as cancelled rather than re-queued: a pending row there
+ *  would be claimed by the queue with no password to send.
+ *
+ *  Guarded by a marker row, because the queue has no way to name-match an old
+ *  row and a second run would duplicate the whole history. */
+function unlock_backfill_legacy(): void {
+    try {
+        db()->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
+            name       VARCHAR(64) NOT NULL,
+            applied_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $stmt = db()->prepare('SELECT COUNT(*) FROM schema_migrations WHERE name = ?');
+        $stmt->execute(['unlock_to_device_commands']);
+        if ((int)$stmt->fetchColumn() > 0) {
+            return;
+        }
+        db()->exec("INSERT INTO device_commands
+              (user_id, serial, uuid, command, options, status, result, detail, verdict, tool_version, created_at, dispatched_at, resolved_at)
+            SELECT user_id, serial, uuid, 'bios_unlock', NULL,
+                   CASE WHEN status IN ('pending','dispatched') THEN 'cancelled' ELSE status END,
+                   result, detail, verdict, tool_version, created_at, dispatched_at, resolved_at
+              FROM bios_unlock");
+        db()->prepare('INSERT INTO schema_migrations (name) VALUES (?)')->execute(['unlock_to_device_commands']);
+    } catch (Throwable $e) {
+        error_log('unlock backfill error: ' . $e->getMessage());
     }
 }
 
@@ -86,69 +146,41 @@ function unlock_decrypt(string $blob): ?string {
     }
 }
 
-/** Expire stale pending commands (never claimed) and purge their passwords. */
-function unlock_expire_stale(): void {
-    try {
-        db()->prepare('UPDATE bios_unlock SET status = "cancelled", resolved_at = UTC_TIMESTAMP(), password_enc = "" WHERE status = "pending" AND created_at < UTC_TIMESTAMP() - INTERVAL 7 DAY')
-            ->execute();
-    } catch (Throwable $e) {
-        error_log('unlock expire stale error: ' . $e->getMessage());
-    }
-}
-
-/** Enqueue a clear command; supersedes any still-pending one for the serial. */
-function unlock_enqueue(int $userId, string $serial, string $uuid, string $password): int {
-    unlock_ensure_schema();
-    unlock_expire_stale();
-    // Superseded rows must not retain their password at rest.
-    $ids = org_member_ids($userId);
-    $ph = implode(',', array_fill(0, count($ids), '?'));
-    db()->prepare("UPDATE bios_unlock SET status = 'superseded', resolved_at = UTC_TIMESTAMP(), password_enc = '' WHERE user_id IN ($ph) AND serial = ? AND status = 'pending'")
-        ->execute(array_merge($ids, [$serial]));
-    db()->prepare('INSERT INTO bios_unlock (user_id, serial, uuid, password_enc, status) VALUES (?, ?, ?, ?, "pending")')
-        ->execute([$userId, $serial, $uuid, unlock_encrypt($password)]);
-    return (int)db()->lastInsertId();
-}
-
-/** Claim the pending command for a serial+uuid (appliance) — returns decrypted data. */
-function unlock_claim(int $userId, string $serial, string $uuid): ?array {
-    unlock_ensure_schema();
-    unlock_expire_stale();
-    db()->beginTransaction();
-    try {
-        $ids = org_member_ids($userId);
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        // Requeue a dispatched command whose result POST never arrived (the
-        // appliance's report was lost), so it doesn't stay dispatched forever.
-        db()->prepare("UPDATE bios_unlock SET status = 'pending', dispatched_at = NULL WHERE user_id IN ($ph) AND serial = ? AND status = 'dispatched' AND dispatched_at < UTC_TIMESTAMP() - INTERVAL 10 MINUTE")
-            ->execute(array_merge($ids, [$serial]));
-
-        // Match serial, and the staged uuid when present (serial-only fallback).
-        $stmt = db()->prepare("SELECT * FROM bios_unlock WHERE user_id IN ($ph) AND serial = ? AND (uuid = '' OR uuid = ?) AND status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE");
-        $stmt->execute(array_merge($ids, [$serial, $uuid]));
-        $row = $stmt->fetch();
-        if ($row === false) {
-            db()->commit();
-            return null;
-        }
-        db()->prepare('UPDATE bios_unlock SET status = "dispatched", dispatched_at = UTC_TIMESTAMP() WHERE id = ?')
-            ->execute([(int)$row['id']]);
-        db()->commit();
-        $pwd = unlock_decrypt((string)$row['password_enc']);
-        if ($pwd === null) {
-            return null;
-        }
-        return [
-            'id'       => (int)$row['id'],
-            'serial'   => (string)$row['serial'],
-            'uuid'     => (string)$row['uuid'],
-            'password' => $pwd,
-        ];
-    } catch (Throwable $e) {
-        try { db()->rollBack(); } catch (Throwable $ignored) {}
-        error_log('unlock claim error: ' . $e->getMessage());
+/** Unlock a freshly claimed row: add the decrypted password (appliance-facing).
+ *  Returns null when the password cannot be decrypted — the appliance must never
+ *  run a clear blind, and the caller reports that as a failure. */
+function unlock_claimed_with_password(array $claimed): ?array {
+    $enc = (string)($claimed['options']['password_enc'] ?? '');
+    $pwd = unlock_decrypt($enc);
+    if ($pwd === null) {
         return null;
     }
+    unset($claimed['options']['password_enc']);
+    $claimed['password']     = $pwd;
+    $claimed['password_b64'] = base64_encode($pwd);
+    return $claimed;
+}
+
+/** Enqueue a clear command; supersedes any still-pending unlock for the serial
+ *  (that supersede drops the older password — see remote_enqueue). */
+function unlock_enqueue(int $userId, string $serial, string $uuid, string $password): int {
+    unlock_ensure_schema();
+    return remote_enqueue_unlock($userId, $serial, $uuid, unlock_encrypt($password));
+}
+
+/** Claim the pending unlock for a serial+uuid (appliance). Also serves
+ *  appliances in the field that still poll the legacy /api/bios/unlock/pending
+ *  route — it claims from the SAME unified queue, so either route sees each
+ *  command exactly once. */
+function unlock_claim(int $userId, string $serial, string $uuid): ?array {
+    unlock_ensure_schema();
+    $cmd = remote_claim($userId, $serial, $uuid, ['bios_unlock']);
+    return $cmd === null ? null : unlock_claimed_with_password($cmd);
+}
+
+/** Cancel a still-pending staged unlock (dashboard). */
+function unlock_cancel(int $userId, int $id): bool {
+    return remote_cancel($userId, $id, 'bios_unlock');
 }
 
 /** Trim a value to a column's character length (multibyte-safe). */
@@ -212,70 +244,24 @@ function unlock_verdict(string $result, string $detail, string $stored = ''): st
 
 /** Record the appliance's result for a dispatched command; purge the password.
  *  Returns false (and writes nothing) when the row is not dispatched. */
-function unlock_report(int $userId, int $id, string $result, string $detail, string $verdict = ''): bool {
-    $status = $result === 'cleared' ? 'done' : $result;
+function unlock_report(int $userId, int $id, string $result, string $detail, string $verdict = '', string $cocid = ''): bool {
     // Classify from the FULL detail (the phrases matched sit at the start, but
-    // never risk a truncation hiding them), then clip only what we store.
+    // never risk a truncation hiding them), then clip only what we store — the
+    // queue's detail column holds 255 characters.
     $verdict = unlock_verdict($result, $detail, $verdict);
-    $detail  = unlock_clip($detail, 512);
-    $verdict = unlock_clip($verdict, 24);
-    try {
-        $ids = org_member_ids($userId);
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("UPDATE bios_unlock SET status = ?, result = ?, detail = ?, verdict = ?, resolved_at = UTC_TIMESTAMP() WHERE id = ? AND user_id IN ($ph) AND status = 'dispatched'");
-        $stmt->execute(array_merge([$status, $result, $detail, $verdict, $id], $ids));
-        if ($stmt->rowCount() === 0) {
-            return false;
-        }
-        // Never retain the password once the command has run.
-        db()->prepare('UPDATE bios_unlock SET password_enc = "" WHERE id = ?')->execute([$id]);
-        return true;
-    } catch (Throwable $e) {
-        error_log('unlock report error: ' . $e->getMessage());
-        return false;
-    }
+    return remote_report($userId, $id, $result, unlock_clip($detail, 255), unlock_clip($verdict, 24), $cocid);
 }
 
-/** Cancel a still-pending staged command (dashboard). Purges the password. */
-function unlock_cancel(int $userId, int $id): bool {
-    unlock_ensure_schema();
-    try {
-        $ids = org_member_ids($userId);
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("UPDATE bios_unlock SET status = 'cancelled', resolved_at = UTC_TIMESTAMP(), password_enc = '' WHERE id = ? AND user_id IN ($ph) AND status = 'pending'");
-        $stmt->execute(array_merge([$id], $ids));
-        return $stmt->rowCount() > 0;
-    } catch (Throwable $e) {
-        error_log('unlock cancel error: ' . $e->getMessage());
-        return false;
-    }
-}
-
-/** Latest unlock command state for a serial (dashboard). */
+/** Latest unlock state for a serial — the queue's newest bios_unlock row
+ *  (dashboard). */
 function unlock_latest(int $userId, string $serial): array {
-    unlock_ensure_schema();
-    try {
-        $ids = org_member_ids($userId);
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("SELECT id, status, result, detail, verdict, created_at, resolved_at FROM bios_unlock WHERE user_id IN ($ph) AND serial = ? ORDER BY id DESC LIMIT 1");
-        $stmt->execute(array_merge($ids, [$serial]));
-        $r = $stmt->fetch();
-        if ($r === false) {
-            return ['status' => 'none'];
-        }
-        return [
-            'id'          => (int)$r['id'],
-            'status'      => (string)$r['status'],
-            'result'      => (string)$r['result'],
-            /* Rows written before the verdict column existed are classified on
-               read, so already-resolved commands render correctly too. */
-            'verdict'     => unlock_verdict((string)$r['result'], (string)$r['detail'], (string)($r['verdict'] ?? '')),
-            'detail'      => (string)$r['detail'],
-            'created_at'  => (string)$r['created_at'],
-            'resolved_at' => $r['resolved_at'] === null ? null : (string)$r['resolved_at'],
-        ];
-    } catch (Throwable $e) {
-        error_log('unlock latest error: ' . $e->getMessage());
+    unlock_ensure_schema();   // also runs the one-time legacy history backfill
+    $r = remote_latest($userId, $serial, ['bios_unlock']);
+    if (($r['status'] ?? 'none') === 'none') {
         return ['status' => 'none'];
     }
+    // Rows written before the verdict column existed are classified on read, so
+    // already-resolved commands render correctly too.
+    $r['verdict'] = unlock_verdict((string)$r['result'], (string)$r['detail'], (string)$r['verdict']);
+    return $r;
 }

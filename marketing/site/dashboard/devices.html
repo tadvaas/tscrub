@@ -259,15 +259,6 @@
         return null;
       }
 
-      // Verdict badge for a single completed MDM check in the device history.
-      function mdmHistoryBadge(h) {
-        var b = mdmBadge(h);
-        if (b) return b;
-        var st = String(h.mdm_status || '').toLowerCase();
-        var label = st === 'aborted' ? 'Aborted' : 'Unknown';
-        return el('span', 'whitespace-nowrap rounded-full bg-slate-200 dark:bg-ink-700 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400', label);
-      }
-
       // Derived status title: while the device is online, an active erasure
       // phase overrides the plain "Online" label (offline always wins).
       function statusBadge(dev) {
@@ -362,10 +353,19 @@
       var devices = [];
       var total = 0;
       var page = 1, per = 10;
-      var expanded = {};
-      var histShown = {};   // expanded report rows shown per device
-      var histPer = 5;      // reports revealed per "Load more" press
-      var animKey = null;
+      // The Log expansion: every recorded event for a machine, merged from the
+      // report history this table already holds (submissions) and the server's
+      // event list (remote commands, Autopilot checks, registrations, drives).
+      // It is the index of a machine's REPORTS too — its report rows carry View
+      // and PDF — which is why the row no longer has a Reports button.
+      var logOpen = {};     // device key -> log expanded
+      var logEvents = {};   // device key -> events fetched for this open
+      var logShown = {};    // events revealed
+      var logPer = 12;
+      // Ease the panel in on the two moments that are real transitions rather
+      // than re-renders: opening it, and its content arriving. Consumed by the
+      // next render, so the 10s table poll never re-animates an open log.
+      var logAnim = {};
       var sortKey = 'status';   // initial sort: Status column
       var sortDir = -1;         // descending (Online first)
       var lastDevicesJson = '';
@@ -416,8 +416,6 @@
         currentQ = searchInput.value;
         searchClear.classList.toggle('hidden', !currentQ);
         page = 1;
-        expanded = {};
-        histShown = {};
         loadDevices();
       });
       searchClear.addEventListener('click', function () {
@@ -655,54 +653,49 @@
           stCell.title = cellTitle;
           tr.appendChild(stCell);
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
-          var btn = el('button', 'rounded-lg px-3 py-1.5 text-xs font-semibold ' + (expanded[key] ? 'border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 text-brand-700 dark:text-brand-400' : 'bg-brand-600 text-white hover:bg-brand-700'), 'Reports' + (expanded[key] ? ' ▴' : ' ▾'));
-          btn.title = 'Show every diagnostics report for this device';
-          btn.addEventListener('click', function () {
-            expanded[key] = !expanded[key];
-            if (expanded[key]) histShown[key] = histPer;
-            else delete histShown[key];
-            animKey = key;
-            render();
-          });
-          tdv.appendChild(btn);
-          var opBtn = el('button', 'relative ml-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Operations');
+          // Text controls: the row reads better with words, and the caret tells
+          // the operator the log is a disclosure. The loading state is reported
+          // in the panel itself, where the rows will appear — not on the button.
+          // Colour is doing a job here, not decoration: the three controls were
+          // identical grey outlines, so nothing told them apart at a glance.
+          // Sky = information (the log), brand = the actions that change the
+          // machine (Ops), emerald = the compliance artefact (Rep).
+          var logBtn = el('button', 'ml-2 rounded-lg border px-3 py-1.5 text-xs font-semibold ' + (logOpen[key]
+            ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
+            : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Log' + (logOpen[key] ? ' ▴' : ' ▾'));
+          logBtn.title = 'Everything recorded for this machine — report submissions, remote commands and their results, Autopilot checks, registrations and drives';
+          logBtn.addEventListener('click', function () { toggleLog(dev, key); });
+          tdv.appendChild(logBtn);
+          var opBtn = el('button', 'relative ml-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-700', 'Ops');
           opBtn.title = 'Remote operations for this device';
           var rdot = remoteDot(dev);
           if (rdot) opBtn.appendChild(rdot);
+          // Reverted from the icon-button helper, which took the handler as an
+          // argument — the listener has to be attached explicitly here.
           opBtn.addEventListener('click', function () { openOperations(dev, !!dev.online); });
           tdv.appendChild(opBtn);
+          // Reports keep a word rather than a menu: the button opens the latest
+          // diagnostics report, and that modal's footer carries the PDF.
+          var repBtn = el('button', 'ml-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50', 'Rep');
+          repBtn.title = 'Open the latest diagnostics report for this device';
+          repBtn.addEventListener('click', function () { openDevice(dev, !!dev.online); });
+          tdv.appendChild(repBtn);
           tr.appendChild(tdv);
           body.appendChild(tr);
 
-          if (expanded[key]) {
-            var sub = el('tr', 'bg-slate-50 dark:bg-ink-800');
-            var subtd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
-            subtd.colSpan = 6;
-            var hist = (dev.history || []).slice().sort(function (a, b) {
-              return String(b.uploaded_at || '').localeCompare(String(a.uploaded_at || ''));
-            });
-            var hs = histShown[key] || histPer;
-            var inner = el('div', key === animKey ? 'report-expand' : '');
-
-            inner.appendChild(historyList(hist.slice(0, hs), historyRow));
-
-            if (hist.length > hs) {
-              var remaining = hist.length - hs;
-              var mbtn = el('button', 'mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + remaining + ' remaining)');
-              mbtn.addEventListener('click', function () { histShown[key] = (histShown[key] || histPer) + histPer; render(); });
-              inner.appendChild(mbtn);
-            }
-
-            subtd.appendChild(inner);
-            sub.appendChild(subtd);
-            body.appendChild(sub);
+          if (logOpen[key]) {
+            var lsub = el('tr', 'bg-slate-50 dark:bg-ink-800');
+            var ltd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
+            ltd.colSpan = 6;
+            ltd.appendChild(logPanel(dev, key));
+            lsub.appendChild(ltd);
+            body.appendChild(lsub);
           }
         });
         table.appendChild(body);
         wrap.appendChild(table);
         list.appendChild(wrap);
         renderPager();
-        animKey = null;
       }
 
       function renderPager() {
@@ -1285,6 +1278,15 @@
         var dl = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Download JSON');
         dl.addEventListener('click', function () { download('device-' + (dev.sysserial || 'report') + '.json', JSON.stringify(dev, null, 2)); });
         foot.appendChild(dl);
+        // The report itself. Same endpoint the Log's PDF action uses, so there is
+        // exactly one way a PDF gets produced; hidden when the device has no
+        // diagnostics report to render.
+        if (dev.pdf_id) {
+          var pdfBtn = el('a', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download PDF');
+          pdfBtn.href = '/api/reports/' + dev.pdf_id + '/download';
+          pdfBtn.title = 'Generate and download this report as a PDF';
+          foot.appendChild(pdfBtn);
+        }
 
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
@@ -1300,136 +1302,212 @@
         return el('span', 'rounded-full bg-slate-200 dark:bg-ink-700 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400', 'Diagnostics');
       }
 
-      // One report list inside the expanded device row — no header row, just
-      // the report rows `buildRow(h)` produces. Each row is a fixed timestamp,
-      // a type badge, self-describing labelled detail chips, then actions.
-      function historyList(rows, buildRow) {
-        var wrap = el('div', '');
-        rows.forEach(function (h) { wrap.appendChild(buildRow(h)); });
-        return wrap;
-      }
-
-      // A labelled detail chip: small-caps label + value (text or element).
-      // Inline so the whole row stays on one line and ellipsises when narrow.
-      function detail(label, value, title) {
-        var chip = el('span', 'mr-3 inline-block align-middle whitespace-nowrap');
-        chip.appendChild(el('span', 'mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', label));
-        if (value && typeof value === 'object') {
-          chip.appendChild(value);
-        } else {
-          chip.appendChild(el('span', 'text-slate-700 dark:text-slate-300', value == null || value === '' ? '—' : value));
+      // ---------------------------------------------------------------------
+      // LOG — one timeline per machine.
+      // The rows the Reports expansion already holds are submissions; the
+      // server's /api/devices/events adds what was asked of the machine and what
+      // came back. Both go through one renderer so a report submission and a
+      // BIOS clear read the same way and sort into one list.
+      // ---------------------------------------------------------------------
+      function historyLogEvent(h) {
+        // `src` carries the report entry itself: the timeline is the index of a
+        // machine's reports now, so its report rows offer View / PDF.
+        if (h.report_type === 'erasure') {
+          var drives = Array.isArray(h.drives) ? h.drives : [];
+          var d0 = drives[0] || {};
+          var st = String(d0.status || '').toUpperCase();
+          return {
+            at: h.uploaded_at, kind: 'report', type: 'erasure', src: h,
+            label: 'Erasure report submitted',
+            state: st === 'COMPLETED' ? 'ok' : (st === 'FAILED' || st === 'BLOCKED' ? 'fail' : 'info'),
+            detail: [d0.type, d0.size, d0.method, d0.status].filter(Boolean).join(' · '),
+            ref: '',
+            cocid: h.cocid || ''
+          };
         }
-        if (title) chip.title = title;
-        return chip;
+        if (h.report_type === 'mdm') {
+          return {
+            at: h.uploaded_at, kind: 'report', type: 'mdm', src: h,
+            label: 'Autopilot check recorded',
+            state: 'info',
+            detail: [h.mdm_verdict, h.mdm_source].filter(Boolean).join(' · '),
+            ref: '',
+            // An Autopilot check is not part of a Chain of Custody (no report
+            // submission backs it), so it has no CoC to show.
+            cocid: ''
+          };
+        }
+        var dr = Array.isArray(h.drives) ? h.drives : [];
+        return {
+          at: h.uploaded_at, kind: 'report', type: 'diagnostics', src: h,
+          label: 'Diagnostics report submitted',
+          state: 'info',
+          detail: [h.cpu, h.ram, dr.length ? dr.length + ' drive' + (dr.length === 1 ? '' : 's') : ''].filter(Boolean).join(' · '),
+          ref: h.grade ? 'grade ' + h.grade : '',
+          cocid: h.cocid || ''
+        };
       }
 
-      // A report row: fixed timestamp, type badge, an optional always-visible
-      // extra badge (e.g. the inbound refurb grade), single-line detail chips,
-      // then actions.
-      function reportRow(h, badge, details, actions, extra) {
+      // View / PDF for a report row in the Log — the same actions the Reports
+      // expansion offers, hung off the timeline because the timeline indexes the
+      // reports. An Autopilot check has no report document, so it gets neither.
+      function reportActions(e) {
+        var h = e.src;
+        if (!h || h.report_type === 'mdm') return null;
+        var box = el('div', 'shrink-0 flex items-center gap-1.5');
+        var view = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
+        view.title = 'Open this report';
+        view.addEventListener('click', function () {
+          if (h.report_type === 'erasure') openErasureReport(h);
+          else openDevice(h);
+        });
+        box.appendChild(view);
+        if (h.pdf_id) {
+          var pdf = el('a', 'inline-block rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
+          pdf.href = '/api/reports/' + h.pdf_id + '/download';
+          pdf.title = 'Download this report as a PDF';
+          box.appendChild(pdf);
+        }
+        return box;
+      }
+
+      function eventBadge(e) {
+        if (e.kind === 'report') return reportTypeBadge(e.type);
+        var map = {
+          bios_unlock: ['bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', 'BIOS'],
+          wipe:        ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Erase'],
+          shutdown:    ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Power'],
+          reboot:      ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Power'],
+          mdm:         ['bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400', 'MDM'],
+          drive:       ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Drive'],
+          certificate: ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Cert'],
+          boot:        ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Boot']
+        };
+        var m = map[e.kind] || ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', e.kind || 'Event'];
+        return el('span', 'whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ' + m[0], m[1]);
+      }
+
+      function eventStateCls(s) {
+        if (s === 'ok') return 'font-semibold text-emerald-700 dark:text-emerald-400';
+        if (s === 'warn') return 'font-semibold text-amber-700 dark:text-amber-400';
+        if (s === 'fail') return 'font-semibold text-red-600 dark:text-red-400';
+        if (s === 'pending') return 'text-sky-700 dark:text-sky-400';
+        return 'text-slate-600 dark:text-slate-400';
+      }
+
+      function logRow(e) {
         var row = el('div', 'flex items-center gap-3 border-b border-slate-100 dark:border-ink-800 py-2');
-        var ts = el('div', 'w-32 shrink-0 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(h.uploaded_at) || '—');
-        ts.title = String(h.uploaded_at || '');
+        var ts = el('div', 'w-32 shrink-0 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(e.at) || '—');
+        ts.title = String(e.at || '');
         row.appendChild(ts);
-        var tb = el('div', 'shrink-0');
-        tb.appendChild(badge);
+        var tb = el('div', 'w-20 shrink-0');
+        tb.appendChild(eventBadge(e));
         row.appendChild(tb);
-        if (extra) {
-          var ex = el('div', 'shrink-0');
-          ex.appendChild(extra);
-          row.appendChild(ex);
-        }
         var body = el('div', 'min-w-0 flex-1 truncate');
-        details.forEach(function (d) { body.appendChild(d); });
+        body.appendChild(el('span', 'mr-2 text-slate-700 dark:text-slate-300', e.label || ''));
+        if (e.detail) body.appendChild(el('span', 'text-xs ' + eventStateCls(e.state), e.detail));
+        body.title = [e.label, e.detail].filter(Boolean).join(' — ');
         row.appendChild(body);
-        if (actions && actions.length) {
-          var act = el('div', 'shrink-0 flex items-center gap-1.5');
-          actions.forEach(function (a) { act.appendChild(a); });
-          row.appendChild(act);
+        // Chain of Custody. Only the events that are actually part of one carry
+        // a CoC — a staged remote command, an Autopilot check or a registration
+        // is not a report submission, so those show a dash rather than a
+        // fabricated id. Sits before the actions so the column stays aligned
+        // however wide the row's buttons are.
+        var coc = el('div', 'w-36 shrink-0 truncate font-mono text-[11px]');
+        if (e.cocid) {
+          var cocLink = el('a', 'text-slate-500 hover:text-brand-600 hover:underline dark:text-slate-400 dark:hover:text-brand-400', e.cocid);
+          cocLink.href = '/dashboard/certificates';
+          cocLink.title = 'Chain of Custody ' + e.cocid + ' — open Certificates to view or generate it';
+          coc.appendChild(cocLink);
+        } else {
+          coc.appendChild(el('span', 'text-slate-300 dark:text-slate-600', '—'));
         }
+        row.appendChild(coc);
+        var ref = el('div', 'w-28 shrink-0 truncate text-right text-[11px] tabular-nums text-slate-400 dark:text-slate-500', e.ref || '');
+        if (e.ref) {
+          // Ids come from several tables with their own sequences (remote
+          // commands, Autopilot jobs, certificates), so two refs can carry the
+          // same number without being the same record. Say which one this is.
+          ref.title = refTitle(e.kind) + ' — every Log ref names the record it belongs to; each table numbers its own rows, so the same number can appear twice.';
+        }
+        row.appendChild(ref);
+        var acts = reportActions(e);
+        if (acts) row.appendChild(acts);
         return row;
       }
 
-      // Erasure report row: size, drive type, method and outcome.
-      function erasureReportRow(h) {
-        var drives = Array.isArray(h.drives) ? h.drives : [];
-        var d0 = drives[0] || {};
-        var extra = drives.length > 1 ? ' (+' + (drives.length - 1) + ')' : '';
-        var multi = drives.length > 1;
-        var join = function (f) { return drives.map(function (d) { return d[f] || '—'; }).join(' · '); };
-        var statusEl = el('span', erasureStatusClass(d0.status), (d0.status || '—') + extra);
-        var v = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
-        v.addEventListener('click', function () { openErasureReport(h); });
-        var details = [
-          detail('Size', (d0.size || '—') + extra, multi ? drives.map(function (d) { return (d.model || d.device || '?') + ' · ' + (d.size || '—'); }).join('\n') : ''),
-          detail('Drive', (d0.type || '—') + extra, multi ? join('type') : ''),
-          detail('Method', (d0.method || '—') + extra, multi ? join('method') : ''),
-          detail('Status', statusEl, multi ? join('status') : '')
-        ];
-        if (h.cocid) {
-          details.unshift(detail('COCID', h.cocid, h.cocid));
-        }
-        return reportRow(h, reportTypeBadge('erasure'), details, [v]);
+      function refTitle(kind) {
+        if (kind === 'mdm') return 'Autopilot job id';
+        if (kind === 'certificate' || kind === 'drive') return 'Certificate id';
+        return 'Remote command id';
       }
 
-      // Top-level I-A–I-F badge (used by the report list rows — must stay
-      // outside openDevice so the Devices table can render it).
-      function refurbBadge(g) {
-        var cls = { 'I-A': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
-                    'I-B': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
-                    'I-C': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-                    'I-D': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
-                    'I-F': 'bg-slate-200 text-slate-600 dark:bg-ink-700 dark:text-slate-400' };
-        return g
-          ? el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + (cls[g] || 'bg-slate-100 text-slate-500 dark:bg-ink-800 dark:text-slate-400'), g)
-          : null;
+      // Indeterminate spinner (same construction as the pager's), used while the
+      // log is being fetched and inside the Log button for the same reason.
+      function logSpinner() {
+        return el('span', 'ml-1 inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-slate-400 dark:border-slate-500 border-t-transparent', '');
       }
 
-      // Diagnostics report row: CPU, RAM, storage summary and BIOS lock state.
-      function diagReportRow(h) {
-        var drives = Array.isArray(h.drives) ? h.drives : [];
-        var storage = drives.map(function (d) { return ((d.type || '') + ' ' + (d.size || '')).trim(); }).filter(Boolean).join(' · ');
-        if (!storage && typeof h.drive_count === 'number' && h.drive_count) storage = h.drive_count + ' drive' + (h.drive_count === 1 ? '' : 's');
-        var v = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
-        v.addEventListener('click', function () { openDevice(h); });
-        var actions = [v];
-        if (h.pdf_id) {
-          var p = el('a', 'inline-block rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
-          p.href = '/api/reports/' + h.pdf_id + '/download';
-          actions.push(p);
-        }
-        var details = [
-          detail('CPU', h.cpu || '', h.cpu || ''),
-          detail('RAM', h.ram || '', h.ram || ''),
-          detail('Storage', storage || '', drives.length ? drives.map(function (d) { return (d.model || d.device || '?') + ' · ' + (d.size || '—'); }).join('\n') : ''),
-          detail('BIOS', lockBadge(h.bioslock, 'BIOS ') || '—')
-        ];
-        if (h.cocid) {
-          details.unshift(detail('COCID', h.cocid, h.cocid));
-        }
-        if (h.notes) {
-          details.push(detail('Notes', h.notes, 'Operator notes for this report'));
-        }
-        // The inbound refurb grade lives in a fixed, always-visible slot next
-        // to the type badge, so it survives the truncating detail-chip row.
-        var gradeBadge = h.grade ? refurbBadge(h.grade) : null;
-        if (gradeBadge) gradeBadge.title = 'Operator-assigned inbound grade for this report';
-        return reportRow(h, reportTypeBadge('diagnostics'), details, actions, gradeBadge);
+      function logMerged(dev, key) {
+        var out = (dev.history || []).map(historyLogEvent);
+        (logEvents[key] || []).forEach(function (e) { out.push(e); });
+        out.sort(function (a, b) { return String(b.at || '').localeCompare(String(a.at || '')); });
+        return out;
       }
 
-      // MDM check row: verdict and source.
-      function mdmReportRow(h) {
-        return reportRow(h, reportTypeBadge('mdm'), [
-          detail('Verdict', mdmHistoryBadge(h)),
-          detail('Source', h.mdm_source || '')
-        ], []);
+      function logPanel(dev, key) {
+        var anim = logAnim[key];
+        if (anim) delete logAnim[key];
+        var wrap = el('div', anim ? 'row-expand' : '');
+        if (logEvents[key] === undefined) {
+          // The log is fetched when the button is clicked, so the panel says so:
+          // a spinner plus a line, in the place the rows will appear.
+          var loading = el('div', 'flex items-center gap-2');
+          loading.appendChild(logSpinner());
+          loading.appendChild(el('span', 'text-xs text-slate-500 dark:text-slate-400', 'Loading log…'));
+          wrap.appendChild(loading);
+          return wrap;
+        }
+        var all = logMerged(dev, key);
+        if (!all.length) {
+          wrap.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'Nothing recorded for this machine yet.'));
+          return wrap;
+        }
+        var shown = logShown[key] || logPer;
+        // A header, because these rows are columns (time, type, event, CoC, ref)
+        // and the Drives tab's expansion reads the same way.
+        var hd = el('div', 'flex items-center gap-3 border-b border-slate-200 dark:border-ink-700 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500');
+        hd.appendChild(el('div', 'w-32 shrink-0', 'Time'));
+        hd.appendChild(el('div', 'w-20 shrink-0', 'Type'));
+        hd.appendChild(el('div', 'min-w-0 flex-1', 'Event'));
+        hd.appendChild(el('div', 'w-36 shrink-0', 'CoC'));
+        hd.appendChild(el('div', 'w-28 shrink-0 text-right', 'Ref'));
+        wrap.appendChild(hd);
+        all.slice(0, shown).forEach(function (e) { wrap.appendChild(logRow(e)); });
+        if (all.length > shown) {
+          var mbtn = el('button', 'mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + (all.length - shown) + ' remaining)');
+          mbtn.addEventListener('click', function () { logShown[key] = shown + logPer; render(); });
+          wrap.appendChild(mbtn);
+        }
+        return wrap;
       }
 
-      // One report row, dispatched by type (all interleaved newest-first).
-      function historyRow(h) {
-        if (h.report_type === 'erasure') return erasureReportRow(h);
-        if (h.report_type === 'mdm') return mdmReportRow(h);
-        return diagReportRow(h);
+      // Opening the log always re-fetches: it is a record of what happened, so a
+      // cached copy is the one thing it must not be.
+      function toggleLog(dev, key) {
+        logOpen[key] = !logOpen[key];
+        if (logOpen[key]) {
+          logShown[key] = logPer;
+          delete logEvents[key];
+          logAnim[key] = true;                  // ease the panel (and its spinner) open
+          var url = '/api/devices/events?serial=' + encodeURIComponent(dev.sysserial || '') +
+                    '&uuid=' + encodeURIComponent(dev.systemuuid || '');
+          fetch(url).then(function (r) { return r.json(); })
+            .then(function (d) { logEvents[key] = (d && d.events) || []; })
+            .catch(function () { logEvents[key] = []; })
+            .then(function () { logAnim[key] = true; render(); });   // …and ease the rows in
+        }
+        render();
       }
 
       function erasureStatusClass(st) {
@@ -1541,20 +1619,15 @@
         if (remotePollTimer) { clearTimeout(remotePollTimer); remotePollTimer = null; }
       }
 
+      // Only what is IN FLIGHT belongs next to the actions. A resolved clear is
+      // history: the log under the card carries it, and restating the last verdict
+      // (or "Cleared." beside an empty password field) read as though it described
+      // this machine right now.
       function unlockStateFor(u) {
         var s = u && u.status ? u.status : 'none';
         if (s === 'pending') return { kind: 'staged', data: u };
         if (s === 'dispatched') return { kind: 'inprogress', data: u };
-        if (s === 'done') return { kind: 'cleared', data: u };
-        // A clear that did not succeed arrives as "failed" for two very
-        // different reasons — a wrong password (retry with the right one) and a
-        // firmware with no clear path from Linux (retrying can never work).
-        // The server reduces result+detail to `verdict`; fall back to the raw
-        // status so an older appliance still renders.
-        if (s === 'failed' || s === 'unsupported') {
-          return { kind: (u && u.verdict) ? u.verdict : s, data: u };
-        }
-        return { kind: 'idle', data: u };   // none / cancelled / superseded
+        return { kind: 'idle', data: u };   // none / done / failed / unsupported / cancelled
       }
 
       function unlockBadge(kind) {
@@ -1578,71 +1651,30 @@
         }
       }
 
-      // Outcome wording for a clear that did not succeed. The verdict is derived
-      // server-side from the appliance's result+detail (see
-      // marketing/server/bios_unlock.php / unlock_verdict) so `retry` is only
-      // offered where a different password could actually change the outcome.
-      var UNLOCK_OUTCOME = {
-        wrong_password: {
-          cls: 'text-red-600 dark:text-red-400',
-          headline: 'Wrong BIOS password',
-          hint: 'The firmware evaluated that password and rejected it — check the current password and retry.',
-          retry: true
-        },
-        policy: {
-          cls: 'text-red-600 dark:text-red-400',
-          headline: 'Rejected by the firmware password policy',
-          hint: 'The value does not meet this firmware’s password rules. Retry with one that does.',
-          retry: true
-        },
-        failed: {
-          cls: 'text-red-600 dark:text-red-400',
-          headline: 'Clear failed',
-          hint: 'The firmware reported a failure that could not be classified — see the detail above.',
-          retry: true
-        },
-        no_clear_path: {
-          cls: 'text-amber-600 dark:text-amber-400',
-          headline: 'No clear path through this interface',
-          hint: 'The driver accepted the writes but never forwards the password to the firmware, so nothing changed — the password supplied is not what is in question. HP setup passwords CAN be cleared from Linux: an appliance running v1.11.46 or newer sends the firmware\'s own request, so reboot the unit into the new image and re-run this unlock. Otherwise clear it pre-boot (BIOS setup, vendor SMC, or SPI reflash).',
-          retry: false
-        },
-        not_supported: {
-          cls: 'text-amber-600 dark:text-amber-400',
-          headline: 'Firmware cannot set or clear passwords',
-          hint: 'This driver never forwards a new value to the firmware, so no password entered here can clear it.',
-          retry: false
-        },
-        needs_privilege: {
-          cls: 'text-amber-600 dark:text-amber-400',
-          headline: 'Not permitted',
-          hint: 'The driver required elevated privileges (CAP_SYS_ADMIN) to write the password attribute.',
-          retry: false
-        },
-        read_only: {
-          cls: 'text-slate-600 dark:text-slate-300',
-          headline: 'Password interface is read-only',
-          hint: 'The password object publishes no write path on this machine.',
-          retry: false
-        },
-        no_interface: {
-          cls: 'text-slate-600 dark:text-slate-300',
-          headline: 'No BIOS password interface',
-          hint: 'The kernel published no firmware-attributes password object on this machine.',
-          retry: false
-        },
-        unsupported: {
-          cls: 'text-slate-600 dark:text-slate-300',
-          headline: 'Not supported on this machine',
-          hint: 'No writable BIOS password interface was found.',
-          retry: false
-        }
-      };
+      // The ops panel's host elements, set by openOperations. One poll refreshes
+      // the whole panel, so its sections can never drift apart. Command HISTORY
+      // is not here: that lives in the Devices tab's Log expansion.
+      var opsHosts = null;
 
+      var COMMAND_LABEL = { shutdown: 'Shutdown', reboot: 'Restart', wipe: 'Erase', bios_unlock: 'BIOS unlock' };
+
+      // One poll for the whole panel: the power actions and the BIOS clear read
+      // the same queue (GET /api/devices/commands), so they are refreshed
+      // together and can never disagree about what is staged.
       function loadUnlockState(dev, online, host) {
-        fetch('/api/bios/unlock?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
-          .then(function (d) { smoothOpsSwap(function () { renderUnlockCard(dev, online, unlockStateFor(d && d.unlock), host); }); })
-          .catch(function () { smoothOpsSwap(function () { renderUnlockCard(dev, online, { kind: 'idle', data: null }, host); }); });
+        fetch('/api/devices/commands?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
+          .then(function (d) {
+            smoothOpsSwap(function () {
+              if (!opsHosts) return;
+              renderRemoteCard(dev, online, remoteStateFor(d && d.command), opsHosts.remote, unlockStateFor(d && d.unlock));
+            });
+          })
+          .catch(function () {
+            smoothOpsSwap(function () {
+              if (!opsHosts) return;
+              renderRemoteCard(dev, online, { kind: 'idle', data: null }, opsHosts.remote, { kind: 'idle', data: null });
+            });
+          });
       }
 
       function schedulePoll(dev, online, state, host) {
@@ -1659,15 +1691,19 @@
         st.textContent = 'Sending…';
         btn.disabled = true;
         getCsrf().then(function (csrf) {
-          return fetch('/api/bios/unlock', {
+          // A BIOS clear is a normal command in the remote queue, so the power
+          // card, the erase form and this card share one staging route, one
+          // history and one cancellation path.
+          return fetch('/api/devices/commands', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '', password: pwd })
+            body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '', command: 'bios_unlock', password: pwd })
           });
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
           if (res.ok) {
             inp.value = '';
             loadUnlockState(dev, online, host);
+            loadDevices(true);   // show the queued dot on the Operations button
           } else {
             btn.disabled = false;
             st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
@@ -1683,7 +1719,7 @@
       function cancelUnlock(dev, online, host, id, btn) {
         btn.disabled = true;
         getCsrf().then(function (csrf) {
-          return fetch('/api/bios/unlock/cancel', {
+          return fetch('/api/devices/commands/cancel', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
             body: JSON.stringify({ id: id })
@@ -1695,20 +1731,21 @@
         });
       }
 
-      function renderUnlockCard(dev, online, state, host) {
-        host.innerHTML = '';
-
-        var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
-        var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
-        head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Clear BIOS lock'));
-        head.appendChild(unlockBadge(state.kind) || lockBadge(dev.bioslock) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
-        card.appendChild(head);
-
+      // The BIOS clear is a command like any other, so it renders INSIDE the
+      // Remote commands card: what the clear is doing right now (queued, or being
+      // applied) or, when it is not doing anything, the password action that
+      // stages a new one. A finished clear is not repeated here — the log carries
+      // it. No card, no header, no host of its own: one queue, one card.
+      function renderUnlockSection(card, dev, online, host, state, statusLine) {
         var kind = state.kind;
         var u = state.data;
 
         if (kind === 'idle') {
-          var form = el('div', 'mt-3 flex flex-wrap items-center gap-2');
+          // Labelled, because this section has no card title of its own, and its
+          // messages go to the card's one status line rather than a second line
+          // of near-identical text.
+          card.appendChild(el('p', 'mt-3 text-xs font-semibold text-slate-600 dark:text-slate-300', 'Clear BIOS password'));
+          var form = el('div', 'mt-1.5 flex flex-wrap items-center gap-2');
           var inp = el('input', 'min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
           inp.type = 'text';
           inp.autocomplete = 'off';
@@ -1716,10 +1753,7 @@
           var btn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Send');
           form.appendChild(inp); form.appendChild(btn);
           card.appendChild(form);
-          var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-          st.textContent = online ? 'Machine is online — cleared within a few seconds.' : 'Machine is offline — staged and runs at next boot.';
-          card.appendChild(st);
-          btn.addEventListener('click', function () { sendUnlock(dev, online, host, inp, btn, st); });
+          btn.addEventListener('click', function () { sendUnlock(dev, online, host, inp, btn, statusLine); });
         } else if (kind === 'staged') {
           var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
           var cancelBtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
@@ -1729,34 +1763,8 @@
           cancelBtn.addEventListener('click', function () { cancelUnlock(dev, online, host, u.id, cancelBtn); });
         } else if (kind === 'inprogress') {
           card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'The appliance has picked up the command and is clearing the password.'));
-        } else if (kind === 'cleared') {
-          card.appendChild(el('p', 'mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-400', 'BIOS password cleared.'));
-          if (u && u.detail) card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400', u.detail));
-        } else {
-          // Everything else is a non-cleared outcome. The server's `verdict`
-          // picks the wording; only the retryable ones offer another attempt, so
-          // an operator is never invited to re-enter a password that cannot help.
-          var v = UNLOCK_OUTCOME[kind] || UNLOCK_OUTCOME.failed;
-          var msg = el('p', 'mt-3 text-sm font-semibold ' + v.cls, v.headline);
-          if (u && u.detail) msg.appendChild(document.createTextNode(' — ' + u.detail));
-          card.appendChild(msg);
-          if (v.hint) card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400', v.hint));
-          if (v.retry) {
-            var rform = el('div', 'mt-3 flex flex-wrap items-center gap-2');
-            var rinp = el('input', 'min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
-            rinp.type = 'text';
-            rinp.autocomplete = 'off';
-            rinp.placeholder = 'Current BIOS password';
-            var rbtn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Retry');
-            rform.appendChild(rinp); rform.appendChild(rbtn);
-            card.appendChild(rform);
-            var rst = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-            card.appendChild(rst);
-            rbtn.addEventListener('click', function () { sendUnlock(dev, online, host, rinp, rbtn, rst); });
-          }
         }
 
-        host.appendChild(card);
         schedulePoll(dev, online, state, host);
       }
 
@@ -1845,16 +1853,14 @@
 
       function remoteStateFor(c) {
         var s = c && c.status ? c.status : 'none';
-        // A completed command is not "in flight" anymore — surface the action
-        // form (not a stale "powering back up" line) once it has finished.
-        if (s === 'done') return { kind: 'idle', data: c };
-        if (s === 'failed') return { kind: 'failed', data: c };
+        // Same rule as the clear: this card reports what is happening, the log
+        // reports what happened. A command that finished (or expired, or was
+        // cancelled) leaves the action surface alone.
         if (s === 'dispatched') return { kind: 'inprogress', data: c };
         if (s === 'pending') {
           return (c && c.result === 'deferred') ? { kind: 'deferred', data: c } : { kind: 'staged', data: c };
         }
-        if (s === 'expired') return { kind: 'expired', data: c };
-        return { kind: 'idle', data: c };   // none / cancelled / superseded
+        return { kind: 'idle', data: c };   // none / done / failed / expired / cancelled
       }
 
       function remoteBadge(kind) {
@@ -1892,24 +1898,26 @@
           label = 'Erasure in progress';
         } else if (r.status === 'dispatched') {
           cls = 'bg-sky-500 animate-pulse';
-          label = (r.command === 'reboot' ? 'Restart' : (r.command === 'wipe' ? 'Erase' : 'Shutdown')) + ' — running';
+          label = (COMMAND_LABEL[r.command] || 'Command') + ' — running';
         } else {
           cls = 'bg-amber-500';
-          label = (r.command === 'reboot' ? 'Restart' : (r.command === 'wipe' ? 'Erase' : 'Shutdown')) + ' — queued';
+          label = (COMMAND_LABEL[r.command] || 'Command') + ' — queued';
         }
         var dot = el('span', 'absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-ink-900 ' + cls);
         dot.title = label;
         return dot;
       }
 
+      // The power card is one view of the shared queue — loadUnlockState refreshes
+      // the whole panel, so this is just the name the remote card knows.
       function loadRemoteState(dev, online, host) {
-        fetch('/api/devices/commands?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
-          .then(function (d) { smoothOpsSwap(function () { renderRemoteCard(dev, online, remoteStateFor(d && d.command), host); }); })
-          .catch(function () { smoothOpsSwap(function () { renderRemoteCard(dev, online, { kind: 'idle', data: null }, host); }); });
+        loadUnlockState(dev, online, host);
       }
 
       function scheduleRemotePoll(dev, online, state, host) {
         if (remotePollTimer) { clearTimeout(remotePollTimer); remotePollTimer = null; }
+        // The unlock card drives the same shared refresh, so one timer is enough.
+        if (unlockPollTimer) return;
         if (state.kind === 'staged' || state.kind === 'inprogress' || state.kind === 'deferred') {
           remotePollTimer = setTimeout(function () { loadRemoteState(dev, online, host); }, 4000);
         }
@@ -2064,17 +2072,40 @@
         return box;
       }
 
-      function renderRemoteCard(dev, online, state, host) {
+      // The one Operations card: every command this appliance accepts. The BIOS
+      // clear is one of them (same queue, same history), so it renders here. The
+      // card shows what is in flight or, when nothing is, the actions — resolved
+      // commands belong to the log below (see unlockStateFor / remoteStateFor).
+      function renderRemoteCard(dev, online, state, host, unlockState) {
         host.innerHTML = '';
 
         var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
         var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
         head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Remote commands'));
-        head.appendChild(remoteBadge(state.kind) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
+        // Only a command that is actually in flight earns a badge.
+        var uState = unlockState || { kind: 'idle', data: null };
+        var uBadge = uState.kind === 'idle' ? null : unlockBadge(uState.kind);
+        head.appendChild(uBadge || remoteBadge(state.kind) || lockBadge(dev.bioslock) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
         card.appendChild(head);
+
+        // ONE status line for the whole card, under the header and in the same
+        // place every time: every action reports into it. A second, near-identical
+        // line under the clear was much of why this card read like two cards
+        // stapled together.
+        var statusLine = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+        if (!online) {
+          statusLine.textContent = 'Machine is offline — shut down and restart only work while online (the erase and the BIOS clear can still be queued).';
+        } else if (dev.erasure && dev.erasure.phase === 'wiping') {
+          statusLine.textContent = 'A wipe is in progress — commands run once it finishes.';
+        } else {
+          statusLine.textContent = 'Machine is online — commands run within a few seconds.';
+        }
+        card.appendChild(statusLine);
 
         var kind = state.kind;
         var c = state.data;
+
+        renderUnlockSection(card, dev, online, host, uState, statusLine);
 
         if (kind === 'staged') {
           var srow = el('div', 'mt-3 flex flex-wrap items-center gap-2');
@@ -2099,35 +2130,18 @@
           card.appendChild(dmsg);
           dbtn.addEventListener('click', function () { cancelRemote(dev, online, host, c.id, dbtn, dmsg); });
         } else {
-          // idle (nothing queued, or a completed command) — or a failed
-          // command. Completed commands read as "nothing queued" so the action
-          // form (including remote erasure) is front and centre; a failed
-          // command keeps its error line so the operator can retry.
-          if (kind === 'failed') {
-            card.appendChild(el('p', 'mt-3 text-sm font-semibold text-red-600 dark:text-red-400', 'Command failed' + (c && c.detail ? ' — ' + c.detail : '') + '.'));
-          }
-          if (kind === 'expired') {
-            card.appendChild(el('p', 'mt-3 text-sm font-semibold text-amber-600 dark:text-amber-500', 'The previous command expired before the appliance picked it up.'));
-          }
-
+          // Nothing in flight, so this is the action surface and nothing else.
+          // Resolved commands are NOT restated here: a failed or expired command
+          // is history, and the log below carries it with its detail. The old
+          // inline "Command failed — …" line made the card half status report.
           var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
           var shut = el('button', 'shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50', 'Shut down');
           var rest = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Restart');
           row.appendChild(shut); row.appendChild(rest);
           card.appendChild(row);
-          var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-          var wiping = dev.erasure && dev.erasure.phase === 'wiping';
-          if (!online) {
-            st.textContent = 'Machine is offline — shutdown and restart only work while online (erase can still be queued below).';
-            shut.disabled = true; rest.disabled = true;
-          } else if (wiping) {
-            st.textContent = 'A wipe is in progress — the command will run once it finishes.';
-          } else {
-            st.textContent = 'Machine is online — executes within a few seconds.';
-          }
-          card.appendChild(st);
-          shut.addEventListener('click', function () { sendRemote(dev, online, host, 'shutdown', st); });
-          rest.addEventListener('click', function () { sendRemote(dev, online, host, 'reboot', st); });
+          if (!online) { shut.disabled = true; rest.disabled = true; }
+          shut.addEventListener('click', function () { sendRemote(dev, online, host, 'shutdown', statusLine); });
+          rest.addEventListener('click', function () { sendRemote(dev, online, host, 'reboot', statusLine); });
 
           card.appendChild(buildEraseForm(dev, online, host));
         }
@@ -2142,17 +2156,17 @@
         if (!dev.sysserial) {
           opsBody.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No system serial to target.'));
         } else {
-          var unlockHost = el('div', '');
+          var remoteHost = el('div', '');
           var mdmHost = el('div', 'mt-4');
-          var remoteHost = el('div', 'mt-4');
-          opsBody.appendChild(unlockHost);
-          opsBody.appendChild(mdmHost);
           opsBody.appendChild(remoteHost);
-          renderUnlockCard(dev, online, { kind: 'idle', data: null }, unlockHost);
-          loadUnlockState(dev, online, unlockHost);
+          opsBody.appendChild(mdmHost);
+          opsHosts = { remote: remoteHost };
+          // Remote commands first — it now holds the BIOS clear as well, so it is
+          // the whole action surface; MDM/attestation is reference below it.
+          renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost, { kind: 'idle', data: null });
           renderMdmCard(dev, online, mdmHost);
-          renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost);
-          loadRemoteState(dev, online, remoteHost);
+          // One fetch renders every section (see loadUnlockState).
+          loadUnlockState(dev, online, remoteHost);
         }
         opsModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';

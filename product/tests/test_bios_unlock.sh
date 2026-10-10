@@ -14,12 +14,16 @@ export BIOS_FA_ORPHAN_GLOB="$tmpdir/no-orphan/*"
 # it opt back in with their own BIOS_WMI_DEVICE_DIR.
 export BIOS_WMI_DEVICE_DIR="$tmpdir/no-wmi"
 
-t::assert_eq "https://tscrub.com/api/bios/unlock/pending" \
-    "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' bios_unlock::pending_endpoint)" \
-    "unlock pending endpoint: built-in reports URL"
-t::assert_eq "https://host.example/api/bios/unlock/result" \
-    "$(TSCRUB_UPLOAD_URL='https://host.example' bios_unlock::result_endpoint)" \
-    "unlock result endpoint: bare host"
+t::assert_eq "shutdown,reboot,wipe,bios_unlock" "$REMOTE_COMMANDS" \
+    "remote: this build declares every command type it can execute"
+t::assert_eq "hunter2" "$(remote::_claimed_password '{"id":7,"password":"x","password_b64":"aHVudGVyMg=="}')" \
+    "claim: base64 password decodes"
+t::assert_eq "legacy" "$(remote::_claimed_password '{"id":9,"password":"legacy"}')" \
+    "claim: plain password still accepted"
+t::assert_eq 'a"b\' "$(remote::_claimed_password '{"id":11,"password_b64":"YSJiXA=="}')" \
+    "claim: base64 survives special chars"
+t::check "claim: no password -> empty" \
+    '[[ -z "$(remote::_claimed_password "{\"pending\":false}")" ]]'
 
 # --- clear via firmware_attributes sysfs ------------------------------------
 BIOS_FA_ROOT="$tmpdir/fa"
@@ -194,16 +198,12 @@ t::assert_contains "$BIOS_UNLOCK_DETAIL" "no clear path" "no-reset driver: detai
 t::assert_contains "$BIOS_UNLOCK_DETAIL" "cannot be validated" "no-reset driver: detail says password unverifiable"
 
 # --- parse: base64 password field -------------------------------------------
-t::assert_eq $'7\nhunter2' "$(bios_unlock::_parse_pending '{"id":7,"password":"x","password_b64":"aHVudGVyMg=="}')" "parse: base64 password decodes"
 
 # --- parse: legacy password field fallback ----------------------------------
-t::assert_eq $'9\nlegacy' "$(bios_unlock::_parse_pending '{"id":9,"password":"legacy"}')" "parse: legacy password fallback"
 
 # --- parse: base64 survives quotes/backslash --------------------------------
-t::assert_eq $'11\na"b\\' "$(bios_unlock::_parse_pending '{"id":11,"password_b64":"YSJiXA=="}')" "parse: base64 survives special chars"
 
 # --- parse: no command -> empty ---------------------------------------------
-t::check "parse: no id -> empty" '[[ -z "$(bios_unlock::_parse_pending "{\"pending\":false}")" ]]'
 
 # --- WMI layer: HP machines expose no password object at all ----------------
 # HP publishes no firmware-attributes password object on any generation we have

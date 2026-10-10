@@ -1131,7 +1131,12 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
              VALUES (?, ?, ?, "unverified", "none", "api", "diagnostics", ?, 1, ?, ?, ?)'
         )->execute([
             $userId,
-            '',
+            // A diagnostics snapshot has no Chain of Custody of its own: it
+            // belongs to the run the appliance is in, so it takes whatever CoC
+            // the appliance sent. This used to be a hard-coded empty string,
+            // which left every diagnostics report — and therefore every row in
+            // the dashboard's device Log for one — with no CoC at all.
+            (string)($d['cocid'] ?? ''),
             'diagnostics',
             count($drives),
             json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),

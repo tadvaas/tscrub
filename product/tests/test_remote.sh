@@ -177,6 +177,25 @@ remote::report 99 done "started"
 t::check "remote: result POST retried after failure" '[[ "$(cat "$RESULT_ATTEMPTS_FILE")" == "3" ]]'
 t::check "remote: retry posted to the result endpoint" '[[ "$(grep -c "commands/result" "$RESULT_LOG")" == "3" ]]'
 
+# --- result stamping: the session CoC rides on the outcome --------------------
+# A remote erase or BIOS clear is custody evidence, so the appliance stamps the
+# CoC of the session that RAN it. It is operator-supplied and may legitimately be
+# absent, in which case the field must not appear at all.
+COC_LOG="$tmpdir/result-coc.log"
+: > "$COC_LOG"
+curl() {
+    printf '%s\n' "$*" >> "$COC_LOG"
+    printf '{"ok":true}'
+    return 0
+}
+COCID="48213"
+remote::report 77 done "started"
+t::check "remote: result body carries the session CoC" '[[ "$(grep -c '\''"cocid":"48213"'\'' "$COC_LOG")" == "1" ]]'
+COCID=""
+: > "$COC_LOG"
+remote::report 78 done "started"
+t::check "remote: no CoC in the session -> no cocid field" '[[ "$(grep -c cocid "$COC_LOG")" == "0" ]]'
+
 # --- pending fetch: TLS clock-skew retry -------------------------------------
 # A dead RTC battery makes curl fail TLS verification (exit 60). The poll must
 # retry once with -k so a clock-skewed appliance still claims its wipe.

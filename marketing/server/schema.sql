@@ -353,6 +353,9 @@ CREATE TABLE IF NOT EXISTS device_presence (
 
 -- Remote BIOS password clear (dashboard stages, appliance executes). Passwords
 -- are encrypted at rest (libsodium; see bios_unlock.php). status:
+-- LEGACY / HISTORY ONLY. A BIOS password clear is now a `bios_unlock` command
+-- in device_commands (one queue for every remote command); nothing writes this
+-- table any more, and it is kept so pre-merge clears stay auditable. status:
 -- pending -> dispatched -> done|failed|unsupported (or superseded/cancelled).
 CREATE TABLE IF NOT EXISTS bios_unlock (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -364,6 +367,7 @@ CREATE TABLE IF NOT EXISTS bios_unlock (
   result        VARCHAR(16)     NOT NULL DEFAULT '',
   detail        VARCHAR(512)    NOT NULL DEFAULT '',
   verdict       VARCHAR(24)     NOT NULL DEFAULT '',
+  tool_version  VARCHAR(32)     NOT NULL DEFAULT '',
   created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   dispatched_at DATETIME        NULL,
   resolved_at   DATETIME        NULL,
@@ -373,10 +377,14 @@ CREATE TABLE IF NOT EXISTS bios_unlock (
   CONSTRAINT fk_unlock_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Remote power commands (dashboard stages, appliance executes on poll). status:
--- pending -> dispatched -> done|failed (or superseded/cancelled/expired). The
--- appliance reports "deferred" (a wipe started after the claim), which flips
--- the row straight back to "pending" for the next poll.
+-- Remote device commands (dashboard stages, appliance executes on poll). One
+-- queue for EVERY remote command: shutdown, reboot, wipe and bios_unlock. A
+-- BIOS unlock keeps its password in `options` (libsodium-encrypted, purged when
+-- the command resolves) and its verdict + producing build in the two columns
+-- below. status: pending -> dispatched -> done|failed|unsupported (or
+-- superseded/cancelled/expired). The appliance reports "deferred" (a wipe
+-- started after the claim), which flips the row straight back to "pending" for
+-- the next poll.
 CREATE TABLE IF NOT EXISTS device_commands (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id       BIGINT UNSIGNED NOT NULL,
@@ -387,6 +395,9 @@ CREATE TABLE IF NOT EXISTS device_commands (
   status        VARCHAR(16)     NOT NULL DEFAULT 'pending',
   result        VARCHAR(16)     NOT NULL DEFAULT '',
   detail        VARCHAR(255)    NOT NULL DEFAULT '',
+  verdict       VARCHAR(24)     NOT NULL DEFAULT '',
+  tool_version  VARCHAR(32)     NOT NULL DEFAULT '',
+  cocid         VARCHAR(64)     NOT NULL DEFAULT '',
   created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   dispatched_at DATETIME        NULL,
   resolved_at   DATETIME        NULL,

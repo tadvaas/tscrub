@@ -2,13 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Subtle mount animation for expanded report sub-rows (Devices/Drives tabs). */
-@keyframes report-expand {
-  from { opacity: 0; transform: translateY(-2px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* Easing for an expanding sub-row (Devices' Log, Drives' reports). A table
+   sub-row cannot be height-animated directly, so the panel itself grows from
+   zero max-height while fading in; the end keyframe does not persist
+   (animation-fill-mode defaults to none), so nothing is left clipped once it has
+   finished. */
+@keyframes row-expand {
+  from { opacity: 0; max-height: 0; transform: translateY(-4px); }
+  to   { opacity: 1; max-height: 100rem; transform: translateY(0); }
 }
-.report-expand {
-  animation: report-expand 260ms cubic-bezier(0.4, 0, 0.2, 1);
+.row-expand {
+  overflow: hidden;
+  animation: row-expand 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-expand { animation: none; }
 }
 
 html {

@@ -1,6 +1,10 @@
 # =============================================================================
-# BIOS UNLOCK (remote clear) — pull a password staged in the dashboard and
-# clear the BIOS admin/setup password on this machine.
+# BIOS UNLOCK (remote clear) — clear the BIOS admin/setup password for a
+# password staged in the dashboard.
+#
+# This file owns the CLEAR. The poll/claim/report transport is the unified
+# remote-command worker in 42_remote.sh (one queue for every remote command),
+# which decodes the claimed password and calls bios_unlock::clear.
 #
 # The kernel's firmware-attributes sysfs model is the write surface. Two vendor
 # quirks are handled here:
@@ -13,9 +17,6 @@
 #     symlink) — the class directory then looks empty even though the interface
 #     exists. Such orphaned trees are scanned too (BIOS_FA_ORPHAN_GLOB).
 # =============================================================================
-
-# How often (seconds) the appliance checks for a staged unlock command.
-BIOS_UNLOCK_POLL_SECONDS=5
 
 # Glob(s) scanned for firmware-attribute trees the kernel never published under
 # the firmware-attributes class (see the header note). Override for tests.
@@ -47,20 +48,6 @@ bios_unlock::_fa_devices() {
         fi
     done
     return 0
-}
-
-bios_unlock::pending_endpoint() {
-    local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
-    url="${url%/}"
-    [[ "$url" == */api/reports ]] && url="${url%/api/reports}"
-    printf '%s/api/bios/unlock/pending' "$url"
-}
-
-bios_unlock::result_endpoint() {
-    local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
-    url="${url%/}"
-    [[ "$url" == */api/reports ]] && url="${url%/api/reports}"
-    printf '%s/api/bios/unlock/result' "$url"
 }
 
 # Write a value to a firmware-attributes file, capturing the shell's own error
@@ -344,58 +331,6 @@ bios_unlock::_wmi_clear() {
     return 1
 }
 
-# Parse a pending-command JSON response into "<id>\n<password>". Prefers the
-# JSON-safe base64 field, falls back to the legacy field. Empty on failure.
-bios_unlock::_parse_pending() {
-    local resp="$1" cmd_id unlock_pwd b64
-    cmd_id="$(printf '%s' "$resp" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -n 1)"
-    b64="$(printf '%s' "$resp" | sed -n 's/.*"password_b64":"\([^"]*\)".*/\1/p' | head -n 1)"
-    if [[ -n "$b64" ]]; then
-        unlock_pwd="$(printf '%s' "$b64" | base64 -d 2>/dev/null)"
-    else
-        unlock_pwd="$(printf '%s' "$resp" | sed -n 's/.*"password":"\([^"]*\)".*/\1/p' | head -n 1)"
-    fi
-    [[ -n "$cmd_id" && -n "$unlock_pwd" ]] || return 1
-    printf '%s\n%s' "$cmd_id" "$unlock_pwd"
-}
-
-# GET the pending endpoint (with the TLS clock-skew retry). Prints the body.
-bios_unlock::_fetch_pending() {
-    local resp
-    resp="$(curl -fsS -G --connect-timeout 5 --max-time 15 \
-        -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-        --data-urlencode "serial=${SYS_SERIAL:-}" \
-        --data-urlencode "uuid=${SYS_UUID:-}" \
-        "$(bios_unlock::pending_endpoint)" 2>&1)" && { printf '%s' "$resp"; return 0; }
-    if [[ "$resp" == *"curl: (60)"* ]]; then
-        curl -k -fsS -G --connect-timeout 5 --max-time 15 \
-            -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-            --data-urlencode "serial=${SYS_SERIAL:-}" \
-            --data-urlencode "uuid=${SYS_UUID:-}" \
-            "$(bios_unlock::pending_endpoint)" 2>/dev/null
-        return $?
-    fi
-    return 1
-}
-
-# POST the result (with the TLS clock-skew retry). Fire-and-forget.
-bios_unlock::_report_result() {
-    local json_body="$1" err
-    err="$(curl -fsS --connect-timeout 5 --max-time 15 --retry 3 --retry-delay 2 --retry-connrefused --retry-all-errors \
-        -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-        -H "Content-Type: application/json" \
-        --data-binary "$json_body" \
-        "$(bios_unlock::result_endpoint)" 2>&1 >/dev/null)" && return 0
-    if [[ "$err" == *"curl: (60)"* ]]; then
-        curl -k -fsS --connect-timeout 5 --max-time 15 --retry 3 --retry-delay 2 --retry-connrefused --retry-all-errors \
-            -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data-binary "$json_body" \
-            "$(bios_unlock::result_endpoint)" >/dev/null 2>&1
-    fi
-    return 0
-}
-
 # Clear the BIOS admin/setup password. Sets BIOS_UNLOCK_RESULT (cleared|failed|
 # unsupported) and BIOS_UNLOCK_DETAIL (source or error). Returns 0 on cleared.
 bios_unlock::clear() {
@@ -517,34 +452,4 @@ bios_unlock::clear() {
         BIOS_UNLOCK_DETAIL="no firmware-attributes device published by the kernel (class dir empty, no orphaned tree matching ${BIOS_FA_ORPHAN_GLOB}) — no BIOS password interface to write to"
     fi
     return 1
-}
-
-# Pull a staged command (if any), clear the password, and report the result.
-bios_unlock::poll_and_execute() {
-    local resp parsed cmd_id unlock_pwd json_body
-    [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
-
-    resp="$(bios_unlock::_fetch_pending)" || return 0
-    parsed="$(bios_unlock::_parse_pending "$resp")" || return 0
-    [[ -n "$parsed" ]] || return 0
-    cmd_id="${parsed%%$'\n'*}"
-    unlock_pwd="${parsed#*$'\n'}"
-
-    bios_unlock::clear "$unlock_pwd"
-    json_body="$(printf '{"id":%s,"result":"%s","detail":"%s"}' \
-        "$cmd_id" \
-        "$BIOS_UNLOCK_RESULT" \
-        "$(report::_json_field "$BIOS_UNLOCK_DETAIL")")"
-    bios_unlock::_report_result "$json_body"
-    return 0
-}
-
-# Background loop: check for a staged unlock every few seconds for the life of
-# the run. Forked by fn_main and killed when the run finishes.
-bios_unlock::loop() {
-    [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
-    while :; do
-        bios_unlock::poll_and_execute
-        sleep "$BIOS_UNLOCK_POLL_SECONDS"
-    done
 }

@@ -23,6 +23,10 @@ register::json_body() {
     printf '{"serial":"%s","uuid":"%s"' \
         "$(report::_json_field "${SYS_SERIAL:-}")" \
         "$(report::_json_field "${SYS_UUID:-}")"
+    # The Chain of Custody this boot belongs to (computed at bootstrap). Without
+    # it a diagnostics snapshot cannot be tied to a CoC — which is why the
+    # dashboard's Log had nothing to show for the commonest event of all.
+    printf ',"cocid":"%s"' "$(report::_json_field "${COCID:-}")"
     printf ',"manufacturer":"%s","product":"%s"' \
         "$(report::_json_field "${SYS_MANUFACTURER:-}")" \
         "$(report::_json_field "${SYS_PRODUCT:-}")"

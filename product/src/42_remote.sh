@@ -1,12 +1,18 @@
 # =============================================================================
-# REMOTE POWER — pull a shutdown/reboot command staged in the dashboard and
-# power this machine off (or restart it). Same pull model as the remote
-# BIOS-unlock feature: the appliance polls GET .../commands/pending, the
+# REMOTE COMMANDS — pull a command staged in the dashboard and execute it:
+# shutdown, reboot, wipe, or a BIOS password clear. One queue, one poll: the
+# appliance asks GET .../commands/pending for whatever it is capable of, the
 # dashboard stages a command, and the appliance executes it once it is safe.
 # =============================================================================
 
-# How often (seconds) the appliance checks for a staged power command.
+# How often (seconds) the appliance checks for a staged command.
 REMOTE_POLL_SECONDS=10
+
+# The command types this build can execute. Sent with every poll so the server
+# never hands this appliance a command it would refuse: an image that predates a
+# command type simply omits it, and the server keeps those commands for a route
+# that image understands until it is upgraded.
+REMOTE_COMMANDS="shutdown,reboot,wipe,bios_unlock"
 
 # A wipe command is not executed by this worker — it is handed to the console
 # (the triage loop) via a marker file, which reports the real outcome.
@@ -33,8 +39,14 @@ remote::result_endpoint() {
 # (the server requeues it after 10 min as a second safety net).
 remote::report() {
     local cmd_id="$1" result="$2" detail="${3:-}" json_body attempt resp
-    json_body="$(printf '{"id":%s,"result":"%s","detail":"%s"}' \
+    json_body="$(printf '{"id":%s,"result":"%s","detail":"%s"' \
         "$cmd_id" "$result" "$(report::_json_field "$detail")")"
+    # Stamp the session's Chain of Custody on the outcome, so a remote erase or
+    # BIOS clear is attributable in the audit trail next to the report that
+    # carries the same CoC. Omitted entirely when this session has none, so the
+    # body is byte-identical in that case.
+    [[ -n "${COCID:-}" ]] && json_body="${json_body},\"cocid\":\"$(report::_json_field "$COCID")\""
+    json_body="${json_body}}"
     for attempt in 1 2 3; do
         if resp="$(curl -fsS --connect-timeout 5 --max-time 15 \
             -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
@@ -66,12 +78,14 @@ remote::_fetch_pending() {
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
         --data-urlencode "serial=${SYS_SERIAL:-}" \
         --data-urlencode "uuid=${SYS_UUID:-}" \
+        --data-urlencode "commands=${REMOTE_COMMANDS}" \
         "$(remote::pending_endpoint)" 2>&1)" && { printf '%s' "$resp"; return 0; }
     if [[ "$resp" == *"curl: (60)"* ]]; then
         curl -k -fsS -G --connect-timeout 5 --max-time 15 \
             -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
             --data-urlencode "serial=${SYS_SERIAL:-}" \
             --data-urlencode "uuid=${SYS_UUID:-}" \
+            --data-urlencode "commands=${REMOTE_COMMANDS}" \
             "$(remote::pending_endpoint)" 2>/dev/null
         return $?
     fi
@@ -140,14 +154,47 @@ remote::grace_confirm() {
     return 0
 }
 
+# The claimed command carries the BIOS password base64-encoded (JSON-safe on the
+# wire). Decoded here — never logged, never echoed into a report.
+remote::_claimed_password() {
+    local resp="$1" b64=""
+    b64="$(printf '%s' "$resp" | sed -n 's/.*"password_b64":"\([^"]*\)".*/\1/p' | head -n 1)"
+    if [[ -n "$b64" ]]; then
+        printf '%s' "$b64" | base64 -d 2>/dev/null
+        return 0
+    fi
+    printf '%s' "$resp" | sed -n 's/.*"password":"\([^"]*\)".*/\1/p' | head -n 1
+}
+
+# Execute a staged BIOS password clear. The clear itself lives in
+# 38_bios_unlock.sh; this carries the password across and reports the outcome in
+# the unlock's own vocabulary (cleared|failed|unsupported), so the dashboard can
+# say "wrong password" or "no clear path" instead of a bare "failed".
+remote::clear_bios_password() {
+    local cmd_id="$1" resp="$2" unlock_pwd
+    unlock_pwd="$(remote::_claimed_password "$resp")"
+    if [[ -z "$unlock_pwd" ]]; then
+        remote::report "$cmd_id" failed "the claimed command carried no password"
+        return 0
+    fi
+    BIOS_UNLOCK_RESULT=""
+    BIOS_UNLOCK_DETAIL=""
+    bios_unlock::clear "$unlock_pwd"
+    remote::report "$cmd_id" "${BIOS_UNLOCK_RESULT:-failed}" "${BIOS_UNLOCK_DETAIL:-}"
+    return 0
+}
+
 # Pull a staged command (if any) and, when safe, execute it. Returns 0 always —
 # a missing command or a failed poll must never fail the session.
 remote::poll_and_execute() {
     local resp cmd_id command
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
-    # Never act while a wipe is in progress — a power cut mid-sanitise can brick
-    # a drive and loses the report. Leave the command staged; the server keeps
-    # it pending and we pick it up once the machine is idle again.
+    # Never CLAIM while a wipe is in progress — a power cut mid-sanitise can
+    # brick a drive and loses the report, and claiming a command we then won't
+    # run would strand it. Leave everything staged; the server keeps it pending
+    # and we pick it up once the machine is idle again. (This defers a BIOS
+    # clear staged mid-wipe too, which is the safe side of the trade: the
+    # command stays visible as queued in the dashboard.)
     [[ "$(status::field phase)" == "wiping" ]] && return 0
 
     resp="$(remote::_fetch_pending)" || return 0
@@ -158,6 +205,7 @@ remote::poll_and_execute() {
     case "$command" in
         shutdown|reboot) : ;;
         wipe) remote::stage_erase "$cmd_id" "$resp"; return 0 ;;
+        bios_unlock) remote::clear_bios_password "$cmd_id" "$resp"; return 0 ;;
         *) remote::report "$cmd_id" failed "unknown command: ${command}"; return 0 ;;
     esac
 

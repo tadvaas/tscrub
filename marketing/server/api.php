@@ -46,6 +46,7 @@ require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/mdm.php';
 require_once __DIR__ . '/bios_unlock.php';
 require_once __DIR__ . '/remote.php';
+require_once __DIR__ . '/device_log.php';
 require_once __DIR__ . '/org.php';
 require_once __DIR__ . '/certifier.php';
 require_once __DIR__ . '/jsonld.php';
@@ -1287,6 +1288,14 @@ if ($method === 'GET' && $route === '/mdm/devices') {
     json_out(['ok' => true, 'devices' => mdm_devices((int)$u['id'])]);
 }
 
+// ---------------------------------------------------------------------------
+// Legacy BIOS-unlock routes. A clear is now a `bios_unlock` command in the
+// unified queue (see /api/devices/commands below) — but appliances already in
+// the field poll these paths, so they stay as a thin compatibility layer that
+// claims from and reports to the SAME queue, which keeps each command single-
+// claim. New integrations should use /api/devices/commands.
+// ---------------------------------------------------------------------------
+
 // POST /api/bios/unlock — stage a BIOS password clear (dashboard). Session+CSRF.
 if ($method === 'POST' && $route === '/bios/unlock') {
     auth_csrf_verify();
@@ -1365,6 +1374,9 @@ if ($method === 'POST' && $route === '/bios/unlock/result') {
     $result  = trim((string)($d['result'] ?? ''));
     $detail  = trim((string)($d['detail'] ?? ''));
     $verdict = trim((string)($d['verdict'] ?? ''));
+    // The session's CoC, stamped by the appliance at result time. Optional: a
+    // session that never had one leaves the column empty.
+    $cocid   = substr(preg_replace('/[^A-Za-z0-9_-]/', '', (string)($d['cocid'] ?? '')) ?? '', 0, 64);
     if ($id <= 0) {
         fail(400, 'Invalid command id.');
     }
@@ -1374,7 +1386,7 @@ if ($method === 'POST' && $route === '/bios/unlock/result') {
 
     // unlock_report() clips the detail to its column and derives the verdict
     // when the appliance did not send one.
-    if (!unlock_report((int)$owner['id'], $id, $result, $detail, $verdict)) {
+    if (!unlock_report((int)$owner['id'], $id, $result, $detail, $verdict, $cocid)) {
         fail(409, 'Command is not dispatched.');
     }
     json_out(['ok' => true]);
@@ -1417,8 +1429,20 @@ if ($method === 'POST' && $route === '/devices/commands') {
     if (strlen($serial) > 255 || strlen($uuid) > 64) {
         fail(400, 'Field too long.');
     }
-    if (!in_array($command, ['shutdown', 'reboot', 'wipe'], true)) {
-        fail(400, 'Command must be "shutdown", "reboot" or "wipe".');
+    if (!in_array($command, ['shutdown', 'reboot', 'wipe', 'bios_unlock'], true)) {
+        fail(400, 'Command must be "shutdown", "reboot", "wipe" or "bios_unlock".');
+    }
+
+    // A BIOS unlock is a command in this queue like any other. The password is
+    // encrypted at rest (never stored in the clear, never echoed to the
+    // dashboard) and rides in the command's options.
+    if ($command === 'bios_unlock') {
+        $password = (string)($d['password'] ?? '');
+        if ($password === '' || strlen($password) > 255) {
+            fail(400, 'Password required (max 255 chars).');
+        }
+        $id = unlock_enqueue((int)$u['id'], $serial, $uuid, $password);
+        json_out(['ok' => true, 'id' => $id, 'staged' => true]);
     }
 
     $options = [];
@@ -1495,11 +1519,42 @@ if ($method === 'GET' && $route === '/devices/commands/pending') {
         $uuid = '';
     }
 
-    $cmd = remote_claim((int)$owner['id'], $serial, $uuid);
+    // The appliance declares which command types it can execute. Anything absent
+    // defaults to the three it has always known, so a build already in the field
+    // is never handed a command it would refuse with "unknown command" — an
+    // unlock staged for a machine on an older image waits for the legacy
+    // /api/bios/unlock/pending route instead. A newer build adds bios_unlock.
+    $want = trim((string)($_GET['commands'] ?? ''));
+    $commands = ['shutdown', 'reboot', 'wipe'];
+    if ($want !== '') {
+        $commands = array_values(array_unique(array_filter(
+            array_map('trim', explode(',', $want)),
+            static fn(string $c): bool => in_array($c, ['shutdown', 'reboot', 'wipe', 'bios_unlock'], true)
+        )));
+        if ($commands === []) {
+            $commands = ['shutdown', 'reboot', 'wipe'];
+        }
+    }
+
+    $cmd = remote_claim((int)$owner['id'], $serial, $uuid, $commands);
     if ($cmd === null) {
         json_out(['ok' => true, 'pending' => false]);
     }
-    json_out(['ok' => true, 'pending' => true, 'id' => $cmd['id'], 'command' => $cmd['command'], 'options' => $cmd['options']]);
+    $out = ['ok' => true, 'pending' => true, 'id' => $cmd['id'], 'command' => $cmd['command'], 'options' => $cmd['options']];
+    if ($cmd['command'] === 'bios_unlock') {
+        // The claim is the single point where the password leaves the database,
+        // and only the appliance ever sees it. A row whose password cannot be
+        // decrypted is resolved as a failure rather than handed over blind —
+        // the appliance could never act on it.
+        $claimed = unlock_claimed_with_password($cmd);
+        if ($claimed === null) {
+            remote_report((int)$owner['id'], (int)$cmd['id'], 'failed', 'stored password could not be decrypted');
+            json_out(['ok' => true, 'pending' => false]);
+        }
+        $out['password']     = $claimed['password'];
+        $out['password_b64'] = $claimed['password_b64'];
+    }
+    json_out($out);
 }
 
 // POST /api/devices/commands/result — appliance reports the outcome. API token.
@@ -1526,11 +1581,17 @@ if ($method === 'POST' && $route === '/devices/commands/result') {
     if ($id <= 0) {
         fail(400, 'Invalid command id.');
     }
-    if (!in_array($result, ['done', 'failed', 'deferred'], true)) {
+    if (!in_array($result, ['done', 'failed', 'deferred', 'cleared', 'unsupported'], true)) {
         fail(400, 'Invalid result.');
     }
 
-    remote_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255));
+    // A BIOS unlock reports its own vocabulary (cleared|failed|unsupported) with
+    // an optional verdict; remote_report maps that onto the queue's statuses and
+    // records which appliance build produced it, plus the session's CoC.
+    $cocid = substr(preg_replace('/[^A-Za-z0-9_-]/', '', (string)($d['cocid'] ?? '')) ?? '', 0, 64);
+    if (!remote_report((int)$owner['id'], $id, $result, mb_substr($detail, 0, 255), mb_substr(trim((string)($d['verdict'] ?? '')), 0, 24), $cocid)) {
+        fail(409, 'Command is not dispatched.');
+    }
     json_out(['ok' => true]);
 }
 
@@ -1541,7 +1602,33 @@ if ($method === 'GET' && $route === '/devices/commands') {
     if ($serial === '') {
         fail(400, 'Serial required.');
     }
-    json_out(['ok' => true, 'command' => remote_latest((int)$u['id'], $serial)]);
+    // One queue, two views: `command` drives the power actions and `unlock` the
+    // BIOS clear, both read from the same rows, so the card can never show two
+    // different pictures of what is staged. The full history for a machine lives
+    // in the Log expansion (GET /api/devices/events).
+    json_out([
+        'ok'      => true,
+        'command' => remote_latest((int)$u['id'], $serial),
+        'unlock'  => unlock_latest((int)$u['id'], $serial),
+    ]);
+}
+
+// GET /api/devices/events?serial=&uuid= — every event recorded for one device:
+// remote commands and their results, Autopilot checks and hash captures,
+// appliance registrations and the drives that ended up in a certificate. The
+// dashboard merges this with the report submissions it already holds for the
+// device, and renders the lot as that row's Log expansion. Session auth.
+if ($method === 'GET' && $route === '/devices/events') {
+    $u = auth_require();
+    $serial = trim((string)($_GET['serial'] ?? ''));
+    $uuid   = trim((string)($_GET['uuid'] ?? ''));
+    if ($serial === '' && $uuid === '') {
+        fail(400, 'Serial required.');
+    }
+    if (strlen($serial) > 255 || strlen($uuid) > 64) {
+        fail(400, 'Field too long.');
+    }
+    json_out(['ok' => true, 'events' => device_events((int)$u['id'], $serial, $uuid)]);
 }
 
 // POST /api/devices/commands/cancel — cancel a still-pending command. Session+CSRF.

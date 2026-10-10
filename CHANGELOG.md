@@ -46,6 +46,39 @@ and this project uses date-based versioning (`v1.x`).
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
 
+## [v1.11.48] - 2026-10-10
+
+### Added
+
+- **One command queue on the appliance.** A BIOS password clear is a
+  `bios_unlock` command in `device_commands` alongside shutdown/reboot/wipe: one
+  table, one poll, one result vocabulary, one owner for the TTLs. The unlock's
+  separate loop, endpoints and result poster are gone — `42_remote.sh` handles
+  every command type — and an appliance declares what it can execute
+  (`?commands=`) so an older image is never handed a command it would refuse.
+- **A Log per device** on the Devices tab: every recorded event for a machine
+  (report submissions, remote commands and their outcomes, Autopilot checks and
+  hash captures, registrations, drive results and issued certificates) in one
+  reverse-chronological list, fetched when opened, with a CoC column, labelled
+  record references, and View/PDF on report rows. It replaces the row's Reports
+  expansion, which was a second list of the same submissions.
+- **Chain of Custody on the record.** Diagnostics submissions now carry the
+  appliance's CoC (the payload field was missing and the column was hard-coded
+  empty), and a remote command's outcome is stamped with the CoC of the session
+  that *executed* it — so a remote erase or BIOS clear is attributable next to the
+  report that shares its CoC.
+
+### Changed
+
+- **Operations modal is actions only.** It shows what is in flight or, when
+  nothing is, the actions (BIOS clear, Shut down, Restart, Erase) under one
+  shared status line. Resolved commands are no longer restated there; history
+  lives in the device Log. Row controls are text buttons (`Log` / `Ops` / `Rep`)
+  with colour carrying meaning: blue acts, sky informs, emerald certifies.
+- **Devices and Drives share one row-expansion easing** (`row-expand`: grow +
+  fade, disabled under `prefers-reduced-motion`), and the Drives disclosure adopts
+  the same sky styling as the device Log.
+
 ## [v1.11.47] - 2026-10-10
 
 ### Fixed
