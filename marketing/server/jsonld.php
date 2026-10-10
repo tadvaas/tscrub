@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/certifier.php';
+require_once __DIR__ . '/cert_terms.php';
 
 /** Public vendor Ed25519 key + fingerprint (mirrors /api/signing-key). */
 function jsonld_pub_key(): array {
@@ -246,6 +247,8 @@ function jsonld_drive(array $norm): array {
         'productID'    => $norm['device'],
         'category'     => $norm['type'],
         'sanitizationMethod' => $norm['method'],
+        'sanitizationTechnique' => cert_technique_label($norm['method'], $norm['class'], $norm['final_status']),
+        'nistLevel'    => cert_nist_class($norm['class'], $norm['final_status']),
         'certificationLevel' => $norm['certification'],
         'finalStatus'  => $norm['final_status'],
         'startTime'    => jsonld_iso($norm['start_time']),
@@ -269,6 +272,8 @@ function build_cert_jsonld(array $summary, array $drives, array $reports, array 
             'DataDestructionCertificate' => 'tscrub:DataDestructionCertificate',
             'chainOfCustodyId' => 'tscrub:chainOfCustodyId',
             'sanitizationMethod' => 'tscrub:sanitizationMethod',
+            'sanitizationTechnique' => 'tscrub:sanitizationTechnique',
+            'nistLevel' => 'tscrub:nistLevel',
             'certificationLevel' => 'tscrub:certificationLevel',
             'finalStatus' => 'tscrub:finalStatus',
             'pdfSha256' => 'tscrub:pdfSha256',
@@ -302,6 +307,11 @@ function build_cert_jsonld(array $summary, array $drives, array $reports, array 
         'about' => [],
         'report' => [],
     ];
+
+    // Media disposition + how the data was destroyed (mirrors the PDF certificate
+    // — see research/cert-destruction-evidence/README.md).
+    $mediaDisposition = cert_media_disposition($drives);
+    if ($mediaDisposition !== '') { $doc['mediaDisposition'] = $mediaDisposition; }
 
     if (($summary['first'] ?? null) !== null && (string)$summary['first'] !== '') {
         $doc['dateCreated'] = jsonld_iso((string)$summary['first']);

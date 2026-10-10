@@ -269,6 +269,71 @@
         return null;
       }
 
+      // Whether the MDM cell should offer a check (and what clicking it does):
+      // 'runnable' → confirm popover with Run; 'in-progress' → notice only;
+      // 'no-hash' → why-not explanation; 'apple' → non-interactive N/A badge.
+      function mdmRunnable(dev) {
+        if (isAppleDevice(dev)) return 'apple';
+        var st = String(dev.mdm_status || '');
+        if (!st) return 'no-hash';
+        if (st === 'queued' || st === 'checking') return 'in-progress';
+        return 'runnable';
+      }
+
+      // MDM column cell. Runnable badges open a lightweight popover rather than
+      // the full Operations modal — a check spends one credit, so it needs an
+      // explicit confirm before it runs.
+      function mdmCellFor(dev) {
+        var td = el('td', 'px-4 py-2.5');
+        var action = mdmRunnable(dev);
+        var badge = mdmBadge(dev);
+
+        if (action === 'apple') {
+          td.appendChild(badge || document.createTextNode('—'));
+          return td;
+        }
+
+        var chip = badge || el('span', 'whitespace-nowrap rounded-full bg-slate-200 dark:bg-ink-700 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400', '—');
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.classList.add('select-none');
+        if (action === 'runnable') {
+          chip.classList.add('cursor-pointer', 'hover:ring-2', 'hover:ring-brand-400/70');
+          var isUnchecked = String(dev.mdm_status || '') === 'unchecked';
+          chip.title = (chip.title ? chip.title + ' · ' : '') + (isUnchecked ? 'Click to run Autopilot check' : 'Click to re-run Autopilot check');
+        } else if (action === 'no-hash') {
+          chip.classList.add('cursor-help');
+          chip.title = 'No hardware hash yet — click for details';
+        } else {
+          chip.classList.add('cursor-help');
+          if (!chip.title) chip.title = 'Check in progress';
+        }
+        chip.addEventListener('click', function (e) { e.stopPropagation(); openMdmPop(dev, chip); });
+        chip.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMdmPop(dev, chip); }
+        });
+        td.appendChild(chip);
+        return td;
+      }
+
+      // BIOS column cell. The badge opens the inline clear popover, mirroring
+      // the MDM cell — one click, no modal.
+      function biosCellFor(dev) {
+        var td = el('td', 'px-4 py-2.5');
+        var badge = lockBadge(dev.bioslock, null, dev.bioslockmethod);
+        var chip = badge || el('span', 'whitespace-nowrap rounded-full bg-slate-200 dark:bg-ink-700 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400', '—');
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.classList.add('select-none', 'cursor-pointer', 'hover:ring-2', 'hover:ring-brand-400/70');
+        chip.title = (chip.title ? chip.title + ' · ' : '') + 'Click to clear BIOS password';
+        chip.addEventListener('click', function (e) { e.stopPropagation(); openBiosPop(dev, chip); });
+        chip.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBiosPop(dev, chip); }
+        });
+        td.appendChild(chip);
+        return td;
+      }
+
       // Derived status title: while the device is online, an active erasure
       // phase overrides the plain "Online" label (offline always wins).
       function statusBadge(dev) {
@@ -281,8 +346,8 @@
           var failed = e.drives_failed || 0;
           // "finished" = any terminal drive (done + failed). The per-drive
           // fraction stays out of the visible label and lives in the hover
-          // title below, so the row simply reads "Wiping".
-          var label = 'Wiping';
+          // title below, so the row simply reads "Erasing".
+          var label = 'Erasing';
           var title = 'Erasure in progress — ' + finished + ' of ' + total + ' drives finished' + (failed > 0 ? ' (' + failed + ' failed)' : '');
           var pct = (typeof e.progress_pct === 'number') ? e.progress_pct : -1;
           var etaSec = (typeof e.progress_eta_sec === 'number') ? e.progress_eta_sec : -1;
@@ -302,7 +367,7 @@
           };
         }
         if (e.phase === 'done') {
-          return { dot: 'bg-emerald-500', txt: 'text-emerald-700 dark:text-emerald-400', label: 'Complete', title: 'Erasure completed successfully' };
+          return { dot: 'bg-emerald-500', txt: 'text-emerald-700 dark:text-emerald-400', label: 'Erased', title: 'Erasure completed successfully' };
         }
         if (e.phase === 'failed') {
           return { dot: 'bg-red-500', txt: 'text-red-700 dark:text-red-400', label: 'Failed', title: 'Erasure failed or was blocked' };
@@ -551,6 +616,7 @@
       setInterval(tickDevices, 10000);
 
       function render() {
+        closeMdmPop();
         var list = document.getElementById('device-list');
         list.innerHTML = '';
         if (!total) {
@@ -624,12 +690,8 @@
           var serCell = el('td', 'truncate px-4 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-400', dev.sysserial || '—');
           serCell.title = dev.sysserial || '';
           tr.appendChild(serCell);
-          var tdl = el('td', 'px-4 py-2.5');
-          tdl.appendChild(lockBadge(dev.bioslock, null, dev.bioslockmethod) || document.createTextNode('—'));
-          tr.appendChild(tdl);
-          var mdmCell = el('td', 'px-4 py-2.5');
-          mdmCell.appendChild(mdmBadge(dev) || document.createTextNode('—'));
-          tr.appendChild(mdmCell);
+          tr.appendChild(biosCellFor(dev));
+          tr.appendChild(mdmCellFor(dev));
           var stCell = el('td', 'px-4 py-2.5');
           var stLine = el('div', 'flex items-center gap-1.5 whitespace-nowrap');
           var sb = poweringState(dev) || statusBadge(dev);
@@ -637,16 +699,18 @@
           var stTxt = el('span', 'text-xs font-semibold ' + (sb ? sb.txt : (dev.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500')), sb ? sb.label : (dev.online ? 'Online' : 'Offline'));
           stLine.appendChild(stDot); stLine.appendChild(stTxt);
           var hasProgress = sb && sb.progressPct !== undefined;
-          // Live wipe progress — a real % when the appliance reports one, else
+          // Live erase progress — a real % when the appliance reports one, else
           // a pulsing indeterminate bar, plus approximate time remaining. It
-          // sits inline so a wiping row keeps the same single-line height as
+          // sits inline so an erasing row keeps the same single-line height as
           // every other row; while it is shown the LAN IP moves into the hover
           // title so the bar + ETA fit without widening the row.
           if (hasProgress) {
             var barTrack = el('div', 'h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-ink-700');
-            if (sb.progressPct >= 0) {
+            // 0% is "just started" and renders as an invisible fill, so treat it
+            // (and -1, unknown) as indeterminate until the drive reports > 0%.
+            if (sb.progressPct > 0) {
               var barFill = el('div', 'h-full rounded-full bg-amber-500 transition-[width] duration-500', '');
-              barFill.style.width = Math.max(0, Math.min(100, sb.progressPct)) + '%';
+              barFill.style.width = Math.max(4, Math.min(100, sb.progressPct)) + '%';
               barTrack.appendChild(barFill);
             } else {
               barTrack.appendChild(el('div', 'h-full w-1/3 rounded-full bg-amber-400 animate-indeterminate', ''));
@@ -1647,8 +1711,6 @@
       var opsBody = document.getElementById('ops-modal-body');
       var opsSub = document.getElementById('ops-modal-sub');
 
-      var unlockPollTimer = null;
-
       // Animate the Operations modal panel between two content heights so a
       // state change (e.g. "Start erasure" → "Queued") collapses smoothly
       // instead of snapping shut. Re-renders that keep the same height are
@@ -1696,225 +1758,103 @@
       function closeOps() {
         opsModal.classList.add('hidden');
         document.body.style.overflow = '';
-        if (unlockPollTimer) { clearTimeout(unlockPollTimer); unlockPollTimer = null; }
-        if (mdmPollTimer) { clearTimeout(mdmPollTimer); mdmPollTimer = null; }
         if (remotePollTimer) { clearTimeout(remotePollTimer); remotePollTimer = null; }
       }
 
-      // Only what is IN FLIGHT belongs next to the actions. A resolved clear is
-      // history: the log under the card carries it, and restating the last verdict
-      // (or "Cleared." beside an empty password field) read as though it described
-      // this machine right now.
-      function unlockStateFor(u) {
-        var s = u && u.status ? u.status : 'none';
-        if (s === 'pending') return { kind: 'staged', data: u };
-        if (s === 'dispatched') return { kind: 'inprogress', data: u };
-        return { kind: 'idle', data: u };   // none / done / failed / unsupported / cancelled
-      }
-
-      function unlockBadge(kind) {
-        var RED = 'rounded-full bg-red-100 text-red-700 px-2.5 py-1 text-xs font-semibold';
-        var AMBER = 'rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-semibold';
-        var GREY = 'rounded-full bg-slate-200 text-slate-600 px-2.5 py-1 text-xs font-semibold';
-        switch (kind) {
-          case 'staged': return el('span', 'rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 text-xs font-semibold', 'Staged');
-          case 'inprogress': return el('span', 'rounded-full bg-sky-100 text-sky-700 px-2.5 py-1 text-xs font-semibold animate-pulse', 'Clearing…');
-          case 'cleared': return el('span', 'rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold', 'Cleared');
-          case 'wrong_password': return el('span', RED, 'Wrong password');
-          case 'policy': return el('span', RED, 'Rejected by policy');
-          case 'failed': return el('span', RED, 'Failed');
-          case 'no_clear_path': return el('span', AMBER, 'No clear path');
-          case 'not_supported': return el('span', AMBER, 'Not supported');
-          case 'needs_privilege': return el('span', AMBER, 'Not permitted');
-          case 'read_only': return el('span', GREY, 'Read-only');
-          case 'no_interface': return el('span', GREY, 'No interface');
-          case 'unsupported': return el('span', GREY, 'Unsupported');
-          default: return null;
-        }
-      }
-
-      // The ops panel's host elements, set by openOperations. One poll refreshes
-      // the whole panel, so its sections can never drift apart. Command HISTORY
-      // is not here: that lives in the Devices tab's Log expansion.
+      // The ops panel's host element, set by openOperations.
       var opsHosts = null;
 
       var COMMAND_LABEL = { shutdown: 'Shutdown', reboot: 'Restart', wipe: 'Erase', bios_unlock: 'BIOS unlock' };
 
-      // One poll for the whole panel: the power actions and the BIOS clear read
-      // the same queue (GET /api/devices/commands), so they are refreshed
-      // together and can never disagree about what is staged.
-      function loadUnlockState(dev, online, host) {
-        fetch('/api/devices/commands?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
-          .then(function (d) {
-            smoothOpsSwap(function () {
-              if (!opsHosts) return;
-              renderRemoteCard(dev, online, remoteStateFor(d && d.command), opsHosts.remote, unlockStateFor(d && d.unlock));
-            });
-          })
-          .catch(function () {
-            smoothOpsSwap(function () {
-              if (!opsHosts) return;
-              renderRemoteCard(dev, online, { kind: 'idle', data: null }, opsHosts.remote, { kind: 'idle', data: null });
+      // ---- MDM quick-check popover (launched from the index MDM cell) ----
+      var mdmPop = null;
+      var mdmWatchTimer = null;
+
+      function closeMdmPop() { if (mdmPop) { mdmPop.remove(); mdmPop = null; } }
+
+      // Shared anchor/clamp/dismiss for the small inline popovers (MDM + BIOS).
+      function positionAndDismissPop(pop, anchor, onClose) {
+        var rect = anchor.getBoundingClientRect();
+        var left = Math.max(8, Math.min(rect.left, window.innerWidth - 288 - 8));
+        var top = rect.bottom + 6;
+        var estH = pop.offsetHeight || 200;
+        if (top + estH > window.innerHeight - 8) top = Math.max(8, rect.top - estH - 6);
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+
+        setTimeout(function () {
+          var onDoc = function (e) {
+            if (pop.contains(e.target)) return;
+            onClose();
+            document.removeEventListener('click', onDoc);
+            window.removeEventListener('resize', onDoc);
+            window.removeEventListener('scroll', onDoc, true);
+          };
+          document.addEventListener('click', onDoc);
+          window.addEventListener('resize', onDoc);
+          window.addEventListener('scroll', onDoc, true);
+        }, 0);
+      }
+
+      function openMdmPop(dev, anchor) {
+        closeMdmPop();
+        var action = mdmRunnable(dev);
+        var pop = el('div', 'fixed z-50 w-72 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 shadow-2xl');
+        pop.setAttribute('role', 'dialog');
+        pop.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Windows Autopilot check'));
+
+        var serial = dev.sysserial ? 'SN ' + dev.sysserial : (dev.systemuuid ? 'UUID ' + dev.systemuuid : '');
+        if (serial) pop.appendChild(el('div', 'mt-0.5 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500', serial));
+
+        var body = el('div', 'mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400');
+        pop.appendChild(body);
+
+        if (action === 'runnable') {
+          var runBtn = el('button', 'mt-3 w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Run check (1 cr.)');
+          runBtn.addEventListener('click', function () {
+            runBtn.disabled = true;
+            body.className = 'mt-2 text-xs font-semibold leading-relaxed text-slate-500 dark:text-slate-400';
+            body.textContent = 'Queuing…';
+            queueMdmCheck(dev, function () {
+              closeMdmPop();
+              loadDevices(true);
+              watchDeviceMdm(dev);
+            }, function (msg) {
+              runBtn.disabled = false;
+              body.className = 'mt-2 text-xs font-semibold leading-relaxed text-red-600 dark:text-red-400';
+              body.textContent = msg;
             });
           });
-      }
-
-      function schedulePoll(dev, online, state, host) {
-        if (unlockPollTimer) { clearTimeout(unlockPollTimer); unlockPollTimer = null; }
-        if (state.kind === 'staged' || state.kind === 'inprogress') {
-          unlockPollTimer = setTimeout(function () { loadUnlockState(dev, online, host); }, 4000);
+          pop.appendChild(runBtn);
+        } else if (action === 'in-progress') {
+          body.textContent = 'Check in progress — it updates here automatically.';
+        } else {
+          body.textContent = 'No hardware hash for this device yet. Boot the appliance to send a diagnostics report — a hash is generated automatically.';
         }
+
+        document.body.appendChild(pop);
+        mdmPop = pop;
+        positionAndDismissPop(pop, anchor, closeMdmPop);
       }
 
-      function sendUnlock(dev, online, host, inp, btn, st) {
-        var pwd = inp.value;
-        if (!pwd) { st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400'; st.textContent = 'Enter the current BIOS password.'; return; }
-        st.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
-        st.textContent = 'Sending…';
-        btn.disabled = true;
+      function queueMdmCheck(dev, onQueued, onError) {
         getCsrf().then(function (csrf) {
-          // A BIOS clear is a normal command in the remote queue, so the power
-          // card, the erase form and this card share one staging route, one
-          // history and one cancellation path.
-          return fetch('/api/devices/commands', {
+          return fetch('/api/mdm/recheck', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '', command: 'bios_unlock', password: pwd })
+            body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '' })
           });
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
-          if (res.ok) {
-            inp.value = '';
-            loadUnlockState(dev, online, host);
-            loadDevices(true);   // show the queued dot on the Operations button
-          } else {
-            btn.disabled = false;
-            st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-            st.textContent = res.data.error || 'Could not queue the unlock.';
-          }
-        }).catch(function () {
-          btn.disabled = false;
-          st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-          st.textContent = 'Network error — try again.';
-        });
+          if (res.ok) onQueued();
+          else onError(res.data.error || 'Could not queue the check.');
+        }).catch(function () { onError('Network error — try again.'); });
       }
 
-      function cancelUnlock(dev, online, host, id, btn) {
-        btn.disabled = true;
-        getCsrf().then(function (csrf) {
-          return fetch('/api/devices/commands/cancel', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({ id: id })
-          });
-        }).then(function (r) { return r.json(); }).then(function () {
-          loadUnlockState(dev, online, host);
-        }).catch(function () {
-          btn.disabled = false;
-        });
-      }
-
-      // The BIOS clear is a command like any other, so it renders INSIDE the
-      // Remote commands card: what the clear is doing right now (queued, or being
-      // applied) or, when it is not doing anything, the password action that
-      // stages a new one. A finished clear is not repeated here — the log carries
-      // it. No card, no header, no host of its own: one queue, one card.
-      function renderUnlockSection(card, dev, online, host, state, statusLine) {
-        var kind = state.kind;
-        var u = state.data;
-
-        if (kind === 'idle') {
-          // Labelled, because this section has no card title of its own, and its
-          // messages go to the card's one status line rather than a second line
-          // of near-identical text.
-          card.appendChild(el('p', 'mt-3 text-xs font-semibold text-slate-600 dark:text-slate-300', 'Clear BIOS password'));
-          var form = el('div', 'mt-1.5 flex flex-wrap items-center gap-2');
-          var inp = el('input', 'min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
-          inp.type = 'text';
-          inp.autocomplete = 'off';
-          inp.placeholder = 'Current BIOS password';
-          var btn = el('button', 'shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Send');
-          form.appendChild(inp); form.appendChild(btn);
-          card.appendChild(form);
-          btn.addEventListener('click', function () { sendUnlock(dev, online, host, inp, btn, statusLine); });
-        } else if (kind === 'staged') {
-          var row = el('div', 'mt-3 flex flex-wrap items-center gap-2');
-          var cancelBtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
-          row.appendChild(cancelBtn);
-          card.appendChild(row);
-          card.appendChild(el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400', 'Staged — the appliance will clear it at its next boot. Cancel to withdraw it.'));
-          cancelBtn.addEventListener('click', function () { cancelUnlock(dev, online, host, u.id, cancelBtn); });
-        } else if (kind === 'inprogress') {
-          card.appendChild(el('p', 'mt-3 text-sm text-slate-600 dark:text-slate-300', 'The appliance has picked up the command and is clearing the password.'));
-        }
-
-        schedulePoll(dev, online, state, host);
-      }
-
-      var mdmPollTimer = null;
-
-      function renderMdmCard(dev, online, host) {
-        host.innerHTML = '';
-
-        var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
-        var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
-        head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Check MDM lock'));
-        head.appendChild(mdmBadge(dev) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
-        card.appendChild(head);
-
-        if (isAppleDevice(dev)) {
-          card.appendChild(el('p', 'mt-3 text-sm text-slate-500 dark:text-slate-400', 'Apple devices are not enrolled in Windows Autopilot — MDM checks do not apply.'));
-          host.appendChild(card);
-          return;
-        }
-
-        var hasHash = !!dev.mdm_status;
-        var btn = el('button', 'mt-3 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Check now');
-        var st = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-
-        if (hasHash) {
-          st.textContent = (String(dev.mdm_status || '').toLowerCase() === 'unchecked')
-            ? 'Runs the Windows Autopilot enrolment check for this device.'
-            : 'Re-runs the Windows Autopilot enrolment check for this device.';
-          btn.addEventListener('click', function () {
-            btn.disabled = true;
-            st.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
-            st.textContent = 'Queuing…';
-            getCsrf().then(function (csrf) {
-              return fetch('/api/mdm/recheck', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '' })
-              });
-            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
-              if (res.ok) {
-                st.textContent = 'Queued — checking in the background.';
-                pollMdmState(dev, online, host, 0);
-                loadDevices(true);   // reflect the Queued state in the table immediately
-              } else {
-                btn.disabled = false;
-                st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-                st.textContent = res.data.error || 'Could not queue the check.';
-              }
-            }).catch(function () {
-              btn.disabled = false;
-              st.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
-              st.textContent = 'Network error — try again.';
-            });
-          });
-        } else {
-          btn.disabled = true;
-          st.textContent = 'No hardware hash for this device yet — boot the appliance to send a diagnostics report (a hash is generated automatically).';
-        }
-
-        card.appendChild(btn);
-        card.appendChild(st);
-        host.appendChild(card);
-      }
-
-      function pollMdmState(dev, online, host, attempt) {
-        if (mdmPollTimer) { clearTimeout(mdmPollTimer); mdmPollTimer = null; }
+      function watchDeviceMdm(dev, attempt) {
+        attempt = attempt || 0;
         if (attempt >= 10) return;
-        mdmPollTimer = setTimeout(function () {
+        if (mdmWatchTimer) clearTimeout(mdmWatchTimer);
+        mdmWatchTimer = setTimeout(function () {
           fetch('/api/mdm/devices').then(function (r) { return r.json(); }).then(function (d) {
             var rows = (d && d.devices) || [];
             var found = null;
@@ -1922,13 +1862,151 @@
               if (!found && m.serial && dev.sysserial && String(m.serial).toLowerCase() === String(dev.sysserial).toLowerCase()) found = m;
             });
             if (found) {
-              var merged = Object.assign({}, dev, { mdm_status: found.status, mdm_verdict: found.verdict, mdm_label: found.label, mdm_last_checked_at: found.last_checked_at });
-              smoothOpsSwap(function () { renderMdmCard(merged, online, host); });
-              loadDevices(true);   // keep the table badge in sync with the card
-              if (found.status === 'queued' || found.status === 'checking') pollMdmState(merged, online, host, attempt + 1);
+              loadDevices(true);
+              var st = String(found.status || '');
+              if (st === 'queued' || st === 'checking') watchDeviceMdm(dev, attempt + 1);
             }
           }).catch(function () {});
         }, 4000);
+      }
+
+      // ---- BIOS clear popover (launched from the index BIOS cell) ----
+      var biosPop = null;
+      var biosPollTimer = null;
+
+      function closeBiosPop() {
+        if (biosPop) { biosPop.remove(); biosPop = null; }
+        if (biosPollTimer) { clearTimeout(biosPollTimer); biosPollTimer = null; }
+      }
+
+      // Latest bios_unlock command → popover state. Resolved commands are shown
+      // once (with their verdict) and not polled again; 'idle' is the action form.
+      function biosUnlockState(u) {
+        var s = u && u.status ? u.status : 'none';
+        if (s === 'pending') return { kind: 'staged', data: u };
+        if (s === 'dispatched') return { kind: 'inprogress', data: u };
+        if (s === 'done' || s === 'failed' || s === 'expired') {
+          return { kind: 'resolved', data: u };
+        }
+        return { kind: 'idle', data: null };
+      }
+
+      var BIOS_VERDICT_MSG = {
+        cleared: 'Cleared — the badge updates after the next diagnostics report.',
+        wrong_password: 'Wrong password.',
+        policy: 'Rejected by policy.',
+        failed: 'Failed.',
+        no_clear_path: 'No clear path found.',
+        not_supported: 'Not supported on this machine.',
+        needs_privilege: 'Needs elevated privileges.',
+        read_only: 'BIOS is read-only.',
+        no_interface: 'No unlock interface.',
+        unsupported: 'Unsupported on this machine.'
+      };
+
+      function openBiosPop(dev, anchor) {
+        closeBiosPop();
+        if (!dev.sysserial) {
+          var noSer = el('div', 'fixed z-50 w-72 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 shadow-2xl', 'No system serial to target.');
+          document.body.appendChild(noSer);
+          biosPop = noSer;
+          positionAndDismissPop(noSer, anchor, closeBiosPop);
+          return;
+        }
+        var pop = el('div', 'fixed z-50 w-72 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4 shadow-2xl');
+        pop.setAttribute('role', 'dialog');
+        pop.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Clear BIOS password'));
+        pop.appendChild(el('div', 'mt-0.5 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500', 'SN ' + dev.sysserial));
+        var content = el('div', 'mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400');
+        pop.appendChild(content);
+
+        document.body.appendChild(pop);
+        biosPop = pop;
+        positionAndDismissPop(pop, anchor, closeBiosPop);
+        renderBiosIdleForm(dev, content);   // show the common case instantly, no loading flash
+        content._biosKind = 'idle';
+        renderBiosPop(dev, content);        // swap to staged/clearing if one is in flight
+      }
+
+      function renderBiosIdleForm(dev, content) {
+        var inp = el('input', 'mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
+        inp.type = 'text';
+        inp.autocomplete = 'off';
+        inp.placeholder = 'Current BIOS password';
+        var btn = el('button', 'mt-2 w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50', 'Clear password');
+        var err = el('p', 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400');
+        content.appendChild(inp);
+        content.appendChild(btn);
+        content.appendChild(err);
+        btn.addEventListener('click', function () {
+          var pwd = inp.value;
+          if (!pwd) { err.textContent = 'Enter the current BIOS password.'; return; }
+          err.className = 'mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400';
+          err.textContent = 'Sending…';
+          btn.disabled = true;
+          getCsrf().then(function (csrf) {
+            return fetch('/api/devices/commands', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ serial: dev.sysserial, uuid: dev.systemuuid || '', command: 'bios_unlock', password: pwd })
+            });
+          }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+            if (res.ok) {
+              loadDevices(true);
+              renderBiosPop(dev, content);
+            } else {
+              btn.disabled = false;
+              err.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
+              err.textContent = res.data.error || 'Could not queue the clear.';
+            }
+          }).catch(function () {
+            btn.disabled = false;
+            err.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
+            err.textContent = 'Network error — try again.';
+          });
+        });
+      }
+
+      function renderBiosPop(dev, content) {
+        if (biosPollTimer) { clearTimeout(biosPollTimer); biosPollTimer = null; }
+        fetch('/api/bios/unlock?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); }).then(function (d) {
+          var st = biosUnlockState(d && d.unlock);
+          if (st.kind === 'idle' && content._biosKind === 'idle') return;   // form already shown
+          content.innerHTML = '';
+          content._biosKind = st.kind;
+
+          if (st.kind === 'staged') {
+            var row = el('div', 'mt-2 flex items-center justify-between gap-2');
+            row.appendChild(el('span', 'text-xs font-semibold text-amber-700 dark:text-amber-400', 'Queued — the appliance picks it up on its next poll.'));
+            var cancelBtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
+            row.appendChild(cancelBtn);
+            content.appendChild(row);
+            cancelBtn.addEventListener('click', function () {
+              cancelBtn.disabled = true;
+              getCsrf().then(function (csrf) {
+                return fetch('/api/devices/commands/cancel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                  body: JSON.stringify({ id: st.data.id })
+                });
+              }).then(function (r) { return r.json(); }).then(function () {
+                loadDevices(true);
+                renderBiosPop(dev, content);
+              }).catch(function () { cancelBtn.disabled = false; });
+            });
+            biosPollTimer = setTimeout(function () { renderBiosPop(dev, content); }, 4000);
+          } else if (st.kind === 'inprogress') {
+            content.appendChild(el('p', 'mt-1 text-xs font-semibold text-sky-700 dark:text-sky-400 animate-pulse', 'Clearing…'));
+            biosPollTimer = setTimeout(function () { renderBiosPop(dev, content); }, 4000);
+          } else if (st.kind === 'resolved') {
+            var v = st.data && st.data.verdict ? String(st.data.verdict) : '';
+            content.appendChild(el('p', 'mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300', BIOS_VERDICT_MSG[v] || 'Done — see the Log for the result.'));
+          } else {
+            renderBiosIdleForm(dev, content);
+          }
+        }).catch(function () {
+          content.textContent = 'Could not load the command state.';
+        });
       }
 
       var remotePollTimer = null;
@@ -1990,16 +2068,26 @@
         return dot;
       }
 
-      // The power card is one view of the shared queue — loadUnlockState refreshes
-      // the whole panel, so this is just the name the remote card knows.
+      // One fetch for the remote card: power/erase commands only (the BIOS clear
+      // moved to the inline popover on the BIOS column).
       function loadRemoteState(dev, online, host) {
-        loadUnlockState(dev, online, host);
+        fetch('/api/devices/commands?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); })
+          .then(function (d) {
+            smoothOpsSwap(function () {
+              if (!opsHosts) return;
+              renderRemoteCard(dev, online, remoteStateFor(d && d.command), opsHosts.remote);
+            });
+          })
+          .catch(function () {
+            smoothOpsSwap(function () {
+              if (!opsHosts) return;
+              renderRemoteCard(dev, online, { kind: 'idle', data: null }, opsHosts.remote);
+            });
+          });
       }
 
       function scheduleRemotePoll(dev, online, state, host) {
         if (remotePollTimer) { clearTimeout(remotePollTimer); remotePollTimer = null; }
-        // The unlock card drives the same shared refresh, so one timer is enough.
-        if (unlockPollTimer) return;
         if (state.kind === 'staged' || state.kind === 'inprogress' || state.kind === 'deferred') {
           remotePollTimer = setTimeout(function () { loadRemoteState(dev, online, host); }, 4000);
         }
@@ -2122,7 +2210,7 @@
         var supported = toolVersionNum(dev.tool_version) >= toolVersionNum('v1.10.14');
         var wiping = dev.erasure && dev.erasure.phase === 'wiping';
         if (wiping) {
-          st.textContent = 'A wipe is already in progress on this machine.';
+          st.textContent = 'An erasure is already in progress on this machine.';
           start.disabled = true;
         } else if (!supported) {
           st.textContent = 'Requires appliance v1.10.14 or newer.';
@@ -2154,20 +2242,18 @@
         return box;
       }
 
-      // The one Operations card: every command this appliance accepts. The BIOS
-      // clear is one of them (same queue, same history), so it renders here. The
-      // card shows what is in flight or, when nothing is, the actions — resolved
-      // commands belong to the log below (see unlockStateFor / remoteStateFor).
-      function renderRemoteCard(dev, online, state, host, unlockState) {
+      // The one Operations card: the power and erase commands this appliance
+      // accepts. The BIOS clear moved to the inline popover on the BIOS column.
+      // The card shows what is in flight or, when nothing is, the actions —
+      // resolved commands belong to the log below (see remoteStateFor).
+      function renderRemoteCard(dev, online, state, host) {
         host.innerHTML = '';
 
         var card = el('div', 'rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
         var head = el('div', 'flex flex-wrap items-center justify-between gap-3');
         head.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Remote commands'));
         // Only a command that is actually in flight earns a badge.
-        var uState = unlockState || { kind: 'idle', data: null };
-        var uBadge = uState.kind === 'idle' ? null : unlockBadge(uState.kind);
-        head.appendChild(uBadge || remoteBadge(state.kind) || lockBadge(dev.bioslock, null, dev.bioslockmethod) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
+        head.appendChild(remoteBadge(state.kind) || lockBadge(dev.bioslock, null, dev.bioslockmethod) || el('span', 'text-xs text-slate-400 dark:text-slate-500', '—'));
         card.appendChild(head);
 
         // ONE status line for the whole card, under the header and in the same
@@ -2178,7 +2264,7 @@
         if (!online) {
           statusLine.textContent = 'Machine is offline — shut down and restart only work while online (the erase and the BIOS clear can still be queued).';
         } else if (dev.erasure && dev.erasure.phase === 'wiping') {
-          statusLine.textContent = 'A wipe is in progress — commands run once it finishes.';
+          statusLine.textContent = 'An erasure is in progress — commands run once it finishes.';
         } else {
           statusLine.textContent = 'Machine is online — commands run within a few seconds.';
         }
@@ -2186,8 +2272,6 @@
 
         var kind = state.kind;
         var c = state.data;
-
-        renderUnlockSection(card, dev, online, host, uState, statusLine);
 
         if (kind === 'staged') {
           var srow = el('div', 'mt-3 flex flex-wrap items-center gap-2');
@@ -2208,7 +2292,7 @@
           drow.appendChild(dbtn);
           card.appendChild(drow);
           var dmsg = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
-          dmsg.textContent = 'Deferred — a wipe is in progress; it will run when the device is idle.';
+          dmsg.textContent = 'Deferred — an erasure is in progress; it will run when the device is idle.';
           card.appendChild(dmsg);
           dbtn.addEventListener('click', function () { cancelRemote(dev, online, host, c.id, dbtn, dmsg); });
         } else {
@@ -2239,16 +2323,10 @@
           opsBody.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No system serial to target.'));
         } else {
           var remoteHost = el('div', '');
-          var mdmHost = el('div', 'mt-4');
           opsBody.appendChild(remoteHost);
-          opsBody.appendChild(mdmHost);
           opsHosts = { remote: remoteHost };
-          // Remote commands first — it now holds the BIOS clear as well, so it is
-          // the whole action surface; MDM/attestation is reference below it.
-          renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost, { kind: 'idle', data: null });
-          renderMdmCard(dev, online, mdmHost);
-          // One fetch renders every section (see loadUnlockState).
-          loadUnlockState(dev, online, remoteHost);
+          renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost);
+          loadRemoteState(dev, online, remoteHost);
         }
         opsModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
@@ -2264,6 +2342,8 @@
         if (!modal.classList.contains('hidden')) closeDevice();
         else if (!opsModal.classList.contains('hidden')) closeOps();
         else if (!document.getElementById('erasure-modal').classList.contains('hidden')) closeErasure();
+        else if (mdmPop) closeMdmPop();
+        else if (biosPop) closeBiosPop();
       });
     })();
   </script>

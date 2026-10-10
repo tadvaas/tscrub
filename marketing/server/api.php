@@ -1455,7 +1455,7 @@ if ($method === 'POST' && $route === '/devices/commands') {
         if (presence_is_online($serial, $uuid, $presence)) {
             $erasure = presence_erasure($serial, $uuid, $presence);
             if (is_array($erasure) && ($erasure['phase'] ?? '') === 'wiping') {
-                fail(409, 'A wipe is already in progress on this device.');
+                fail(409, 'An erasure is already in progress on this device.');
             }
         }
 
@@ -1895,7 +1895,7 @@ if ($method === 'GET' && $route === '/drives/export') {
     $cols = [
         'serial' => 'Serial', 'model' => 'Model', 'size' => 'Size', 'bus' => 'Bus', 'type' => 'Type',
         'status' => 'Status', 'cls' => 'Class', 'method' => 'Method', 'cert' => 'Certification',
-        'ts' => 'Wiped', 'cocid' => 'CoC', 'system' => 'System', 'sysserial' => 'System serial',
+        'ts' => 'Erased', 'cocid' => 'CoC', 'system' => 'System', 'sysserial' => 'System serial',
         'grade' => 'Grade', 'grade_reason' => 'Grade reason',
         'smart' => 'SMART (pre)', 'tempc' => 'Temp C (pre)', 'poweronhours' => 'Power-on hours (pre)',
         'powercycles' => 'Power cycles', 'reallocsectors' => 'Reallocated sectors',

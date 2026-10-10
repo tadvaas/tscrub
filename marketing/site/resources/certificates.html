@@ -104,12 +104,24 @@
             <tr><td>Device list (Annex A)</td><td>Serial numbers, models, and methods per drive</td></tr>
             <tr><td>Certification date / range</td><td>When the erasure took place</td></tr>
             <tr><td>Method &amp; outcome</td><td>Which wipe ran and its NIST 800-88 result</td></tr>
+            <tr><td>Technique &amp; media disposition</td><td><em>How</em> the data was destroyed — and whether the hardware still exists (sanitised in place and reusable vs physically destroyed)</td></tr>
             <tr><td>Report manifest</td><td>File names and SHA-256 hashes of the source reports</td></tr>
             <tr><td>Signature</td><td>Cryptographic proof the report hasn't been tampered with</td></tr>
             <tr><td>Verification code / QR</td><td>Lets a third party confirm the certificate is genuine</td></tr>
           </tbody>
         </table>
       </div>
+
+      <h2>Certificate of destruction vs certificate of erasure</h2>
+      <p>Vendors use both names, and they are not quite the same claim. A <strong>certificate of erasure</strong> says the data was wiped; a <strong>certificate of destruction</strong> can imply the media itself no longer exists. That distinction matters the moment a drive is resold or reused — which is exactly what erasing in place is for.</p>
+      <p>tScrub keeps the certificate of destruction title (it is the name auditors and customers ask for) but makes it defensible by stating <em>how</em> the destruction was achieved — the method, the NIST SP 800-88 level reached, the technique, and the media disposition:</p>
+      <ul>
+        <li><strong>Method</strong> — e.g. ATA Enhanced Secure Erase, NVMe Crypto Sanitise, software overwrite, or operator-confirmed physical destruction.</li>
+        <li><strong>Level</strong> — Clear, Purge, or Destruction, stated per drive and as the highest level reached for the run.</li>
+        <li><strong>Technique</strong> — e.g. <em>cryptographic erase (media encryption key destroyed)</em> or <em>ATA Enhanced Secure Erase (internal block erase)</em>.</li>
+        <li><strong>Media disposition</strong> — e.g. <em>"12 media sanitised in place (data destroyed; hardware reusable); 2 media physically destroyed"</em>, so nobody reads "destruction" as "the hardware is gone".</li>
+      </ul>
+      <p>Page 1 carries the summary; Annex A opens with a destruction method summary and then lists every drive individually, and the signed machine-readable twin repeats the same technique and disposition fields for automated auditors.</p>
 
       <h2>How tScrub certificates work</h2>
       <p>The flow is simple: run tScrub to produce a report (CSV + manifest + signature), then upload it on your dashboard's <a href="/dashboard/drives">Drives page</a> and generate a certificate from the <a href="/dashboard/certificates">Certificates page</a>. The dashboard verifies the report, renders a printable PDF certificate — with a device annex and, where the report includes it, a pre/post-wipe SMART capture — and stores the issuance record.</p>

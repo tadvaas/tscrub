@@ -96,9 +96,11 @@ they ship and note the release that carries each.
   - [x] `uuid` in the claim (fall back to serial-only when staged uuid empty).
   - [x] `curl -k` TLS clock-skew fallback (mirror `report::upload_http`).
   - [x] Enforce the result state machine server-side (`dispatched` → result).
-  > Reality: writable password attributes exist only on Dell
-  > (`dell-wmi-sysman`), Lenovo (`think_lmi`) and HP (`hp-wmi`); most vendors
-  > report `unsupported`. In-house SPI bench research lives in
+  > Reality: a kernel `firmware-attributes` password interface exists only on
+  > Dell (`dell-wmi-sysman`) and Lenovo (`think_lmi`). HP (`hp-bioscfg`) publishes
+  > no password reset at all and its `new_password` attribute is inert, so an HP
+  > clear needs the dedicated WMI transport — which shipped in v1.11.46 (see
+  > §4.6). Most vendors report `unsupported`. In-house SPI bench research lives in
   > `research/bios-unlock/`.
 - [x] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
       `CONFIG_VIRTIO_NET` for faster VM testing, quiet `sedutil-cli` SG_IO noise
@@ -167,6 +169,15 @@ with the release that carried them (per `CHANGELOG.md`).
       JCS canonical bytes, RFC 3161 timestamp; public key at
       `/.well-known/tscrub-cert-key.json`; dashboard "JSON" download link).
       Plan: `research/machine-readable-certs/README.md`.
+- [x] **Certificate states how the data was destroyed** — keep the marketable
+      "Certificate of Destruction" title, but show *how*: page 1 gains a
+      `Technique` line + a `Media disposition` line, the banner claims "data
+      destroyed" (not media), and Annex A opens with a DESTRUCTION METHOD SUMMARY
+      (per method: label, NIST level, technique, device count). The signed JSON-LD
+      twin carries the same evidence. (§9.3)
+      → **Shipped 2026-10-10** (server + site only; no appliance change). Shared
+      vocabulary in `marketing/server/cert_terms.php` so the PDF and JSON-LD can
+      never disagree. Plan: `research/cert-destruction-evidence/README.md`.
 
 ### 4.1 Erasure depth (§9.2, §11.1)
 
@@ -266,6 +277,12 @@ with the release that carried them (per `CHANGELOG.md`).
       size/mfr/type/form-factor/speed/part#/serial, Secure Boot state
       (mokutil + efivars fallback) and BIOS-lock flags; the JSON inventory and
       diagnostics report render them (blobs stay JSON-only, out of the CSV).
+      → **v1.11.49** made the Secure Boot half real: the appliance never mounted
+      `efivarfs`, so the efivars fallback found **0** variables on every machine
+      and Secure Boot reported `N/A` fleet-wide (the other probe, `mokutil`, is
+      not in the image). `system::gather_info` now mounts it **read-only**, and
+      the field reports `Enabled`/`Disabled`.
+      → **v1.11.44 + v1.11.50** deepened the BIOS-lock half — see §4.6.
 - [ ] MDM / enrolment-lock detection — Apple DEP/Activation Lock, ChromeOS
       GBB/VPD, CompuTrace; record `mdm_locked`/`enrollment` per device. (§6)
 
@@ -273,6 +290,72 @@ with the release that carried them (per `CHANGELOG.md`).
 
 - [ ] Offline unlock-only boot flag — a lightweight "unlock-only" boot so an
       operator can rescue a locked BIOS without running a wipe. (§8)
+- [x] **BIOS-lock detection depth** — the detection cascade (firmware-attributes
+      sysfs → legacy vendor sysfs → SMBIOS Type 24 → UNKNOWN) was blind at both
+      ends: the kernel's `firmware-attributes` class directory was empty on the
+      appliance, and any firmware that publishes no Type 24 table landed in
+      `UNKNOWN` with no explanation. (§8)
+      → **Shipped v1.11.44** (2026-10-10): a kernel patch registers the
+      `firmware-attributes` class before its users, so `hp-bioscfg` /
+      `dell-wmi-sysman` are no longer orphaned at `/sys/devices/<driver>` with no
+      `/sys/class/firmware-attributes` symlink; `bios_unlock::clear` also scans
+      orphaned device trees and HP's `authentication/` objects.
+      → **Shipped v1.11.50** (2026-10-10): a new **final** cascade layer reads the
+      HP `AdminPW` credential record from the UEFI variable
+      `UserCred-f66687ff-8cf3-4a19-b4ac-f5f0b78e4d18` — UTF-16LE, present exactly
+      while an admin/setup password is set, and an `ff ff ff ff` unset sentinel
+      once cleared. Found **without touching a BIOS** by diffing two identical
+      EliteBook 830 G5 units across their entire UEFI variable set, then
+      corroborated **8/8** against SMBIOS Type 24 from an independent source. It is
+      consulted **last**, so it can never contradict a stronger layer and changes
+      no verdict on the current fleet — the value is coverage for HP business
+      firmware that omits the Type 24 table. The consumer Insyde platform has no
+      `UserCred` variable at all, so the `UNKNOWN` class is **unchanged and still
+      open, though no longer *unexplained* — see v1.11.51 below. Beware the
+      size: the 830 G5 reads 3536 locked / 4544 unlocked, but the locked ZBook
+      also reads 4544 — size is not the signal, the record is.
+      → **Shipped v1.11.51** (2026-10-10): an `UNKNOWN` verdict now says *why*.
+      `36_bios.sh` distinguishes "this firmware publishes no password state"
+      (interfaces present — e.g. hp-bioscfg — but none publishes a password) from
+      "a source existed but could not be read", and records it in
+      `BIOSLockMethod`: `.170` reports
+      `NONE (no password state published; sources present: firmware-attributes)`
+      while the Intel NUC (`.175`) reports `NONE (no password interface
+      published)` — the two `UNKNOWN` machines are finally distinguishable. It
+      reaches the CSV, the manifest and the diagnostics PDF, and the dashboard
+      badge tooltip. **No verdict changes.** It also fixed a dead guard:
+      `dmidecode -t 24` exits 0 and prints a three-line header even with **no**
+      Type 24 record (measured on `.170`: 67 bytes, 0 `Password Status` lines), so
+      presence now comes from a `Password Status` line and a *refusing* dmidecode
+      is reported as unreadable rather than as "publishes nothing".
+      → Plan: `research/bios-unlock/20-insyde-setup-password-state.md` (§6 P3).
+- [x] **HP BIOS password clear over WMI** — clear a Setup Password from Linux when
+      the operator supplies it. The sysfs path cannot do it on HP: these machines
+      expose **no** password object at all, and the driver's own request frame is
+      malformed (its `new_password` attribute is inert). **Proven on hardware
+      2026-10-10**: the three-element frame
+      `[Setup Password][<utf-16/>][<utf-16/><current password>]` sent through
+      `WMBS` method 1 cleared the Setup Password on `192.168.0.171` (EliteBook 830
+      G5) — confirmed by POST no longer asking for it. (§8)
+      → **Shipped v1.11.46** (2026-10-10): a deliberately narrow, **write-only**
+      kernel module (`hp_biospw` — hardcoded GUID and method id, one root-only
+      interface, validated element sizes, the password never logged) carries the
+      frame, built into the image by `build_tscrub.sh` via
+      `board/shredos/modules/build-into-overlay.sh` — no kernel patch, no kernel
+      rebuild — with a second strategy in `38_bios_unlock.sh` and a **mandatory
+      corroboration step** (success is reported only when a privileged write the
+      firmware refused beforehand is then accepted). Field-proven on an EliteBook
+      830 G5: cleared from Linux, confirmed gone after a reboot, and independently
+      by the firmware's own Type 24 reporting `Disabled`.
+      → **v1.11.47** fixed the gate: the GUID literal had been retyped by hand
+      from a wrapped read and carried a wrong final digit, so every HP machine
+      **skipped** the WMI layer and the sysfs path falsely reported `cleared`
+      while the BIOS still demanded the password. The gate now matches
+      case-insensitively on the GUID's first field, sysfs can no longer over-claim,
+      and the tests use the real device name so either mistake fails the build.
+      → **v1.11.48** folded the clear into the single `device_commands` queue.
+      → Plan: `research/bios-unlock/19-shipping-plan-wmi-clear.md`;
+      evidence: `research/bios-unlock/18-live-wmi-probing-results.md`.
 
 ### 4.7 Hardware diagnostics (§11.2)
 
@@ -280,23 +363,28 @@ with the release that carried them (per `CHANGELOG.md`).
       audio/mic, webcam, USB, network, fingerprint, CMOS/accelerometer.
       (§11.2) → Plan: `research/hardware-diagnostics/plan.md` (tiered diag:: suite;
       Shift+D triage flow; JSON-only results).
-      → **Shipped v1.11.27** (2026-10-08): 13-test PASS/FAIL component check
-      entered via `D` on triage (or `tscrub_diag=1`) — automatic tier
-      cpu / ram / storage (SMART self-test) / network / battery / peripherals /
-      webcam (presence-only), guided tier display / keyboard / touchpad / USB /
-      speaker / mic; ALSA added so speaker plays a real 1 kHz tone and the mic
-      records + auto-scores a capture. Surfaced as `diagnostics` +
-      `diagnostics_summary` in the report and Devices tab. **v1.11.29** fixed
-      the storage self-test stall (`Self Test Result[0]` case + `Operation
-      Result` verdict); **v1.11.30** fixed the muted-mic false-FAIL (amixer +
-      pre-record unmute/boost), added mic/speaker timeouts, reconciled the RAM
-      figure with the panel, and made the network test require a real IPv4
-      route (not carrier alone).
-- [ ] Diagnostics breadth vs Blancco/BitRaser — still missing **fingerprint,
-      touchscreen, Bluetooth, CMOS/RTC, accelerometer/angle sensor, optical
-      drive and BIOS-logo** tests; the battery test reads capacity only
-      (Blancco also runs a discharge test), and webcam stays presence-only
-      (UNSUP without a camera package). (§11.2)
+      → **Shipped v1.11.27** (2026-10-08) as a two-tier suite, then reshaped by a
+      long iteration — **v1.11.40 removed the automatic tier entirely**, so the
+      suite today is **guided-only, 6 tests**: display, keyboard, touchpad, USB,
+      speaker and microphone, entered with `Shift+D` on triage (`--diag` /
+      `tscrub_diag=1` still parse but run nothing automatically; the headless
+      fallback runs all 6 so unattended boots still record them). `--selftest`
+      (CPU + per-drive SMART/NVMe short self-test) is unchanged. Along the way
+      v1.11.29/30 fixed the storage self-test stall and the muted-mic false-FAIL,
+      and v1.11.31–v1.11.42 rebuilt the operator flow: two-phase keyboard test,
+      a real touchpad **movement** test, I2C-HID touchpad detection (the ZBook
+      Fury's Elan pad), live USB detection, a continuous + quieter speaker tone,
+      storage self-test moved last, and prompt alignment. ALSA was added so the
+      speaker plays a real 1 kHz tone and the mic records + auto-scores a
+      capture. Surfaced as `diagnostics` + `diagnostics_summary` in the report
+      and Devices tab. **Note the tests the removed automatic tier covered (CPU,
+      RAM, storage, network, battery, peripherals, webcam) no longer run at all.**
+- [ ] Diagnostics breadth vs Blancco/BitRaser — the suite is deliberately narrow
+      today (6 guided tests). **Battery (incl. a discharge test), RAM/CPU
+      burn-in, network, webcam and the storage self-test** are not in the guided
+      flow at all since v1.11.40 removed the automatic tier, and
+      **fingerprint, touchscreen, Bluetooth, CMOS/RTC, accelerometer/angle
+      sensor, optical drive and BIOS-logo** tests were never built. (§11.2)
 
 ### 4.8 Autopilot robustness (§11.3)
 
@@ -360,3 +448,16 @@ with the release that carried them (per `CHANGELOG.md`).
       `drives_paged()` fast path for the default (no-search) view; search/export
       keep the full-decode path so results stay byte-identical.
       → Plan: same `research/devices-pagination/README.md` (see open questions).
+- [x] **Per-device Log + Chain of Custody on the record** — one reverse-
+      chronological list of every recorded event for a machine (report
+      submissions, remote commands and their outcomes, Autopilot checks and hash
+      captures, registrations, drive results, issued certificates) with labelled
+      record references and View/PDF on report rows, replacing the row's Reports
+      expansion (which was a second list of the same submissions). Diagnostics
+      submissions now carry the appliance's CoC, and a remote command's outcome
+      is stamped with the CoC of the session that *executed* it — so a remote
+      erase or BIOS clear is attributable next to the report sharing its CoC.
+      → **Shipped v1.11.48** (2026-10-10; server + dashboard + appliance).
+- [ ] **Drives pager loading indicator** — the Drives tab clears its rows before
+      the next page arrives, so a page change flashes empty instead of showing a
+      spinner the way the Devices tab does.

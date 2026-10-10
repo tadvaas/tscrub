@@ -250,11 +250,11 @@
           ['Serial', d.serial], ['Model', d.model], ['Size', d.size], ['Bus', d.bus], ['Type', d.type],
           ['Resale grade', d.grade], ['Grade reason', d.grade_reason],
           ['Erasure status', d.status], ['Class', d.cls], ['Method', d.method], ['Certification', d.cert],
-          ['Wiped', d.ts], ['CoC', d.cocid], ['System', d.system], ['System serial', d.sysserial],
-          ['SMART (pre-wipe)', d.smart], ['Temperature °C (pre)', d.tempc], ['Power-on hours (pre)', d.poweronhours],
+          ['Erased', d.ts], ['CoC', d.cocid], ['System', d.system], ['System serial', d.sysserial],
+          ['SMART (pre-erasure)', d.smart], ['Temperature °C (pre)', d.tempc], ['Power-on hours (pre)', d.poweronhours],
           ['Power cycles', d.powercycles], ['Reallocated sectors', d.reallocsectors], ['Used %', d.pctused],
           ['Available spare', d.availspare], ['TBW (TB)', d.tbw_tb],
-          ['SMART (post-wipe)', d.smartpost], ['Temperature °C (post)', d.tempcpost], ['Power-on hours (post)', d.poweronhourspost],
+          ['SMART (post-erasure)', d.smartpost], ['Temperature °C (post)', d.tempcpost], ['Power-on hours (post)', d.poweronhourspost],
           ['Firmware', d.firmware], ['Sector size', d.sector_size], ['Sectors', d.sectors], ['HPA', d.hpa], ['DCO', d.dco],
           ['HPA result', d.hpa_result], ['DCO result', d.dco_result],
           ['SED status', d.sed_status], ['Self-test', d.selftest], ['Reallocated (post)', d.reallocsectorspost],
@@ -357,7 +357,7 @@
       var EXPORT_FIELDS = [
         ['serial','Serial'], ['model','Model'], ['size','Size'], ['bus','Bus'], ['type','Type'],
         ['status','Status'], ['cls','Class'], ['method','Method'], ['cert','Certification'],
-        ['ts','Wiped'], ['cocid','CoC'], ['system','System'], ['sysserial','System serial'],
+        ['ts','Erased'], ['cocid','CoC'], ['system','System'], ['sysserial','System serial'],
         ['grade','Grade'], ['grade_reason','Grade reason'],
         ['smart','SMART (pre)'], ['tempc','Temp C (pre)'], ['poweronhours','Power-on hours (pre)'],
         ['powercycles','Power cycles'], ['reallocsectors','Reallocated sectors'],
@@ -450,7 +450,7 @@
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var head = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-        [['Model', 'w-[17%]'], ['Serial', 'w-[14%]'], ['Size', 'w-[8%]'], ['Type', 'w-[8%]'], ['Status', 'w-[10%]'], ['Method', 'w-[17%]'], ['Grade', 'w-[8%]'], ['', 'w-[18%]']].forEach(function (c) {
+        [['Model', 'w-[17%]'], ['Serial', 'w-[14%]'], ['Size', 'w-[12%]'], ['Type', 'w-[8%]'], ['Status', 'w-[10%]'], ['Method', 'w-[17%]'], ['Grade', 'w-[5%]'], ['', 'w-[17%]']].forEach(function (c) {
           hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', c[0]));
         });
         head.appendChild(hr);
@@ -464,7 +464,7 @@
           var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
           serCell.title = d.serial || '';
           tr.appendChild(serCell);
-          tr.appendChild(el('td', 'px-3 py-2 text-slate-700 dark:text-slate-300', d.size || '—'));
+          tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300', d.size || '—'));
           tr.appendChild(el('td', 'px-3 py-2 text-slate-700 dark:text-slate-300', d.type || '—'));
           tr.appendChild(el('td', 'px-3 py-2 ' + statusClass(d.status), d.status || '—'));
           tr.appendChild(el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—'));
@@ -499,7 +499,7 @@
             subtd.colSpan = 9;
             var st = el('table', 'w-full border-collapse text-xs');
             var shr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-            ['CoC', 'Wiped', 'Status', 'Method', 'Class', 'SMART (post)', 'Verify', ''].forEach(function (h) {
+            ['CoC', 'Erased', 'Status', 'Method', 'Class', 'SMART (post)', 'Verify', ''].forEach(function (h) {
               shr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
             });
             st.appendChild(shr);
@@ -577,12 +577,12 @@
 
         var doc = el('div', 'overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm');
 
-        // Document header: CoC + wiped timestamp.
+        // Document header: CoC + erased timestamp.
         var head = el('div', 'border-b border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-6 py-5');
         head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400', 'tScrub erasure report'));
         var meta = el('div', 'mt-2 text-sm text-slate-600 dark:text-slate-400');
         meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Chain of Custody ' + (d.cocid || '—')));
-        meta.appendChild(document.createTextNode(' · wiped ' + (fmtTsTime(d.ts || d.uploaded_at) || '—')));
+        meta.appendChild(document.createTextNode(' · erased ' + (fmtTsTime(d.ts || d.uploaded_at) || '—')));
         head.appendChild(meta);
         doc.appendChild(head);
 
@@ -653,7 +653,7 @@
         var st = el('table', 'mt-2 w-full border-collapse text-sm');
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-50 dark:bg-ink-800');
-        ['Metric', 'Before wipe', 'After wipe'].forEach(function (h) {
+        ['Metric', 'Before erase', 'After erase'].forEach(function (h) {
           hr.appendChild(el('th', 'border border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
         });
         thead.appendChild(hr);

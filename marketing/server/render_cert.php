@@ -22,6 +22,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/tcpdf/tcpdf.php';
+require_once __DIR__ . '/cert_terms.php';
 
 function fmt_ts($ts) {
     if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/', (string)$ts, $m)) {
@@ -234,7 +235,7 @@ function cert_method_short(string $method, string $cls, string $status): string 
  * Dense one-row-per-drive table for large fleets (200 drives ≈ 6 pages instead
  * of ~100 card pages). Shows the audit-critical fields only.
  */
-function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $certId, array $drives): void {
+function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $certId, array $drives, float $startY = 28.0): void {
     $bg = function () use ($pdf, $W, $H): void {
         $pdf->SetFillColor(250, 249, 246);
         $pdf->Rect(0, 0, $W, $H, 'F');
@@ -372,7 +373,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $pdf->SetFont('helvetica', '', 7.5);
     };
 
-    $drawHeader(28);
+    $drawHeader($startY);
 
     $idx = 0;
     foreach ($drives as $d) {
@@ -494,8 +495,51 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
         return;
     }
 
+    // "How the data was destroyed" — one line per method used, printed above the
+    // per-drive detail so the certificate states its technique, not just its
+    // standard. Failures are deliberately excluded (the page-1 banner and the
+    // Annex status column carry them); see
+    // research/cert-destruction-evidence/README.md.
+    $breakdown = cert_method_breakdown($drives);
+    $y = 30.0;
+    if ($breakdown !== []) {
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetTextColor(11, 18, 32);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($W - 2 * $x, 5, 'DESTRUCTION METHOD SUMMARY', 0, 1, 'L');
+        $pdf->SetLineWidth(0.2);
+        $pdf->SetDrawColor(203, 213, 225);
+        $pdf->Line($x, $y + 5.0, $x + ($W - 2 * $x), $y + 5.0);
+        $pdf->SetDrawColor(0, 0, 0);
+        $y += 6.4;
+
+        $pdf->SetFont('helvetica', '', 7.5);
+        foreach ($breakdown as $b) {
+            $label = method_label((string)$b['method'], (string)$b['cls'], (string)$b['status']);
+            $line  = '• ' . $label
+                . ' — ' . ($b['level'] !== '' ? $b['level'] : 'Not sanitised')
+                . ' — ' . $b['technique']
+                . ' — ' . $b['n'] . ' device(s)';
+            $pdf->SetTextColor(51, 65, 85);
+            $pdf->SetX($x);
+            $pdf->MultiCell($W - 2 * $x, 3.8, $line, 0, 'L');
+            $y = $pdf->GetY() + 0.6;
+        }
+
+        $disposition = cert_media_disposition($drives);
+        if ($disposition !== '') {
+            $pdf->SetFont('helvetica', 'I', 7.5);
+            $pdf->SetTextColor(100, 116, 139);
+            $pdf->SetX($x);
+            $pdf->MultiCell($W - 2 * $x, 3.8, 'Media disposition: ' . $disposition . '.', 0, 'L');
+            $pdf->SetFont('helvetica', '', 7.5);
+            $y = $pdf->GetY() + 1.2;
+        }
+        $y += 2.0;
+    }
+
     // Dense one-row-per-drive table, then the report manifest (own page).
-    cert_render_table($pdf, $x, $W, $H, $certId, $drives);
+    cert_render_table($pdf, $x, $W, $H, $certId, $drives, max(28.0, $y));
     cert_render_manifest($pdf, $x, $W, $H, $certId, $reports);
 }
 
@@ -652,12 +696,15 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetXY(10, 32);
     $pdf->Cell($W - 20, 5, 'Chain of Custody ID ' . $cocid . '  ·  ' . $devices . ' device(s)  ·  issued ' . gmdate('Y-m-d H:i') . ' UTC', 0, 1, 'C');
 
-    // Outcome banner.
-    if ($nonCompleted === 0) {
-        $bannerTxt = 'ALL DEVICES SANITISED';
+    // Outcome banner — states the claim ("data destroyed") plus, implicitly, the
+    // how: a run that is part sanitised in place and part physically destroyed is
+    // fully destroyed; only FAILED/BLOCKED/FROZEN/UNKNOWN/DRY-RUN amber-flag.
+    $otherCount = $nonCompleted - $destroyedCount;
+    if ($otherCount === 0) {
+        $bannerTxt = 'DATA DESTROYED ON ALL ' . $devices . ' DEVICE(S)';
         $bannerColor = [5, 150, 105];
     } else {
-        $bannerTxt = $nonCompleted . ' DEVICE(S) NOT SANITISED — SEE ANNEX A';
+        $bannerTxt = $otherCount . ' DEVICE(S) NOT DESTROYED — SEE ANNEX A';
         $bannerColor = [217, 119, 6];
     }
     $pdf->SetFillColor($bannerColor[0], $bannerColor[1], $bannerColor[2]);
@@ -721,6 +768,24 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         if (!isset($seenMachines[$key])) { $seenMachines[$key] = true; $machinesUsed++; }
     }
 
+    // "How we destroyed it": the distinct techniques used across the run, most
+    // used first so the dominant technique is never the one that gets
+    // truncated. Capped at two — the full per-method list is in Annex A.
+    $techniqueCounts = [];
+    foreach ($drives as $d) {
+        $st = strtoupper(trim((string)($d['status'] ?? '')));
+        if ($st !== 'COMPLETED' && $st !== 'DESTROYED') continue;
+        $t = cert_technique_label((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), $st);
+        $techniqueCounts[$t] = ($techniqueCounts[$t] ?? 0) + 1;
+    }
+    arsort($techniqueCounts); // most-used first; PHP 8 keeps insertion order on ties
+    $techniqueList = array_keys($techniqueCounts);
+    $techniqueTxt  = '';
+    if ($techniqueList !== []) {
+        $techniqueTxt = implode('; ', array_slice($techniqueList, 0, 2));
+        if (count($techniqueList) > 2) $techniqueTxt .= ' +' . (count($techniqueList) - 2) . ' more';
+    }
+
     $erasureL = [
         ['Tool / version', $toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub'],
         ['Standard',       'NIST SP 800-88 Rev 1'],
@@ -730,9 +795,9 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     ];
     $erasureR = [
         ['Total duration',    $totalDuration],
-        ['Devices',           (string)$devices],
+        ['Technique',         $techniqueTxt],
+        ['Media disposition', cert_media_disposition($drives)],
         ['Machines used',     $machinesUsed > 0 ? (string)$machinesUsed : ''],
-        ['Methods used',      (string)$methods],
         ['Runs consolidated', (string)$runs],
     ];
 
@@ -781,9 +846,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
 
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(51, 65, 85);
-    $attestation = 'This is to certify that the data storage devices listed in Annex A were sanitised, or removed and destroyed, '
-        . 'in accordance with the methods, standards and levels recorded herein, under controlled chain-of-custody procedures from '
-        . 'receipt to final verification. ' . ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub') . ' was used as the sanitisation tool.';
+    $attestation = 'This is to certify that the data on the storage devices listed in Annex A was destroyed — by in-place sanitisation '
+        . '(Clear / Purge), or by physical destruction where recorded — in accordance with the methods, techniques, standards and levels '
+        . 'set out herein, under controlled chain-of-custody procedures from receipt to final verification. '
+        . ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub') . ' was used as the sanitisation tool.';
     $pdf->SetXY(30, 123);
     $pdf->MultiCell(237, 3.8, $attestation, 0, 'L');
 
