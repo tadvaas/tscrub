@@ -1354,7 +1354,7 @@
       function reportActions(e) {
         var h = e.src;
         if (!h || h.report_type === 'mdm') return null;
-        var box = el('div', 'shrink-0 flex items-center gap-1.5');
+        var box = el('div', 'inline-flex items-center gap-1.5');
         var view = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
         view.title = 'Open this report';
         view.addEventListener('click', function () {
@@ -1396,43 +1396,49 @@
       }
 
       function logRow(e) {
-        var row = el('div', 'flex items-center gap-3 border-b border-slate-100 dark:border-ink-800 py-2');
-        var ts = el('div', 'w-32 shrink-0 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(e.at) || '—');
-        ts.title = String(e.at || '');
-        row.appendChild(ts);
-        var tb = el('div', 'w-20 shrink-0');
-        tb.appendChild(eventBadge(e));
-        row.appendChild(tb);
-        var body = el('div', 'min-w-0 flex-1 truncate');
-        body.appendChild(el('span', 'mr-2 text-slate-700 dark:text-slate-300', e.label || ''));
-        if (e.detail) body.appendChild(el('span', 'text-xs ' + eventStateCls(e.state), e.detail));
-        body.title = [e.label, e.detail].filter(Boolean).join(' — ');
-        row.appendChild(body);
+        var row = el('tr', 'border-b border-slate-100 dark:border-ink-800');
+        var tdTs = el('td', 'truncate px-2 py-2 text-xs tabular-nums text-slate-400 dark:text-slate-500', fmtTsTime(e.at) || '—');
+        tdTs.title = String(e.at || '');
+        row.appendChild(tdTs);
+        var tdType = el('td', 'px-2 py-2');
+        tdType.appendChild(eventBadge(e));
+        row.appendChild(tdType);
+        var tdBody = el('td', 'px-2 py-2');
+        var bodyLine = el('div', 'truncate');
+        bodyLine.appendChild(el('span', 'mr-2 text-slate-700 dark:text-slate-300', e.label || ''));
+        if (e.detail) bodyLine.appendChild(el('span', 'text-xs ' + eventStateCls(e.state), e.detail));
+        tdBody.appendChild(bodyLine);
+        tdBody.title = [e.label, e.detail].filter(Boolean).join(' — ');
+        row.appendChild(tdBody);
         // Chain of Custody. Only the events that are actually part of one carry
         // a CoC — a staged remote command, an Autopilot check or a registration
         // is not a report submission, so those show a dash rather than a
-        // fabricated id. Sits before the actions so the column stays aligned
-        // however wide the row's buttons are.
-        var coc = el('div', 'w-36 shrink-0 truncate font-mono text-[11px]');
+        // fabricated id. It has its own column (rather than trailing the event
+        // text) so the id lines up down the panel whatever the event says.
+        var tdCoc = el('td', 'truncate px-2 py-2 font-mono text-[11px]');
         if (e.cocid) {
           var cocLink = el('a', 'text-slate-500 hover:text-brand-600 hover:underline dark:text-slate-400 dark:hover:text-brand-400', e.cocid);
           cocLink.href = '/dashboard/certificates';
           cocLink.title = 'Chain of Custody ' + e.cocid + ' — open Certificates to view or generate it';
-          coc.appendChild(cocLink);
+          tdCoc.appendChild(cocLink);
         } else {
-          coc.appendChild(el('span', 'text-slate-300 dark:text-slate-600', '—'));
+          tdCoc.appendChild(el('span', 'text-slate-300 dark:text-slate-600', '—'));
         }
-        row.appendChild(coc);
-        var ref = el('div', 'w-28 shrink-0 truncate text-right text-[11px] tabular-nums text-slate-400 dark:text-slate-500', e.ref || '');
+        row.appendChild(tdCoc);
+        var tdRef = el('td', 'truncate px-2 py-2 text-right text-[11px] tabular-nums text-slate-400 dark:text-slate-500', e.ref || '');
         if (e.ref) {
           // Ids come from several tables with their own sequences (remote
           // commands, Autopilot jobs, certificates), so two refs can carry the
           // same number without being the same record. Say which one this is.
-          ref.title = refTitle(e.kind) + ' — every Log ref names the record it belongs to; each table numbers its own rows, so the same number can appear twice.';
+          tdRef.title = refTitle(e.kind) + ' — every Log ref names the record it belongs to; each table numbers its own rows, so the same number can appear twice.';
         }
-        row.appendChild(ref);
+        row.appendChild(tdRef);
+        // The actions column is always present, even when the row has none: an
+        // empty cell keeps every other column at its fixed width.
+        var tdActs = el('td', 'px-2 py-2 text-right whitespace-nowrap');
         var acts = reportActions(e);
-        if (acts) row.appendChild(acts);
+        if (acts) tdActs.appendChild(acts);
+        row.appendChild(tdActs);
         return row;
       }
 
@@ -1474,16 +1480,27 @@
           return wrap;
         }
         var shown = logShown[key] || logPer;
-        // A header, because these rows are columns (time, type, event, CoC, ref)
-        // and the Drives tab's expansion reads the same way.
-        var hd = el('div', 'flex items-center gap-3 border-b border-slate-200 dark:border-ink-700 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500');
-        hd.appendChild(el('div', 'w-32 shrink-0', 'Time'));
-        hd.appendChild(el('div', 'w-20 shrink-0', 'Type'));
-        hd.appendChild(el('div', 'min-w-0 flex-1', 'Event'));
-        hd.appendChild(el('div', 'w-36 shrink-0', 'CoC'));
-        hd.appendChild(el('div', 'w-28 shrink-0 text-right', 'Ref'));
-        wrap.appendChild(hd);
-        all.slice(0, shown).forEach(function (e) { wrap.appendChild(logRow(e)); });
+        // A real table with FIXED column widths, so Time, Type, CoC and Ref sit
+        // on the same x-position on every row. The old flex rows could not: the
+        // Event column took all the slack, and the actions column only exists on
+        // report rows, so everything to its left shifted row to row.
+        var tbl = el('table', 'w-full table-fixed border-collapse text-xs');
+        var thead = el('thead');
+        var hr = el('tr', '', '');
+        [['Time', 'w-[15%]', 'text-left'],
+         ['Type', 'w-[8%]', 'text-left'],
+         ['Event', 'w-[36%]', 'text-left'],
+         ['CoC', 'w-[15%]', 'text-left'],
+         ['Ref', 'w-[12%]', 'text-right'],
+         ['', 'w-[14%]', 'text-right']].forEach(function (c) {
+          hr.appendChild(el('th', c[1] + ' ' + c[2] + ' truncate border-b border-slate-200 dark:border-ink-700 px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', c[0]));
+        });
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+        var tbody = el('tbody');
+        all.slice(0, shown).forEach(function (e) { tbody.appendChild(logRow(e)); });
+        tbl.appendChild(tbody);
+        wrap.appendChild(tbl);
         if (all.length > shown) {
           var mbtn = el('button', 'mt-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Load more (' + (all.length - shown) + ' remaining)');
           mbtn.addEventListener('click', function () { logShown[key] = shown + logPer; render(); });
