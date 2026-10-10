@@ -157,6 +157,185 @@ bios_unlock::_verify_cleared() {
     return 0
 }
 
+# =============================================================================
+# Layer 3 — HP WMI clear
+# =============================================================================
+#
+# HP machines (2016+ through at least the 2021 Fury G8) publish NO password
+# object through firmware-attributes, so Layers 1-2 above always come up empty
+# on them. The firmware's SetBiosSetting WMI method nevertheless accepts a plain
+# three-element frame, and that is exactly what Windows uses:
+#
+#     [Setup Password] [<utf-16/>] [<utf-16/>CURRENT_PASSWORD]
+#        name           new value    current password
+#
+# Verified on hardware 2026-10-10 on an EliteBook 830 G5; see
+# research/bios-unlock/18-live-wmi-probing-results.md (the clear, confirmed by
+# reboot and by SMBIOS Type 24) and 19-shipping-plan-wmi-clear.md (this plan).
+#
+# A transport is needed because 6.18 exposes no userspace WMI invocation path,
+# so the narrow hp_biospw module carries the frame (hardcoded GUID/method id,
+# the password never logged).
+
+BIOS_WMI_GUID="${BIOS_WMI_GUID:-1F4C91EB-DC5C-460b-951D-C7CB9B4D8D5E}"
+BIOS_WMI_PW_SLOT="${BIOS_WMI_PW_SLOT:-Setup Password}"
+BIOS_WMI_MODULE="${BIOS_WMI_MODULE:-/lib/modules/$(uname -r)/extra/hp_biospw.ko}"
+BIOS_WMI_PROC="${BIOS_WMI_PROC:-/proc/hp_biospw}"
+# A setting that is refused without administrator rights while a password is
+# set, and accepted once it is gone. This is the corroboration probe.
+BIOS_WMI_PROBE_SETTING="${BIOS_WMI_PROBE_SETTING:-Ownership Tag}"
+BIOS_WMI_PROBE_GLOB="${BIOS_WMI_PROBE_GLOB:-/sys/bus/wmi/devices/${BIOS_WMI_GUID}-*}"
+
+# Does this machine offer the HP BIOS-settings WMI block at all?
+bios_unlock::_wmi_applicable() {
+    local d
+    for d in $BIOS_WMI_PROBE_GLOB; do
+        [[ -d "$d" ]] && return 0
+    done
+    return 1
+}
+
+# Make /proc/hp_biospw available. A caller override implies availability (tests).
+bios_unlock::_wmi_available() {
+    [[ -n "${BIOS_WMI_CALL_CMD:-}" ]] && return 0
+    [[ -e "$BIOS_WMI_PROC" ]] && return 0
+    [[ -f "$BIOS_WMI_MODULE" ]] || return 1
+    command -v insmod >/dev/null 2>&1 || return 1
+    insmod "$BIOS_WMI_MODULE" 2>/dev/null || return 1
+    [[ -e "$BIOS_WMI_PROC" ]]
+}
+
+# Send one frame and print the firmware's status token ("0x06"), or nothing on a
+# transport failure. Fields are NUL-separated; the optional 4th argument means
+# "this frame has a credential element", so a 3-field write is used (an empty
+# credential is still an element — encoding it as absent is what makes the
+# firmware answer 0x04).
+#
+# The credential must already carry the "<utf-16/>" encoding prefix; so must an
+# empty new value. Callers do that, not this function.
+#
+# Test seam: with BIOS_WMI_CALL_CMD set, that command is invoked with the same
+# arguments and prints the status token itself (no proc file involved).
+bios_unlock::_wmi_call() {
+    local name="$1" value="$2" cred="$3" want_cred="$4" out
+
+    if [[ -n "${BIOS_WMI_CALL_CMD:-}" ]]; then
+        if [[ -n "$want_cred" ]]; then
+            "$BIOS_WMI_CALL_CMD" "$name" "$value" "$cred" || return 1
+        else
+            "$BIOS_WMI_CALL_CMD" "$name" "$value" || return 1
+        fi
+        return 0
+    fi
+
+    if [[ -n "$want_cred" ]]; then
+        { printf '%s\000%s\000%s' "$name" "$value" "$cred" > "$BIOS_WMI_PROC"; } 2>/dev/null || return 1
+    else
+        { printf '%s\000%s' "$name" "$value" > "$BIOS_WMI_PROC"; } 2>/dev/null || return 1
+    fi
+    out="$(cat "$BIOS_WMI_PROC" 2>/dev/null)" || return 1
+    case "$out" in
+        "status 0x"*) printf '%s' "${out#status }" ;;
+        *) return 1 ;;
+    esac
+}
+
+# Status of a no-credential write to the probe setting. "0x06" while an
+# administrator password is set, "0x00" once it is gone.
+bios_unlock::_wmi_probe() {
+    local base="/sys/class/firmware-attributes/hp-bioscfg/attributes/$BIOS_WMI_PROBE_SETTING"
+    local cur=""
+    cur="$(bios::_read "$base/current_value")" || cur=""
+    bios_unlock::_wmi_call "$BIOS_WMI_PROBE_SETTING" "$cur" "" ""
+}
+
+# Attempt the clear. Returns 0 cleared, 1 attempted-but-failed (detail set),
+# 2 not applicable (caller should fall through to its generic message).
+bios_unlock::_wmi_clear() {
+    local unlock_pwd="$1" before status after repeat
+
+    bios_unlock::_wmi_applicable || return 2
+    if ! bios_unlock::_wmi_available; then
+        # Fall through (2) rather than failing outright: the sysfs path below
+        # still deserves its chance, and if it also finds nothing the generic
+        # message explains the interface state.
+        BIOS_UNLOCK_DETAIL="HP WMI: the BIOS-settings interface is present but the hp_biospw transport could not be loaded (${BIOS_WMI_MODULE})"
+        return 2
+    fi
+
+    before="$(bios_unlock::_wmi_probe)" || before=""
+    if [[ "$before" == "0x00" ]]; then
+        # Nothing is refused, so there is no administrator password to remove.
+        rmmod hp_biospw 2>/dev/null
+        BIOS_UNLOCK_RESULT="cleared"
+        BIOS_UNLOCK_DETAIL="HP WMI: no administrator password was set — a privileged setting write was already accepted (${BIOS_WMI_PROBE_SETTING})"
+        return 0
+    fi
+
+    status="$(bios_unlock::_wmi_call "$BIOS_WMI_PW_SLOT" "<utf-16/>" \
+                                      "<utf-16/>$unlock_pwd" 1)" || status=""
+
+    case "$status" in
+        0x00) ;;                                  # accepted — corroborate below
+        0x06)
+            rmmod hp_biospw 2>/dev/null
+            BIOS_UNLOCK_RESULT="failed"
+            BIOS_UNLOCK_DETAIL="HP WMI: wrong password — the firmware refused the current password for '${BIOS_WMI_PW_SLOT}' (status 0x06)"
+            return 1 ;;
+        0x05)
+            rmmod hp_biospw 2>/dev/null
+            BIOS_UNLOCK_RESULT="failed"
+            BIOS_UNLOCK_DETAIL="HP WMI: the firmware rejected the request for '${BIOS_WMI_PW_SLOT}' as an invalid value (status 0x05) — it is usually returned when no administrator password is set; confirm the password and the slot name"
+            return 1 ;;
+        0x04)
+            rmmod hp_biospw 2>/dev/null
+            BIOS_UNLOCK_RESULT="failed"
+            BIOS_UNLOCK_DETAIL="HP WMI: the firmware does not recognise the setting '${BIOS_WMI_PW_SLOT}' (status 0x04)"
+            return 1 ;;
+        "")
+            rmmod hp_biospw 2>/dev/null
+            BIOS_UNLOCK_RESULT="failed"
+            BIOS_UNLOCK_DETAIL="HP WMI: the call did not complete (no status returned by the transport)"
+            return 1 ;;
+        *)
+            rmmod hp_biospw 2>/dev/null
+            BIOS_UNLOCK_RESULT="failed"
+            BIOS_UNLOCK_DETAIL="HP WMI: the firmware answered an unexpected status ${status} for '${BIOS_WMI_PW_SLOT}'"
+            return 1 ;;
+    esac
+
+    # Corroborate. A 0x00 on the clear frame means only that the firmware
+    # processed the request — measured on hardware, a 0x00 can be returned for a
+    # write that changes nothing. So require an independent signal: the probe
+    # write that was refused a moment ago must now be accepted, or (weaker) the
+    # same clear frame sent again must stop being accepted because its
+    # credential no longer authenticates against anything.
+    # The second attempt (below) is only sent when the probe did not
+    # corroborate: each password attempt counts once as far as HP's lockout
+    # mode is concerned (research/bios-unlock/15-…), so never send one needlessly.
+    after="$(bios_unlock::_wmi_probe)" || after=""
+    if [[ "$after" == "0x00" ]]; then
+        rmmod hpbiospw 2>/dev/null
+        BIOS_UNLOCK_RESULT="cleared"
+        BIOS_UNLOCK_DETAIL="HP WMI: the firmware accepted the clear for '${BIOS_WMI_PW_SLOT}' and a privileged setting write that was refused beforehand is now accepted (confirm with 'dmidecode -t 24' after the next boot)"
+        return 0
+    fi
+
+    repeat="$(bios_unlock::_wmi_call "$BIOS_WMI_PW_SLOT" "<utf-16/>" \
+                                      "<utf-16/>$unlock_pwd" 1)" || repeat=""
+    rmmod hpbiospw 2>/dev/null
+
+    if [[ "$repeat" == "0x05" ]]; then
+        BIOS_UNLOCK_RESULT="cleared"
+        BIOS_UNLOCK_DETAIL="HP WMI: the firmware accepted the clear for '${BIOS_WMI_PW_SLOT}' and the same request is no longer accepted because its password no longer authenticates (confirm with 'dmidecode -t 24' after the next boot)"
+        return 0
+    fi
+
+    BIOS_UNLOCK_RESULT="failed"
+    BIOS_UNLOCK_DETAIL="HP WMI: the firmware accepted the clear for '${BIOS_WMI_PW_SLOT}' (status 0x00) but a privileged setting write is still refused, so the password could not be confirmed as removed — check the password and confirm with 'dmidecode -t 24' after the next boot"
+    return 1
+}
+
 # Parse a pending-command JSON response into "<id>\n<password>". Prefers the
 # JSON-safe base64 field, falls back to the legacy field. Empty on failure.
 bios_unlock::_parse_pending() {
@@ -219,6 +398,22 @@ bios_unlock::clear() {
     BIOS_UNLOCK_DETAIL="no writable BIOS password interface found"
     BIOS_UNLOCK_WRITE_ERR=""
 
+    # Layer 3 — HP WMI — runs FIRST, before the sysfs scan, when this firmware
+    # has the BIOS-settings WMI block. It is the only path that actually works
+    # there, and the sysfs password path must not be trusted on such machines:
+    # measured live on an EliteBook 830 G5 (2026-10-10), writing
+    # authentication/<slot>/current_password + new_password returned success and
+    # the verification (is_enabled) said cleared while the BIOS still demanded
+    # the password — the driver caches attribute values from probe time, so a
+    # password set out of band makes that verdict a false positive. Returns 2
+    # when this is not such a machine (or has no transport), so the sysfs scan
+    # below still runs.
+    bios_unlock::_wmi_clear "$unlock_pwd"
+    case $? in
+        0) return 0 ;;   # cleared — result and detail are set, corroborated
+        1) return 1 ;;   # attempted and failed — the detail is specific
+    esac
+
     # Layer 1 — firmware-attributes sysfs (Dell dell-wmi-sysman, Lenovo
     # think_lmi, HP hp-bioscfg, …). Password objects live under attributes/ on
     # Dell/Lenovo but under authentication/ on HP, so scan both. Prefer the
@@ -253,6 +448,10 @@ bios_unlock::clear() {
     if [[ -n "$best_base" ]]; then
         if bios_unlock::_write_clear "$best_base" "$unlock_pwd"; then
             # The writes were accepted — confirm the password actually went away.
+            # Reached only when the HP WMI transport is unavailable (Layer 3
+            # above runs first wherever it can work), so this is the best signal
+            # there is. Where the WMI layer could run, it already corroborated
+            # its own verdict against the firmware.
             if bios_unlock::_verify_cleared "$best_base"; then
                 BIOS_UNLOCK_RESULT="cleared"
                 BIOS_UNLOCK_DETAIL="sysfs: ${best_rel}"
@@ -280,6 +479,10 @@ bios_unlock::clear() {
         BIOS_UNLOCK_DETAIL="write failed (hp-wmi)"
         return 1
     fi
+
+    # (The HP WMI clear used to live here. It now runs first, at the top of this
+    # function, because the sysfs password path above cannot be trusted on the
+    # firmware that has that interface.)
 
     # Nothing writable — say why as precisely as we can: a read-only interface
     # is a different problem from the kernel publishing no interface at all.

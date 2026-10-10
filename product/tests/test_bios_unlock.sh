@@ -9,6 +9,11 @@ tmpdir="$(mktemp -d)"
 # Deterministic: never let the orphan scan touch the real /sys/devices tree.
 export BIOS_FA_ORPHAN_GLOB="$tmpdir/no-orphan/*"
 
+# Deterministic: the WMI layer must not fire just because the machine running
+# the suite happens to have the HP BIOS-settings WMI block. Cases that exercise
+# it opt back in with their own BIOS_WMI_PROBE_GLOB.
+export BIOS_WMI_PROBE_GLOB="$tmpdir/no-wmi/*"
+
 t::assert_eq "https://tscrub.com/api/bios/unlock/pending" \
     "$(TSCRUB_UPLOAD_URL='https://tscrub.com/api/reports' bios_unlock::pending_endpoint)" \
     "unlock pending endpoint: built-in reports URL"
@@ -199,6 +204,89 @@ t::assert_eq $'11\na"b\\' "$(bios_unlock::_parse_pending '{"id":11,"password_b64
 
 # --- parse: no command -> empty ---------------------------------------------
 t::check "parse: no id -> empty" '[[ -z "$(bios_unlock::_parse_pending "{\"pending\":false}")" ]]'
+
+# --- WMI layer: HP machines expose no password object at all ----------------
+# HP publishes no firmware-attributes password object on any generation we have
+# tested, so Layers 1-2 have nothing to write. The firmware's SetBiosSetting WMI
+# method still accepts the three-element frame, and that is what clears the
+# password (verified on hardware — research/bios-unlock/18-…). These cases drive
+# the state machine with a fake transport; the frame encoder itself is covered
+# byte-exactly by board/shredos/modules/hp_biospw.
+wmi_dir="$tmpdir/wmi"
+mkdir -p "$wmi_dir/devices/1F4C91EB-DC5C-460b-951D-C7CB9B4D8D5E-10"
+cat > "$wmi_dir/call.sh" <<'EOS'
+#!/bin/sh
+# argv: name value [credential]. The status for each successive call comes from
+# a sequence file, so a case can script the whole exchange.
+seq="$WMI_FAKE_SEQ"
+[ -f "$seq" ] || exit 1
+line="$(head -n 1 "$seq")"
+[ -n "$line" ] || exit 1
+tail -n +2 "$seq" > "$seq.next" && mv "$seq.next" "$seq"
+printf '%s' "$line"
+EOS
+chmod +x "$wmi_dir/call.sh"
+export BIOS_WMI_PROBE_GLOB="$wmi_dir/devices/1F4C91EB-*"
+export BIOS_WMI_CALL_CMD="$wmi_dir/call.sh"
+export WMI_FAKE_SEQ="$wmi_dir/seq"
+BIOS_FA_ROOT="$tmpdir/wmi-fa"
+mkdir -p "$BIOS_FA_ROOT"
+
+wmi_case() {   # statuses, in call order: before-probe, clear[, after-probe[, repeat]]
+    printf '%s\n' "$@" > "$WMI_FAKE_SEQ"
+    BIOS_UNLOCK_RESULT=""
+    BIOS_UNLOCK_DETAIL=""
+    bios_unlock::clear "hpinvent"
+}
+
+# Passwords set, clear accepted, and the probe that was refused is now accepted.
+wmi_case 0x06 0x00 0x00
+t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "wmi: corroborated clear -> cleared"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "now accepted" "wmi: detail cites the probe"
+
+# Clear accepted, probe still refused, but a second identical request is no
+# longer accepted because its password authenticates against nothing.
+wmi_case 0x06 0x00 0x06 0x05
+t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "wmi: repeat 0x05 -> cleared"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "no longer authenticates" "wmi: detail cites the repeat"
+
+# Clear accepted but nothing corroborates it — must NOT be reported as cleared.
+wmi_case 0x06 0x00 0x06 0x00
+t::assert_eq "failed" "$BIOS_UNLOCK_RESULT" "wmi: nothing corroborates -> failed"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "could not be confirmed" "wmi: detail stays honest"
+
+# The firmware refused the credential.
+wmi_case 0x06 0x06
+t::assert_eq "failed" "$BIOS_UNLOCK_RESULT" "wmi: 0x06 -> failed"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "wrong password" "wmi: 0x06 says wrong password"
+
+# Nothing is refused to begin with, so there is no password to remove.
+wmi_case 0x00
+t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "wmi: already unlocked -> cleared"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "no administrator password was set" \
+    "wmi: already-unlocked detail"
+
+# An unknown setting name, an invalid value, and a transport that never answers.
+wmi_case 0x06 0x04
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "does not recognise" "wmi: 0x04 is an unknown setting"
+wmi_case 0x06 0x05
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "invalid value" "wmi: 0x05 is an invalid value"
+wmi_case 0x06
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "did not complete" "wmi: no status -> transport failure"
+
+# A machine without the interface falls through to the generic message.
+BIOS_WMI_PROBE_GLOB="$tmpdir/wmi/devices/nope-*"
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hpinvent"
+t::assert_eq "unsupported" "$BIOS_UNLOCK_RESULT" "wmi: not applicable -> unsupported"
+
+# The frame's field separator must be a real NUL: 14 + NUL + 9 + NUL + 17 = 42.
+t::assert_eq "42" \
+    "$(printf '%s\000%s\000%s' "Setup Password" '<utf-16/>' '<utf-16/>hpinvent' | wc -c | tr -d '[:space:]')" \
+    "wmi: fields are NUL-separated"
+
+unset BIOS_WMI_CALL_CMD
 
 rm -rf "$tmpdir"
 t::summary

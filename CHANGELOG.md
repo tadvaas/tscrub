@@ -46,6 +46,41 @@ and this project uses date-based versioning (`v1.x`).
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
 
+## [v1.11.46] - 2026-10-10
+
+### Added
+
+- **The appliance can now clear an HP BIOS Setup Password.** HP was the one
+  vendor we could not unlock from Linux: the sysfs password interface accepts the
+  writes and changes nothing, because `hp-bioscfg` never sends the password to the
+  firmware (`new_password` is written and never consumed). The firmware *does*
+  accept the plain request that Windows uses, so the appliance now builds it
+  directly and sends it through a new, deliberately narrow kernel module
+  (`hp_biospw`: hardcoded GUID and method id, one root-only interface, validated
+  element sizes, the password never logged). Proven on hardware — an EliteBook
+  830 G5 whose Setup Password was **cleared from Linux and confirmed gone after a
+  reboot**, and independently by the firmware's own SMBIOS Type 24 reporting
+  `Administrator Password Status: Disabled`. The request is a three-element frame,
+  `[Setup Password][<utf-16/>][<utf-16/>current password]`, and success is only
+  reported when the firmware corroborates it. The module is built into the image
+  by `build_tscrub.sh` via `board/shredos/modules/build-into-overlay.sh` — no
+  kernel patch, no kernel rebuild. Plan and evidence:
+  `research/bios-unlock/19-shipping-plan-wmi-clear.md` and
+  `research/bios-unlock/18-live-wmi-probing-results.md`.
+
+### Fixed
+
+- **A BIOS-unlock could be reported as cleared while the password was still
+  set.** On HP firmware the sysfs password attributes are cached from probe time,
+  so writing `authentication/<slot>/current_password` + `new_password` returned
+  success and read back as cleared while the BIOS still demanded the password —
+  measured live on an EliteBook 830 G5 while implementing the above, where the
+  old code path reported `cleared` and a privileged firmware write was still
+  refused. The WMI clear now runs **first** wherever that interface exists, and
+  it corroborates its own work against the firmware (a privileged write that was
+  refused beforehand must afterwards be accepted), so the sysfs verdict is only
+  relied on when there is no better signal.
+
 ## [v1.11.45] - 2026-10-10
 
 ### Fixed

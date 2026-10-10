@@ -115,9 +115,20 @@ ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
 # 3. Rebuild under tmux (survives SSH drop); ISO + bzImage land in output/images/
 ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
   rm -f build_tscrub.log && \
-  tmux new-session -d -s tscrub "make 2>&1 | tee -a build_tscrub.log; echo TSCRUB_BUILD_DONE >> build_tscrub.log"'
+  tmux new-session -d -s tscrub "board/shredos/modules/build-into-overlay.sh && make 2>&1 | tee -a build_tscrub.log; echo TSCRUB_BUILD_DONE >> build_tscrub.log"'
 # poll: ssh oxwet@192.168.0.6 'grep -q TSCRUB_BUILD_DONE ~/shredos.x86_64/build_tscrub.log'
 ```
+
+The image also carries tScrub's **out-of-tree kernel modules** from
+`board/shredos/modules/` (currently `hp_biospw` — the HP BIOS password-clear
+transport; it is why an HP setup password can be cleared from Linux at all).
+`build_tscrub.sh` runs `board/shredos/modules/build-into-overlay.sh` for you; if
+you drive `make` by hand, run that script **first** or the modules will not be in
+the image. It rebuilds them against `output/build/linux-6.18` and installs the
+`.ko` into both the rootfs overlay and the live target tree, so it must be re-run
+whenever the kernel is rebuilt (vermagic and symbol versions are checked at load
+time). Verify inside a booted image with
+`modinfo /lib/modules/$(uname -r)/extra/hp_biospw.ko`.
 
 The build produces two artifacts in `~/shredos.x86_64/output/images/`:
 - `tscrub-v<VER>_…_<hash>.iso` — the bootable appliance (copy to `~/webs/tscrub/downloads/`, repoint `tscrub-appliance.iso`, update the manifest + download page).
