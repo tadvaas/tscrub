@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.48"
+SCRIPT_VERSION="v1.11.49"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -112,6 +112,8 @@ SYS_MAC_LIST=""
 SYS_STORAGE_CTRLS=""
 SYS_BATTERY=""
 SYS_SECUREBOOT=""
+SYS_EFIVARS=""
+SYS_EFIVARS_B64=""
 SYS_DIMM_LIST=""
 
 # Operator / job metadata (configurable via CLI, tscrub.conf, or kernel cmdline).
@@ -289,6 +291,104 @@ system::msdm_key() {
     [[ -r "$_msdm" ]] || return 1
     _key="$(dd if="$_msdm" 2>/dev/null | grep -aoE '[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}' | head -n1)"
     printf '%s' "$_key"
+}
+
+# --- UEFI variables (efivarfs) ------------------------------------------------
+# The appliance does not mount efivarfs, so /sys/firmware/efi/efivars is EMPTY
+# even on a UEFI machine (measured on the bench fleet: 0 entries unmounted vs
+# 81-285 mounted). That is why Secure Boot has always reported N/A here — the
+# other probe, mokutil, is not in the image either.
+#
+# Mounted READ-ONLY deliberately: efivarfs is writable by default and a stray
+# write edits the firmware's NVRAM. tScrub only ever reads, so read-only is the
+# correct posture, and a write attempt returns EROFS (verified on hardware).
+#
+# Testability: EFIVARS_BASE may point at a fake tree (tests/test_efivars.sh).
+EFIVARS_BASE="${EFIVARS_BASE:-/sys/firmware/efi/efivars}"
+
+# sha256 of stdin, first 16 hex chars. sha256sum (appliance) -> shasum (macOS
+# dev) -> openssl, so the helper is testable off-appliance.
+efivars::_sha16() {
+    local _h=""
+    if command -v sha256sum >/dev/null 2>&1; then
+        _h="$(sha256sum 2>/dev/null | cut -c1-16)"
+    elif command -v shasum >/dev/null 2>&1; then
+        _h="$(shasum -a 256 2>/dev/null | cut -c1-16)"
+    elif command -v openssl >/dev/null 2>&1; then
+        _h="$(openssl dgst -sha256 2>/dev/null | awk '{print $NF}' | cut -c1-16)"
+    fi
+    printf '%s' "$_h"
+}
+
+# Idempotent, best-effort. Returns 0 when the directory is usable afterwards.
+efivars::mount() {
+    [[ -d "$EFIVARS_BASE" ]] || return 1
+    # Already populated (init mounted it, or an earlier call did)?
+    if [[ -n "$(ls -A "$EFIVARS_BASE" 2>/dev/null)" ]]; then
+        return 0
+    fi
+    mount -t efivarfs -o ro none "$EFIVARS_BASE" 2>/dev/null || return 1
+    [[ -n "$(ls -A "$EFIVARS_BASE" 2>/dev/null)" ]]
+}
+
+# The first 4 bytes of an efivars file are the variable's ATTRIBUTES, not data,
+# so the value starts at offset 4. Reading that byte explicitly matters: matching
+# on "does the od dump contain a 1" (the previous Secure Boot test) would read an
+# attribute bit as the value.
+efivars::byte() {
+    local _f="$1" _v=""
+    [[ -r "$_f" ]] || return 1
+    _v="$(od -An -tu1 -j4 -N1 "$_f" 2>/dev/null | tr -d '[:space:]')"
+    [[ "$_v" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "$_v"
+}
+
+# <name>:<datasize>:<sha256-16> for the first variable matching <name>-*, data
+# only (attributes excluded, so two samples compare byte-for-byte).
+efivars::fingerprint() {
+    local _name="$1" _f _sz _sha
+    for _f in "$EFIVARS_BASE/$_name"-*; do
+        [[ -r "$_f" ]] || continue
+        _sz="$(wc -c < "$_f" 2>/dev/null | tr -d '[:space:]')"
+        [[ "$_sz" =~ ^[0-9]+$ ]] || return 1
+        _sha="$(tail -c +5 "$_f" 2>/dev/null | efivars::_sha16)"
+        [[ -n "$_sha" ]] || return 1
+        printf '%s:%s:%s' "$_name" "$((_sz - 4))" "$_sha"
+        return 0
+    done
+    return 1
+}
+
+# base64 of the variable's data (attributes stripped), on one line, so the
+# blob can travel in the diagnostics payload for offline comparison.
+efivars::b64() {
+    local _name="$1" _f
+    for _f in "$EFIVARS_BASE/$_name"-*; do
+        [[ -r "$_f" ]] || continue
+        tail -c +5 "$_f" 2>/dev/null | base64 | tr -d '\n'
+        return 0
+    done
+    return 1
+}
+
+# Secure Boot state, from the firmware's own variable (mokutil first, where it
+# exists — it does not on the appliance). "N/A" when neither source answers.
+system::secure_boot() {
+    local _sb="" _var
+    if command -v mokutil >/dev/null 2>&1; then
+        _sb="$(mokutil --sb-state 2>/dev/null | awk -F': *' '/SecureBoot/{print $2; exit}')"
+    fi
+    if [[ -z "$_sb" ]]; then
+        for _var in "$EFIVARS_BASE"/SecureBoot-*; do
+            [[ -e "$_var" ]] || continue
+            case "$(efivars::byte "$_var" || true)" in
+                1) _sb="Enabled" ;;
+                0) _sb="Disabled" ;;
+            esac
+            break
+        done
+    fi
+    printf '%s' "${_sb:-N/A}"
 }
 
 system::gather_info() {
@@ -525,23 +625,29 @@ system::gather_info() {
     # Internal display panel (eDP) — manufacturer / resolution / size / year.
     display::capture
 
+    # UEFI variables: mount efivarfs READ-ONLY first. Secure Boot and the
+    # firmware-state evidence below both read from it, and without the mount the
+    # directory is empty even on a UEFI machine (see efivars::mount).
+    efivars::mount || true
+
     # Secure Boot state (UEFI). Best-effort; "N/A" when unavailable.
-    local _sb _sbvar _sbraw
-    _sb=""
-    if command -v mokutil >/dev/null 2>&1; then
-        _sb="$(mokutil --sb-state 2>/dev/null | awk -F': *' '/SecureBoot/{print $2; exit}')"
-    fi
-    if [[ -z "$_sb" ]]; then
-        _sbvar=(/sys/firmware/efi/efivars/SecureBoot-*)
-        if [[ -e "${_sbvar[0]}" ]]; then
-            _sbraw="$(od -An -tu1 "${_sbvar[0]}" 2>/dev/null | tr -s ' ')"
-            case "$_sbraw" in
-                *" 1") _sb="Enabled" ;;
-                *" 0") _sb="Disabled" ;;
-            esac
-        fi
-    fi
-    SYS_SECUREBOOT="${_sb:-N/A}"
+    SYS_SECUREBOOT="$(system::secure_boot)"
+
+    # Firmware-state evidence for the BIOS-password investigation: the fleet has
+    # 118 machines whose password state is KNOWN from SMBIOS Type 24 and 4 that
+    # are known-clear, so recording these blobs lets a password flag be found by
+    # comparing locked against unlocked samples, instead of setting a password
+    # on a unit. Diagnostics only — nothing in the UI consumes it yet.
+    # See research/bios-unlock/20-insyde-setup-password-state.md.
+    local _ev_name _ev_fp _ev_out _ev_b64=""
+    SYS_EFIVARS="$(ls -A "$EFIVARS_BASE" 2>/dev/null | wc -l | tr -d '[:space:]') vars"
+    for _ev_name in Setup Custom HPS HPBV; do
+        _ev_fp="$(efivars::fingerprint "$_ev_name" || true)"
+        [[ -n "$_ev_fp" ]] && SYS_EFIVARS="$SYS_EFIVARS; $_ev_fp"
+        _ev_out="$(efivars::b64 "$_ev_name" || true)"
+        [[ -n "$_ev_out" ]] && _ev_b64="${_ev_b64}${_ev_b64:+;}$_ev_name=$_ev_out"
+    done
+    SYS_EFIVARS_B64="$_ev_b64"
 
     # Per-DIMM inventory (size/mfr/type/form-factor/speed/part#/serial).
     local _dimm=""

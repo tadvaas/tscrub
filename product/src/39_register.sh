@@ -71,6 +71,13 @@ register::json_body() {
         "$(report::_json_field "${SYS_BATTERY:-}")" \
         "$(report::_json_field "${SYS_SECUREBOOT:-}")" \
         "$(report::_json_field "${SYS_DIMM_LIST:-}")"
+    # UEFI-variable evidence: a one-line fingerprint summary plus the raw data of
+    # the firmware state variables. Diagnostics only — no UI consumer yet; it
+    # exists so a BIOS-password flag can be located by comparing locked against
+    # unlocked machines in the fleet (research/bios-unlock/20-…).
+    printf ',"efivars":"%s","efivars_b64":"%s"' \
+        "$(report::_json_field "${SYS_EFIVARS:-}")" \
+        "$(report::_json_field "${SYS_EFIVARS_B64:-}")"
     printf ',"usb_devices":"%s","pci_devices":"%s","smbios":"%s","interfaces":"%s"' \
         "$(report::_json_field "${SYS_USB_LIST:-}")" \
         "$(report::_json_field "${SYS_PCI_LIST:-}")" \

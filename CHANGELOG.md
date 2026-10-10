@@ -46,6 +46,39 @@ and this project uses date-based versioning (`v1.x`).
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
 
+## [v1.11.49] - 2026-10-10
+
+### Added
+
+- **Secure Boot is now read from the firmware's own UEFI variable.** The
+  appliance never mounted `efivarfs`, so `/sys/firmware/efi/efivars` was empty
+  even on a UEFI machine — 0 entries unmounted against 81–285 mounted across the
+  bench fleet — and Secure Boot reported `N/A` on every machine, because the
+  other probe (`mokutil`) is not in the image. `system::gather_info` now mounts
+  efivarfs **read-only** and reads `SecureBoot-*`; read-only is deliberate, since
+  efivarfs is writable by default and a stray write there edits the firmware's
+  NVRAM (a write attempt returns `EROFS` — verified on hardware). Verified live
+  on an HP ENVY m6: `Enabled` where it previously reported `N/A`.
+- **UEFI-variable evidence in the diagnostics payload.** `efivars` carries a
+  one-line fingerprint summary and `efivars_b64` the raw data of the firmware
+  state variables (`Setup`, `Custom`, `HPS`, `HPBV`), attributes excluded so two
+  samples compare byte-for-byte. Diagnostics only — no UI consumer yet; the
+  point is that 118 machines in the fleet have a BIOS-password state already
+  known from SMBIOS Type 24 and 4 are known-clear, so a password flag can be
+  located by comparing locked against unlocked samples instead of by setting a
+  password on a unit. Background:
+  `research/bios-unlock/20-insyde-setup-password-state.md`.
+
+### Changed
+
+- The Secure Boot read moved out of `system::gather_info` into a testable
+  `system::secure_boot()`, and the value is now read at its correct offset —
+  byte 4, after the variable's 4 attribute bytes. The previous check asked
+  "does the `od` dump contain a 1", which could read an attribute bit as the
+  value. New `tests/test_efivars.sh` (14 assertions) covers the mount's
+  idempotency and failure modes, the offset, the fingerprint's size accounting
+  and the base64 round-trip, all against a fake efivars tree.
+
 ## [v1.11.48] - 2026-10-10
 
 ### Added
