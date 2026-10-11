@@ -1,4 +1,8 @@
 // Dashboard sub-navigation — rendered into #dashboard-nav on dashboard pages.
+// The right-hand group is exposed so the Admin link (added once /api/me confirms
+// the admin flag) can be appended without a second full render.
+const NAV_RIGHT = { el: null };
+
 ;(function () {
   const root = document.getElementById('dashboard-nav');
   if (!root) return;
@@ -19,6 +23,7 @@
   const groups = { left: document.createElement('div'), right: document.createElement('div') };
   groups.left.className = 'flex flex-wrap items-center gap-1';
   groups.right.className = 'flex flex-wrap items-center gap-1';
+  NAV_RIGHT.el = groups.right;
 
   links.forEach((l) => {
     const a = document.createElement('a');
@@ -35,39 +40,74 @@
   root.appendChild(wrap);
 })();
 
-// Subtle user detail inline right of the "Dashboard" heading: organisation
-// name when in an org, else the account email. Rendered instantly from a
-// per-session cache and refreshed from /api/me (which now carries `org`), so
-// subsequent dashboard pages in the same tab have no pop-in.
+// Operator identity inline right of the "Dashboard" heading: the organisation
+// name (when in an org) AND the account email, plus a distinct Admin link when
+// the account carries the admin flag. Rendered instantly from a per-session
+// cache, then refreshed from /api/me.
 ;(function () {
   const h1 = Array.from(document.querySelectorAll('h1')).find((el) => el.textContent.trim() === 'Dashboard');
-  if (!h1) return;
+  let detail = null;
+  if (h1) {
+    h1.classList.add('flex', 'items-baseline', 'justify-between', 'gap-4');
+    detail = document.createElement('span');
+    detail.className = 'text-sm font-normal text-slate-500 dark:text-slate-400 truncate';
+    h1.appendChild(detail);
+  }
 
-  h1.classList.add('flex', 'items-baseline', 'justify-between', 'gap-4');
-  const detail = document.createElement('span');
-  detail.className = 'text-sm font-normal text-slate-500 dark:text-slate-400 truncate';
-  h1.appendChild(detail);
-
-  const paint = (text, title) => {
-    if (!text) return;
-    detail.textContent = text;
-    detail.title = title || text;
+  const paint = (orgName, email) => {
+    if (!detail) return;
+    detail.textContent = '';
+    if (orgName) {
+      const o = document.createElement('span');
+      o.className = 'font-semibold text-slate-700 dark:text-slate-300';
+      o.textContent = orgName;
+      detail.appendChild(o);
+    }
+    if (orgName && email) {
+      const sep = document.createElement('span');
+      sep.className = 'mx-1.5 text-slate-300 dark:text-slate-600';
+      sep.textContent = '·';
+      detail.appendChild(sep);
+    }
+    if (email) {
+      const e = document.createElement('span');
+      e.textContent = email;
+      detail.appendChild(e);
+    }
+    detail.title = [orgName, email].filter(Boolean).join(' · ');
   };
-  const cache = (text, title) => {
-    try { sessionStorage.setItem('tscrub_header', JSON.stringify({ text, title, ts: Date.now() })); } catch (e) {}
+  const cache = (orgName, email) => {
+    try { sessionStorage.setItem('tscrub_header', JSON.stringify({ orgName, email, ts: Date.now() })); } catch (e) {}
   };
 
-  // Instant first paint from the session cache.
+  // Instant first paint from the session cache (tolerates the older {text} shape).
   try {
     const c = JSON.parse(sessionStorage.getItem('tscrub_header') || 'null');
-    if (c && c.text && Date.now() - (c.ts || 0) < 24 * 3600 * 1000) paint(c.text, c.title);
+    if (c && Date.now() - (c.ts || 0) < 24 * 3600 * 1000) {
+      if (c.orgName || c.email) paint(c.orgName || '', c.email || '');
+      else if (c.text) paint(c.text, '');
+    }
   } catch (e) {}
+
+  const showAdmin = () => {
+    const slot = NAV_RIGHT.el;
+    if (!slot || slot.querySelector('[data-admin-link]')) return;
+    const a = document.createElement('a');
+    a.href = '/admin';
+    a.setAttribute('data-admin-link', '1');
+    a.textContent = 'Admin';
+    a.title = 'Administrator panel';
+    a.className = 'rounded-lg bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60';
+    slot.appendChild(a);
+  };
 
   fetch('/api/me').then((r) => r.json()).catch(() => ({}))
     .then((d) => {
       const u = d && d.user;
       if (!u) return;
-      if (d.org && d.org.name) { paint(d.org.name, 'Organisation: ' + d.org.name); cache(d.org.name, 'Organisation: ' + d.org.name); }
-      else if (u.email) { paint(u.email, u.email); cache(u.email, u.email); }
+      const orgName = d.org && d.org.name ? d.org.name : '';
+      paint(orgName, u.email || '');
+      cache(orgName, u.email || '');
+      if (u.role === 'admin') showAdmin();
     });
 })();

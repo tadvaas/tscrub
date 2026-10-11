@@ -35,43 +35,69 @@
     </div>
   </nav>
 
-  <section class="mx-auto w-full max-w-6xl px-4 py-16">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Admin</h1>
-    <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Manage users, certificates and licences.</p>
+  <section class="mx-auto w-full max-w-6xl px-4 py-10">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Admin</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Operate users, certificates, licences and audits across every account.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="admin-who" class="text-xs font-semibold text-slate-500 dark:text-slate-400"></span>
+        <a href="/dashboard" class="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">← Dashboard</a>
+      </div>
+    </div>
 
     <div id="stats" class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5"></div>
 
-    <div class="mt-8 grid gap-8 lg:grid-cols-2">
+    <div id="admin-tabs" role="tablist" class="mt-8 flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-1 shadow-sm"></div>
+
+    <div data-panel="users" class="mt-6 grid gap-6 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
         <h2 class="text-lg font-bold text-ink-900 dark:text-white">Users</h2>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <input id="user-q" type="search" autocomplete="off" placeholder="Search email, name or ID…" class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
+          <select id="user-role" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2 py-2 text-sm text-slate-800 dark:text-slate-200">
+            <option value="">All roles</option>
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+          <select id="user-status" class="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2 py-2 text-sm text-slate-800 dark:text-slate-200">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
         <div id="user-list" class="mt-3"></div>
         <div id="user-pager" class="mt-3"></div>
       </div>
-      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
+      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
         <h2 class="text-lg font-bold text-ink-900 dark:text-white">User details</h2>
         <div id="user-detail" class="mt-3 text-sm text-slate-500 dark:text-slate-400">Select a user to see their certificates, licences and sessions.</div>
       </div>
     </div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
+    <div data-panel="certs" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Certificates</h2>
       <div id="cert-list" class="mt-3"></div>
       <div id="cert-pager" class="mt-3"></div>
     </div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
+    <div data-panel="licences" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Licences</h2>
       <div id="licence-list" class="mt-3"></div>
       <div id="licence-pager" class="mt-3"></div>
     </div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
-      <h2 class="text-lg font-bold text-ink-900 dark:text-white">Audit log</h2>
+    <div data-panel="audit" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-bold text-ink-900 dark:text-white">Audit log</h2>
+        <input id="audit-q" type="search" autocomplete="off" placeholder="Search action, target, admin or IP…" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500 sm:w-72" />
+      </div>
       <div id="audit-list" class="mt-3"></div>
       <div id="audit-pager" class="mt-3"></div>
     </div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
+    <div data-panel="mdm" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">MDM checks (Autopilot)</h2>
       <div id="mdm-list" class="mt-3"></div>
       <div id="mdm-pager" class="mt-3"></div>
@@ -102,6 +128,9 @@
         if (text != null) n.textContent = text;
         return n;
       }
+      function pill(cls, text) {
+        return el('span', 'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls, text);
+      }
       async function getCsrf() {
         var r = await fetch('/api/csrf');
         var d = await r.json();
@@ -117,16 +146,80 @@
         return r.json().then(function (d) { return { ok: r.ok, data: d }; });
       }
 
+      // ---- Section tabs (lazy: each panel loads its data on first view) ----
+      var PANELS = [
+        { id: 'users',    label: 'Users',        load: function (p) { loadUsers(p); } },
+        { id: 'certs',    label: 'Certificates', load: function (p) { loadCerts(p); } },
+        { id: 'licences', label: 'Licences',     load: function (p) { loadLicences(p); } },
+        { id: 'audit',    label: 'Audit log',    load: function (p) { loadAudit(p); } },
+        { id: 'mdm',      label: 'MDM checks',   load: function (p) { loadMdmLog(p); } }
+      ];
+      var panelLoaded = {};
+
+      function activate(id) {
+        var known = PANELS.some(function (p) { return p.id === id; });
+        var active = known ? id : 'users';
+        PANELS.forEach(function (p) {
+          var panel = document.querySelector('[data-panel="' + p.id + '"]');
+          if (panel) panel.hidden = (p.id !== active);
+          var tab = document.querySelector('[data-tab="' + p.id + '"]');
+          if (tab) {
+            var on = p.id === active;
+            tab.className = 'rounded-lg px-3.5 py-2 text-sm font-semibold ' + (on
+              ? 'bg-brand-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800');
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+          }
+        });
+        if (!panelLoaded[active]) {
+          panelLoaded[active] = true;
+          PANELS.find(function (p) { return p.id === active; }).load();
+        }
+        if ((location.hash || '').slice(1) !== active) history.replaceState(null, '', '#' + active);
+      }
+
+      function buildTabs() {
+        var bar = document.getElementById('admin-tabs');
+        if (!bar) return;
+        bar.innerHTML = '';
+        PANELS.forEach(function (p) {
+          var b = el('button', 'rounded-lg px-3.5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800', p.label);
+          b.type = 'button';
+          b.setAttribute('role', 'tab');
+          b.setAttribute('data-tab', p.id);
+          b.addEventListener('click', function () { activate(p.id); });
+          bar.appendChild(b);
+        });
+        activate((location.hash || '').slice(1));
+      }
+
+      function wireFilters() {
+        var q = document.getElementById('user-q');
+        var role = document.getElementById('user-role');
+        var status = document.getElementById('user-status');
+        var timer = null;
+        var debounceUsers = function () { if (timer) clearTimeout(timer); timer = setTimeout(function () { loadUsers(1); }, 220); };
+        if (q) q.addEventListener('input', debounceUsers);
+        if (role) role.addEventListener('change', function () { loadUsers(1); });
+        if (status) status.addEventListener('change', function () { loadUsers(1); });
+        var aq = document.getElementById('audit-q');
+        if (aq) {
+          var at = null;
+          aq.addEventListener('input', function () { if (at) clearTimeout(at); at = setTimeout(function () { if (panelLoaded.audit) loadAudit(1); }, 220); });
+        }
+      }
+
+      window.addEventListener('hashchange', function () { activate((location.hash || '').slice(1)); });
+
       // Guard: must be admin.
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/admin'; return; }
         if (d.user.role !== 'admin') { window.location.href = '/dashboard'; return; }
+        var who = document.getElementById('admin-who');
+        if (who) who.textContent = d.user.email || '';
         loadStats();
-        loadUsers();
-        loadCerts();
-        loadLicences();
-        loadAudit();
-        loadMdmLog();
+        buildTabs();
+        wireFilters();
       });
 
       function renderPager(boxId, d, goTo) {
@@ -166,22 +259,42 @@
         });
       }
 
+      function userPills(u) {
+        var wrap = el('span', 'flex shrink-0 items-center gap-1.5');
+        wrap.appendChild(pill(u.role === 'admin'
+          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+          : 'bg-slate-100 text-slate-600 dark:bg-ink-700 dark:text-slate-300', u.role));
+        wrap.appendChild(pill(u.status === 'active'
+          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+          : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', u.status));
+        return wrap;
+      }
+
       function loadUsers(page) {
         page = page || 1;
         var list = document.getElementById('user-list');
         list.classList.add('opacity-50');
-        fetch('/api/admin/users?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
+        var qEl = document.getElementById('user-q');
+        var roleEl = document.getElementById('user-role');
+        var statusEl = document.getElementById('user-status');
+        var params = new URLSearchParams({ page: String(page) });
+        if (qEl && qEl.value.trim()) params.set('q', qEl.value.trim());
+        if (roleEl && roleEl.value) params.set('role', roleEl.value);
+        if (statusEl && statusEl.value) params.set('status', statusEl.value);
+        fetch('/api/admin/users?' + params.toString()).then(function (r) { return r.json(); }).then(function (d) {
           list.classList.remove('opacity-50');
           list.innerHTML = '';
+          if (!(d.users || []).length) {
+            list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No users match.'));
+          }
           (d.users || []).forEach(function (u) {
             var row = el('button', 'flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-ink-800');
-            var left = el('span');
-            left.appendChild(el('span', 'block text-sm font-semibold text-ink-900 dark:text-white', u.name || u.email));
-            left.appendChild(el('span', 'block text-xs text-slate-500 dark:text-slate-400', u.email + (u.account_type === 'company' && u.company_name ? ' · ' + u.company_name : '')));
+            var left = el('span', 'min-w-0');
+            left.appendChild(el('span', 'block truncate text-sm font-semibold text-ink-900 dark:text-white', u.name || u.email));
+            left.appendChild(el('span', 'block truncate text-xs text-slate-500 dark:text-slate-400', u.email + (u.account_type === 'company' && u.company_name ? ' · ' + u.company_name : '')));
+            left.appendChild(el('span', 'block text-[11px] text-slate-400 dark:text-slate-500', (u.licences || 0) + ' licences · ' + (u.credits || 0) + ' credits'));
             row.appendChild(left);
-            var badge = u.status === 'active' ? (u.role === 'admin' ? 'ADMIN' : 'ACTIVE') : 'SUSPENDED';
-            badge += ' · ' + (u.licences || 0) + ' lic · ' + (u.credits || 0) + ' cr';
-            row.appendChild(el('span', 'text-xs font-semibold ' + (u.status === 'active' ? 'text-brand-700 dark:text-brand-400' : 'text-red-600 dark:text-red-400'), badge));
+            row.appendChild(userPills(u));
             row.addEventListener('click', function () { loadUserDetail(u.id); });
             list.appendChild(row);
           });
@@ -204,14 +317,17 @@
           var actions = el('div', 'flex flex-wrap gap-2');
           var roleBtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', u.role === 'admin' ? 'Demote to user' : 'Make admin');
           roleBtn.addEventListener('click', function () {
+            if (u.role === 'admin' && !confirm('Demote ' + u.email + ' to a regular user?')) return;
             apiPost('/api/admin/users/' + u.id + '/role', { role: u.role === 'admin' ? 'user' : 'admin' }).then(function () { loadUserDetail(u.id); loadUsers(); });
           });
           var statusBtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', u.status === 'active' ? 'Suspend' : 'Activate');
           statusBtn.addEventListener('click', function () {
+            if (u.status === 'active' && !confirm('Suspend ' + u.email + '? This signs them out everywhere.')) return;
             apiPost('/api/admin/users/' + u.id + '/status', { status: u.status === 'active' ? 'suspended' : 'active' }).then(function () { loadUserDetail(u.id); loadUsers(); });
           });
           var revokeBtn = el('button', 'rounded-lg border border-red-300 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50', 'Sign out everywhere');
           revokeBtn.addEventListener('click', function () {
+            if (!confirm('Sign ' + u.email + ' out of all sessions?')) return;
             apiPost('/api/admin/users/' + u.id + '/sessions/revoke').then(function () { loadUserDetail(u.id); });
           });
           actions.appendChild(roleBtn);
@@ -361,7 +477,9 @@
         page = page || 1;
         var list = document.getElementById('audit-list');
         list.classList.add('opacity-50');
-        fetch('/api/admin/audit?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
+        var aq = document.getElementById('audit-q');
+        var aqVal = (aq && aq.value.trim()) ? '&q=' + encodeURIComponent(aq.value.trim()) : '';
+        fetch('/api/admin/audit?page=' + page + aqVal).then(function (r) { return r.json(); }).then(function (d) {
           list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.audit || []).length) { list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No admin actions recorded yet.')); return; }

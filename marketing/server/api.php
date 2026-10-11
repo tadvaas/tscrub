@@ -2336,17 +2336,32 @@ if ($method === 'GET' && $route === '/admin/stats') {
     json_out(['ok' => true, 'stats' => $stats]);
 }
 
-// GET /api/admin/users
+// GET /api/admin/users — supports ?q= (email/name/ID), ?role= and ?status=.
 if ($method === 'GET' && $route === '/admin/users') {
     auth_require_admin();
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = 25;
     $offset = ($page - 1) * $per;
-    $total = (int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
-    $stmt = db()->prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?');
-    $stmt->bindValue(1, $per, PDO::PARAM_INT);
-    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
-    $stmt->execute();
+    $q = trim((string)($_GET['q'] ?? ''));
+    $role = (string)($_GET['role'] ?? '');
+    $status = (string)($_GET['status'] ?? '');
+    $where = [];
+    $args = [];
+    if ($q !== '') {
+        $where[] = '(email LIKE ? OR name LIKE ? OR id = ?)';
+        $args[] = '%' . $q . '%';
+        $args[] = '%' . $q . '%';
+        $args[] = ctype_digit($q) ? (int)$q : -1;
+    }
+    if (in_array($role, ['user', 'admin'], true)) { $where[] = 'role = ?'; $args[] = $role; }
+    if (in_array($status, ['active', 'suspended'], true)) { $where[] = 'status = ?'; $args[] = $status; }
+    $w = $where !== [] ? (' WHERE ' . implode(' AND ', $where)) : '';
+    $cnt = db()->prepare("SELECT COUNT(*) FROM users$w");
+    $cnt->execute($args);
+    $total = (int)$cnt->fetchColumn();
+    // $per/$offset are validated ints — safe to interpolate (no bind-order juggling).
+    $stmt = db()->prepare("SELECT * FROM users$w ORDER BY created_at DESC LIMIT $per OFFSET $offset");
+    $stmt->execute($args);
     $users = array_map('user_public', $stmt->fetchAll());
     // fetch counts in bulk to avoid N+1
     $cnt = db()->query('SELECT user_id, COUNT(*) n FROM certificates WHERE user_id IS NOT NULL GROUP BY user_id')->fetchAll();
@@ -2541,21 +2556,28 @@ if ($method === 'POST' && count($seg) === 4 && $seg[0] === 'admin' && $seg[1] ==
     json_out(['ok' => true, 'balance' => credit_balance((int)$target['id']), 'tier' => owner_tier((int)$target['id']), 'upgraded' => $upgraded]);
 }
 
-// GET /api/admin/audit — admin actions log
+// GET /api/admin/audit — admin actions log. Supports ?q= (action/target/admin/IP).
 if ($method === 'GET' && $route === '/admin/audit') {
     auth_require_admin();
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = 50;
     $offset = ($page - 1) * $per;
-    $total = (int)db()->query('SELECT COUNT(*) FROM admin_audit_log')->fetchColumn();
+    $q = trim((string)($_GET['q'] ?? ''));
+    $w = '';
+    $args = [];
+    if ($q !== '') {
+        $w = ' WHERE (a.action LIKE ? OR a.target LIKE ? OR u.email LIKE ? OR a.ip LIKE ?)';
+        $args = ['%' . $q . '%', '%' . $q . '%', '%' . $q . '%', '%' . $q . '%'];
+    }
+    $cnt = db()->prepare("SELECT COUNT(*) FROM admin_audit_log a JOIN users u ON u.id = a.admin_id$w");
+    $cnt->execute($args);
+    $total = (int)$cnt->fetchColumn();
     $stmt = db()->prepare(
-        'SELECT a.action, a.target, a.ip, a.created_at, u.email AS admin_email
-         FROM admin_audit_log a JOIN users u ON u.id = a.admin_id
-         ORDER BY a.id DESC LIMIT ? OFFSET ?'
+        "SELECT a.action, a.target, a.ip, a.created_at, u.email AS admin_email
+         FROM admin_audit_log a JOIN users u ON u.id = a.admin_id$w
+         ORDER BY a.id DESC LIMIT $per OFFSET $offset"
     );
-    $stmt->bindValue(1, $per, PDO::PARAM_INT);
-    $stmt->bindValue(2, $offset, PDO::PARAM_INT);
-    $stmt->execute();
+    $stmt->execute($args);
     $rows = array_map(fn($a) => [
         'admin_email' => (string)($a['admin_email'] ?? ''),
         'action'      => (string)$a['action'],
