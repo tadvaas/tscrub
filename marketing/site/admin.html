@@ -76,19 +76,19 @@
       </div>
     </div>
 
-    <div data-panel="certs" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
+    <div data-panel="certs" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Certificates</h2>
       <div id="cert-list" class="mt-3"></div>
       <div id="cert-pager" class="mt-3"></div>
     </div>
 
-    <div data-panel="licences" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
+    <div data-panel="licences" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Licences</h2>
       <div id="licence-list" class="mt-3"></div>
       <div id="licence-pager" class="mt-3"></div>
     </div>
 
-    <div data-panel="audit" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
+    <div data-panel="audit" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-lg font-bold text-ink-900 dark:text-white">Audit log</h2>
         <input id="audit-q" type="search" autocomplete="off" placeholder="Search action, target, admin or IP…" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500 sm:w-72" />
@@ -97,7 +97,7 @@
       <div id="audit-pager" class="mt-3"></div>
     </div>
 
-    <div data-panel="mdm" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" hidden>
+    <div data-panel="mdm" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">MDM checks (Autopilot)</h2>
       <div id="mdm-list" class="mt-3"></div>
       <div id="mdm-pager" class="mt-3"></div>
@@ -161,7 +161,7 @@
         var active = known ? id : 'users';
         PANELS.forEach(function (p) {
           var panel = document.querySelector('[data-panel="' + p.id + '"]');
-          if (panel) panel.hidden = (p.id !== active);
+          if (panel) panel.style.display = (p.id === active) ? '' : 'none';
           var tab = document.querySelector('[data-tab="' + p.id + '"]');
           if (tab) {
             var on = p.id === active;
