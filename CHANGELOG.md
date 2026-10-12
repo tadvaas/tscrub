@@ -17,7 +17,11 @@ and this project uses date-based versioning (`v1.x`).
   rejects (`Serial required.`) — so such a machine was **invisible in the
   dashboard while it was wiping**, even though its token and network were fine.
   When the system serial is `N/A`, `system::derive_identity` now mints a stable
-  `WB-<12hex>` from the machine's NIC MAC addresses (disk serials as a fallback)
+  `WB-<12hex>` from the machine's NIC MAC addresses — a real 6-octet hardware
+  MAC only, so loopback/tunnel placeholders (`lo` `00:00:00:00:00:00`, `sit0`
+  `00:00:00:00`) are ignored and a NIC-less machine falls through to the disk
+  serials instead of hashing to a shared constant id (disk serials as the
+  fallback)
   and, when the UUID is also a placeholder, a synthetic v5-shaped UUID — so
   heartbeat, registration, reports and MDM all agree on one identity. Provenance
   stays honest: the report JSON records `serial_source` (`dmi` | `derived` |

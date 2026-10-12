@@ -291,7 +291,7 @@ with the release that carried them (per `CHANGELOG.md`).
       `N/A`, which `/api/heartbeat` rejects (`Serial required.`), so the machine
       was invisible in the dashboard while wiping. (§6)
       → plan: **`research/derived-identity/README.md`**.
-      → **Shipped v1.11.52**: when the serial is `N/A`, `system::derive_identity`
+      → **Shipped v1.11.53**: when the serial is `N/A`, `system::derive_identity`
       mints a stable `WB-<12hex>` from the NIC MACs (disk serials as fallback)
       and, if the UUID is also a placeholder, a synthetic v5-shaped UUID — so
       heartbeat, registration, reports and MDM agree on one identity. Report

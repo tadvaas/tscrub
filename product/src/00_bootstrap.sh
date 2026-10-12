@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.52"
+SCRIPT_VERSION="v1.11.53"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -416,11 +416,17 @@ system::derive_identity() {
     local blk_glob="${TS_DERIVE_BLK_GLOB:-/sys/block/*/device/serial}"
     local f val macs disks tokens seed hash
 
-    # Permanent NIC MACs (skip unreadable/empty and the all-zero placeholder).
+    # Permanent NIC MACs — a real 6-octet hardware address ONLY. Loopback and
+    # tunnel placeholders are not MACs and must never enter the seed: `lo` is
+    # 00:00:00:00:00:00 but `sit0` is just 00:00:00:00, which is non-empty and
+    # would otherwise be hashed in — making every NIC-less machine derive the
+    # same constant id (and stopping the disk fallback below from engaging).
     macs="$(for f in $net_glob; do
                 [[ -r "$f" ]] || continue
                 val="$(cat "$f" 2>/dev/null)"
-                [[ -n "$val" && "$val" != "00:00:00:00:00:00" ]] && printf '%s\n' "$val"
+                val="${val,,}"
+                [[ "$val" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ && "$val" != "00:00:00:00:00:00" ]] \
+                    && printf '%s\n' "$val"
             done | sort -u)"
     # Disk serials (stable across reboots; read long before any wipe begins).
     disks="$(for f in $blk_glob; do

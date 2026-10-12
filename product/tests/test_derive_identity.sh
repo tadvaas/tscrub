@@ -65,10 +65,26 @@ nic lo "00:00:00:00:00:00"
 reset_ident; system::derive_identity
 t::assert_eq "$id_b" "$SYS_SERIAL" "loopback / all-zero MAC ignored"
 
+# Tunnel placeholders are NOT MACs: `sit0` reports the short all-zero string
+# "00:00:00:00" (which is not the 6-octet loopback address, so a naive
+# `!= 00:00:00:00:00:00` filter lets it through). Hashing it in would pollute
+# the seed, and worse, would stop the disk fallback engaging on a NIC-less box.
+nic sit0 "00:00:00:00"
+reset_ident; system::derive_identity
+t::assert_eq "$id_b" "$SYS_SERIAL" "tunnel placeholder (sit0) ignored"
+
 # Two identical MACs (duplicate NIC records) must not change the identity.
 nic wlan0 "aa:bb:cc:dd:ee:01"
 reset_ident; system::derive_identity
 t::assert_eq "$id_a" "$SYS_SERIAL" "duplicate MACs de-duplicated"
+
+# --- Virtual placeholders only: no real NIC at all -------------------------
+# Must fall through to the disk/placeholder path rather than hashing the
+# zero strings in (which would give every NIC-less machine ONE shared id).
+clear_hw; nic lo "00:00:00:00:00:00"; nic sit0 "00:00:00:00"
+reset_ident; system::derive_identity
+t::assert_eq "N/A" "$SYS_SERIAL" "no real NIC + no disks: stays N/A"
+t::assert_eq "placeholder" "$SYS_SERIAL_SOURCE" "no real NIC + no disks: flagged placeholder"
 
 # --- Disk serials are the fallback when there are no NICs -------------------
 clear_hw; disk sda "S1DEMODISK0001"
