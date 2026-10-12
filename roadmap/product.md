@@ -285,6 +285,18 @@ with the release that carried them (per `CHANGELOG.md`).
       → **v1.11.44 + v1.11.50** deepened the BIOS-lock half — see §4.6.
 - [ ] MDM / enrolment-lock detection — Apple DEP/Activation Lock, ChromeOS
       GBB/VPD, CompuTrace; record `mdm_locked`/`enrollment` per device. (§6)
+- [x] **Derived identity for placeholder-serial machines** — QEMU/KVM VMs and
+      whitebox boards ship a placeholder SMBIOS serial/UUID (`To Be Filled By
+      O.E.M.`, the shared QEMU UUID sentinel). The appliance normalised those to
+      `N/A`, which `/api/heartbeat` rejects (`Serial required.`), so the machine
+      was invisible in the dashboard while wiping. (§6)
+      → plan: **`research/derived-identity/README.md`**.
+      → **Shipped v1.11.52**: when the serial is `N/A`, `system::derive_identity`
+      mints a stable `WB-<12hex>` from the NIC MACs (disk serials as fallback)
+      and, if the UUID is also a placeholder, a synthetic v5-shaped UUID — so
+      heartbeat, registration, reports and MDM agree on one identity. Report
+      JSON records provenance (`serial_source`, `system_serial_dmi`), and the
+      server's `device_key()` skips placeholder values.
 
 ### 4.6 BIOS unlock (§8)
 

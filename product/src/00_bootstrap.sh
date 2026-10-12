@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.51"
+SCRIPT_VERSION="v1.11.52"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -84,6 +84,10 @@ SYS_MANUFACTURER=""
 SYS_PRODUCT=""
 SYS_SERIAL=""
 SYS_UUID=""
+# Identity provenance: where SYS_SERIAL came from (dmi | derived | placeholder)
+# and the firmware value before placeholder normalisation.
+SYS_SERIAL_SOURCE=""
+SYS_SERIAL_DMI=""
 SYS_BASEBOARD_SERIAL=""
 SYS_CHASSIS_SERIAL=""
 SYS_CHASSIS_TYPE=""
@@ -391,6 +395,65 @@ system::secure_boot() {
     printf '%s' "${_sb:-N/A}"
 }
 
+# Derive a stable, unique identity for machines whose DMI system serial is a
+# placeholder ("N/A") — QEMU/KVM VMs and whitebox boards. Real OEM serials are
+# never touched (the function returns immediately unless the serial is "N/A").
+#
+# The value is derived from hardware that survives reboots, NIC MACs first
+# (they outlive disk swaps) and disk serials as a fallback, so heartbeat,
+# registration, reports and MDM all agree on one identity and the device shows
+# up in the dashboard instead of being rejected as "Serial required.".
+#
+# The sysfs globs are overridable so the derivation is unit-testable without
+# root (TS_DERIVE_NET_GLOB / TS_DERIVE_BLK_GLOB).
+#
+# Sets: SYS_SERIAL (WB-<12hex>), SYS_UUID (synthetic, when also a placeholder),
+#       SYS_SERIAL_SOURCE (derived | placeholder), SYS_SERIAL_DMI.
+system::derive_identity() {
+    [[ "${SYS_SERIAL:-}" == "N/A" ]] || return 0
+
+    local net_glob="${TS_DERIVE_NET_GLOB:-/sys/class/net/*/address}"
+    local blk_glob="${TS_DERIVE_BLK_GLOB:-/sys/block/*/device/serial}"
+    local f val macs disks tokens seed hash
+
+    # Permanent NIC MACs (skip unreadable/empty and the all-zero placeholder).
+    macs="$(for f in $net_glob; do
+                [[ -r "$f" ]] || continue
+                val="$(cat "$f" 2>/dev/null)"
+                [[ -n "$val" && "$val" != "00:00:00:00:00:00" ]] && printf '%s\n' "$val"
+            done | sort -u)"
+    # Disk serials (stable across reboots; read long before any wipe begins).
+    disks="$(for f in $blk_glob; do
+                [[ -r "$f" ]] || continue
+                val="$(cat "$f" 2>/dev/null)"
+                [[ -n "$val" ]] && printf '%s\n' "$val"
+            done | sort -u)"
+
+    # Prefer NIC MACs; fall back to disk serials only when there are no NICs.
+    tokens="$macs"
+    [[ -n "$tokens" ]] || tokens="$disks"
+
+    if [[ -z "$tokens" ]]; then
+        # Nothing stable to key on — leave "N/A" (best effort, clearly flagged).
+        SYS_SERIAL_SOURCE="placeholder"
+        return 0
+    fi
+
+    # Canonical seed -> 32 hex chars (12 for the serial, all 32 for the UUID).
+    seed="$(printf '%s' "$tokens" | tr -d '[:space:]:-')"
+    hash="$(printf '%s' "$seed" | sha256sum | cut -c1-32)"
+
+    SYS_SERIAL="WB-$(printf '%s' "${hash:0:12}" | tr '[:lower:]' '[:upper:]')"
+    SYS_SERIAL_SOURCE="derived"
+    # MDM/remote need a uuid too. The DMI sentinel is shared by many machines
+    # (probing it would falsely report Autopilot state), so mint a synthetic
+    # v5-shaped UUID from the same hash.
+    if [[ "${SYS_UUID:-}" == "N/A" ]]; then
+        SYS_UUID="${hash:0:8}-${hash:8:4}-5${hash:13:3}-a${hash:17:3}-${hash:20:12}"
+    fi
+    return 0
+}
+
 system::gather_info() {
     # Try dmidecode first (requires root)
     if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
@@ -446,6 +509,10 @@ system::gather_info() {
     [[ -n "${SYS_BIOS_VERSION//[[:space:]]/}" ]] || SYS_BIOS_VERSION="N/A"
     [[ -n "${SYS_BIOS_DATE//[[:space:]]/}" ]] || SYS_BIOS_DATE="N/A"
 
+    # Preserve the firmware serial before placeholder normalisation so a report
+    # can stay honest about a derived serial (system_serial_dmi).
+    SYS_SERIAL_DMI="${SYS_SERIAL:-}"
+
     # Normalise vendor placeholder strings (QEMU "Not Specified", Dell/Lenovo
     # "To Be Filled By O.E.M.", etc.) to a single "N/A" for a clean display.
     local _v _val
@@ -476,6 +543,12 @@ system::gather_info() {
         ""|"n/a"|"none"|"not specified"|"unknown"|"to be filled by o.e.m."|"default string"|"0"|"00000000-0000-0000-0000-000000000000"|"03000200-0400-0500-0006-000700080009")
             SYS_UUID="N/A" ;;
     esac
+
+    # Identity fallback: machines whose SMBIOS serial is a placeholder (QEMU/KVM
+    # VMs, whitebox boards) get a stable derived serial so they are visible in
+    # the dashboard and keyed consistently across heartbeat / report / MDM.
+    SYS_SERIAL_SOURCE="dmi"
+    system::derive_identity
 
     # Processor info (physical CPU sockets only, each displayed individually)
     # Use lscpu if available (more reliable), fall back to /proc/cpuinfo
@@ -808,15 +881,6 @@ parse_args() {
                 case "${arg#*=}" in
                     true|1|yes|on|all) DIAG=1 ;;
                     *)                 DIAG=0 ;;
-                esac
-                ;;
-            --autopilotcheck)
-                TSCRUB_AUTOPILOTCHECK=1
-                ;;
-            --autopilotcheck=*)
-                case "${arg#*=}" in
-                    true|1|yes|on) TSCRUB_AUTOPILOTCHECK=1 ;;
-                    *)             TSCRUB_AUTOPILOTCHECK=0 ;;
                 esac
                 ;;
             --verify)

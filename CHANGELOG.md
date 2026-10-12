@@ -8,6 +8,24 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **Machines with a placeholder firmware serial now get a stable derived
+  identity.** QEMU/KVM VMs and many whitebox boards ship a placeholder SMBIOS
+  serial (`To Be Filled By O.E.M.`, `Default string`) and the shared QEMU UUID
+  sentinel. The appliance normalised those to `N/A` — which `/api/heartbeat`
+  rejects (`Serial required.`) — so such a machine was **invisible in the
+  dashboard while it was wiping**, even though its token and network were fine.
+  When the system serial is `N/A`, `system::derive_identity` now mints a stable
+  `WB-<12hex>` from the machine's NIC MAC addresses (disk serials as a fallback)
+  and, when the UUID is also a placeholder, a synthetic v5-shaped UUID — so
+  heartbeat, registration, reports and MDM all agree on one identity. Provenance
+  stays honest: the report JSON records `serial_source` (`dmi` | `derived` |
+  `placeholder`) and the firmware value in `system_serial_dmi` (JSON-only; the
+  CSV columns are unchanged). The server also skips placeholder values in
+  `device_key()` so a shared sentinel can never merge unrelated machines.
+  Plan: `research/derived-identity/README.md`.
+
 ### Changed
 
 - **Certificates now state how the data was destroyed.** The Certificate of

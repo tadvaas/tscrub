@@ -242,6 +242,10 @@ report::sign() {
         printf '  "bios_version": "%s",\n' "$(report::_json_field "${SYS_BIOS_VERSION:-}")"
         printf '  "bios_date": "%s",\n' "$(report::_json_field "${SYS_BIOS_DATE:-}")"
         printf '  "system_uuid": "%s",\n' "$(report::_json_field "${SYS_UUID:-}")"
+        # Identity provenance: "dmi" (firmware serial) or "derived" (machine had a
+        # placeholder serial; the serial above is synthesised from NIC/disk ids).
+        printf '  "serial_source": "%s",\n' "$(report::_json_field "${SYS_SERIAL_SOURCE:-dmi}")"
+        printf '  "system_serial_dmi": "%s",\n' "$(report::_json_field "${SYS_SERIAL_DMI:-}")"
         printf '  "version": "%s",\n' "$(report::_json_field "${SCRIPT_VERSION:-N/A}")"
         printf '  "sku": "%s",\n' "$(report::_json_field "${SYS_SKU:-N/A}")"
         printf '  "asset_tag": "%s",\n' "$(report::_json_field "${ASSET_TAG:-${SYS_ASSET_TAG:-N/A}}")"
@@ -455,7 +459,6 @@ license::detect_usb() {
 # without editing GRUB or the kernel command line. Keys mirror the kernel params:
 #   tscrub_upload=<url>          (optional — dashboard URL is built-in)
 #   tscrub_api_token=<64-hex>    (dashboard upload — only this is required)
-#   tscrub_autopilotcheck=true   (opt-in Windows Autopilot MDM check)
 #   tscrub_cocid=12345
 #   tscrub_license_url=http://host/license.lic
 #   tscrub_output=/path | ftp:host:path:user:pass | sftp:...
@@ -536,12 +539,6 @@ config::load_usb() {
                                 LICENSE_URL="$val"
                                 CONFIG_USB_DEBUG+="  tscrub_license_url: set"$'\n'
                             fi
-                            ;;
-                        tscrub_autopilotcheck)
-                            case "$val" in
-                                true|1|yes|on) TSCRUB_AUTOPILOTCHECK=1 ;;
-                            esac
-                            CONFIG_USB_DEBUG+="  tscrub_autopilotcheck: set"$'\n'
                             ;;
                         tscrub_output)
                             if [[ "$val" == ftp:* || "$val" == sftp:* ]]; then

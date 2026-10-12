@@ -133,13 +133,33 @@ function drive_health_report(array $d): array {
     ];
 }
 
-/** The stable machine key used by load_devices(): sysserial → bbserial → uuid. */
+/** Firmware placeholder identity values that carry no uniqueness — a shared QEMU
+ *  sentinel (or "N/A") once keyed every placeholder machine to one bogus device.
+ *  Used by device_key() to skip them when a better field is available. */
+function device_key_placeholder(string $v): bool {
+    static $bad = [
+        'n/a', 'na', 'none', 'unknown', 'not specified', 'oem',
+        'to be filled by o.e.m.', 'default string',
+        'system product name', 'system manufacturer', '0',
+        '00000000-0000-0000-0000-000000000000',
+        '03000200-0400-0500-0006-000700080009',
+    ];
+    return in_array(strtolower(trim($v)), $bad, true);
+}
+
+/** The stable machine key used by load_devices(): sysserial → bbserial → uuid.
+ *  Placeholder firmware values are skipped so a machine reporting a real uuid
+ *  still keys on it; if every field is a placeholder the first non-empty value
+ *  is used (legacy behaviour, keeps historical rows addressable). */
 function device_key(array $g): string {
+    $first = '';
     foreach (['sysserial', 'sysSerial', 'bbserial', 'bbSerial', 'systemuuid'] as $k) {
         $v = trim((string)($g[$k] ?? ''));
-        if ($v !== '') return strtolower($v);
+        if ($v === '') continue;
+        if ($first === '') $first = $v;
+        if (!device_key_placeholder($v)) return strtolower($v);
     }
-    return '';
+    return strtolower($first);
 }
 
 /**
