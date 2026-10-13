@@ -560,11 +560,12 @@
         // text and Method's longest label is available in full on hover and in Detail, so
         // those two ellipsise; every other column is sized to fit its content, because a
         // truncated header ("G…") or a truncated model name is not acceptable.
-        // The actions column can shrink here because the only other control is the scanned
-        // rows' Reports button (~72px), so 9% covers both it and the two 28px icons.
+        // Actions needs 10%, not 9%: the scanned rows' "Reports ▾" button measures 92px and was
+        // being cut by 3px on most rows. It came from Type, which is operator-typed free text
+        // and ellipsises anyway; everything else here is sized to its content.
         [['Model', 'w-[18%]'], ['Serial', 'w-[14%]'], ['Size', 'w-[8%]'],
-         ['Type', 'w-[12%]'],
-         ['Status', 'w-[10%]'], ['Method', 'w-[21%]'], ['Grade', 'w-[8%]'], ['', 'w-[9%]']].forEach(function (c) {
+         ['Type', 'w-[11%]'],
+         ['Status', 'w-[10%]'], ['Method', 'w-[21%]'], ['Grade', 'w-[8%]'], ['', 'w-[10%]']].forEach(function (c) {
           hr.appendChild(el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', c[0]));
         });
         head.appendChild(hr);
@@ -576,14 +577,22 @@
           if (d.attested) { body.appendChild(attestedRow(d)); return; }
           var serial = String(d.serial || '');
           var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800 hover:bg-slate-50 dark:hover:bg-ink-800');
-          tr.appendChild(el('td', 'max-w-[12rem] truncate px-3 py-2 font-medium text-ink-900 dark:text-white', d.model || '—'));
+          var modelCell = el('td', 'max-w-[12rem] truncate px-3 py-2 font-medium text-ink-900 dark:text-white', d.model || '—');
+          modelCell.title = d.model || '';
+          tr.appendChild(modelCell);
           var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
           serCell.title = d.serial || '';
           tr.appendChild(serCell);
           tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300', d.size || '—'));
-          tr.appendChild(el('td', 'px-3 py-2 text-slate-700 dark:text-slate-300', d.type || '—'));
-          tr.appendChild(el('td', 'px-3 py-2 ' + statusClass(d.status), d.status || '—'));
-          tr.appendChild(el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—'));
+          // truncate, so a long type cannot wrap and set the row height (the bug reported on
+          // the attested rows); the full value stays in the title.
+          var typeCell = el('td', 'truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.type || '—');
+          typeCell.title = d.type || '';
+          tr.appendChild(typeCell);
+          tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 ' + statusClass(d.status), d.status || '—'));
+          var methCell = el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—');
+          methCell.title = d.method || '';
+          tr.appendChild(methCell);
           var gradeTd = el('td', 'px-3 py-2');
           var gradeCell = el('span', 'rounded-full px-2 py-0.5 text-xs font-semibold ' + gradeBadgeClass(d.grade), d.grade || '—');
           if (d.grade_reason) { gradeCell.title = d.grade_reason; }
@@ -594,7 +603,10 @@
           // Same visual language as the Devices tab: sky means information, and
           // fills in while the row is open. Brand blue stays reserved for the
           // controls that change something.
-          var vbtn = el('button', 'whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-semibold ' + (expanded[serial]
+          // h-7 matches the icon buttons in the attested rows, and the row height is set by the
+          // tallest control in it: at py-1.5 this measured 30px, which made every scanned row
+          // 2px taller than an attested one.
+          var vbtn = el('button', 'inline-flex h-7 items-center whitespace-nowrap rounded-lg border px-3 text-xs font-semibold ' + (expanded[serial]
             ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
             : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
           vbtn.title = 'Show every report for this drive';

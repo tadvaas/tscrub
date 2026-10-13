@@ -870,13 +870,15 @@
           // identical grey outlines, so nothing told them apart at a glance.
           // Sky = information (the log), brand = the actions that change the
           // machine (Ops), emerald = the compliance artefact (Rep).
-          var logBtn = el('button', 'ml-2 rounded-lg border px-3 py-1.5 text-xs font-semibold ' + (logOpen[key]
+          // h-7 everywhere: the row height is the tallest control in it, so mixed button
+          // heights made scanned and attested rows differ (51px vs 49px).
+          var logBtn = el('button', 'ml-2 inline-flex h-7 items-center rounded-lg border px-3 text-xs font-semibold ' + (logOpen[key]
             ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
             : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Log' + (logOpen[key] ? ' ▴' : ' ▾'));
           logBtn.title = 'Everything recorded for this machine — report submissions, remote commands and their results, Autopilot checks, registrations and drives';
           logBtn.addEventListener('click', function () { toggleLog(dev, key); });
           tdv.appendChild(logBtn);
-          var opBtn = el('button', 'relative ml-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-700', 'Ops');
+          var opBtn = el('button', 'relative ml-1 inline-flex h-7 items-center rounded-lg bg-brand-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-brand-700', 'Ops');
           opBtn.title = 'Remote operations for this device';
           var rdot = remoteDot(dev);
           if (rdot) opBtn.appendChild(rdot);
@@ -886,7 +888,7 @@
           tdv.appendChild(opBtn);
           // Reports keep a word rather than a menu: the button opens the latest
           // diagnostics report, and that modal's footer carries the PDF.
-          var repBtn = el('button', 'ml-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50', 'Rep');
+          var repBtn = el('button', 'ml-1 inline-flex h-7 items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50', 'Rep');
           repBtn.title = 'Open the latest diagnostics report for this device';
           repBtn.addEventListener('click', function () { openDevice(dev, !!dev.online); });
           tdv.appendChild(repBtn);
