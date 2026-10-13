@@ -178,6 +178,16 @@ with the release that carried them (per `CHANGELOG.md`).
       → **Shipped 2026-10-10** (server + site only; no appliance change). Shared
       vocabulary in `marketing/server/cert_terms.php` so the PDF and JSON-LD can
       never disagree. Plan: `research/cert-destruction-evidence/README.md`.
+- [ ] **Attested destruction for assets tScrub can't reach** — phones, tablets,
+      kit that won't POST, and anything with soldered or unsupported media can
+      never produce a report, so today they cannot appear on the certificate at
+      all (the destroyed-decision is report-driven) and the operator keeps a
+      parallel spreadsheet. Add an entry point that doesn't need a report, plus
+      the evidence fields (method, reason, date, attester, vendor, witness,
+      reference) that make intended destruction documentable — as NIST 800-88
+      **Destroy**, kept unmistakably distinct from instrument-verified
+      sanitisation on the same certificate. Server + site only. (§9.3)
+      → **Plan**: `research/manual-destruction/README.md`
 
 ### 4.1 Erasure depth (§9.2, §11.1)
 
