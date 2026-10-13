@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # tScrub MDM Runtime-panel TUI test (v1.8.10): run the standalone script in a
-# Debian VM with the Autopilot check enabled and a local mock MDM server, then
-# verify the Runtime panel shows proper ASCII labels (Pending -> Queued ->
-# Unlocked) instead of a single dot.
+# Debian VM with a local mock MDM server, then verify the Runtime panel shows
+# proper ASCII labels (Pending -> Queued -> Unlocked) instead of a single dot.
 set -euo pipefail
 
 cd /root/tscrub-tests
@@ -74,7 +73,7 @@ vm_push_files "$IP"
 ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null -tt \
     "$VM_USER@$IP" \
-    "cd /tmp/tscrub && sudo sh -c 'stty cols 120 rows 50 2>/dev/null; TERM=xterm-256color exec env TSCRUB_API_TOKEN=mdm-vm-test-token TSCRUB_UPLOAD_URL=http://192.168.0.85:8080/api/reports ./tscrub.sh --license /tmp/tscrub/test.lic --cocid 12345 --autonuke --autopilotcheck --dry-run --simulate-running-eta=1 --output /tmp/tscrub/out' 2>&1" \
+    "cd /tmp/tscrub && sudo sh -c 'stty cols 120 rows 50 2>/dev/null; TERM=xterm-256color exec env TSCRUB_API_TOKEN=mdm-vm-test-token TSCRUB_UPLOAD_URL=http://192.168.0.85:8080/api/reports ./tscrub.sh --license /tmp/tscrub/test.lic --cocid 12345 --autonuke --dry-run --simulate-running-eta=1 --output /tmp/tscrub/out' 2>&1" \
     > "$OUT" 2>&1 || true
 
 echo "== captured $(wc -c < "$OUT") bytes"

@@ -358,7 +358,7 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && chmod 640 config.json && chmod 6
 
 ## 4. nginx changes (needs root — you run these)
 
-The nginx config lives at `/etc/nginx/sites-available/tscrub.conf` (root-owned; `oxwet` has no sudo). Reference snippets are in `marketing/server/nginx-location.conf`.
+The nginx config lives at `/etc/nginx/sites-available/tscrub.conf` (root-owned; `oxwet` has no sudo). Reference snippets are in `marketing/server/nginx-location.conf` (PHP/API routes) and `marketing/server/nginx-redirects.conf` (HTTP→HTTPS + retired-page 301s).
 
 Current PHP routes:
 - `location = /verify` → `verify.php` (public, MySQL lookup)
@@ -389,6 +389,10 @@ curl -s -o /dev/null -w "%{http_code}\n" "https://tscrub.com/verify?cert=COD-003
 
 # form endpoint (GET is rejected, POST works)
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/submit      # 405
+
+# edge redirects (marketing/server/nginx-redirects.conf)
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://tscrub.com/                # 301 https://tscrub.com/
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-it-works   # 301 https://tscrub.com/docs
 
 # product build
 cd product && grep -c 'LICENSE_VENDOR_PUBLIC_KEY_B64' build/tscrub.sh

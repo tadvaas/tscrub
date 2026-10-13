@@ -91,7 +91,7 @@
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">Can tScrub tell me if a laptop is MDM-locked?</h3>
-            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Yes. With the Autopilot check enabled, tScrub reports a Locked/Unlocked MDM verdict in the dashboard, alongside BIOS password lock detection — so a locked laptop is flagged before it goes to a buyer, and BIOS unlocks can be dispatched remotely.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Yes. A device's hardware hash is captured when it submits its diagnostics, and you run the Windows Autopilot check from its page in the dashboard for a Locked/Unlocked MDM verdict. It sits alongside BIOS password lock detection — so a locked laptop is flagged before it goes to a buyer, and BIOS unlocks can be dispatched remotely.</p>
           </div>
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">What does the diagnostics report show?</h3>
@@ -116,6 +116,11 @@
             <h3 class="font-bold text-ink-900 dark:text-white">How do I get my reports into the dashboard?</h3>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Upload the report files on the Reports page of your dashboard, then generate a Certificate of Destruction from the Certificates page. Per-drive and pre/post-wipe SMART data is shown on the Reports page.</p>
           </div>
+
+          <div class="rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-sm">
+            <h3 class="text-base font-bold text-ink-900 dark:text-white">Can I certify equipment that never ran tScrub — phones, dead machines, sealed units?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Yes. Use the <strong>Add</strong> button on the <a href="/dashboard/devices" class="text-brand-600 dark:text-brand-400 hover:underline">Devices</a> or <a href="/dashboard/drives" class="text-brand-600 dark:text-brand-400 hover:underline">Drives</a> page to record the item by hand: what it was, its serial, why it was destroyed rather than wiped, how, and who attested it. Recording is free, and the item joins the same Chain of Custody as the machine-wiped drives, so one job produces one certificate.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">It is labelled as an operator attestation throughout — <em>&quot;operator-attested &mdash; not instrument-verified&quot;</em> — and kept separate from the wipe evidence. Attested items are never described as sanitised, and no wipe result or SMART data is invented for them. If a third-party shredder supplied a certificate, record its reference number so an auditor can follow it to the source.</p>
         </div>
       </div>
 

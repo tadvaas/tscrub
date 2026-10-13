@@ -14,29 +14,21 @@ MDM_POLL_SECONDS=10
 MDM_POLL_MAX=30
 
 mdm::is_configured() {
-    # The Autopilot check is opt-in: it runs only when the operator explicitly
-    # enabled it — `tscrub_autopilotcheck=true` in tscrub.conf / the kernel
-    # cmdline, or the CLI flag `--autopilotcheck` — AND a dashboard API token
-    # is present (the dashboard URL has a built-in default).
-    [[ "${TSCRUB_AUTOPILOTCHECK:-0}" == "1" && -n "${TSCRUB_API_TOKEN:-}" ]]
+    # The Autopilot probe itself is run from the dashboard (Devices → check);
+    # the appliance only reports the machine's identifiers and reads the latest
+    # job state back, so there is nothing to opt in to — a dashboard API token
+    # is all that is required (the dashboard URL has a built-in default).
+    [[ -n "${TSCRUB_API_TOKEN:-}" ]]
 }
 
-# Pull tscrub_autopilotcheck= from the kernel command line. tscrub.conf and
-# --autopilotcheck already populated TSCRUB_AUTOPILOTCHECK before the worker
-# forked; the cmdline is read here so the kernel-param source works too. Also
-# runs report::parse_upload — the worker forks BEFORE fn_main does, so a token /
-# upload URL supplied on the cmdline wouldn't otherwise reach it.
+# Runs report::parse_upload — the MDM worker forks BEFORE fn_main does, so a
+# token / upload URL supplied on the kernel command line wouldn't otherwise
+# reach it.
 mdm::parse_cmdline() {
     # No /proc/cmdline on non-Linux (tests, bare environments) — nothing to read.
     [[ -r /proc/cmdline ]] || return 0
 
     report::parse_upload 2>/dev/null || true
-
-    local param
-    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_autopilotcheck=//p' | head -n 1)"
-    case "$param" in
-        true|1|yes|on) TSCRUB_AUTOPILOTCHECK=1 ;;
-    esac
 }
 
 # The dashboard's MDM endpoint, derived from the report upload URL so a custom
@@ -149,18 +141,17 @@ mdm::sync_state() {
     [[ -n "$label" ]] && MDM_STATUS="$label"
 }
 
-# Background worker: send the machine identifiers to the dashboard (which holds
-# the Azure credentials and runs the Graph probe) and publish the verdict to the
-# UI over the worker -> UI IPC channel (fd 3). Forked BEFORE `exec 3>&-` so its
-# late status write still reaches the UI reader. The verdict is also written to
+# Background worker: report the machine's identifiers to the dashboard and read
+# back the latest MDM check state, publishing the verdict to the UI over the
+# worker -> UI IPC channel (fd 3). Forked BEFORE `exec 3>&-` so its late status
+# write still reaches the UI reader. The state is also written to
 # MDM_RESULT_FILE so fn_main can recover it even if the UI loop ended first
 # (instant dry-run).
 #
-# The Graph probe resolves server-side in the background (mdm-worker.php, cron
-# every minute), so the initial POST returns queued/checking. The worker then
-# POLLS GET /api/mdm/status for the WHOLE session (unbounded) so the Runtime
-# panel always tracks the dashboard's exact live `label` — and keeps tracking
-# it even after a verdict, so a later Re-check updates the panel too.
+# The Autopilot probe itself is run from the dashboard (mdm-worker.php, cron
+# every minute) — the appliance never enqueues one. The worker POLLS
+# GET /api/mdm/status for the WHOLE session (unbounded) so the Runtime panel
+# always tracks the dashboard's exact live `label`, including a later Re-check.
 mdm::detect() {
     local url body resp rc verdict status label man prod status_url poll=0 consecutive=0
     local boot_attempt post_attempt

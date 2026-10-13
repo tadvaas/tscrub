@@ -211,8 +211,8 @@
     document.getElementById('manual-modal-close').addEventListener('click', close);
     document.getElementById('manual-modal-backdrop').addEventListener('click', close);
     document.getElementById('manual-modal-save').addEventListener('click', function () {
-      save(isDevice, document.getElementById('manual-modal-body'),
-        document.getElementById('manual-modal-error'), this);
+      // show() finds the message box itself, so it is not threaded through here.
+      save(isDevice, document.getElementById('manual-modal-body'), this);
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !modal.classList.contains('hidden')) { close(); }
@@ -225,12 +225,12 @@
     wire();
   }
 
-  function save(isDevice, body, err, button) {
+  function save(isDevice, body, button) {
     var cocid = (body.querySelector('input[name=cocid]') || {}).value || '';
     var media = collect(body.querySelector('#manual-modal-media'));
-    if (!cocid.trim()) { return show(err, 'A Chain of Custody ID is required.'); }
+    if (!cocid.trim()) { return show('A Chain of Custody ID is required.'); }
     if (!media.length) {
-      return show(err, isDevice
+      return show(isDevice
         ? 'Add at least one medium — a device that held no storage has nothing to record.'
         : 'Fill in the drive you are recording.');
     }
@@ -251,17 +251,39 @@
     button.disabled = true;
     button.textContent = 'Saving…';
 
+    // Bound the request. Without this a hung POST leaves the button reading
+    // "Saving…" for ever, which the operator cannot tell apart from "still working"
+    // — and it hides whatever the server said.
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) { ctl.abort(); } }, 30000);
+
+    function restore() {
+      clearTimeout(timer);
+      button.disabled = false;
+      button.textContent = isDevice ? 'Record device' : 'Record drive';
+    }
+
     fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) {
       return fetch(url, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (d && d.csrf) || '' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: ctl ? ctl.signal : undefined
       });
     }).then(function (r) {
-      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+      // Read the body as TEXT first. A PHP fatal returns HTML, and calling .json()
+      // on it throws — which the catch below would then report as a connection
+      // problem, hiding the real server error behind a network story. Parse
+      // defensively so the actual status and body always reach the operator.
+      return r.text().then(function (t) {
+        var j = null;
+        try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; }
+        return { ok: r.ok, status: r.status, body: j, raw: t };
+      });
     }).then(function (res) {
       if (res.ok && res.body && res.body.ok) {
+        clearTimeout(timer);
         close();
         // The job (and the certificate) is rebuilt on the server; a reload is the
         // honest way to show it rather than guessing what the lists now contain.
@@ -270,28 +292,38 @@
       }
       // The server's message is field-shaped and actionable (it names the duplicate
       // identity and tells the operator to assign an asset tag) — show it verbatim.
-      // If it sent none, at least say which HTTP status failed, so a report of
-      // "internal error" identifies the request next time instead of the UI hiding it.
+      // If it sent none, at least say which HTTP status failed and quote what came
+      // back, so a report of "internal error" identifies the request next time.
       var message = (res.body && (res.body.error || res.body.message)) || '';
       if (!message) {
-        // No JSON message: state the status and what the body actually said, so a real
-        // failure identifies itself instead of looking like a network problem.
         var snippet = String(res.raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
         message = 'Save failed (HTTP ' + res.status + ')' + (snippet ? ': ' + snippet : '.');
       }
       show(message);
-      button.disabled = false;
-      button.textContent = isDevice ? 'Record device' : 'Record drive';
-    }).catch(function () {
-      show('Could not send the request — check your connection.');
-      button.disabled = false;
-      button.textContent = isDevice ? 'Record device' : 'Record drive';
+      restore();
+    }).catch(function (e) {
+      var aborted = e && (e.name === 'AbortError' || e.name === 'TimeoutError');
+      show(aborted
+        ? 'The server did not answer within 30 seconds, so nothing was saved. Check the dashboard is still up, then try again.'
+        : 'Could not send the request — check your connection.');
+      // restore() must run on EVERY path. Leaving the button disabled is what made a
+      // failed save look like a hang.
+      restore();
     });
   }
 
-  function show(err, message) {
-    err.textContent = message;
-    err.classList.remove('hidden');
+  // Takes the message only, and finds the box itself.
+  //
+  // It used to take (err, message) while its failure paths called it with one
+  // argument. Under 'use strict' that made `err` a primitive string, so assigning
+  // .textContent to it THREW — every failed save fell through to the catch handler,
+  // threw again there, and left the button reading "Saving…" for ever with the real
+  // error never shown. Taking one argument makes it impossible to call wrongly.
+  function show(message) {
+    var box = document.getElementById('manual-modal-error');
+    if (!box) { return; }
+    box.textContent = message;
+    box.classList.remove('hidden');
   }
 
   window.ManualAssets = {

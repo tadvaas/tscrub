@@ -11,6 +11,7 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
+.venv/
 
 # Vendored PHP dependency (TCPDF) — sourced from the server, not committed.
 marketing/server/tcpdf/
@@ -27,3 +28,7 @@ tests/proxmox/test.lic
 
 # Customer debug snapshots — diagnostics, never commit.
 research/
+
+# Secrets — never commit (service-account keys, etc.).
+gsc-service-account.json
+*-service-account.json

@@ -67,7 +67,7 @@ Changed files: `product/src/{00_bootstrap,10_main,20_ui,30_device,35_mdm,40_tabl
 3. **Reboot/shutdown are DISABLED during erasure.** R/S power keys only exist on the
    triage screen. Once erasure begins (drive-selection + wipe), no reboot/shutdown is
    offered and the selection screen's R/S bindings are removed.
-4. **MDM stays opt-in** (`tscrub_autopilotcheck=true` + dashboard token).
+4. **MDM is dashboard-driven** (the appliance stages the hardware hash and reads the dashboard's check state; no opt-in flag).
 5. Observed failures being fixed: status stops updating once wiping begins, network
    calls appear starved, and the device goes offline (no heartbeat) after the wipe.
 
@@ -239,7 +239,7 @@ release (4.7) — run them on a real appliance/VM after the ISO is rebuilt.
 - Erasure is repeatable within one session; no post-erasure reboot/shutdown/run-again prompt.
 - Reboot/shutdown are disabled during erasure; power keys live only on the triage screen.
 - Triage Esc/q exits (getty respawns → fresh COCID session).
-- MDM remains opt-in (`tscrub_autopilotcheck=true` + token).
+- MDM is dashboard-driven (the appliance stages the hardware hash and reads the dashboard's check state; no opt-in flag).
 - Boot-time diagnostics (`register::push`) stays one-shot; **post-erasure re-submit is OUT OF
   SCOPE** this pass.
 

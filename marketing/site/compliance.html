@@ -81,14 +81,14 @@
 
     <div class="mx-auto mt-14 max-w-3xl rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8">
       <h2 class="text-xl font-bold text-ink-900 dark:text-white">Chain of custody, built in</h2>
-      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Each run is tied to a Chain of Custody ID and captures drive model, serial, per-drive method, certification, and final status. The report is the evidence — hand it to your auditor as-is.</p>
+      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Each run is tied to a Chain of Custody ID and captures drive model, serial, per-drive method, certification, and final status — including <em>how</em> each drive was destroyed (the technique and the NIST SP 800-88 level reached) and the media disposition (sanitised in place and reusable, or physically destroyed). The report is the evidence — hand it to your auditor as-is.</p>
     </div>
 
     <div class="mx-auto mt-14 max-w-3xl">
       <h2 class="text-2xl font-bold text-ink-900 dark:text-white">What the report proves</h2>
       <ul class="mt-6 space-y-3 text-sm text-slate-600 dark:text-slate-400">
         <li><span class="font-semibold text-ink-900 dark:text-white">Which method ran</span> — the exact sanitise operation for each drive (crypto purge, enhanced erase, and so on).</li>
-        <li><span class="font-semibold text-ink-900 dark:text-white">What outcome it achieved</span> — PURGE, CLEAR, or flagged for physical destruction.</li>
+        <li><span class="font-semibold text-ink-900 dark:text-white">What outcome it achieved</span> — the NIST SP 800-88 level reached (Clear, Purge, or Destruction), the technique used (for example cryptographic erase), and whether the media was sanitised in place or physically destroyed.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">Where and when</span> — drive serials, Chain of Custody ID, and timestamp.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">Drive health before and after</span> — pre/post-wipe SMART (status, temperature, power-on hours, wear) recorded in the report and certificate.</li>
         <li><span class="font-semibold text-ink-900 dark:text-white">Verification of the wipe</span> — sample sectors are re-read after erasure to confirm the data is gone, with the result recorded per drive.</li>
@@ -101,7 +101,7 @@
 
     <div class="mx-auto mt-14 max-w-3xl">
       <h2 class="text-2xl font-bold text-ink-900 dark:text-white">Certified by you — evidenced by tScrub</h2>
-      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Your Certificates of Destruction are issued by your own organisation — the data controller responsible for the assets — and carry your company's name, registration number, and address. tScrub is the tool that produces the item-level evidence: per-drive serials, wipe method, SMART before/after, and a tamper-evident record traceable by Certificate ID.</p>
+      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Your Certificates of Destruction are issued by your own organisation — the data controller responsible for the assets — and carry your company's name, registration number, and address. tScrub is the tool that produces the item-level evidence: per-drive serials, wipe method, SMART before/after, and a tamper-evident record traceable by Certificate ID. Each certificate states how the data was destroyed — the method, NIST level, technique and media disposition — and opens its device annex with a destruction method summary.</p>
       <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Every certificate is also issued as a <a href="/resources/verify-certificate" class="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">signed, machine-readable JSON-LD document</a> — so compliance platforms and automated auditors can ingest and verify the evidence without parsing the PDF.</p>
       <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">tScrub is operated by TFix Ltd, a UK IT asset disposition provider specialising in <a href="https://www.tfix.co.uk/services/certified-data-destruction/" target="_blank" rel="noopener" class="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">certified data destruction</a>. TFix is licensed, insured, and registered as follows:</p>
       <ul class="mt-6 space-y-3 text-sm text-slate-600 dark:text-slate-400">

@@ -8,6 +8,54 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.55] - 2026-10-13
+
+### Fixed
+
+- **Attested destruction could not actually be used, and the records were
+  invisible once saved.** The v1.11.54 entry below describes the capability as
+  added; in practice the Add form could not save anything. Three independent faults
+  were stacked behind one symptom ("stuck on Saving…, then nothing is saved"):
+  - `api.php` never required `manual_destruction.php`, so the route died on a call
+    to an undefined function. A fatal returns HTML, not JSON, and the form's
+    `.json()` then threw — which the error handler reported as *"could not reach the
+    server"*, pointing at the network instead of the server. The modal now reads the
+    response body as text and parses defensively, so a non-JSON reply is reported
+    with its HTTP status and the body it actually sent.
+  - The modal's `show()` helper took `(err, message)` while its failure paths called
+    it with one argument. Under `'use strict'` the first parameter therefore became a
+    primitive string and `err.textContent = …` **threw**, sending every failed save
+    into the catch handler, which threw again — so the button was never re-enabled
+    and the real error was never displayed. `show()` now takes only the message and
+    finds its own element, which makes it impossible to call wrongly.
+  - A save could also hang indefinitely with no timeout. Requests are now bounded
+    (30 s) and report the timeout explicitly.
+- **A syntax error in the devices listing broke the Devices page continuously.**
+  The list built `AND device_key IN (…)` from the page slice, so an empty slice
+  produced `IN ()` — invalid SQL — and the dashboard polls that endpoint, so it was
+  failing every ~10 seconds. An empty page now matches nothing (`1 = 0`), which is
+  the same meaning in valid SQL. Two occurrences.
+- **A standalone destroyed drive recorded no attester.** `certificate_drives` had no
+  `attested_by` column and the save path silently dropped the argument, so the one
+  thing an auditor asks first about an attestation was missing. Column added
+  (schema + migration) and both insert paths now store it.
+
+### Added
+
+- **Attested records now surface in the Devices and Drives lists**, which is where
+  the operator expects to see them. They take part in the same search, sort and
+  pagination as scanned machines, each badged **Attested** with the qualifier
+  attached, and the pager reports how many of the total are attestations — so a
+  destroyed phone cannot quietly inflate the count of machines the appliance
+  actually saw. Their rows are deliberately unlike a scanned row: the BIOS and MDM
+  columns read *not scanned*, the Status column states the destruction rather than
+  an online/offline state the item cannot have, the drive Grade column stays empty
+  because no SMART was ever read, and there are no Log/Ops/Rep controls because
+  none of them have anything to act on.
+
+  Server + site only — no appliance change. Plan:
+  `research/manual-destruction/README.md`.
+
 ## [v1.11.54] - 2026-10-13
 
 ### Added

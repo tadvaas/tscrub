@@ -101,16 +101,10 @@ UI_COMPLETE_THEME=0; MDM_VERDICT=""; MDM_STATUS=""
 
 TSCRUB_UPLOAD_URL=""
 TSCRUB_API_TOKEN=""
-TSCRUB_AUTOPILOTCHECK=""
-t::check "mdm: not configured when unset" '! mdm::is_configured'
+t::check "mdm: not configured without a dashboard token" '! mdm::is_configured'
 TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
-t::check "mdm: not configured with token but no flag" '! mdm::is_configured'
-TSCRUB_AUTOPILOTCHECK=1
-t::check "mdm: configured with flag + token" 'mdm::is_configured'
-TSCRUB_API_TOKEN=""
-t::check "mdm: not configured with flag but no token" '! mdm::is_configured'
-TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
-# flag + token stay set for the run_detect tests below
+t::check "mdm: configured with a dashboard token" 'mdm::is_configured'
+# the token stays set for the run_detect tests below
 
 run_detect() {
     : > "$ipc_file"
@@ -122,14 +116,12 @@ run_detect() {
 # --- skipped: no dashboard config -------------------------------------------
 TSCRUB_UPLOAD_URL=""
 TSCRUB_API_TOKEN=""
-TSCRUB_AUTOPILOTCHECK=""
 run_detect
 t::assert_contains "$(cat "$ipc_file")" "mdm STATUS Skipped" "mdm: skipped when unconfigured"
 
 # --- skipped: identifiers are N/A -------------------------------------------
 TSCRUB_UPLOAD_URL="https://tscrub.com/api/reports"
 TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
-TSCRUB_AUTOPILOTCHECK=1
 SYS_SERIAL="N/A"
 SYS_UUID="N/A"
 run_detect
@@ -261,7 +253,6 @@ network::ensure() { NETWORK_CALLS=$((NETWORK_CALLS + 1)); [[ $NETWORK_CALLS -ge 
 FAKE_MDM_FAIL_FIRST=""
 FAKE_MDM_VERDICT="locked_other"
 TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
-TSCRUB_AUTOPILOTCHECK=1
 SYS_SERIAL="SYSSN123"
 SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
 SYS_MANUFACTURER="Fake Inc."
@@ -276,7 +267,6 @@ t::check "mdm: network::ensure was retried before resolving" '[[ $NETWORK_CALLS 
 FAKE_MDM_FAIL_FIRST=""
 FAKE_MDM_VERDICT="unlocked"
 TSCRUB_API_TOKEN="$(printf 'a%.0s' {1..64})"
-TSCRUB_AUTOPILOTCHECK=1
 SYS_SERIAL="SYSSN123"
 SYS_UUID="4C4C4544-0036-5710-8032-B5C04F433633"
 : > "$FAKE_MDM_CURL_LOG"
