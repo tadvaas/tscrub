@@ -2125,7 +2125,15 @@ function load_devices(int $userId, ?array $query = null): array {
         }
     }
 
-    $keySql = $onlyKeys !== null ? ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')' : '';
+    // An empty page slice produced "AND device_key IN ()", which MySQL rejects with a
+    // syntax error (1064), so the dashboard's poll of this endpoint failed repeatedly.
+    // Matching nothing is the correct meaning of an empty page.
+    $keySql = '';
+    if ($onlyKeys !== null) {
+        $keySql = $onlyKeys === []
+            ? ' AND 1 = 0'
+            : ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')';
+    }
     $stmt = db()->prepare("SELECT id, uploaded_at, grade, notes, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics'" . $keySql . " ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($onlyKeys !== null ? array_merge($ids, $onlyKeys) : $ids);
 
@@ -2300,7 +2308,14 @@ function load_devices(int $userId, ?array $query = null): array {
 
     // Fold erasure reports into the same machine history so the Devices tab
     // shows when drives were wiped alongside the boot-time snapshots.
-    $keySql = $onlyKeys !== null ? ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')' : '';
+    // Same empty-page bug as the diagnostics listing above: an empty key list built
+    // "AND device_key IN ()", which MySQL rejects (1064).
+    $keySql = '';
+    if ($onlyKeys !== null) {
+        $keySql = $onlyKeys === []
+            ? ' AND 1 = 0'
+            : ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')';
+    }
     $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure'" . $keySql . " ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($onlyKeys !== null ? array_merge($ids, $onlyKeys) : $ids);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
