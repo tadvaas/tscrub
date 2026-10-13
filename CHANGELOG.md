@@ -12,6 +12,26 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
+- **Devices tScrub can't reach can now be certified as physically destroyed.**
+  Phones, kit that won't POST, and anything with soldered or unsupported media never
+  produce a report, so they could not appear on a certificate at all — the destroyed
+  decision was report-driven — and the operator kept a parallel spreadsheet. There is
+  now an **Add** button beside Export on the Devices and Drives pages: record the unit
+  (make, model, serial/IMEI, category, why it was destroyed rather than sanitised) with
+  one media row per medium it held, or record a standalone destroyed drive with no host.
+  Attestation is recorded once per device from the session — never from the form — and
+  media inherit it, so a single medium pulled out and *sanitised* stays verified while
+  the rest of the unit is attested. A job containing nothing but manual records gets a
+  draft certificate, so a pure destruction job produces a certificate without any
+  appliance run.
+  Every attested line is marked **operator-attested — not instrument-verified**, and
+  attested media are deliberately kept out of the verified drive list, the media
+  disposition line and the NIST level, in both the PDF and its signed JSON-LD twin, so
+  a declared outcome can never be read as a measured one. Identities are mandatory and
+  unique per job as a normalised serial + make + model (serial alone would reject
+  legitimate factory-duplicated serials). Uniqueness is enforced by the database, not
+  just the API. Server + site only — no appliance change. Plan:
+  `research/manual-destruction/README.md`.
 - **A drive whose NVMe sanitize wedges is now detected and reported as
   `STALLED`.** An Intel 660p in a live run sat at `0%` for 4 h 40 m with its
   sanitize state machine stuck: `SSTAT` reported *in progress* while `SPROG`
