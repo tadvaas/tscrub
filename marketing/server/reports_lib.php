@@ -690,6 +690,20 @@ function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m
           evidence_ref, evidence_sha256, identity_key, attested_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     );
+    // Resolve the outcome ONCE, so the label, the class and the stored method cannot
+    // disagree. The medium's own method wins when it names one (a drive pulled and wiped
+    // while the rest of the unit was destroyed); otherwise it inherits its host's.
+    //
+    // A blank value must fall through to the host, and `??` alone does not do that: the
+    // validator always SETS the key (to '' when the method is missing), so a medium
+    // validated without one stored an empty method, and the row was then read back as
+    // destroyed while the class column on the same row said 'factory reset'.
+    $own  = trim((string)($m['destroy_method'] ?? ''));
+    $host = trim((string)($dev['destroy_method'] ?? ''));
+    $eff  = $own !== '' ? $own : $host;
+    $live = ['destroy_method' => $eff] + ($dev ?: $m);
+    $retained = md_method_disposition($eff) === 'retained';
+
     $q->execute([
         $certId,
         '',
@@ -698,10 +712,10 @@ function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m
         (string)$m['serial'],
         (string)($m['size'] ?? ''),
         (string)($m['bus'] ?? ''),
-        'DESTRUCTION',
-        md_destruction_line($dev ?: $m),
+        $retained ? 'FACTORY RESET' : 'DESTRUCTION',
+        md_attested_method_line($live),
         'NOT SANITISED',
-        'DESTROYED',
+        $retained ? 'RETAINED' : 'DESTROYED',
         // The unit each medium came from, as the annex shows it. A standalone
         // destroyed drive has NO host: it must stay empty so the certificate
         // prints "—" rather than implying it was attached to something.
@@ -710,7 +724,7 @@ function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m
         'manual',
         $deviceId,
         (string)($m['reason'] ?? $dev['reason'] ?? ''),
-        (string)($m['destroy_method'] ?? $dev['destroy_method'] ?? ''),
+        $eff,
         (string)($m['destroy_vendor'] ?? $dev['destroy_vendor'] ?? ''),
         (string)($m['destroy_date'] ?? $dev['destroy_date'] ?? ''),
         (string)($m['destroy_witness'] ?? $dev['destroy_witness'] ?? ''),
@@ -1004,7 +1018,9 @@ function db_drive_to_group(array $d): array {
  * failed on one machine and then successfully erased on another must resolve
  * to COMPLETED, not the earlier failure.
  *
- * Tiers: COMPLETED > operator-confirmed DESTROYED > DRY-RUN > any not-sanitised
+ * Tiers: COMPLETED > operator-confirmed DESTROYED / RETAINED (a factory reset
+ * leaves the device in service, so it ranks with a destruction: neither is a
+ * sanitisation, and neither is a failure) > DRY-RUN > any not-sanitised
  * outcome. Within the not-sanitised outcomes the rank is an ESCALATION order,
  * so the label shown never depends on upload order: FROZEN (destruction
  * required) > STALLED (drive wedged mid-operation, needs a power cycle) >
@@ -1015,6 +1031,7 @@ function drive_status_rank(?string $status): int {
     $s = strtoupper(trim((string)$status));
     if ($s === 'COMPLETED') return 100;
     if ($s === 'DESTROYED') return 50;
+    if ($s === 'RETAINED')  return 50;
     if ($s === 'DRY-RUN')   return 10;
     if ($s === 'FROZEN')    return 6;
     if ($s === 'STALLED')   return 5;
@@ -1945,6 +1962,18 @@ function manual_drive_row(array $m, string $cocid = ''): array
 {
     require_once __DIR__ . '/manual_destruction.php';
 
+    // A factory-reset medium is retained, not destroyed: the operator still has the
+    // device, so the row must not read DESTROYED.
+    $method = trim((string)($m['destroy_method'] ?? ''));
+    if ($method !== '') {
+        $retained = md_method_disposition($method) === 'retained';
+    } else {
+        // A row written before the method fallback existed can carry a blank method beside
+        // a 'FACTORY RESET' class. Reading the class keeps that row honest instead of
+        // showing a reset device as destroyed.
+        $retained = strtoupper(trim((string)($m['class'] ?? ''))) === 'FACTORY RESET';
+    }
+
     $row = [
         '_key'      => 'attested:media:' . (int)$m['id'],
         '_attested' => true,
@@ -1960,9 +1989,9 @@ function manual_drive_row(array $m, string $cocid = ''): array
         'size'      => (string)$m['size'],
         'bus'       => (string)$m['bus'],
         'method'    => (string)$m['method'],
-        'status'    => 'DESTROYED',
-        'final_status' => 'DESTROYED',
-        'cert'      => 'DESTRUCTION',
+        'status'    => $retained ? 'RETAINED' : 'DESTROYED',
+        'final_status' => $retained ? 'RETAINED' : 'DESTROYED',
+        'cert'      => $retained ? 'FACTORY RESET' : 'DESTRUCTION',
         'certification' => 'NOT SANITISED',
         // The unit this medium came from, when one was recorded. A standalone
         // destroyed drive has no host and must not be given one.

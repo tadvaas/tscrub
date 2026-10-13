@@ -72,12 +72,23 @@ if ($isValidId) {
             // are kept alongside them so drift is reported rather than silently papered over.
             $docAttDevices = $attDevices;
             $docAttMedia   = $attMedia;
+            $docRetDevices = 0;
+            $docRetMedia   = 0;
             $snapshot = jsonld_read_cert($row);
             if (is_array($snapshot['attestedDestruction'] ?? null)) {
                 $docAttDevices = (int)($snapshot['attestedDestruction']['devices'] ?? 0);
                 $docAttMedia   = (int)($snapshot['attestedDestruction']['media'] ?? 0);
+                // The totals above are what the document states; the split is what it
+                // MEANT. A factory-reset item is retained, and this page must not read as
+                // though the fleet lost it. A snapshot predating the split has no keys,
+                // which correctly reads as 'nothing retained'.
+                $docRetDevices = (int)($snapshot['attestedDestruction']['retained']['devices'] ?? 0);
+                $docRetMedia   = (int)($snapshot['attestedDestruction']['retained']['media'] ?? 0);
             }
             $recordsMoved = ($docAttDevices !== $attDevices) || ($docAttMedia !== $attMedia);
+            // Decided here with the figures rather than at the point each sentence is
+            // printed, so no branch can be reached that has not considered a retained item.
+            $hasRetained = ($docRetDevices + $docRetMedia) > 0;
 
             // Computed here, BEFORE any prose is chosen: the integrity sentence below has a
             // case for 'no reports at all', and deciding that from an undefined variable
@@ -101,6 +112,14 @@ if ($isValidId) {
                 // the canonical qualifier is appended — same string, without the repetition.
                 $qualBits = explode('—', md_attested_qualifier());
                 $attestedSummary .= ' — ' . trim((string)end($qualBits));
+                if ($hasRetained) {
+                    // Named separately: those devices were NOT destroyed, so folding them
+                    // into the figure above would misstate the record.
+                    $rBits = [];
+                    if ($docRetDevices > 0) { $rBits[] = $docRetDevices . ' ' . ($docRetDevices === 1 ? 'device' : 'devices'); }
+                    if ($docRetMedia > 0)   { $rBits[] = $docRetMedia . ' ' . ($docRetMedia === 1 ? 'medium' : 'media'); }
+                    $attestedSummary .= ' · ' . implode(' and ', $rBits) . ' factory reset and retained';
+                }
             }
             // Free-tier licences carry no report key, so their reports are
             // self-signed by the appliance and cannot be independently confirmed
@@ -190,8 +209,12 @@ if ($found) {
         // reports at all is simply false, and it is the sentence the previous code fell
         // through to for exactly this case.
         $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no '
-            . 'appliance reports: the destruction it records is a statement by the operator, '
-            . 'not an instrument-verified sanitisation.';
+            . 'appliance reports: ' . ($hasRetained ? 'the outcome it records' : 'the destruction it records')
+            . ' is a statement by the operator, not an instrument-verified sanitisation.';
+        if ($hasRetained) {
+            $integrityNote .= ' A factory reset destroys no hardware: the reset devices were retained and '
+                . 'remain in circulation, and no claim is made about their media beyond the operator\'s declaration.';
+        }
     } elseif ($allGood) {
         $integrityNote = 'This certificate of destruction was issued by tScrub and its underlying reports passed integrity checks at the time of issuance.';
     } else {
@@ -239,7 +262,7 @@ if ($found) {
   <div class="card">
 <?php if ($found): ?>
     <?php if ($hasAttested && !$hasReports): ?>
-    <div class="status"><span class="dot warn"></span><span class="warn">Certificate Record — operator-attested destruction</span></div>
+    <div class="status"><span class="dot warn"></span><span class="warn">Certificate Record — operator-attested <?= $hasRetained ? 'destruction and factory reset' : 'destruction' ?></span></div>
     <div class="sub"><?= v_h($integrityNote) ?></div>
     <?php elseif ($recordTier !== 'free' && $verified): ?>
     <div class="status"><span class="dot ok"></span><span class="ok">Certificate Verified</span></div>

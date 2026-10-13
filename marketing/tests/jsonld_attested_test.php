@@ -114,6 +114,45 @@ $disp = (string)($doc['mediaDisposition'] ?? '');
 t_check('mediaDisposition does not absorb the attested media',
     strpos($disp, '3') === false && strpos($disp, 'destroyed with') === false);
 
+// --- a factory reset is retained, and the twin must say so -------------------
+// An automated auditor reads this document, so a retained device must not be filed as
+// destroyed property — and it must not carry a destroyMethod, because there was no
+// destruction to name.
+$resetDoc = build_cert_jsonld($summary, [$verifiedDrive], [], $issuer, [
+    'devices' => [[
+        'category' => 'ip_phone', 'make' => 'Cisco', 'model' => '7942G',
+        'serial' => 'FCW1234ABCD', 'destroy_method' => 'factory_reset',
+        'destroy_vendor' => '', 'destroy_date' => '2026-10-16',
+        'attested_by' => 'Jane Operator',
+        'media' => [['type' => 'Flash (integrated)', 'serial' => 'FCW1234ABCD']],
+    ]],
+    'media' => [],
+]);
+$resetBlock = $resetDoc['attestedDestruction'] ?? [];
+t_check('reset: the block is still emitted', $resetBlock !== []);
+t_check('reset: totals still count the item', ($resetBlock['devices'] ?? 0) === 1);
+t_check('reset: the split keeps it out of the destroyed figure',
+    ($resetBlock['destroyed'] ?? []) === ['devices' => 0, 'media' => 0]
+    && ($resetBlock['retained'] ?? []) === ['devices' => 1, 'media' => 1]);
+
+$resetItem = $resetBlock['items'][0] ?? [];
+t_check('reset: the item is marked retained, not destroyed',
+    ($resetItem['disposition'] ?? '') === 'retained');
+t_check('reset: it is still labelled as an attestation',
+    ($resetItem['attestation'] ?? '') === 'operator-attested');
+t_check('reset: it carries no destroyMethod',
+    !isset($resetItem['destroyMethod']));
+t_check('reset: the method is still named',
+    strpos((string)($resetItem['method'] ?? ''), 'Factory reset') !== false);
+t_check('reset: the medium inherits the outcome',
+    ($resetItem['media'][0]['disposition'] ?? '') === 'retained'
+    && !isset($resetItem['media'][0]['destroyMethod']));
+// The destroyed case is unchanged, so existing consumers of this document keep working.
+t_check('destroyed items still carry destroyMethod alongside method',
+    ($doc['attestedDestruction']['items'][0]['disposition'] ?? '') === 'destroyed'
+    && ($doc['attestedDestruction']['items'][0]['destroyMethod'] ?? '')
+        === ($doc['attestedDestruction']['items'][0]['method'] ?? null));
+
 // --- an empty attested set keeps the document byte-identical -----------------
 $again = build_cert_jsonld($summary, [$verifiedDrive], [], $issuer);
 t_check('an empty attested set produces the same document as omitting it',

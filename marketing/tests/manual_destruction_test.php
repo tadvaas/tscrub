@@ -93,10 +93,20 @@ $r = md_validate_device(['serial' => 'X1', 'make' => 'A', 'model' => 'B', 'categ
 t_check('unknown category rejected', strpos(t_errors($r), 'category is required') !== false);
 t_check('unknown reason rejected', strpos(t_errors($r), 'A reason is required') !== false);
 
+// This assertion used to be the opposite: 'factory reset' was deliberately NOT a method,
+// on the grounds that it is not a destruction and cannot be verified. Both halves of that
+// are still true, but refusing to RECORD it only pushed network kit and phones into a
+// spreadsheet, so it is now a method whose disposition is 'retained'. What matters is that
+// the label is still refused: it is not the machine value.
 $r = md_validate_device(['serial' => 'X1', 'make' => 'A', 'model' => 'B', 'category' => 'other',
     'reason' => 'other', 'destroy_method' => 'factory reset']);
-t_check('an invented method (factory reset) is rejected',
-    strpos(t_errors($r), 'destruction method is required') !== false);
+t_check('a method label is not accepted in place of the machine value',
+    strpos(t_errors($r), 'A method is required') !== false);
+
+$r = md_validate_device(['serial' => 'X1', 'make' => 'A', 'model' => 'B', 'category' => 'other',
+    'reason' => 'other', 'destroy_method' => 'FACTORY_RESET']);
+t_check('a reset is accepted case-insensitively and normalised to the machine value',
+    t_errors($r) === '' && $r['clean']['destroy_method'] === 'factory_reset');
 
 $r = md_validate_device(['serial' => 'X1', 'make' => 'A', 'model' => 'B', 'category' => 'other',
     'reason' => 'other', 'destroy_method' => 'shredded', 'destroy_date' => '13/10/2026']);
@@ -154,11 +164,80 @@ t_check('every reason has a label', count(array_filter(md_reasons())) === count(
 t_eq('device line', 'Mobile phone — Apple iPhone 6 (356789012345678)',
     md_device_line(['category' => 'mobile_phone', 'make' => 'Apple', 'model' => 'iPhone 6',
         'serial' => '356789012345678']));
-t_eq('destruction line', 'Shredded (Acme Shredding, 2026-10-13)',
-    md_destruction_line(['destroy_method' => 'shredded', 'destroy_vendor' => 'Acme Shredding',
+t_eq('method line', 'Shredded (Acme Shredding, 2026-10-13)',
+    md_attested_method_line(['destroy_method' => 'shredded', 'destroy_vendor' => 'Acme Shredding',
         'destroy_date' => '2026-10-13']));
-t_eq('destruction line without evidence extras', 'Crushed',
-    md_destruction_line(['destroy_method' => 'crushed']));
+t_eq('method line without evidence extras', 'Crushed',
+    md_attested_method_line(['destroy_method' => 'crushed']));
+// A reset has no destruction vendor: the mechanism IS the method, and a shredding vendor
+// against a device the operator kept would invent a contractor who was never there.
+t_eq('method line drops the vendor on a reset', 'Factory reset (2026-10-13)',
+    md_attested_method_line(['destroy_method' => 'factory_reset', 'destroy_vendor' => 'Acme Shredding',
+        'destroy_date' => '2026-10-13']));
+
+// --- the item verb is chosen from the method, never supplied by the caller ---
+t_eq('item line: destroyed', 'Destroyed — Shredded (Acme, 2026-10-13)',
+    md_attested_line(['destroy_method' => 'shredded', 'destroy_vendor' => 'Acme',
+        'destroy_date' => '2026-10-13']));
+$resetLine = md_attested_line(['destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-13']);
+t_eq('item line: a reset states retention', 'Factory reset (2026-10-13) — device retained', $resetLine);
+t_check('item line: a reset is never called destroyed', stripos($resetLine, 'destroy') === false);
+
+// --- disposition is derived from the method, so the two cannot disagree ------
+t_eq('factory reset is retained', 'retained', md_method_disposition('factory_reset'));
+t_eq('shredding is destroyed', 'destroyed', md_method_disposition('shredded'));
+t_eq('an unknown method is not silently retained', 'destroyed', md_method_disposition('melted'));
+t_eq('an empty method is not silently retained', 'destroyed', md_method_disposition(''));
+
+// --- counts split by outcome -------------------------------------------------
+$mixed = [
+    'devices' => [
+        ['destroy_method' => 'shredded', 'media' => [['serial' => 'A'], ['serial' => 'B']]],
+        ['destroy_method' => 'factory_reset', 'media' => [['serial' => 'C']]],
+    ],
+    'media' => [['destroy_method' => 'factory_reset', 'serial' => 'D']],
+];
+$split = md_attested_split($mixed);
+t_eq('split: destroyed devices', 1, $split['destroyed']['devices']);
+t_eq('split: destroyed media', 2, $split['destroyed']['media']);
+t_eq('split: retained devices', 1, $split['retained']['devices']);
+t_eq('split: retained media', 2, $split['retained']['media']);
+t_eq('split of nothing', ['devices' => 0, 'media' => 0], md_attested_split([])['destroyed']);
+$override = md_attested_split([
+    'devices' => [['destroy_method' => 'shredded', 'media' => [['destroy_method' => 'factory_reset']]]],
+]);
+t_eq('split: a medium may differ from its host', 1, $override['retained']['media']);
+t_eq('split: ...and the host is still destroyed', 1, $override['destroyed']['devices']);
+
+// --- the summary line --------------------------------------------------------
+t_eq('summary: the destroyed-only wording is unchanged',
+    '2 media destroyed with 1 device. These items are operator-attested — not instrument-verified.',
+    md_attested_summary(md_attested_split(['devices' => [['destroy_method' => 'shredded', 'media' => [
+        ['destroy_method' => 'shredded'], ['destroy_method' => 'shredded']]]]])));
+$mixedSummary = md_attested_summary($split);
+t_check('summary: names the retained items',
+    strpos($mixedSummary, 'reset to factory settings and retained') !== false);
+t_check('summary: says a reset destroys no hardware',
+    strpos($mixedSummary, 'destroys no hardware') !== false);
+
+// --- the vocabulary the operator can actually choose -------------------------
+t_check('the network and phone categories exist',
+    array_key_exists('ip_phone', md_categories())
+    && array_key_exists('switch', md_categories())
+    && array_key_exists('router', md_categories())
+    && array_key_exists('mobile_phone', md_categories()));
+t_check('there is a reason for kit the appliance cannot boot',
+    array_key_exists('not_supported_by_appliance', md_reasons()));
+t_check('factory reset is selectable', array_key_exists('factory_reset', md_methods()));
+t_eq('a factory reset validates with no vendor',
+    '',
+    t_errors(md_validate_device(['category' => 'ip_phone', 'make' => 'Cisco', 'model' => '7942',
+        'serial' => 'FCW1234ABCD', 'reason' => 'not_supported_by_appliance',
+        'destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-13'])));
+t_check('the reason question is not worded as a destruction',
+    strpos(t_errors(md_validate_device(['category' => 'switch', 'make' => 'Cisco',
+        'model' => 'C2960', 'serial' => 'FOC1', 'destroy_method' => 'shredded'])),
+        'why was this not sanitised') !== false);
 
 // --- the attested qualifier exists and says the honest thing ----------------
 t_check('qualifier names both roles',
@@ -204,9 +283,38 @@ t_check('banner: a verified-only job makes no attested claim',
 
 t_eq('banner: nothing recorded is stated, not left blank',
     'NO MEDIA RECORDED', md_attested_banner(0, 0, 0));
+
+// A retained item is counted separately and is NEVER added to the destroyed figure: a
+// factory reset destroys nothing, and the device stays with the operator.
+t_eq('banner: a factory reset is stated as retained, not destroyed',
+    '3 MEDIA FACTORY RESET (ATTESTED, RETAINED, 1 DEVICE)',
+    md_attested_banner(0, 0, 0, 1, 3));
+t_eq('banner: a reset unit with no recorded medium',
+    '1 DEVICE FACTORY RESET (ATTESTED, RETAINED, NO MEDIA RECORDED)',
+    md_attested_banner(0, 0, 0, 1, 0));
+$bothBanner = md_attested_banner(2, 2, 4, 1, 3);
+t_check('banner: destroyed and retained are never summed',
+    strpos($bothBanner, '4 MEDIA DESTROYED (ATTESTED, 2 DEVICES)') !== false
+    && strpos($bothBanner, '3 MEDIA FACTORY RESET (ATTESTED, RETAINED, 1 DEVICE)') !== false
+    && strpos($bothBanner, '7 MEDIA') === false);
+$retainedOnly = md_attested_banner(0, 0, 0, 1, 1);
+t_check('banner: a retained-only job makes no destruction or verification claim',
+    stripos($retainedOnly, 'DESTROYED') === false && stripos($retainedOnly, 'VERIFIED') === false);
+// The destroyed-only banner must be byte-identical to what it was before the reset
+// vocabulary existed, so no already-issued certificate reads differently.
+t_eq('banner: the destroyed-only wording is unchanged',
+    '12 MEDIA SANITISED IN PLACE (VERIFIED) · 3 MEDIA DESTROYED (ATTESTED, 1 DEVICE)',
+    md_attested_banner(12, 1, 3, 0, 0));
+
 t_check('footnote explains that attested items were not sanitised by us',
     strpos(md_attested_footnote(), 'not sanitised by this tool') !== false
     && strpos(md_attested_footnote(), 'not instrument-verified') !== false);
+$retainedFootnote = md_attested_footnote(true);
+t_check('footnote: a reset item is described as retained',
+    strpos($retainedFootnote, 'RETAINED') !== false
+    && strpos($retainedFootnote, 'not instrument-verified') !== false);
+t_check('footnote: the destroyed-only wording is unchanged',
+    strpos(md_attested_footnote(), 'RETAINED') === false);
 
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);

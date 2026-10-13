@@ -86,6 +86,60 @@ and this project uses date-based versioning (`v1.x`).
   rewrite, neither `load_cert_drives()` nor `jsonld_load_drives()` may return an
   attested row.
 
+### Added
+
+- **Factory reset as a recorded outcome, for kit the appliance cannot boot.**
+  Switches, routers, IP phones and mobile phones often cannot be booted by tScrub at
+  all, so the only thing an operator can do is reset them using their own facilities
+  and put them back into service — and there was nowhere to record that.
+  `factory_reset` was deliberately absent from the method vocabulary (it is not a
+  destroy method and it cannot be verified), which meant the job lived in a
+  spreadsheet. It is now a method of its own, alongside categories for the kit that
+  needs it (`ip_phone`, `switch`, `router`, `network_appliance`) and a reason that
+  says what actually happened (`not_supported_by_appliance`). It rides the existing
+  attested path: the same Add modal, the same amber rows, the same
+  `operator-attested — not instrument-verified` qualifier.
+
+  The one thing it may not do is claim a destruction. The outcome is **derived** from
+  the method (`md_method_disposition()`) rather than stored, so the operator cannot
+  pick a method and a disposition that disagree and a retained device can never be
+  certified as destroyed:
+  - item line — `Factory reset (2026-10-16) — device retained`, never `Destroyed — …`
+  - banner — `1 MEDIA FACTORY RESET (ATTESTED, RETAINED, 2 DEVICES)`, counted
+    separately from destroyed media and **never summed** with them
+  - section heading — neutral (`OPERATOR ATTESTATION — NOT INSTRUMENT-VERIFIED`) when
+    a retained item is present, because the section is no longer only about
+    destruction
+  - page-1 attestation — the "data was destroyed" sentence gains an explicit retained
+    clause instead of quietly widening its scope
+  - JSON-LD — `"disposition": "retained"` and **no** `destroyMethod` key, because
+    there is no destruction to name
+  - dashboards — status `RETAINED` / certification `FACTORY RESET`, and the grade
+    tooltip now says the drive was reset with its device rather than destroyed
+
+  A reset also drops the destruction-vendor box in the modal: the mechanism *is* the
+  method, and a shredding vendor against a device the operator kept would invent a
+  contractor who was never there. Runs with no factory-reset items produce
+  byte-identical wording to before — the tests pin that, because already-issued
+  certificates must not read differently.
+- `md_method_disposition()`, `md_attested_split()`, `md_attested_summary()` and
+  `md_attested_line()` — the claim composers now take the outcome from the method
+  instead of from the caller, so a new outcome cannot arrive without a sentence for
+  it.
+- `cert_claim_line_test.php` gained factory-reset and reset-plus-destroy scenarios,
+  and the storage test a save/load/delete round trip for a reset unit.
+
+### Fixed
+
+- **A medium recorded without its own method stored a blank one.**
+  `manual_media_insert()` used `$m['destroy_method'] ?? $dev['destroy_method']`, but
+  the validator always *sets* that key (to `''` when the method is missing), so `??`
+  never fell through to the host unit and the row stored an empty method beside a
+  resolved class — after which the row read back as destroyed while its own class
+  column said otherwise. The method now falls through to the host when the medium
+  does not name its own, and the label, class and stored method are resolved once so
+  they cannot disagree.
+
 ## [v1.11.55] - 2026-10-13
 
 ### Fixed

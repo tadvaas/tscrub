@@ -58,9 +58,9 @@
              class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
       <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
       <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the drive inventory">Export</button>
-      <button type="button" id="add-btn" onclick="ManualAssets.openFor('drive')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a drive that was physically destroyed (an operator attestation)">Add</button>
+      <button type="button" id="add-btn" onclick="ManualAssets.openFor('drive')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a drive that was destroyed, or factory reset with its device (an operator attestation)">Add</button>
     </div>
-    <script src="/assets/manual-assets.js?v=14" defer></script>
+    <script src="/assets/manual-assets.js?v=15" defer></script>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
       <div id="drive-list" class="min-h-[200px]">
@@ -474,8 +474,16 @@
         var m = String(d.destroy_method || '').replace(/_/g, ' ');
         if (m) { bits.push(m.charAt(0).toUpperCase() + m.slice(1)); }
         if (d.destroy_date) { bits.push(d.destroy_date); }
-        if (d.destroy_vendor) { bits.push(d.destroy_vendor); }
+        // No vendor on a factory reset: the mechanism IS the method, and naming a
+        // destruction vendor against a device the operator kept would invent one.
+        if (d.destroy_vendor && !attestedRetained(d)) { bits.push(d.destroy_vendor); }
         return bits.length ? bits.join(' · ') : (d.method || '—');
+      }
+
+      // A factory reset leaves the device in service, so nothing in this row may call it
+      // a destruction. Mirrors md_method_disposition() on the server.
+      function attestedRetained(d) {
+        return String(d.destroy_method || '') === 'factory_reset';
       }
 
       // A row for a medium an operator recorded as physically destroyed.
@@ -485,8 +493,10 @@
       // there are no reports, only the attestation — and the serial links the row to
       // the annex of the certificate that carries it.
       function attestedRow(d) {
+        var retained = attestedRetained(d);
         var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800 bg-amber-50/50 dark:bg-amber-900/10');
-        tr.title = 'Recorded by an operator as physically destroyed — ' + (d.attested_qualifier || 'attested');
+        tr.title = 'Recorded by an operator as ' + (retained ? 'factory reset' : 'physically destroyed')
+          + ' — ' + (d.attested_qualifier || 'attested');
 
         var modelCell = el('td', 'max-w-[12rem] px-3 py-2 font-medium text-ink-900 dark:text-white');
         // flex + min-w-0 on the truncating span + shrink-0 on the badge. As one truncate
@@ -495,7 +505,9 @@
         var modelWrap = el('div', 'flex items-center gap-2 min-w-0');
         modelWrap.appendChild(el('span', 'min-w-0 truncate', d.model || '—'));
         var badge = el('span', 'shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', 'Attested');
-        badge.title = 'Operator-attested physical destruction — not instrument-verified';
+        badge.title = retained
+          ? 'Operator-attested factory reset — the device was retained, not destroyed, and this is not instrument-verified'
+          : 'Operator-attested physical destruction — not instrument-verified';
         modelWrap.appendChild(badge);
         modelCell.appendChild(modelWrap);
         modelCell.title = d.model || '';
@@ -512,8 +524,9 @@
         typeCell.title = d.type || '';
         tr.appendChild(typeCell);
 
-        var stCell = el('td', 'whitespace-nowrap px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400', 'DESTROYED');
-        stCell.title = 'Destroyed — ' + attestedMethod(d) + ' · attested by ' + (d.attested_by || '—')
+        var stCell = el('td', 'whitespace-nowrap px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400',
+          d.status || (retained ? 'RETAINED' : 'DESTROYED'));
+        stCell.title = (retained ? 'Factory reset — device retained — ' : 'Destroyed — ') + attestedMethod(d) + ' · attested by ' + (d.attested_by || '—')
           + (d.system ? ' · from ' + d.system : ' · no host recorded');
         tr.appendChild(stCell);
 
@@ -523,7 +536,9 @@
 
         var gradeTd = el('td', 'px-3 py-2');
         var gradeCell = el('span', 'rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-ink-700 dark:text-slate-400', '—');
-        gradeCell.title = 'No SMART was ever read from this drive, so no resale grade exists — it was destroyed, not graded';
+        gradeCell.title = retained
+          ? 'No SMART was ever read from this drive, so no resale grade exists — it was factory reset with its device, not scanned'
+          : 'No SMART was ever read from this drive, so no resale grade exists — it was destroyed, not graded';
         gradeTd.appendChild(gradeCell);
         tr.appendChild(gradeTd);
 

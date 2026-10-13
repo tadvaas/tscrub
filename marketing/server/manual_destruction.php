@@ -21,24 +21,31 @@ require_once __DIR__ . '/grading.php';   // device_key_placeholder(): the single
 function md_categories(): array
 {
     return [
-        'mobile_phone' => 'Mobile phone',
-        'tablet'       => 'Tablet',
-        'laptop'       => 'Laptop',
-        'desktop'      => 'Desktop',
-        'server'       => 'Server',
-        'sealed_unit'  => 'Sealed unit',
-        'embedded'     => 'Embedded board',
-        'other'        => 'Other',
+        'mobile_phone'  => 'Mobile phone',
+        'tablet'        => 'Tablet',
+        'laptop'        => 'Laptop',
+        'desktop'       => 'Desktop',
+        'server'        => 'Server',
+        'ip_phone'      => 'IP phone',
+        'switch'        => 'Network switch',
+        'router'        => 'Router / firewall',
+        'network_appliance' => 'Network appliance (other)',
+        'sealed_unit'   => 'Sealed unit',
+        'embedded'      => 'Embedded board',
+        'other'         => 'Other',
     ];
 }
 
 /**
- * Why it was destroyed rather than sanitised. Required, because "why Destroy and
- * not sanitise" is the first question an auditor asks about an attested outcome.
+ * Why the item was dealt with this way rather than sanitised by the appliance. Required,
+ * because that is the first question an auditor asks. The same list serves both outcomes:
+ * a unit can be destroyed because it would not boot, or reset because the appliance
+ * cannot boot it at all.
  */
 function md_reasons(): array
 {
     return [
+        'not_supported_by_appliance' => 'Not supported by tScrub (cannot be booted)',
         'would_not_power_on'      => 'Would not power on',
         'would_not_boot'          => 'Would not boot / no supported interface',
         'media_soldered'          => 'Media soldered / integrated',
@@ -51,8 +58,16 @@ function md_reasons(): array
 }
 
 /**
- * How it was destroyed. Note there is no "factory reset" here and there never
- * should be: it is not a destroy method and it cannot be verified.
+ * How the item was dealt with.
+ *
+ * This list once refused `factory reset` outright — "it is not a destroy method and it
+ * cannot be verified". Both halves of that are still true, and the second half is still
+ * enforced: nothing here is ever presented as verified. What changed (2026-10-13) is that
+ * refusing to RECORD it left network kit and phones in a spreadsheet, so it is now
+ * offered as a method of its own with the disposition derived from it
+ * (md_method_disposition()). A reset item is recorded as sanitised and RETAINED and must
+ * never be described as destroyed anywhere — the operator keeps the device, so a
+ * "destroyed" claim would be false in their name.
  */
 function md_methods(): array
 {
@@ -63,8 +78,19 @@ function md_methods(): array
         'incinerated'              => 'Incinerated',
         'disintegrated'            => 'Disintegrated',
         'dismantled_then_shredded' => 'Dismantled, then shredded',
+        'factory_reset'            => 'Factory reset',
         'other'                    => 'Other',
     ];
+}
+
+/**
+ * The outcome a method implies: 'retained' when the device survives, 'destroyed'
+ * otherwise. Derived rather than stored, so the operator cannot pick a method and a
+ * disposition that disagree.
+ */
+function md_method_disposition(string $method): string
+{
+    return $method === 'factory_reset' ? 'retained' : 'destroyed';
 }
 
 /** The marker that must appear wherever an attested row is printed. */
@@ -99,7 +125,7 @@ function md_attested_counts(array $attested): array
  * total would claim more than the evidence supports. Wording lives here so the PDF
  * and the JSON-LD twin cannot drift apart.
  */
-function md_attested_banner(int $verifiedMedia, int $attestedDevices, int $attestedMedia): string
+function md_attested_banner(int $verifiedMedia, int $destroyedDevices, int $destroyedMedia, int $retainedDevices = 0, int $retainedMedia = 0): string
 {
     $parts = [];
 
@@ -107,30 +133,119 @@ function md_attested_banner(int $verifiedMedia, int $attestedDevices, int $attes
         $parts[] = $verifiedMedia . ' MEDIA SANITISED IN PLACE (VERIFIED)';
     }
 
-    if ($attestedMedia > 0) {
+    if ($destroyedMedia > 0) {
         $devices = '';
-        if ($attestedDevices > 0) {
-            $devices = ', ' . $attestedDevices . ($attestedDevices === 1 ? ' DEVICE' : ' DEVICES');
+        if ($destroyedDevices > 0) {
+            $devices = ', ' . $destroyedDevices . ($destroyedDevices === 1 ? ' DEVICE' : ' DEVICES');
         }
-        $parts[] = $attestedMedia . ' MEDIA DESTROYED (ATTESTED' . $devices . ')';
-    } elseif ($attestedDevices > 0) {
+        $parts[] = $destroyedMedia . ' MEDIA DESTROYED (ATTESTED' . $devices . ')';
+    } elseif ($destroyedDevices > 0) {
         // A destroyed unit with no recorded medium is a real case: the operator may not
         // have recorded the disk, or the unit had none left to record. Leading with
         // '0 MEDIA DESTROYED' would contradict the attestation in the same sentence, so
         // the device figure leads and the missing media is stated rather than implied.
-        $parts[] = $attestedDevices . ($attestedDevices === 1 ? ' DEVICE' : ' DEVICES')
+        $parts[] = $destroyedDevices . ($destroyedDevices === 1 ? ' DEVICE' : ' DEVICES')
             . ' DESTROYED (ATTESTED, NO MEDIA RECORDED)';
+    }
+
+    // The retained figure is separate from the destroyed one and is never added to it: a
+    // factory reset destroys nothing, and the device stays in circulation.
+    if ($retainedMedia > 0) {
+        $devices = '';
+        if ($retainedDevices > 0) {
+            $devices = ', ' . $retainedDevices . ($retainedDevices === 1 ? ' DEVICE' : ' DEVICES');
+        }
+        $parts[] = $retainedMedia . ' MEDIA FACTORY RESET (ATTESTED, RETAINED' . $devices . ')';
+    } elseif ($retainedDevices > 0) {
+        $parts[] = $retainedDevices . ($retainedDevices === 1 ? ' DEVICE' : ' DEVICES')
+            . ' FACTORY RESET (ATTESTED, RETAINED, NO MEDIA RECORDED)';
     }
 
     return $parts ? implode(' · ', $parts) : 'NO MEDIA RECORDED';
 }
 
 /** The sentence that must accompany the attested figures. */
-function md_attested_footnote(): string
+function md_attested_footnote(bool $hasRetained = false): string
 {
-    return 'Attested items were not sanitised by this tool: they were recorded as '
-        . 'physically destroyed by the operator named above, and are '
-        . md_attested_qualifier() . '.';
+    $s = 'Attested items were not sanitised by this tool: they were recorded by the '
+        . 'operator named above as physically destroyed';
+    if ($hasRetained) {
+        $s .= ', or — for the factory-reset items — as reset using the device\'s own '
+            . 'facilities and RETAINED. A factory reset destroys no hardware and the '
+            . 'device stays in circulation, so those items are a declaration of what the '
+            . 'operator did, not a finding about the media';
+    }
+    return $s . '. Attested items are ' . md_attested_qualifier() . '.';
+}
+
+/**
+ * Attested counts split by outcome, for the claim line and the section sub-line.
+ *
+ * A medium inherits its parent device's outcome unless it names its own method, which is
+ * the same rule manual_media_insert() applies when it stores the row.
+ */
+function md_attested_split(array $attested): array
+{
+    $out = [
+        'destroyed' => ['devices' => 0, 'media' => 0],
+        'retained'  => ['devices' => 0, 'media' => 0],
+    ];
+    $bump = function (string $method, bool $isDevice) use (&$out): void {
+        $d = md_method_disposition($method);
+        if ($isDevice) { $out[$d]['devices']++; } else { $out[$d]['media']++; }
+    };
+
+    foreach (($attested['devices'] ?? []) as $dev) {
+        $bump((string)($dev['destroy_method'] ?? ''), true);
+        foreach (($dev['media'] ?? []) as $m) {
+            $own = (string)($m['destroy_method'] ?? '');
+            $bump($own !== '' ? $own : (string)($dev['destroy_method'] ?? ''), false);
+        }
+    }
+    foreach (($attested['media'] ?? []) as $m) {
+        $bump((string)($m['destroy_method'] ?? ''), false);
+    }
+
+    return $out;
+}
+
+/**
+ * The sub-line under the attestation heading: what was recorded, split by outcome.
+ *
+ * Shared so the certificate, the verification page and the dashboard cannot describe the
+ * same records in different words. The wording for a destroyed-only record is unchanged,
+ * so nothing about an existing certificate reads differently.
+ */
+function md_attested_summary(array $split): string
+{
+    $pair = function (int $n, string $one, string $many): string {
+        return $n . ' ' . ($n === 1 ? $one : $many);
+    };
+
+    $d = $split['destroyed'] ?? ['devices' => 0, 'media' => 0];
+    $r = $split['retained']  ?? ['devices' => 0, 'media' => 0];
+    $phrases = [];
+
+    if ((int)$d['media'] > 0) {
+        $phrases[] = $pair((int)$d['media'], 'medium', 'media') . ' destroyed'
+            . ((int)$d['devices'] > 0 ? ' with ' . $pair((int)$d['devices'], 'device', 'devices') : '');
+    } elseif ((int)$d['devices'] > 0) {
+        $phrases[] = $pair((int)$d['devices'], 'device', 'devices') . ' destroyed, no medium recorded';
+    }
+
+    if ((int)$r['media'] > 0) {
+        $phrases[] = $pair((int)$r['media'], 'medium', 'media') . ' reset to factory settings and retained'
+            . ((int)$r['devices'] > 0 ? ' with ' . $pair((int)$r['devices'], 'device', 'devices') : '');
+    } elseif ((int)$r['devices'] > 0) {
+        $phrases[] = $pair((int)$r['devices'], 'device', 'devices') . ' reset to factory settings and retained, no medium recorded';
+    }
+
+    $body = $phrases ? ucfirst(implode('; ', $phrases)) . '.' : 'No items recorded.';
+    $body .= ' These items are ' . md_attested_qualifier() . '.';
+    if ((int)$r['devices'] + (int)$r['media'] > 0) {
+        $body .= ' A factory reset destroys no hardware, so the reset devices remain in circulation.';
+    }
+    return $body;
 }
 
 /**
@@ -219,17 +334,17 @@ function md_check_common(array $row): array
 
     $reason = strtolower(md_field($row['reason'] ?? '', 32));
     if (!array_key_exists($reason, md_reasons())) {
-        $errors[] = 'A reason is required — why was this destroyed rather than sanitised?';
+        $errors[] = 'A reason is required — why was this not sanitised by the appliance?';
     }
 
     $method = strtolower(md_field($row['destroy_method'] ?? '', 32));
     if (!array_key_exists($method, md_methods())) {
-        $errors[] = 'A destruction method is required.';
+        $errors[] = 'A method is required — how was the unit dealt with?';
     }
 
     $date = md_field($row['destroy_date'] ?? '', 10);
     if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-        $errors[] = 'The destruction date must be YYYY-MM-DD.';
+        $errors[] = 'The date must be YYYY-MM-DD.';
     }
 
     $clean['serial']           = $serial;
@@ -302,15 +417,40 @@ function md_device_line(array $dev): string
     return $line;
 }
 
-/** How the destruction reads on the certificate, e.g. "Shredded (vendor, 2026-10-13)". */
-function md_destruction_line(array $dev): string
+/**
+ * How the outcome reads on the certificate, e.g. "Shredded (Acme Shredding,
+ * 2026-10-13)" or, for a factory reset, "Factory reset (2026-10-13)".
+ *
+ * A reset carries no vendor: the mechanism IS the method, and printing a shredding
+ * vendor against a device the operator kept would invent a contractor who was never
+ * there. The date is still shown, because "when" is the auditable part.
+ */
+function md_attested_method_line(array $row): string
 {
-    $line = md_label(md_methods(), (string)($dev['destroy_method'] ?? ''));
-    $bits = [];
-    if (!empty($dev['destroy_vendor']))  { $bits[] = (string)$dev['destroy_vendor']; }
-    if (!empty($dev['destroy_date']))    { $bits[] = (string)$dev['destroy_date']; }
+    $method = (string)($row['destroy_method'] ?? '');
+    $line   = md_label(md_methods(), $method);
+    $bits   = [];
+    if (md_method_disposition($method) === 'destroyed' && !empty($row['destroy_vendor'])) {
+        $bits[] = (string)$row['destroy_vendor'];
+    }
+    if (!empty($row['destroy_date'])) { $bits[] = (string)$row['destroy_date']; }
     if ($bits) {
         $line .= ' (' . implode(', ', $bits) . ')';
     }
     return $line;
+}
+
+/**
+ * The item line on the certificate, e.g. "Destroyed — Shredded (Acme Shredding,
+ * 2026-10-13)" or "Factory reset — device retained (2026-10-13)".
+ *
+ * The verb is chosen from the method, never passed in by the caller: that is the only
+ * way a retained device can be sure of never being described as destroyed.
+ */
+function md_attested_line(array $row): string
+{
+    if (md_method_disposition((string)($row['destroy_method'] ?? '')) === 'retained') {
+        return md_attested_method_line($row) . ' — device retained';
+    }
+    return 'Destroyed — ' . md_attested_method_line($row);
 }

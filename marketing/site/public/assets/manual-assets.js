@@ -24,10 +24,16 @@
   // with the field named, rather than silently stored.
   var CATEGORIES = [
     ['mobile_phone', 'Mobile phone'], ['tablet', 'Tablet'], ['laptop', 'Laptop'],
-    ['desktop', 'Desktop'], ['server', 'Server'], ['sealed_unit', 'Sealed unit'],
+    ['desktop', 'Desktop'], ['server', 'Server'],
+    // Network kit and phones are the usual reason this modal exists at all: they cannot
+    // be booted by the appliance, and they are still in the fleet.
+    ['ip_phone', 'IP phone'], ['switch', 'Network switch'], ['router', 'Router / firewall'],
+    ['network_appliance', 'Network appliance (other)'],
+    ['sealed_unit', 'Sealed unit'],
     ['embedded', 'Embedded board'], ['other', 'Other']
   ];
   var REASONS = [
+    ['not_supported_by_appliance', 'Not supported by tScrub (cannot be booted)'],
     ['would_not_power_on', 'Would not power on'],
     ['would_not_boot', 'Would not boot / no supported interface'],
     ['media_soldered', 'Media soldered / integrated'],
@@ -40,8 +46,14 @@
   var METHODS = [
     ['shredded', 'Shredded'], ['crushed', 'Crushed'], ['degaussed', 'Degaussed'],
     ['incinerated', 'Incinerated'], ['disintegrated', 'Disintegrated'],
-    ['dismantled_then_shredded', 'Dismantled, then shredded'], ['other', 'Other']
+    ['dismantled_then_shredded', 'Dismantled, then shredded'],
+    // Reset in place and handed back on. Nothing is destroyed, so the row and the
+    // certificate say 'factory reset', never 'destroyed'.
+    ['factory_reset', 'Factory reset (device retained)'], ['other', 'Other']
   ];
+
+  /** True when the chosen method leaves the device in service. */
+  function isRetained(method) { return String(method || '') === 'factory_reset'; }
 
   // Module-level: open() sets it, and mediaRow()/save() read it. It must be declared
   // here — the file is in strict mode, so assigning without a declaration throws
@@ -111,7 +123,7 @@
 
       var override = el('div', { class: 'mt-2 hidden' }, [grid([
         select('Reason for this medium', 'reason', REASONS, false),
-        select('Destruction method for this medium', 'destroy_method', METHODS, false)
+        select('Method for this medium', 'destroy_method', METHODS, false)
       ], 2)]);
       var toggle = el('button', { type: 'button', class: 'mt-2 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline',
         text: 'Different outcome for this medium…' });
@@ -124,7 +136,7 @@
     } else {
       row.appendChild(grid([
         select('Reason', 'reason', REASONS, true),
-        select('Destruction method', 'destroy_method', METHODS, true)
+        select('Method', 'destroy_method', METHODS, true)
       ], 2));
     }
     return row;
@@ -181,10 +193,23 @@
     body.appendChild(addRow);
 
     if (isDevice) {
+      var methodWrap = select('Method', 'destroy_method', METHODS, true);
+      var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor');
+
+      // A factory reset has no destruction vendor — the mechanism IS the method. Hiding
+      // the box is deliberate: the server drops a vendor on a retained item, so leaving
+      // it on screen would let the operator type something that is then thrown away.
+      var vendorSync = function () {
+        var retained = isRetained(methodWrap.querySelector('select').value);
+        vendorWrap.classList.toggle('hidden', retained);
+        if (retained) { vendorWrap.querySelector('input').value = ''; }
+      };
+      methodWrap.querySelector('select').addEventListener('change', vendorSync);
+
       body.appendChild(el('div', { class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' }, [grid([
         select('Reason', 'reason', REASONS, true),
-        select('Destruction method', 'destroy_method', METHODS, true),
-        input('Destroyed by (vendor / facility)', 'destroy_vendor'),
+        methodWrap,
+        vendorWrap,
         input('Date (YYYY-MM-DD)', 'destroy_date'),
         input('Witness', 'destroy_witness'),
         input('Evidence reference (vendor certificate no.)', 'evidence_ref')
@@ -581,8 +606,8 @@
       pairs.push(['Serial', row.serial]);
       pairs.push(['Bus', row.bus]);
     }
-    pairs.push(['Why destroyed, not sanitised', labelOf(REASONS, row.reason)]);
-    pairs.push(['Destruction method', labelOf(METHODS, row.destroy_method)]);
+    pairs.push(['Why not sanitised by the appliance', labelOf(REASONS, row.reason)]);
+    pairs.push(['Method', labelOf(METHODS, row.destroy_method)]);
     pairs.push(['Destroyed by (vendor / facility)', row.destroy_vendor]);
     pairs.push(['Date destroyed', row.destroy_date]);
     pairs.push(['Witness', row.destroy_witness]);

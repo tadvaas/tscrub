@@ -49,9 +49,9 @@
              class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
       <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
       <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the device inventory">Export</button>
-      <button type="button" id="add-btn" onclick="ManualAssets.openFor('device')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a device that was physically destroyed (an operator attestation)">Add</button>
+      <button type="button" id="add-btn" onclick="ManualAssets.openFor('device')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a unit that was destroyed, or factory reset and kept (an operator attestation)">Add</button>
     </div>
-    <script src="/assets/manual-assets.js?v=14" defer></script>
+    <script src="/assets/manual-assets.js?v=15" defer></script>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
       <div id="device-list" class="min-h-[200px]">
@@ -672,8 +672,16 @@
         var m = String(dev.destroy_method || '').replace(/_/g, ' ');
         if (m) { bits.push(m.charAt(0).toUpperCase() + m.slice(1)); }
         if (dev.destroy_date) { bits.push(dev.destroy_date); }
-        if (dev.destroy_vendor) { bits.push(dev.destroy_vendor); }
-        return bits.length ? bits.join(' · ') : 'physical destruction';
+        // No vendor on a factory reset: the mechanism IS the method, and naming a
+        // destruction vendor against a device the operator kept would invent one.
+        if (dev.destroy_vendor && !attestedRetained(dev)) { bits.push(dev.destroy_vendor); }
+        return bits.length ? bits.join(' · ') : (attestedRetained(dev) ? 'factory reset' : 'physical destruction');
+      }
+
+      // A factory reset leaves the unit in service. Every string in this row is chosen
+      // from the method, so a retained phone is never described as destroyed.
+      function attestedRetained(dev) {
+        return String(dev.destroy_method || '') === 'factory_reset';
       }
 
       // A row for a unit an operator recorded as physically destroyed.
@@ -685,8 +693,10 @@
       // anything to act on. The badge is the qualifier — never drop it, or the row
       // becomes an instrument-verified claim.
       function attestedRow(dev) {
+        var retained = attestedRetained(dev);
         var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800 bg-amber-50/50 dark:bg-amber-900/10');
-        tr.title = 'Recorded by an operator as physically destroyed — ' + (dev.attested_qualifier || 'attested');
+        tr.title = 'Recorded by an operator as ' + (retained ? 'factory reset' : 'physically destroyed')
+          + ' — ' + (dev.attested_qualifier || 'attested');
 
         var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
         var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
@@ -695,7 +705,9 @@
         // pushed the badge out of the cell instead of being ellipsised.
         sysWrap.appendChild(el('span', 'min-w-0 truncate', dev.system || dev.sysserial || 'Unknown'));
         var badge = el('span', 'shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', 'Attested');
-        badge.title = 'Operator-attested physical destruction — not instrument-verified';
+        badge.title = retained
+          ? 'Operator-attested factory reset — the device was retained, not destroyed, and this is not instrument-verified'
+          : 'Operator-attested physical destruction — not instrument-verified';
         sysWrap.appendChild(badge);
         sysCell.appendChild(sysWrap);
         sysCell.title = dev.system || '';
@@ -716,8 +728,8 @@
         tr.appendChild(notScanned());
 
         var stCell = el('td', 'px-4 py-2.5');
-        stCell.appendChild(el('span', 'text-xs font-semibold text-amber-700 dark:text-amber-400', 'Destroyed'));
-        stCell.title = 'Destroyed — ' + attestedDestruction(dev)
+        stCell.appendChild(el('span', 'text-xs font-semibold text-amber-700 dark:text-amber-400', retained ? 'Retained' : 'Destroyed'));
+        stCell.title = (retained ? 'Factory reset — device retained — ' : 'Destroyed — ') + attestedDestruction(dev)
           + ' · attested by ' + (dev.attested_by || '—')
           + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
         tr.appendChild(stCell);

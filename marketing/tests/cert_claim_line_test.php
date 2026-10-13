@@ -256,6 +256,44 @@ function attested_odd_date(): array
     ]], 'media' => []];
 }
 
+/**
+ * The case this vocabulary exists for: network kit and phones the appliance cannot boot at
+ * all. They were reset using their own facilities and kept, so nothing was destroyed and
+ * the device is still in the fleet — but the operator still has to record that it happened
+ * and that the data is gone, which is what an attestation is for.
+ */
+function attested_reset(): array
+{
+    return ['devices' => [
+        [
+            'category' => 'ip_phone', 'make' => 'Cisco', 'model' => '7942G',
+            'serial' => 'FCW1234ABCD', 'reason' => 'not_supported_by_appliance',
+            'destroy_method' => 'factory_reset', 'destroy_vendor' => '',
+            'destroy_date' => '2026-10-16', 'attested_by' => 'Jane Operator',
+            'destroy_witness' => 'W. Ness', 'evidence_ref' => 'IT-2026-88',
+            'media' => [[
+                'type' => 'Flash (integrated)', 'make' => 'Cisco', 'model' => '7942G',
+                'serial' => 'FCW1234ABCD', 'size' => '', 'bus' => '',
+                'destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-16',
+            ]],
+        ],
+        [
+            'category' => 'switch', 'make' => 'Cisco', 'model' => 'C2960-24',
+            'serial' => 'FOC9876XYZ', 'reason' => 'not_supported_by_appliance',
+            'destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-16',
+            'attested_by' => 'Jane Operator', 'media' => [],
+        ],
+    ], 'media' => []];
+}
+
+/** Destroyed and retained items on the same certificate — the figures must stay apart. */
+function attested_reset_and_destroy(): array
+{
+    $pair = attested_pair();
+    $reset = attested_reset();
+    return ['devices' => array_merge($pair['devices'], $reset['devices']), 'media' => []];
+}
+
 try {
     $verifiedOnly = pdf_lines(render_certificate_pdf(
         group([drive('VER-A', 'COMPLETED'), drive('VER-B', 'COMPLETED')]),
@@ -295,6 +333,14 @@ try {
     $failedMixed = pdf_lines(render_certificate_pdf(
         group([drive('VER-F', 'FAILED')]), 'COD-CLAIM-FAILMIX', false, [], [], attested_pair()
     )['data']);
+
+    $resetOnly = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-RESET', false, [], [], attested_reset()
+    )['data']);
+
+    $resetAndDestroy = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-RESETMIX', false, [], [], attested_reset_and_destroy()
+    )['data']);
 } catch (Throwable $e) {
     t_check('all three job shapes render without a fatal (' . $e->getMessage() . ')', false);
     echo "\n$count tests, $fails failures\n";
@@ -303,7 +349,8 @@ try {
 
 foreach (['verified only' => $verifiedOnly, 'mixed' => $mixed, 'attested only' => $attestedOnly,
           'no media' => $noMedia, 'loose media only' => $looseOnly, 'undated' => $undated,
-          'odd date' => $oddDate, 'failed + attested' => $failedMixed] as $name => $t) {
+          'odd date' => $oddDate, 'failed + attested' => $failedMixed,
+          'factory reset' => $resetOnly, 'reset + destroy' => $resetAndDestroy] as $name => $t) {
     t_check("$name: a certificate was produced", strlen($t) > 500);
 }
 
@@ -395,6 +442,45 @@ t_check('failed + attested: the attested section still renders',
     strpos($failedMixed, 'PHYSICALLY DESTROYED') !== false);
 t_check('failed + attested: a verified item is still reported as verified',
     strpos($failedMixed, '1 verified media item') !== false);
+
+// --- 8. factory reset: retained, so nothing may be called destroyed ----------
+// The whole point of deriving the verb from the method: a device that was reset and handed
+// back must never be certified as destroyed, in the operator's name.
+t_check('factory reset: the banner says retained, not destroyed',
+    strpos($resetOnly, '1 MEDIA FACTORY RESET (ATTESTED, RETAINED, 2 DEVICES)') !== false);
+t_check('factory reset: no destruction claim is made on page 1',
+    strpos($resetOnly, 'MEDIA DESTROYED') === false
+    && strpos($resetOnly, 'DATA DESTROYED ON ALL') === false);
+t_check('factory reset: the item line states retention',
+    strpos($resetOnly, 'Factory reset (2026-10-16) — device retained') !== false);
+t_check('factory reset: no item carries the destroyed verb',
+    strpos($resetOnly, 'Destroyed — ') === false);
+t_check('factory reset: the section heading does not claim physical destruction',
+    strpos($resetOnly, 'PHYSICALLY DESTROYED') === false
+    && strpos($resetOnly, 'OPERATOR ATTESTATION — NOT INSTRUMENT-VERIFIED') !== false);
+t_check('factory reset: the qualifier is still printed',
+    stripos($resetOnly, 'not instrument-verified') !== false);
+t_check('factory reset: the attestation says the devices were retained',
+    strpos($resetOnly, 'reset to factory settings and retained') !== false);
+t_check('factory reset: the attestation makes no appliance claim',
+    strpos($resetOnly, 'was used as the sanitisation tool') === false);
+t_check('factory reset: a reset unit with no medium is still stated as retained',
+    strpos($resetOnly, 'FOC9876XYZ') !== false);
+t_check('factory reset: the certification date comes from the recorded reset dates',
+    strpos($resetOnly, '2026-10-16') !== false);
+
+// --- 9. some destroyed, some retained, on one certificate --------------------
+t_check('reset + destroy: both figures are stated, separately',
+    strpos($resetAndDestroy, '2 MEDIA DESTROYED (ATTESTED, 2 DEVICES)') !== false
+    && strpos($resetAndDestroy, '1 MEDIA FACTORY RESET (ATTESTED, RETAINED, 2 DEVICES)') !== false);
+t_check('reset + destroy: the two figures are never added together',
+    strpos($resetAndDestroy, '3 MEDIA') === false);
+t_check('reset + destroy: the destroyed item keeps its verb',
+    strpos($resetAndDestroy, 'Destroyed — Shredded') !== false);
+t_check('reset + destroy: the reset item does not carry it',
+    strpos($resetAndDestroy, 'Factory reset (2026-10-16) — device retained') !== false);
+t_check('reset + destroy: the summary names both outcomes',
+    strpos($resetAndDestroy, 'reset to factory settings and retained') !== false);
 
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);

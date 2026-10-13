@@ -323,45 +323,66 @@ function build_cert_jsonld(array $summary, array $drives, array $reports, array 
         $counts = md_attested_counts($attested);
         $attestedItems = [];
 
-        $mediaEntry = function (array $m): array {
-            return [
+        $mediaEntry = function (array $m, string $fallbackMethod = ''): array {
+            $own = (string)($m['destroy_method'] ?? '');
+            $eff = $own !== '' ? $own : $fallbackMethod;
+            $row = array_merge($m, ['destroy_method' => $eff]);
+            $d   = md_method_disposition($eff);
+
+            $entry = [
                 'type'         => (string)($m['type'] ?? ''),
                 'model'        => (string)($m['model'] ?? ''),
                 'serial'       => (string)($m['serial'] ?? ''),
                 'size'         => (string)($m['size'] ?? ''),
                 'bus'          => (string)($m['bus'] ?? ''),
-                'disposition'  => 'destroyed',
+                'method'       => md_attested_method_line($row),
+                'disposition'  => $d,
                 'attestation'  => 'operator-attested',
             ];
+            // Kept for destroyed items so existing consumers of this document keep
+            // working. A retained item has no destruction to name, so it carries
+            // 'method' only: emitting a destroyMethod there would put the false claim
+            // into the machine-readable twin instead of the PDF.
+            if ($d === 'destroyed') { $entry['destroyMethod'] = $entry['method']; }
+            return $entry;
         };
 
         foreach (($attested['devices'] ?? []) as $dev) {
+            $devMethod = (string)($dev['destroy_method'] ?? '');
             $media = [];
-            foreach (($dev['media'] ?? []) as $m) { $media[] = $mediaEntry($m); }
-            $attestedItems[] = [
+            foreach (($dev['media'] ?? []) as $m) { $media[] = $mediaEntry($m, $devMethod); }
+            $d = md_method_disposition($devMethod);
+            $entry = [
                 'type'          => 'Device',
                 'name'          => md_device_line($dev),
                 'serial'        => (string)($dev['serial'] ?? ''),
-                'disposition'   => 'destroyed',
+                'method'        => md_attested_method_line($dev),
+                'disposition'   => $d,
                 'attestation'   => 'operator-attested',
-                'destroyMethod' => md_destruction_line($dev),
                 'witness'       => (string)($dev['destroy_witness'] ?? ''),
                 'evidenceRef'   => (string)($dev['evidence_ref'] ?? ''),
                 'media'         => $media,
             ];
+            if ($d === 'destroyed') { $entry['destroyMethod'] = $entry['method']; }
+            $attestedItems[] = $entry;
         }
         foreach (($attested['media'] ?? []) as $m) {
             $entry = $mediaEntry($m);
             $entry['type'] = 'Medium';
-            $entry['destroyMethod'] = md_destruction_line($m);
             $attestedItems[] = $entry;
         }
 
         if ($attestedItems) {
+            $split = md_attested_split($attested);
             $doc['attestedDestruction'] = [
                 'qualifier' => md_attested_qualifier(),
                 'devices'   => $counts['devices'],
                 'media'     => $counts['media'],
+                // The totals above are kept for existing consumers. The split is what an
+                // auditor needs: a factory reset is retained, so it must not be counted
+                // as destroyed property.
+                'destroyed' => $split['destroyed'],
+                'retained'  => $split['retained'],
                 'items'     => $attestedItems,
             ];
         }

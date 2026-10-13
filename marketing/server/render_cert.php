@@ -578,24 +578,27 @@ function cert_render_attested_section($pdf, array $attested, float $startY): flo
     }
 
     $counts = md_attested_counts($attested);
+    $split  = md_attested_split($attested);
+    $retained = (int)$split['retained']['devices'] + (int)$split['retained']['media'];
     $x = 30.0;
     $w = 237.0;
     $y = $startY;
 
+    // Heading is neutral only when a retained item is present. A factory reset is not a
+    // physical destruction, and the heading must not file it under one.
+    $heading = $retained > 0
+        ? 'OPERATOR ATTESTATION — NOT INSTRUMENT-VERIFIED'
+        : 'PHYSICALLY DESTROYED — OPERATOR ATTESTATION';
     $pdf->SetFont('helvetica', 'B', 9);
     $pdf->SetTextColor(11, 18, 32);
     $pdf->SetXY($x, $y);
-    $pdf->Cell($w, 4.5, 'PHYSICALLY DESTROYED — OPERATOR ATTESTATION', 0, 1, 'L');
+    $pdf->Cell($w, 4.5, $heading, 0, 1, 'L');
     $y += 5.0;
 
-    $mediaWord = $counts['media'] === 1 ? 'medium' : 'media';
-    $devWord   = $counts['devices'] === 1 ? 'device' : 'devices';
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(51, 65, 85);
     $pdf->SetXY($x, $y);
-    $pdf->MultiCell($w, 3.8, $counts['media'] . ' ' . $mediaWord . ' destroyed with '
-        . $counts['devices'] . ' ' . $devWord . '. These items are '
-        . md_attested_qualifier() . '.', 0, 'L');
+    $pdf->MultiCell($w, 3.8, md_attested_summary($split), 0, 'L');
     $y = $pdf->GetY() + 1.6;
 
     foreach ($devices as $dev) {
@@ -618,7 +621,7 @@ function cert_render_attested_section($pdf, array $attested, float $startY): flo
     $pdf->SetFont('helvetica', 'I', 8);
     $pdf->SetTextColor(100, 116, 139);
     $pdf->SetXY($x, $y + 1.0);
-    $pdf->MultiCell($w, 3.6, md_attested_footnote(), 0, 'L');
+    $pdf->MultiCell($w, 3.6, md_attested_footnote($retained > 0), 0, 'L');
 
     return $pdf->GetY() + 2.0;
 }
@@ -638,10 +641,12 @@ function cert_render_attested_device($pdf, array $dev, float $y, float $x, float
     $pdf->MultiCell($w, 3.8, md_device_line($dev), 0, 'L');
     $y = $pdf->GetY() + 0.4;
 
-    // "Destroyed — Shredded (Acme Shredding, 2026-10-13) · attested by …". The
+    // "Destroyed — Shredded (Acme Shredding, 2026-10-13)" or, for a factory reset,
+    // "Factory reset — device retained (2026-10-13)", followed by who attested it. The
+    // verb comes from the method, so a retained device is never called destroyed. The
     // method label is a noun ("Shredded"), so it cannot follow "Destroyed by" without
     // reading as a mistake; a dash also matches how the dashboard words the same row.
-    $line = 'Destroyed — ' . md_destruction_line($dev);
+    $line = md_attested_line($dev);
     $by = trim((string)($dev['attested_by'] ?? ''));
     if ($by !== '') { $line .= ' · attested by ' . $by; }
     $wit = trim((string)($dev['destroy_witness'] ?? ''));
@@ -698,7 +703,9 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     foreach ($destroyed as $s) { $destroyedSet[strtolower(trim((string)$s))] = true; }
     foreach ($drives as $i => $d) {
         $st = strtoupper(trim((string)($d['status'] ?? '')));
-        if ($st === 'COMPLETED' || $st === 'DESTROYED') continue;
+        // RETAINED joins DESTROYED as a settled outcome: a factory reset is not a pending
+        // sanitisation, and relabelling one here would put it in the 'not destroyed' warning.
+        if ($st === 'COMPLETED' || $st === 'DESTROYED' || $st === 'RETAINED') continue;
         $s = strtolower(trim((string)($d['serial'] ?? '')));
         if ($s !== '' && isset($destroyedSet[$s])) {
             $drives[$i]['status'] = 'DESTROYED';
@@ -733,6 +740,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $attCounts  = md_attested_counts($attested);
     $attDevices = (int)$attCounts['devices'];
     $attMedia   = (int)$attCounts['media'];
+    $attSplit   = md_attested_split($attested);
     $attItems   = count($attested['devices'] ?? []) + count($attested['media'] ?? []);
 
     $range = 'N/A';
@@ -889,7 +897,13 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         // Verified and attested are never summed: one is instrument-verified, the other
         // is a statement by the operator. Amber when nothing was instrument-verified, so
         // an attestation is never dressed up as a sanitisation.
-        $bannerTxt = md_attested_banner($devices, $attDevices, $attMedia);
+        $bannerTxt = md_attested_banner(
+            $devices,
+            (int)$attSplit['destroyed']['devices'],
+            (int)$attSplit['destroyed']['media'],
+            (int)$attSplit['retained']['devices'],
+            (int)$attSplit['retained']['media']
+        );
         $bannerColor = $devices > 0 ? [5, 150, 105] : [217, 119, 6];
     } else {
         $bannerTxt = 'DATA DESTROYED ON ALL ' . $devices . ($devices === 1 ? ' MEDIA ITEM' : ' MEDIA ITEMS');
@@ -897,7 +911,14 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
     $pdf->SetFillColor($bannerColor[0], $bannerColor[1], $bannerColor[2]);
     $pdf->RoundedRect(30, 41, $W - 60, 7.5, 1.5, '1111', 'F');
-    $pdf->SetFont('helvetica', 'B', 10);
+    // A job can now carry three figures (verified, destroyed, retained) and the longest
+    // combination runs past the rect. Shrink the font rather than truncating: a claim is
+    // never allowed to end in an ellipsis.
+    $bannerFont = 10.0;
+    while ($bannerFont > 7.4 && $pdf->getStringWidth($bannerTxt, 'helvetica', 'B', $bannerFont) > ($W - 62)) {
+        $bannerFont -= 0.5;
+    }
+    $pdf->SetFont('helvetica', 'B', $bannerFont);
     $pdf->SetTextColor(255, 255, 255);
     $pdf->SetXY(30, 41);
     $pdf->Cell($W - 60, 7.5, $bannerTxt, 0, 0, 'C');
@@ -1039,19 +1060,36 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         . '(Clear / Purge), or by physical destruction where recorded — in accordance with the methods, techniques, standards and levels '
         . 'set out herein, under controlled chain-of-custody procedures from receipt to final verification. '
         . $toolName . ' was used as the sanitisation tool.';
+    // A retained item changes what this sentence may claim: 'the data was destroyed'
+    // cannot cover a device that was reset and handed back, so the retained case adds a
+    // clause rather than quietly widening the destroy claim. A job with no factory-reset
+    // items produces exactly the text it did before.
+    $attRetained = (int)$attSplit['retained']['devices'] + (int)$attSplit['retained']['media'];
     if ($devices > 0 && $attItems === 0) {
         $attestation = $sanitisedClaim;
     } elseif ($devices > 0) {
         $attestation = $sanitisedClaim . ' The further items listed in the operator attestation section were not sanitised by this tool: '
-            . 'they were recorded as physically destroyed by the operator named above, and are ' . md_attested_qualifier() . '.';
+            . 'they were recorded as physically destroyed by the operator named above'
+            . ($attRetained > 0
+                ? ', or — where a factory reset is recorded — as reset to factory settings, the device being retained and still in circulation'
+                : '')
+            . ', and are ' . md_attested_qualifier() . '.';
     } else {
         // Pure attestation. Saying 'tScrub was used as the sanitisation tool' here would be
         // simply untrue — the tool never ran — so the certificate claims only what the
         // operator has actually attested to.
-        $attestation = 'This is to certify that the items listed in the operator attestation section were physically destroyed, as recorded '
-            . 'by the operator named above, under controlled chain-of-custody procedures from receipt to final verification. No data in this '
+        $outcome = $attRetained > 0
+            ? 'taken out of service as recorded by the operator named above — physically destroyed, or reset to factory settings and retained —'
+            : 'physically destroyed, as recorded by the operator named above,';
+        $claimKind = $attRetained > 0 ? 'operator-attested outcomes only' : 'destruction by operator attestation only';
+        $attestation = 'This is to certify that the items listed in the operator attestation section were ' . $outcome
+            . ' under controlled chain-of-custody procedures from receipt to final verification. No data in this '
             . 'job was sanitised in place by ' . $toolName . ', and no appliance-verified sanitisation is claimed: this certificate records '
-            . 'destruction by operator attestation only, and the attested items are ' . md_attested_qualifier() . '.';
+            . $claimKind . ', and the attested items are ' . md_attested_qualifier() . '.';
+        if ($attRetained > 0) {
+            $attestation .= ' A factory reset destroys no hardware, so a reset device remains in circulation and this '
+                . 'certificate makes no claim about it beyond the declaration recorded above.';
+        }
     }
     $pdf->SetXY(30, 123);
     $pdf->MultiCell(237, 3.8, $attestation, 0, 'L');

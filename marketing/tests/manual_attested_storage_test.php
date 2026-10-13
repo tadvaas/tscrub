@@ -174,6 +174,64 @@ try {
     db()->prepare("UPDATE certificates SET json_path = '', json_sha256 = '', json_ts_state = 'none' WHERE id = ?")
         ->execute([$certId]);
 
+    // --- a factory reset: stored, loaded, and never promoted to verified evidence
+    // The operator picks the method; the disposition is DERIVED from it, so no row can claim
+    // a destruction that never happened. Asserted through the real storage path, because
+    // this is the case the vocabulary exists for (kit the appliance cannot boot at all).
+    $resetDev = md_validate_device([
+        'category' => 'ip_phone', 'make' => 'Cisco', 'model' => '7942G',
+        'serial' => 'FCW-RESET-1', 'reason' => 'not_supported_by_appliance',
+        'destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-16',
+    ])['clean'];
+    $resetMedia = md_validate_media([
+        'serial' => 'FCW-RESET-1', 'make' => 'Cisco', 'model' => '7942G',
+        'type' => 'Flash (integrated)',
+    ])['clean'];
+    $rr = manual_attested_save_device($certId, $cocid, $resetDev, [$resetMedia], 'operator@example.com');
+    t_check('a factory reset saves', $rr['ok'] === true);
+    $resetId = (int)$rr['id'];
+
+    $rrow = db()->query("SELECT * FROM certificate_drives WHERE certificate_id = $certId
+        AND certificate_device_id = $resetId")->fetch();
+    t_check('the stored medium is classed as a factory reset, not a destruction',
+        (string)($rrow['class'] ?? '') === 'FACTORY RESET');
+    t_check('the stored medium is retained, not destroyed',
+        (string)($rrow['final_status'] ?? '') === 'RETAINED');
+    t_check('the stored medium is still not a sanitisation',
+        (string)($rrow['certification'] ?? '') === 'NOT SANITISED');
+    t_check('the stored method line names the reset and carries no shredding vendor',
+        (string)($rrow['method'] ?? '') === 'Factory reset (2026-10-16)');
+    t_check('the medium itself inherits the reset method',
+        (string)($rrow['destroy_method'] ?? '') === 'factory_reset');
+
+    $resetSplit = md_attested_split(manual_attested_load($certId));
+    t_check('the saved reset loads back as retained',
+        $resetSplit['retained'] === ['devices' => 1, 'media' => 1]);
+    t_check('a retained row is never laundered into verified evidence',
+        count(load_cert_drives($certId)) === (int)db()->query(
+            "SELECT COUNT(*) FROM certificate_drives WHERE certificate_id = $certId AND source <> 'manual'"
+        )->fetchColumn());
+
+    // The row the Drives page reads. A retained device must not be shown as DESTROYED.
+    $built = manual_drive_row($rrow, $cocid);
+    t_check('the drives list shows it retained, not destroyed',
+        $built['status'] === 'RETAINED' && $built['final_status'] === 'RETAINED');
+    t_check('the drives list certifies it as a factory reset, not a destruction',
+        $built['cert'] === 'FACTORY RESET');
+    t_check('the drives list still marks it not sanitised',
+        $built['certification'] === 'NOT SANITISED');
+    t_check('it is still an attested row with the qualifier intact',
+        $built['_attested'] === true && $built['attested_qualifier'] === md_attested_qualifier());
+    t_check('the row ranks with a destruction, not with a failed sanitisation',
+        drive_status_rank('RETAINED') === drive_status_rank('DESTROYED'));
+
+    t_check('deleting the reset removes it and its medium',
+        manual_attested_delete($certId, $resetId, true) === 2);
+    t_check('no retained items remain after the delete',
+        md_attested_split(manual_attested_load($certId))['retained'] === ['devices' => 0, 'media' => 0]);
+    t_check('the deleted reset did not take the destroyed record with it',
+        md_attested_split(manual_attested_load($certId))['destroyed']['devices'] > 0);
+
     // --- delete -------------------------------------------------------------
     $removed = manual_attested_delete($certId, $deviceId, true);
     t_check('deleting a device removes it and its media', $removed === 3);

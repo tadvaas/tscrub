@@ -2267,7 +2267,8 @@ if ($method === 'POST' && $route === '/certs') {
     $nonCompleted = [];
     foreach ($decisionDrives as $drv) {
         $st = strtoupper(trim((string)($drv['status'] ?? '')));
-        if ($st === 'COMPLETED' || $st === 'DESTROYED') continue;
+        // A retained device needs no destruction decision either: its outcome is settled.
+        if ($st === 'COMPLETED' || $st === 'DESTROYED' || $st === 'RETAINED') continue;
         $nonCompleted[] = [
             'serial' => (string)($drv['serial'] ?? ''),
             'model'  => (string)($drv['model'] ?? ''),
