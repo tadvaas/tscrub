@@ -472,4 +472,70 @@ function certs_ensure_schema(): void {
     if (!isset($cols['json_ts_state'])) {
         db()->exec("ALTER TABLE certificates ADD COLUMN json_ts_state VARCHAR(16) NOT NULL DEFAULT 'none'");
     }
+
+    // ---- Manual (attested) destruction -------------------------------------
+    // Additive and idempotent, mirroring schema.sql. See
+    // research/manual-destruction/README.md for the design and the honest-claims
+    // rules (attested rows are never presented as instrument-verified).
+    $tables = [];
+    foreach (db()->query('SHOW TABLES')->fetchAll() as $t) {
+        $tables[strtolower((string)reset($t))] = true;
+    }
+
+    // A destroyed unit recorded by an operator: a phone, a sealed appliance, kit
+    // that would not power on. Its media live in certificate_drives, linked by
+    // certificate_device_id.
+    db()->exec("CREATE TABLE IF NOT EXISTS certificate_devices (
+        id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        certificate_id  BIGINT UNSIGNED NOT NULL,
+        cocid           VARCHAR(64)     NOT NULL DEFAULT '',
+        category        VARCHAR(32)     NOT NULL DEFAULT '',
+        make            VARCHAR(128)    NOT NULL DEFAULT '',
+        model           VARCHAR(128)    NOT NULL DEFAULT '',
+        serial          VARCHAR(128)    NOT NULL DEFAULT '',
+        reason          VARCHAR(32)     NOT NULL DEFAULT '',
+        destroy_method  VARCHAR(32)     NOT NULL DEFAULT '',
+        destroy_vendor  VARCHAR(255)    NOT NULL DEFAULT '',
+        destroy_date    VARCHAR(10)     NOT NULL DEFAULT '',
+        attested_by     VARCHAR(255)    NOT NULL DEFAULT '',
+        destroy_witness VARCHAR(255)    NOT NULL DEFAULT '',
+        evidence_ref    VARCHAR(255)    NOT NULL DEFAULT '',
+        evidence_sha256 CHAR(64)        NOT NULL DEFAULT '',
+        identity_key    VARCHAR(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+        created_at      DATETIME        NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_cd_identity (certificate_id, identity_key),
+        KEY idx_cddevice_cert (certificate_id),
+        CONSTRAINT fk_cddevice_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    if (isset($tables['certificate_drives'])) {
+        $dcols = [];
+        foreach (db()->query('SHOW COLUMNS FROM certificate_drives')->fetchAll() as $c) {
+            $dcols[strtolower((string)$c['Field'])] = true;
+        }
+        $add = [
+            'source'                => "ALTER TABLE certificate_drives ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'report'",
+            'certificate_device_id' => 'ALTER TABLE certificate_drives ADD COLUMN certificate_device_id BIGINT UNSIGNED NULL DEFAULT NULL',
+            'reason'                => "ALTER TABLE certificate_drives ADD COLUMN reason VARCHAR(32) NOT NULL DEFAULT ''",
+            'destroy_method'        => "ALTER TABLE certificate_drives ADD COLUMN destroy_method VARCHAR(32) NOT NULL DEFAULT ''",
+            'destroy_vendor'        => "ALTER TABLE certificate_drives ADD COLUMN destroy_vendor VARCHAR(255) NOT NULL DEFAULT ''",
+            'destroy_date'          => "ALTER TABLE certificate_drives ADD COLUMN destroy_date VARCHAR(10) NOT NULL DEFAULT ''",
+            'destroy_witness'       => "ALTER TABLE certificate_drives ADD COLUMN destroy_witness VARCHAR(255) NOT NULL DEFAULT ''",
+            'evidence_ref'          => "ALTER TABLE certificate_drives ADD COLUMN evidence_ref VARCHAR(255) NOT NULL DEFAULT ''",
+            'evidence_sha256'       => "ALTER TABLE certificate_drives ADD COLUMN evidence_sha256 CHAR(64) NOT NULL DEFAULT ''",
+            // NULL for report rows, so the unique key below constrains attested
+            // media only: MySQL allows unlimited NULLs in a unique index.
+            'identity_key'          => 'ALTER TABLE certificate_drives ADD COLUMN identity_key VARCHAR(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL',
+        ];
+        foreach ($add as $col => $sql) {
+            if (!isset($dcols[$col])) {
+                db()->exec($sql);
+            }
+        }
+        $idx = db()->query("SHOW INDEX FROM certificate_drives WHERE Key_name = 'uq_cdr_identity'")->fetchAll();
+        if (!$idx) {
+            db()->exec('ALTER TABLE certificate_drives ADD UNIQUE KEY uq_cdr_identity (certificate_id, identity_key)');
+        }
+    }
 }

@@ -122,9 +122,53 @@ CREATE TABLE IF NOT EXISTS certificate_drives (
   validator        VARCHAR(128)    NOT NULL DEFAULT '',
   media_source     VARCHAR(128)    NOT NULL DEFAULT '',
   media_destination VARCHAR(128)   NOT NULL DEFAULT '',
+  -- Manual (attested) destruction: see research/manual-destruction/README.md.
+  -- 'report' rows are appliance evidence; 'manual' rows are operator attestations.
+  source              VARCHAR(16)   NOT NULL DEFAULT 'report',
+  certificate_device_id BIGINT UNSIGNED NULL DEFAULT NULL,
+  reason              VARCHAR(32)   NOT NULL DEFAULT '',
+  destroy_method      VARCHAR(32)   NOT NULL DEFAULT '',
+  destroy_vendor      VARCHAR(255)  NOT NULL DEFAULT '',
+  destroy_date        VARCHAR(10)   NOT NULL DEFAULT '',
+  destroy_witness     VARCHAR(255)  NOT NULL DEFAULT '',
+  evidence_ref        VARCHAR(255)  NOT NULL DEFAULT '',
+  evidence_sha256     CHAR(64)      NOT NULL DEFAULT '',
+  -- Normalised serial|make|model. NULL for report rows, so uq_cdr_identity
+  -- constrains attested rows only (MySQL allows unlimited NULLs in a unique key).
+  -- utf8mb4_bin so the comparison is byte-exact and agrees with md_normalise();
+  -- the default _unicode_ci collation would merge accents and diverge from PHP.
+  identity_key        VARCHAR(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_cdr_identity (certificate_id, identity_key),
   KEY idx_cd_cert (certificate_id),
   CONSTRAINT fk_cd_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A manually recorded destroyed unit (phone, sealed appliance, kit that would not
+-- power on). Its media live in certificate_drives, linked by certificate_device_id.
+-- `attested_by` is recorded server-side from the session, never from the client.
+CREATE TABLE IF NOT EXISTS certificate_devices (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  certificate_id  BIGINT UNSIGNED NOT NULL,
+  cocid           VARCHAR(64)     NOT NULL DEFAULT '',
+  category        VARCHAR(32)     NOT NULL DEFAULT '',
+  make            VARCHAR(128)    NOT NULL DEFAULT '',
+  model           VARCHAR(128)    NOT NULL DEFAULT '',
+  serial          VARCHAR(128)    NOT NULL DEFAULT '',
+  reason          VARCHAR(32)     NOT NULL DEFAULT '',
+  destroy_method  VARCHAR(32)     NOT NULL DEFAULT '',
+  destroy_vendor  VARCHAR(255)    NOT NULL DEFAULT '',
+  destroy_date    VARCHAR(10)     NOT NULL DEFAULT '',
+  attested_by     VARCHAR(255)    NOT NULL DEFAULT '',
+  destroy_witness VARCHAR(255)    NOT NULL DEFAULT '',
+  evidence_ref    VARCHAR(255)    NOT NULL DEFAULT '',
+  evidence_sha256 CHAR(64)        NOT NULL DEFAULT '',
+  identity_key    VARCHAR(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  created_at      DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cd_identity (certificate_id, identity_key),
+  KEY idx_cddevice_cert (certificate_id),
+  CONSTRAINT fk_cddevice_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Uploaded reports (raw evidence) stored independently of certificates.
