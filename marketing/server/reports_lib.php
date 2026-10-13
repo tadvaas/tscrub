@@ -596,9 +596,200 @@ function insert_certificate_records(array $entries, ?int $userId, string $pdfSha
  * path, which rewrites an existing certificate when more reports arrive for the
  * same Chain of Custody ID.
  */
+/**
+ * Load the manually recorded (attested) destruction for a certificate: the units
+ * and their media, plus any standalone destroyed media with no host recorded.
+ * Media are attached to their device in memory via certificate_device_id.
+ * Plan: research/manual-destruction/README.md
+ */
+function manual_attested_load(int $certId): array
+{
+    $q = db()->prepare('SELECT * FROM certificate_devices WHERE certificate_id = ? ORDER BY id');
+    $q->execute([$certId]);
+    $devices = $q->fetchAll();
+
+    $q = db()->prepare("SELECT * FROM certificate_drives WHERE certificate_id = ? AND source = 'manual' ORDER BY id");
+    $q->execute([$certId]);
+    $media = $q->fetchAll();
+
+    $byDevice = [];
+    $loose    = [];
+    foreach ($media as $m) {
+        $link = (int)($m['certificate_device_id'] ?? 0);
+        if ($link > 0) {
+            $byDevice[$link][] = $m;
+        } else {
+            $loose[] = $m;
+        }
+    }
+    foreach ($devices as $i => $d) {
+        $devices[$i]['media'] = $byDevice[(int)$d['id']] ?? [];
+    }
+
+    return ['devices' => $devices, 'media' => $loose];
+}
+
+/** True when a PDO failure was an integrity-constraint violation (23000). */
+function manual_is_duplicate(Throwable $e): bool
+{
+    return (string)$e->getCode() === '23000';
+}
+
+/** The one-row INSERT for a media record belonging to an attested device. */
+function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m, array $dev): void
+{
+    // The attested-destruction vocabulary and identity rules live in one module so
+    // the API, the PDF and the JSON-LD twin cannot drift apart.
+    require_once __DIR__ . '/manual_destruction.php';
+
+    $q = db()->prepare(
+        "INSERT INTO certificate_drives
+         (certificate_id, device, type, model, serial, size, bus, class, method, certification,
+          final_status, system_name, system_serial, source, certificate_device_id,
+          reason, destroy_method, destroy_vendor, destroy_date, destroy_witness,
+          evidence_ref, evidence_sha256, identity_key)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    );
+    $q->execute([
+        $certId,
+        '',
+        (string)$m['type'],
+        (string)$m['model'],
+        (string)$m['serial'],
+        (string)($m['size'] ?? ''),
+        (string)($m['bus'] ?? ''),
+        'DESTRUCTION',
+        md_destruction_line($dev ?: $m),
+        'NOT SANITISED',
+        'DESTROYED',
+        // The unit each medium came from, as the annex shows it. A standalone
+        // destroyed drive has NO host: it must stay empty so the certificate
+        // prints "—" rather than implying it was attached to something.
+        $dev ? md_device_line($dev) : '',
+        (string)($dev['serial'] ?? ''),
+        'manual',
+        $deviceId,
+        (string)($m['reason'] ?? $dev['reason'] ?? ''),
+        (string)($m['destroy_method'] ?? $dev['destroy_method'] ?? ''),
+        (string)($m['destroy_vendor'] ?? $dev['destroy_vendor'] ?? ''),
+        (string)($m['destroy_date'] ?? $dev['destroy_date'] ?? ''),
+        (string)($m['destroy_witness'] ?? $dev['destroy_witness'] ?? ''),
+        (string)($m['evidence_ref'] ?? $dev['evidence_ref'] ?? ''),
+        (string)($m['evidence_sha256'] ?? $dev['evidence_sha256'] ?? ''),
+        md_identity_key((string)$m['serial'], (string)$m['make'], (string)$m['model']),
+    ]);
+}
+
+/**
+ * Save a validated attested device together with its media rows.
+ * $dev/$media are the 'clean' arrays from md_validate_device()/md_validate_media().
+ * Returns ['ok' => bool, 'id' => int, 'error' => string].
+ */
+function manual_attested_save_device(int $certId, string $cocid, array $dev, array $media, string $attestedBy): array
+{
+    try {
+        db()->beginTransaction();
+
+        $q = db()->prepare(
+            'INSERT INTO certificate_devices
+             (certificate_id, cocid, category, make, model, serial, reason, destroy_method,
+              destroy_vendor, destroy_date, attested_by, destroy_witness, evidence_ref,
+              evidence_sha256, identity_key, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())'
+        );
+        $q->execute([
+            $certId, $cocid,
+            (string)$dev['category'], (string)$dev['make'], (string)$dev['model'], (string)$dev['serial'],
+            (string)$dev['reason'], (string)$dev['destroy_method'],
+            (string)$dev['destroy_vendor'], (string)$dev['destroy_date'],
+            $attestedBy, (string)$dev['destroy_witness'],
+            (string)$dev['evidence_ref'], (string)$dev['evidence_sha256'],
+            (string)$dev['identity_key'],
+        ]);
+        $deviceId = (int)db()->lastInsertId();
+
+        foreach ($media as $m) {
+            manual_media_insert($certId, $deviceId, $cocid, $m, $dev);
+        }
+
+        db()->commit();
+        return ['ok' => true, 'id' => $deviceId, 'error' => ''];
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('manual_attested_save_device: ' . $e->getMessage());
+        return [
+            'ok'    => false,
+            'id'    => 0,
+            'error' => manual_is_duplicate($e)
+                ? 'That asset is already recorded on this job (same serial, make and model). If two units really are identical, give one an asset tag so the two can be told apart.'
+                : 'Could not save the record.',
+        ];
+    }
+}
+
+/** Save one standalone destroyed medium (a drive with no device recorded). */
+function manual_attested_save_media(int $certId, string $cocid, array $m, string $attestedBy): array
+{
+    try {
+        db()->beginTransaction();
+        // No device: this medium has no host recorded (see manual_media_insert).
+        manual_media_insert($certId, 0, $cocid, $m, []);
+        db()->commit();
+        return ['ok' => true, 'id' => (int)db()->lastInsertId(), 'error' => ''];
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('manual_attested_save_media: ' . $e->getMessage());
+        return [
+            'ok'    => false,
+            'id'    => 0,
+            'error' => manual_is_duplicate($e)
+                ? 'That medium is already recorded on this job (same serial, make and model).'
+                : 'Could not save the record.',
+        ];
+    }
+}
+
+/**
+ * Remove an attested record. Deleting a device also removes its media — there is
+ * deliberately no FK from the media to the device, so this is explicit rather
+ * than a cascade that could outlive a half-understood schema change.
+ * Returns the number of rows removed.
+ */
+function manual_attested_delete(int $certId, int $id, bool $isDevice): int
+{
+    if ($id <= 0) { return 0; }
+
+    $n = 0;
+    db()->beginTransaction();
+    try {
+        if ($isDevice) {
+            $q = db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND certificate_device_id = ? AND source = 'manual'");
+            $q->execute([$certId, $id]);
+            $n += $q->rowCount();
+            $q = db()->prepare('DELETE FROM certificate_devices WHERE certificate_id = ? AND id = ?');
+            $q->execute([$certId, $id]);
+            $n += $q->rowCount();
+        } else {
+            $q = db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND id = ? AND source = 'manual'");
+            $q->execute([$certId, $id]);
+            $n += $q->rowCount();
+        }
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('manual_attested_delete: ' . $e->getMessage());
+        return 0;
+    }
+    return $n;
+}
+
 function rewrite_certificate_details(int $dbCertId, array $reports, array $drives): void {
     db()->prepare('DELETE FROM certificate_reports WHERE certificate_id = ?')->execute([$dbCertId]);
-    db()->prepare('DELETE FROM certificate_drives WHERE certificate_id = ?')->execute([$dbCertId]);
+    // Manually recorded media (source = 'manual') are NOT part of a report rewrite:
+    // they were entered by an operator, not derived from an appliance run, so a
+    // re-issue must leave them exactly as entered. certificate_devices is untouched
+    // here for the same reason.
+    db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND source <> 'manual'")->execute([$dbCertId]);
 
     $rq = db()->prepare('INSERT INTO certificate_reports (certificate_id, report_name, sha256, state) VALUES (?, ?, ?, ?)');
     foreach ($reports as $r) {
