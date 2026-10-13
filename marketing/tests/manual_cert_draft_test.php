@@ -31,10 +31,17 @@ function t_check(string $label, bool $ok): void
 
 certs_ensure_schema();
 
-// Guard the regression this test exists for: nothing that already exists may be
-// hidden by the draft filter.
-$drafts = (int)db()->query('SELECT COUNT(*) FROM certificates WHERE is_draft = 1')->fetchColumn();
-t_check('no pre-existing certificate is flagged as a draft', $drafts === 0);
+// The regression this test exists for is that nothing already issued may be hidden by
+// the draft filter. Asserting "no certificate anywhere is a draft" asserted instead that
+// the feature had never been used, and it failed as soon as it was (a manually recorded
+// job legitimately leaves a draft behind). The real invariant is the COLUMN DEFAULT: a
+// certificate created the old way is not a draft.
+$defaults = db()->query("SHOW FULL COLUMNS FROM certificates LIKE 'is_draft'")->fetch(PDO::FETCH_ASSOC);
+t_check('is_draft defaults to 0, so an existing insert path cannot create a draft',
+    (string)($defaults['Default'] ?? '') === '0',
+    (string)($defaults['Default'] ?? ''));
+$issued = (int)db()->query('SELECT COUNT(*) FROM certificates WHERE is_draft = 1 AND pdf_path <> \'\'')->fetchColumn();
+t_check('no issued certificate (one with a rendered PDF) is flagged as a draft', $issued === 0);
 
 $userId = (int)db()->query('SELECT id FROM users ORDER BY id LIMIT 1')->fetchColumn();
 if ($userId <= 0) {

@@ -81,8 +81,13 @@ t_check('uq_cd_identity present on certificate_devices',
 // Existing report rows must still be readable and unconstrained (source defaulted).
 $rep = db()->query("SELECT COUNT(*) AS n FROM certificate_drives WHERE source = 'report' OR source IS NULL")->fetch();
 t_check('existing drive rows default to source=report', (int)$rep['n'] >= 0);
-$existing = db()->query("SELECT COUNT(*) AS n FROM certificate_drives WHERE identity_key IS NOT NULL")->fetch();
-t_check('no pre-existing row has an identity key', (int)$existing['n'] === 0);
+// The invariant that matters is that REPORT rows never carry an identity key, so the
+// uq_cdr_identity unique index cannot constrain appliance evidence. It must NOT be
+// phrased as "no row anywhere has one": that asserts the database is unused, and it
+// started failing the moment the feature was used in production — a test that breaks
+// when someone uses the feature gets ignored, which is worse than no test.
+$existing = db()->query("SELECT COUNT(*) AS n FROM certificate_drives WHERE source <> 'manual' AND identity_key IS NOT NULL")->fetch();
+t_check('no report row has an identity key', (int)$existing['n'] === 0);
 
 // --- 3. constraints, on a synthetic certificate we remove afterwards -------
 $cocid = 'TEST-MANUAL-SCHEMA-DELETEME';
