@@ -43,6 +43,10 @@
     ['dismantled_then_shredded', 'Dismantled, then shredded'], ['other', 'Other']
   ];
 
+  // Module-level: open() sets it, and mediaRow()/save() read it. It must be declared
+  // here — the file is in strict mode, so assigning without a declaration throws
+  // (the original version kept this as a local inside open()).
+  var isDevice = true;
   var root = null;
 
   function el(tag, attrs, children) {
