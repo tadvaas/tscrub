@@ -43,6 +43,11 @@ function makeNode(tag) {
     style: {},
     get textContent() { return this._text; },
     set textContent(v) { this._text = String(v); },
+    // innerHTML = '' must actually remove the children. Without this the detail view's
+    // rebuild left the previous render in place, so a test asserting that a hostless
+    // drive has no media table passed against the PREVIOUS row's table.
+    get innerHTML() { return this._html || ''; },
+    set innerHTML(v) { this._html = String(v); if (this._html === '') { this.children = []; } },
     setAttribute(k, v) {
       this.attributes[k] = String(v);
       if (k === 'class') String(v).split(/\s+/).forEach(c => { if (c) this._classes.add(c); });
@@ -57,6 +62,9 @@ function makeNode(tag) {
       contains(c) { return this._o._classes.has(c); },
     },
     addEventListener(ev, fn) { (this._on || (this._on = {}))[ev] = fn; },
+    // Real elements have focus(); detail() moves focus to the Close button so keyboard
+    // users land inside the dialog rather than behind it.
+    focus() { global.__focused = this; },
     querySelector() { return null; },
     querySelectorAll() { return []; },
   };
@@ -64,10 +72,23 @@ function makeNode(tag) {
   return n;
 }
 
+// The stub's textContent only holds an element's OWN text, whereas the browser
+// aggregates descendants — so the tests need this to read a composed subtree.
+function textOf(node) {
+  if (!node) return '';
+  let s = node._text || '';
+  (node.children || []).forEach(c => { s += ' ' + textOf(c); });
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 const byId = {};
 ['manual-modal', 'manual-modal-title', 'manual-modal-sub', 'manual-modal-save',
  'manual-modal-body', 'manual-modal-close', 'manual-modal-backdrop',
- 'manual-modal-error'].forEach(id => { const n = makeNode('div'); n.id = id; byId[id] = n; });
+ 'manual-modal-error',
+ // the read-only detail shell
+ 'manual-detail-modal', 'manual-detail-title', 'manual-detail-sub',
+ 'manual-detail-body', 'manual-detail-close', 'manual-detail-backdrop'
+].forEach(id => { const n = makeNode('div'); n.id = id; byId[id] = n; });
 
 global.document = {
   readyState: 'complete',
@@ -332,6 +353,102 @@ setTimeout(() => {
                         setTimeout(() => {
                           check('remove — a row with no id sends no request', global.__reqs.length === 0,
                             JSON.stringify(global.__reqs));
+
+                          // ---- detail(): the read-only record view ----
+                          // Until this existed, everything recorded at Add time (witness,
+                          // evidence reference, attester, per-medium detail) was stored and
+                          // printed on the certificate but invisible in the dashboard.
+                          const devRow = {
+                            attested_kind: 'device',
+                            system: 'Mobile phone — Apple iPhone 8 (DEMO-IMEI-0001)',
+                            sysserial: 'DEMO-IMEI-0001', category: 'mobile_phone',
+                            make: 'Apple', model: 'iPhone 8',
+                            reason: 'media_soldered', destroy_method: 'shredded',
+                            destroy_vendor: 'Acme Shredding Ltd', destroy_date: '2026-10-13',
+                            destroy_witness: 'J. Smith', evidence_ref: 'ACME-2026-1013-01',
+                            attested_by: 'James Offen', cocid: 'COC-DEMO-2026-10-13',
+                            attested_qualifier: 'operator-attested — not instrument-verified',
+                            drives: [
+                              // The API copies the unit's reason/method into a medium that
+                              // arrived without them, so a stored media row ALWAYS carries them.
+                              // Omitting them here would test a shape production never produces.
+                              { type: 'eMMC/UFS (integrated)', size: '64 GB', make: 'Apple', model: 'iPhone 8', serial: 'DEMO-IMEI-0001', bus: '', reason: 'media_soldered', destroy_method: 'shredded' },
+                            ],
+                          };
+                          window.ManualAssets.detail(devRow);
+                          const dBody = textOf(byId['manual-detail-body']);
+                          check('detail — the modal opens', byId['manual-detail-modal']._classes.has('hidden') === false);
+                          check('detail — the title names the item',
+                            byId['manual-detail-title'].textContent.indexOf('Apple iPhone 8') !== -1,
+                            byId['manual-detail-title'].textContent);
+                          check('detail — the qualifier is shown',
+                            byId['manual-detail-sub'].textContent.indexOf('not instrument-verified') !== -1);
+                          // Human labels, not the raw machine values.
+                          check('detail — the reason is shown as a readable label', /Media soldered/.test(dBody), dBody.slice(0, 120));
+                          check('detail — the method is shown as a readable label', /Shredded/.test(dBody));
+                          check('detail — the witness is shown', /J\. Smith/.test(dBody));
+                          check('detail — the evidence reference is shown', /ACME-2026-1013-01/.test(dBody));
+                          check('detail — the attester is shown', /James Offen/.test(dBody));
+                          check('detail — the Chain of Custody is shown', /COC-DEMO-2026-10-13/.test(dBody));
+                          check('detail — the media table lists the medium',
+                            /eMMC\/UFS \(integrated\)/.test(dBody) && /64 GB/.test(dBody));
+                          check('detail — a medium matching the device says so, rather than implying the operator chose it',
+                            /Same as the device/.test(dBody), dBody.slice(-180));
+                          // A medium whose outcome genuinely differs must show ITS values, not the
+                          // device's — that distinction is the whole reason the per-medium override
+                          // exists (e.g. one drive pulled and wiped while the rest were shredded).
+                          window.ManualAssets.detail(Object.assign({}, devRow, {
+                            drives: [Object.assign({}, devRow.drives[0], { reason: 'physically_damaged', destroy_method: 'crushed' })],
+                          }));
+                          const dDiff = textOf(byId['manual-detail-body']);
+                          check('detail — a medium with a different outcome shows its own, not the device\'s',
+                            /Physically damaged/.test(dDiff) && /Crushed/.test(dDiff), dDiff.slice(-200));
+                          check('detail — that medium is not mislabelled as matching the device',
+                            !/Same as the device/.test(dDiff));
+                          window.ManualAssets.detail(devRow);
+                          check('detail — the scroll lock is applied',
+                            global.document.body.style.overflow === 'hidden');
+
+                          // The close paths are wired in wire(), so drive the real button
+                          // rather than calling a helper the page never uses.
+                          const dCloseBtn = byId['manual-detail-close'];
+                          check('detail — the Close button is wired', !!(dCloseBtn._on && dCloseBtn._on.click));
+                          // The guard only releases the page scroll lock when no OTHER modal
+                          // needs it. Both branches are worth pinning down, because getting
+                          // it wrong either traps the page scrolled-locked or unhides a
+                          // still-open Add modal's backdrop scroll.
+                          byId['manual-modal']._classes.add('hidden');
+                          if (dCloseBtn._on && dCloseBtn._on.click) { dCloseBtn._on.click(); }
+                          check('detail — Close hides the modal', byId['manual-detail-modal']._classes.has('hidden'));
+                          check('detail — Close releases the scroll lock when nothing else is open',
+                            global.document.body.style.overflow === '',
+                            JSON.stringify(global.document.body.style.overflow));
+                          window.ManualAssets.detail(devRow);
+                          byId['manual-modal']._classes.delete('hidden');   // pretend Add is open
+                          if (dCloseBtn._on && dCloseBtn._on.click) { dCloseBtn._on.click(); }
+                          check('detail — Close keeps the scroll lock while the Add modal is open',
+                            global.document.body.style.overflow === 'hidden',
+                            JSON.stringify(global.document.body.style.overflow));
+                          document.body.style.overflow = '';
+                          byId['manual-modal']._classes.add('hidden');
+
+                          // A standalone destroyed drive has no host, and the detail view must
+                          // not invent one — the certificate prints "—" for the same reason.
+                          window.ManualAssets.detail({
+                            attested_kind: 'media', type: 'SSD', size: '500 GB', make: 'Samsung',
+                            model: '870 EVO', serial: 'LOOSE-SN-9', bus: 'SATA',
+                            reason: 'physically_damaged', destroy_method: 'crushed',
+                            destroy_vendor: '', destroy_date: '2026-10-12', destroy_witness: '',
+                            evidence_ref: '', attested_by: 'James Offen', cocid: 'COC-DEMO-2026-10-13',
+                            system: '', sysserial: '',
+                          });
+                          const dBot = textOf(byId['manual-detail-body']);
+                          check('detail — a hostless drive says so rather than showing a blank',
+                            /No host recorded/.test(dBot), dBot.slice(0, 140));
+                          check('detail — a hostless drive gets no media table',
+                            !/MEDIA destroyed with this device/.test(dBot));
+                          check('detail — unknown values render as a dash, not "undefined"',
+                            !/undefined/.test(dBot));
 
                           console.log('\n' + count + ' checks, ' + fails + ' failed');
                           process.exit(fails === 0 ? 0 : 1);

@@ -51,7 +51,7 @@
       <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the device inventory">Export</button>
       <button type="button" id="add-btn" onclick="ManualAssets.openFor('device')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a device that was physically destroyed (an operator attestation)">Add</button>
     </div>
-    <script src="/assets/manual-assets.js?v=10" defer></script>
+    <script src="/assets/manual-assets.js?v=13" defer></script>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
       <div id="device-list" class="min-h-[200px]">
@@ -128,6 +128,21 @@
         <div class="flex items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-3">
           <button id="manual-modal-save" type="button" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Record</button>
         </div>
+      </div>
+    </div>
+  </div>
+  <div id="manual-detail-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="manual-detail-title">
+    <div id="manual-detail-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-3">
+          <div class="min-w-0">
+            <h2 id="manual-detail-title" class="truncate text-lg font-bold text-ink-900 dark:text-white"></h2>
+            <p id="manual-detail-sub" class="truncate text-xs text-slate-500 dark:text-slate-400"></p>
+          </div>
+          <button id="manual-detail-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
+        </div>
+        <div id="manual-detail-body" class="flex-1 overflow-y-auto p-5"></div>
       </div>
     </div>
   </div>
@@ -675,7 +690,10 @@
 
         var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
         var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
-        sysWrap.appendChild(el('span', 'truncate', dev.system || dev.sysserial || 'Unknown'));
+        // min-w-0 on the truncating span too: without it a flex item keeps its
+        // min-content width (nowrap text does not shrink), so a long device name
+        // pushed the badge out of the cell instead of being ellipsised.
+        sysWrap.appendChild(el('span', 'min-w-0 truncate', dev.system || dev.sysserial || 'Unknown'));
         var badge = el('span', 'shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', 'Attested');
         badge.title = 'Operator-attested physical destruction — not instrument-verified';
         sysWrap.appendChild(badge);
@@ -704,16 +722,26 @@
           + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
         tr.appendChild(stCell);
 
-        // A flex row, not inline text: with the CoC ID and the button on one nowrap
+        // A flex row, not inline text: with the CoC ID and the buttons on one nowrap
         // line the cell needed 263px in a 218px column, so the button hung 46px past
-        // the table edge and was clipped. The CoC text is what gives — truncating it
-        // is harmless (the full value stays in the title) whereas a clipped control is
-        // unreachable. shrink-0 on the button makes that structurally impossible.
+        // the table edge and was clipped. shrink-0 on each button makes a clipped
+        // control structurally impossible.
+        //
+        // The CoC ID is no longer printed here: two buttons plus the id did not fit in
+        // this column at any sensible width, and no other row in this table shows a
+        // COCID. It stays on the cell as a title and in full in the Details view.
         var tdv = el('td', 'px-4 py-2.5');
         var actWrap = el('div', 'flex items-center justify-end gap-2');
-        var coc = el('span', 'min-w-0 truncate text-xs text-slate-400 dark:text-slate-500', dev.cocid ? 'CoC ' + dev.cocid : '—');
-        coc.title = dev.cocid ? 'The Chain of Custody this record belongs to: ' + dev.cocid : 'No Chain of Custody recorded';
-        actWrap.appendChild(coc);
+        if (dev.cocid) { tdv.title = 'Chain of Custody ' + dev.cocid; }
+
+        var detBtn = el('button', 'shrink-0 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800', 'Details');
+        detBtn.title = 'Show everything recorded for this attested item — the evidence that goes on the certificate';
+        detBtn.addEventListener('click', function () {
+          if (window.ManualAssets) { ManualAssets.detail(dev); }
+          else { window.alert('The record tools did not load — reload the page and try again.'); }
+        });
+        actWrap.appendChild(detBtn);
+
         // Removal is the only correction available: a record cannot be edited, so a
         // mistyped one is removed and re-entered. The flow (confirm, then DELETE) lives
         // in manual-assets.js so both pages behave identically.
@@ -745,11 +773,14 @@
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
         var cols = [
-          ['System', 'w-[22%]', 'system'],
-          ['Serial', 'w-[13%]', 'serial'],
-          ['BIOS', 'w-[9%]', 'bios'],
+          ['System', 'w-[20%]', 'system'],
+          // 14%: a 13-character service tag is 133px, which did not fit 13%.
+          ['Serial', 'w-[14%]', 'serial'],
+          // 11%, not 9%: the attested rows put "not scanned" here, which needs 102px —
+          // at 9% the cell was 89px and the word was being ellipsised to "not scan…".
+          ['BIOS', 'w-[11%]', 'bios'],
           ['MDM', 'w-[16%]', 'mdm'],
-          ['Status', 'w-[18%]', 'status'],
+          ['Status', 'w-[17%]', 'status'],
           ['', 'w-[22%]', null]
         ];
         cols.forEach(function (c) {

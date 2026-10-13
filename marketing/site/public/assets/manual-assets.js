@@ -91,7 +91,10 @@
     head.appendChild(rm);
     row.appendChild(head);
     row.appendChild(grid([
-      input('Type', 'type', 'SSD, HDD, eMMC/UFS (integrated)'),
+      // Kept short on purpose: this text lands in the Drives table's Type column, and
+      // "eMMC/UFS (integrated)" does not fit one line there. "integrated" is already
+      // said by the reason ("Media soldered / integrated") and by the note below.
+      input('Type', 'type', 'SSD, HDD, eMMC/UFS'),
       input('Size', 'size'),
       input('Make', 'make'),
       input('Model', 'model'),
@@ -215,8 +218,18 @@
       save(isDevice, document.getElementById('manual-modal-body'), this);
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !modal.classList.contains('hidden')) { close(); }
+      if (e.key !== 'Escape') { return; }
+      var detail = document.getElementById('manual-detail-modal');
+      if (detail && !detail.classList.contains('hidden')) { closeDetail(); return; }
+      if (!modal.classList.contains('hidden')) { close(); }
     });
+
+    // The read-only detail view is a separate shell, so it needs its own close paths
+    // (same strategy as the Add modal: close button, backdrop, Escape).
+    var dClose = document.getElementById('manual-detail-close');
+    var dBack = document.getElementById('manual-detail-backdrop');
+    if (dClose) { dClose.addEventListener('click', closeDetail); }
+    if (dBack) { dBack.addEventListener('click', closeDetail); }
   }
 
   if (document.readyState === 'loading') {
@@ -401,6 +414,152 @@
     });
   }
 
+  // Machine value → human label, from the same vocabulary the form offers. An
+  // unknown value falls through as itself rather than becoming blank, so a record
+  // written by an older or newer version still displays something truthful.
+  function labelOf(list, key) {
+    var k = String(key || '');
+    for (var i = 0; i < list.length; i++) { if (list[i][0] === k) { return list[i][1]; } }
+    return k;
+  }
+
+  function val(v) {
+    var s = (v === null || v === undefined) ? '' : String(v).trim();
+    return s === '' ? '—' : s;
+  }
+
+  function dl(pairs) {
+    var box = el('dl', { class: 'grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2' });
+    pairs.forEach(function (p) {
+      var w = el('div', { class: 'min-w-0' });
+      w.appendChild(el('dt', { class: 'text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', text: p[0] }));
+      w.appendChild(el('dd', { class: 'break-words text-sm text-ink-900 dark:text-white', text: val(p[1]) }));
+      box.appendChild(w);
+    });
+    return box;
+  }
+
+  /**
+   * The media recorded with a device.
+   *
+   * $dev is the parent unit. The last column compares the medium's reason/method with
+   * the unit's rather than presenting them as "its own outcome": the API copies the
+   * unit's values into any medium that arrived without them, so a stored media row
+   * cannot say whether the operator chose the value or it was inherited. Comparing the
+   * two is a fact about the values, which is what can honestly be shown.
+   */
+  function mediaTable(media, dev) {
+    if (!media.length) {
+      return el('p', { class: 'mt-2 text-sm text-slate-500 dark:text-slate-400', text: 'No media recorded with this device.' });
+    }
+    var devReason = String((dev && dev.reason) || '');
+    var devMethod = String((dev && dev.destroy_method) || '');
+
+    var wrap = el('div', { class: 'mt-2 overflow-x-auto rounded-lg border border-slate-200 dark:border-ink-700' });
+    var t = el('table', { class: 'w-full text-left text-sm' });
+    var hr = el('tr', { class: 'bg-slate-50 dark:bg-ink-800' });
+    ['Type', 'Size', 'Make', 'Model', 'Serial', 'Bus', 'Reason · method'].forEach(function (h) {
+      hr.appendChild(el('th', { class: 'whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', text: h }));
+    });
+    var thead = el('thead'); thead.appendChild(hr); t.appendChild(thead);
+
+    var tb = el('tbody');
+    media.forEach(function (m) {
+      var tr = el('tr', { class: 'border-t border-slate-100 dark:border-ink-800' });
+      [m.type, m.size, m.make, m.model, m.serial, m.bus].forEach(function (v) {
+        tr.appendChild(el('td', { class: 'whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300', text: val(v) }));
+      });
+      var same = (String(m.reason || '') === devReason) && (String(m.destroy_method || '') === devMethod);
+      var outcome = same
+        ? 'Same as the device'
+        : ([labelOf(REASONS, m.reason), labelOf(METHODS, m.destroy_method)].filter(Boolean).join(' · ') || '—');
+      tr.appendChild(el('td', { class: 'px-3 py-2 text-slate-500 dark:text-slate-400', text: outcome }));
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); wrap.appendChild(t);
+    return wrap;
+  }
+
+  /**
+   * Read-only detail view for one attested record.
+   *
+   * Everything shown was recorded when the item was added and is already printed on
+   * the certificate — but until now the dashboard could not show it back, so an
+   * operator could not check what they had entered or confirm a witness name. Built
+   * from the row the list already holds, so there is nothing extra to fetch and no way
+   * for the detail view to disagree with the table.
+   */
+  function detail(row) {
+    var modal = document.getElementById('manual-detail-modal');
+    var body = document.getElementById('manual-detail-body');
+    if (!modal || !body || !row) { return; }
+
+    var isDevice = (row.attested_kind !== 'media');
+
+    document.getElementById('manual-detail-title').textContent = isDevice
+      ? String(row.system || row.sysserial || 'Attested device')
+      : (String([row.type, row.make, row.model].filter(Boolean).join(' ')) || String(row.serial || 'Attested drive'));
+    document.getElementById('manual-detail-sub').textContent =
+      String(row.attested_qualifier || 'operator-attested — not instrument-verified');
+
+    body.innerHTML = '';
+    body.appendChild(el('p', { class: 'mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
+      text: 'Recorded by an operator as physically destroyed. This is an attestation, not an instrument-verified result, and it is what the certificate prints for this item.' }));
+
+    var pairs = [];
+    if (isDevice) {
+      pairs.push(['Category', labelOf(CATEGORIES, row.category)]);
+      pairs.push(['Make', row.make]);
+      pairs.push(['Model', row.model]);
+      pairs.push(['Serial / IMEI / asset tag', row.sysserial]);
+    } else {
+      pairs.push(['Type', row.type]);
+      pairs.push(['Size', row.size]);
+      pairs.push(['Make', row.make]);
+      pairs.push(['Model', row.model]);
+      pairs.push(['Serial', row.serial]);
+      pairs.push(['Bus', row.bus]);
+    }
+    pairs.push(['Why destroyed, not sanitised', labelOf(REASONS, row.reason)]);
+    pairs.push(['Destruction method', labelOf(METHODS, row.destroy_method)]);
+    pairs.push(['Destroyed by (vendor / facility)', row.destroy_vendor]);
+    pairs.push(['Date destroyed', row.destroy_date]);
+    pairs.push(['Witness', row.destroy_witness]);
+    pairs.push(['Evidence reference', row.evidence_ref]);
+    pairs.push(['Attested by', row.attested_by]);
+    if (!isDevice) {
+      // A standalone destroyed drive has no host, and the detail view must not imply
+      // one — the certificate prints "—" for exactly this reason.
+      pairs.push(['Host device', row.system ? row.system : 'No host recorded']);
+      if (row.sysserial) { pairs.push(['Host serial', row.sysserial]); }
+    }
+    pairs.push(['Chain of Custody', row.cocid]);
+    if (row.cert_id) { pairs.push(['Certificate', row.cert_id]); }
+
+    body.appendChild(dl(pairs));
+
+    if (isDevice) {
+      var media = Array.isArray(row.drives) ? row.drives : [];
+      body.appendChild(el('h3', { class: 'mt-6 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400',
+        text: 'MEDIA destroyed with this device (' + media.length + ')' }));
+      body.appendChild(mediaTable(media, row));
+    }
+
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    var closeBtn = document.getElementById('manual-detail-close');
+    if (closeBtn) { closeBtn.focus(); }
+  }
+
+  function closeDetail() {
+    var m = document.getElementById('manual-detail-modal');
+    if (m) { m.classList.add('hidden'); }
+    // Only release the scroll lock if the Add modal is not also open — they are never
+    // both open today, but unlocking here would break page scroll if that changed.
+    var add = document.getElementById('manual-modal');
+    if (!add || add.classList.contains('hidden')) { document.body.style.overflow = ''; }
+  }
+
   // Takes the message only, and finds the box itself.
   //
   // It used to take (err, message) while its failure paths called it with one
@@ -418,6 +577,7 @@
   window.ManualAssets = {
     open: open,
     remove: remove,
+    detail: detail,
     // The button carries the page's own COCID when one is in view (the drives page
     // uploads per job), so the operator does not retype it.
     openFor: function (kind) {
