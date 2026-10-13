@@ -39,6 +39,12 @@ and this project uses date-based versioning (`v1.x`).
   `attested_by` column and the save path silently dropped the argument, so the one
   thing an auditor asks first about an attestation was missing. Column added
   (schema + migration) and both insert paths now store it.
+- **An attested device could not be found by its Chain of Custody ID in the Devices
+  search**, although the search box lists COCID among the things it searches. A
+  report-derived device inherits the COCID from its reports; a manually recorded unit
+  has no report, so the row carried none. Attested devices are now searchable by
+  COCID, by category and make/model, and by how and why they were destroyed and who
+  attested them.
 
 ### Added
 

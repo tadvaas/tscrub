@@ -2040,6 +2040,11 @@ function manual_list_devices(int $userId): array
                 'attested_id'   => (int)$d['id'],
                 'attested_kind' => 'device',
                 'attested_qualifier' => md_attested_qualifier(),
+                // The search filter tests `_cocids` for the COCID, and the Devices
+                // search box advertises COCID search. Report-derived rows get this
+                // from their reports; a manually recorded unit has no report, so
+                // without it a destroyed phone could not be found by its job.
+                '_cocids'   => (string)$d['cocid'],
                 'cocid'     => (string)$d['cocid'],
                 'cert_id'   => (string)$d['cert_id'],
                 'system'    => md_device_line($d),
@@ -2325,7 +2330,11 @@ function load_devices(int $userId, ?array $query = null): array {
         $list = array_values($cand);
         if ($q !== '') {
             $needle = strtolower($q);
-            $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms', 'product_key', 'product_key_id'];
+            $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms', 'product_key', 'product_key_id',
+                // Attested-only fields, so an operator can find a destroyed item by
+                // how and why it was destroyed, or by who attested it. Report-derived
+                // rows simply have none of these keys, so their search is unchanged.
+                'make', 'model', 'category', 'reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'attested_by', 'evidence_ref'];
             $list = array_values(array_filter($list, function ($d) use ($needle, $fields) {
                 foreach ($fields as $f) {
                     if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;

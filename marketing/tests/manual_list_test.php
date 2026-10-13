@@ -165,6 +165,18 @@ try {
     foreach (($q2['devices'] ?? []) as $d) { if (($d['cocid'] ?? '') === $cocid) { $hit2 = true; break; } }
     t_check('the attested device is findable by serial in the Devices search', $hit2);
 
+    // The Devices search box advertises COCID search. A manually recorded unit has no
+    // report to derive `_cocids` from, so this only works if the row sets it itself.
+    $q3 = load_devices($userId, ['page' => 1, 'per' => 10, 'q' => $cocid]);
+    $hit3 = false;
+    foreach (($q3['devices'] ?? []) as $d) { if (($d['cocid'] ?? '') === $cocid) { $hit3 = true; break; } }
+    t_check('the attested device is findable by COCID in the Devices search', $hit3);
+
+    $q4 = load_devices($userId, ['page' => 1, 'per' => 10, 'q' => 'shredded']);
+    $hit4 = false;
+    foreach (($q4['devices'] ?? []) as $d) { if (($d['cocid'] ?? '') === $cocid) { $hit4 = true; break; } }
+    t_check('the attested device is findable by its destruction method', $hit4);
+
     // --- the empty page that used to raise 1064 -------------------------------
     // A page past the end yields no keys; the query must be valid SQL, not IN ().
     $far = load_devices($userId, ['page' => 9999, 'per' => 10]);
