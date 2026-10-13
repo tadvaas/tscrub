@@ -60,6 +60,7 @@ function method_label($method, $cls, $status = '') {
     if ($s === 'FAILED')    return 'Not sanitised — erasure failed';
     if ($s === 'BLOCKED')   return 'Not sanitised — blocked by firmware (Block SID)';
     if ($s === 'FROZEN')    return 'Frozen — Physical Destruction Required';
+    if ($s === 'STALLED')   return 'Not sanitised — sanitize stalled mid-operation (power-cycle required)';
     if ($s === 'UNKNOWN')   return 'Not sanitised — outcome unknown';
     if ($s === 'DRY-RUN')   return 'Dry run — no sanitisation performed';
 
@@ -102,6 +103,7 @@ function method_label($method, $cls, $status = '') {
         if (strpos($m, 'PHYSICAL DESTR') !== false) return 'Manual Dismantling + Media Destruction';
         if (strpos($m, 'NWIPE') !== false) return 'SCSI Software Overwrite (Clear) - Verified';
         if (strpos($m, 'FROZEN') !== false) return 'Frozen — Physical Destruction Required';
+        if (strpos($m, 'STALLED') !== false) return 'Not sanitised — sanitize stalled mid-operation (power-cycle required)';
     }
     $clsMap = [
         'PURGE'        => 'Controller-Level Secure Erase (Purge) - Verified',
@@ -175,7 +177,7 @@ function cert_status_color(string $s): array {
     if ($u === 'COMPLETED') return [5, 150, 105];
     if ($u === 'DESTROYED') return [217, 119, 6];
     if ($u === 'DRY-RUN')   return [100, 116, 139];
-    if ($u === 'FROZEN' || $u === 'BLOCKED' || $u === 'FAILED' || $u === 'UNKNOWN') return [220, 38, 38];
+    if ($u === 'FROZEN' || $u === 'BLOCKED' || $u === 'FAILED' || $u === 'UNKNOWN' || $u === 'STALLED') return [220, 38, 38];
     return [148, 163, 184];
 }
 
@@ -222,6 +224,7 @@ function cert_method_short(string $method, string $cls, string $status): string 
     if ($s === 'FAILED')    return 'Erasure failed';
     if ($s === 'BLOCKED')   return 'Blocked (Block SID)';
     if ($s === 'FROZEN')    return 'Frozen';
+    if ($s === 'STALLED')   return 'Stalled (power-cycle)';
     if ($s === 'UNKNOWN')   return 'Outcome unknown';
     if ($s === 'DRY-RUN')   return 'Dry run';
     $m = trim($method);

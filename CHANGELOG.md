@@ -25,6 +25,18 @@ and this project uses date-based versioning (`v1.x`).
   new `marketing/server/cert_terms.php` so the PDF and the machine-readable twin
   cannot drift apart. Plan: `research/cert-destruction-evidence/README.md`.
 
+### Removed
+
+- **The `tscrub_autopilotcheck` opt-in flag is gone.** The Windows Autopilot
+  (MDM) check is started from the dashboard, so the appliance no longer has to
+  opt in: with a dashboard token it reports the machine's identifiers at boot
+  and reads the latest check state back (a stray `tscrub_autopilotcheck=` line in
+  `tscrub.conf` is simply ignored as an unknown key). The `--autopilotcheck` CLI
+  flag and the `tscrub_autopilotcheck=` kernel parameter / `tscrub.conf` key are
+  removed, and `mdm::is_configured()` now needs only the token. Whether a check
+  runs — and its one-credit cost — is still controlled entirely from the
+  dashboard. Docs, `triage-conversion.md` and the tests are updated to match.
+
 ### Fixed
 
 - **The dashboard now says *why* a remote BIOS unlock did not succeed.** A clear
@@ -45,6 +57,38 @@ and this project uses date-based versioning (`v1.x`).
   change are classified on read, so they render correctly too — the v1.11.44
   wording ("wrong password, or this firmware exposes no reset path from Linux")
   now correctly resolves to *no clear path* rather than *wrong password*.
+
+## [v1.11.54] - 2026-10-12
+
+### Added
+
+- **A drive whose NVMe sanitize wedges is now detected and reported as
+  `STALLED`.** An Intel 660p in a live run sat at `0%` for 4 h 40 m with its
+  sanitize state machine stuck: `SSTAT` reported *in progress* while `SPROG`
+  stayed frozen at 655 and every read returned
+  `NVME_SC_SANITIZE_IN_PROGRESS` (`dmesg sc 0x1d`). The monitor treated
+  "in progress" as healthy progress, so the drive consumed the whole 6-hour cap
+  and then failed with no reason. Now: the sanitize state is sanity-checked
+  **before** the wipe is issued (a sanitize already in progress from an earlier
+  run or an interrupted wipe fails in seconds with a power-cycle instruction
+  instead of issuing a doomed command), and during the wipe a frozen
+  `(SSTAT, SPROG)` pair for 15 minutes is reported as `STALLED` with the
+  percentage, the wait and the recovery step. This is an *inactivity* detector,
+  not a duration limit — a slow but genuinely progressing wipe is never killed.
+  The 6-hour backstop now also says why. `STALLED` is terminal everywhere it
+  matters — report sweep, drive table, presence counters and run completion — so
+  the run still finalises and the dashboard leaves *Erasing*; the console adds a
+  recovery line, and the report records `Class=STALLED`,
+  `Certification=NOT SANITISED` and the power-cycle method — never a NIST level.
+  The certificate and JSON-LD twin say *"Not sanitised — sanitize stalled
+  mid-operation (power-cycle required)"*. Plan:
+  `research/nvme-stall-detect/README.md`.
+
+### Changed
+
+- `drive_status_rank()` gained `STALLED` in the escalation ladder between
+  `FROZEN` and `BLOCKED`, so when one drive serial appears in several reports
+  the label shown never depends on upload order.
 
 ## [v1.11.53] - 2026-10-12
 

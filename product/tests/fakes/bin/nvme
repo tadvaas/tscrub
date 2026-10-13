@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Optional invocation log so tests can assert which commands (if any) ran.
+[[ -n "${FAKE_NVME_CMDLOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_NVME_CMDLOG"
+
 sub="$1"
 case "$sub" in
     id-ctrl)
@@ -16,6 +19,18 @@ case "$sub" in
         fi
         ;;
     sanitize-log)
+        # FAKE_NVME_SEQ points at a file of "<sstat> <sprog>" lines. Each call
+        # consumes one line; the LAST line repeats forever, so a frozen drive
+        # (a single line) keeps reporting the same state.
+        if [[ -n "${FAKE_NVME_SEQ:-}" && -s "${FAKE_NVME_SEQ}" ]]; then
+            read -r _sstat _sprog < "${FAKE_NVME_SEQ}"
+            if [[ "$(awk 'END{print NR}' "$FAKE_NVME_SEQ")" -gt 1 ]]; then
+                awk 'NR>1' "$FAKE_NVME_SEQ" > "$FAKE_NVME_SEQ.tmp" && mv "$FAKE_NVME_SEQ.tmp" "$FAKE_NVME_SEQ"
+            fi
+            printf 'SSTAT %s\n' "${_sstat:-0x0}"
+            printf 'SPROG %s\n' "${_sprog:-65535}"
+            exit 0
+        fi
         printf 'SSTAT %s\n' "${FAKE_NVME_SSTAT:-0x1}"
         printf 'SPROG %s\n' "${FAKE_NVME_SPROG:-65535}"
         ;;

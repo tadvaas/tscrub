@@ -199,6 +199,9 @@ ui::print_drive_guidance() {
             FROZEN)
                 printf "\033[K%s${blink_on}%s: frozen by the host BIOS — power-cycle (or suspend/resume) and re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"
                 ;;
+            STALLED)
+                printf "\033[K%s${blink_on}%s: sanitize stalled mid-operation — power-cycle the drive (disconnect power ~10-30 s), then re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"
+                ;;
             FAILED)
                 printf "\033[K%s${blink_on}%s: sanitisation failed — inspect the drive and the log for details.${blink_off}\n" "$TABLE_INDENT" "$dev"
                 ;;

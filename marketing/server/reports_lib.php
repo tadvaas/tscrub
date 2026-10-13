@@ -740,18 +740,20 @@ function db_drive_to_group(array $d): array {
  * Tiers: COMPLETED > operator-confirmed DESTROYED > DRY-RUN > any not-sanitised
  * outcome. Within the not-sanitised outcomes the rank is an ESCALATION order,
  * so the label shown never depends on upload order: FROZEN (destruction
- * required) > BLOCKED (firmware blocked) > FAILED (erase failed) > UNKNOWN
- * (no terminal status).
+ * required) > STALLED (drive wedged mid-operation, needs a power cycle) >
+ * BLOCKED (firmware blocked) > FAILED (erase failed) > UNKNOWN (no terminal
+ * status).
  */
 function drive_status_rank(?string $status): int {
     $s = strtoupper(trim((string)$status));
     if ($s === 'COMPLETED') return 100;
     if ($s === 'DESTROYED') return 50;
     if ($s === 'DRY-RUN')   return 10;
-    if ($s === 'FROZEN')    return 4;
-    if ($s === 'BLOCKED')   return 3;
-    if ($s === 'FAILED')    return 2;
-    if ($s === 'UNKNOWN')   return 1;
+    if ($s === 'FROZEN')    return 6;
+    if ($s === 'STALLED')   return 5;
+    if ($s === 'BLOCKED')   return 4;
+    if ($s === 'FAILED')    return 3;
+    if ($s === 'UNKNOWN')   return 2;
     return 0;
 }
 

@@ -161,7 +161,7 @@ status::drive_terminal() {
         total=$((total+1))
         case "${devrow[$dev.status]:-}" in
             COMPLETED|DRY-RUN|SKIPPED) dcount=$((dcount+1)) ;;
-            FAILED|BLOCKED|FROZEN|UNKNOWN) fcount=$((fcount+1)) ;;
+            FAILED|BLOCKED|FROZEN|STALLED|UNKNOWN) fcount=$((fcount+1)) ;;
             *) finished=0 ;;   # still RUNNING/PLANNED
         esac
     done

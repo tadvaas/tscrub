@@ -871,7 +871,7 @@ ui::loop() {
                     devrow["$_dev.start_at"]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
                 fi
                 case "$_value" in
-                    COMPLETED|FAILED|BLOCKED|FROZEN|SKIPPED|DRY-RUN)
+                    COMPLETED|FAILED|BLOCKED|FROZEN|STALLED|SKIPPED|DRY-RUN)
                         if [[ -z "${devrow[$_dev.end_ts]}" ]]; then
                             devrow["$_dev.end_ts"]="$(ts::now)"
                             devrow["$_dev.end_at"]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -947,7 +947,7 @@ ui::all_drives_terminal() {
     local dev
     for dev in "${devices[@]}"; do
         case "${devrow[$dev.status]}" in
-            COMPLETED|FAILED|FROZEN|BLOCKED|DRY-RUN|SKIPPED) ;;
+            COMPLETED|FAILED|FROZEN|BLOCKED|STALLED|DRY-RUN|SKIPPED) ;;
             *) return 1 ;;
         esac
     done

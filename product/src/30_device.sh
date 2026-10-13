@@ -675,6 +675,11 @@ device::normalize_outcome() {
                 devrow["$dev.cert"]="NOT SANITISED"
                 devrow["$dev.method"]="Blocked by firmware (Block SID)"
                 ;;
+            STALLED)
+                devrow["$dev.class"]="STALLED"
+                devrow["$dev.cert"]="NOT SANITISED"
+                devrow["$dev.method"]="Sanitisation stalled — power-cycle the drive"
+                ;;
             SKIPPED)
                 devrow["$dev.class"]="SKIPPED"
                 devrow["$dev.cert"]="NOT SANITISED"

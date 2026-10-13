@@ -433,7 +433,7 @@ erasure::run() {
         erasure_complete=0
         for dev in "${devices[@]}"; do
             case "${devrow[$dev.status]:-}" in
-                COMPLETED|FAILED|BLOCKED|FROZEN|DRY-RUN|SKIPPED) ;;
+                COMPLETED|FAILED|BLOCKED|FROZEN|STALLED|DRY-RUN|SKIPPED) ;;
                 *) devrow["$dev.status"]="UNKNOWN" ;;
             esac
         done

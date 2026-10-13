@@ -2,6 +2,28 @@
 # DEVICE NVMe
 # =============================================================================
 
+# Read the most-recent-sanitize state from `nvme sanitize-log`.
+#
+# Echoes three space-separated fields: "<state> <sprog> <sstat>" where state is
+# SSTAT bits 2:0 (or "-" when the field is missing/unparseable):
+#   0 = never sanitized      1 = completed      2 = in progress
+#   3 = failed               4 = completed with deallocation
+# SPROG is the progress counter (0..65535; 65535 is also the idle sentinel, so
+# it must never be read as success on its own).
+device::nvme_sanitize_state() {
+    local dev="$1" log sstat sprog state="-"
+
+    log="$(nvme sanitize-log /dev/$dev 2>&1 || true)"
+    sstat="$(awk '/SSTAT/ {print $NF}' <<<"$log")"
+    sprog="$(awk '/SPROG/ {print $NF}' <<<"$log")"
+
+    if [[ "$sstat" =~ ^0x[0-9A-Fa-f]+$ || "$sstat" =~ ^[0-9]+$ ]]; then
+        state=$(( sstat & 0x7 ))
+    fi
+
+    printf '%s %s %s\n' "$state" "${sprog:--}" "${sstat:--}"
+}
+
 # Report a failed NVMe operation, distinguishing a BIOS/firmware access-rights
 # lockdown from a generic controller rejection.
 #
@@ -37,7 +59,42 @@ device::nvme_fail() {
 device::exec_nvme() {
     local dev="$1"
     local cap="$2"
-    local out rc
+    local out rc pre state
+
+    # ---- Pre-flight -------------------------------------------------------
+    # A sanitize left "in progress" by an earlier run or an interrupted wipe
+    # wedges the controller's I/O path: every read returns
+    # NVME_SC_SANITIZE_IN_PROGRESS (dmesg sc=0x1d) and a newly issued sanitize
+    # is accepted but never advances (observed on an Intel 660p: SSTAT=0x2 with
+    # SPROG frozen at 655 for the whole run, all Estimated Time fields
+    # 0xffffffff). Detect it in seconds and say what the operator must do,
+    # instead of burning the 6-hour monitor cap to a reasonless failure.
+    # The sanitize state machine only clears on a real power cycle.
+    pre="$(device::nvme_sanitize_state "$dev")"
+    state="${pre%% *}"
+
+    if [[ "$state" == "2" ]]; then
+        echo "$dev STATUS STALLED" >&3
+        echo "$dev LOG a sanitize was already in progress on this drive (from an earlier run or an interrupted wipe); a new one cannot advance — power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
+        {
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: NVMe sanitize PRE-FLIGHT STALLED (sanitize already in progress)"
+            echo "sanitize-log: state/sporg/sstat = $pre"
+            echo "----------------------------------------------------------"
+        } >> "$LOG_FILE"
+        return 1
+    fi
+
+    if [[ "$state" == "3" ]]; then
+        # The drive says a previous sanitize failed. That is worth flagging, but
+        # a retry is legitimate (transient controller errors happen), so record
+        # it and carry on rather than refusing.
+        echo "$dev LOG note: this drive reports a previous sanitize as FAILED (SSTAT=$pre); retrying now" >&3
+        {
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: NVMe sanitize PRE-FLIGHT WARNING (previous sanitize failed)"
+            echo "sanitize-log: state/sporg/sstat = $pre"
+            echo "----------------------------------------------------------"
+        } >> "$LOG_FILE"
+    fi
 
     echo "$dev STATUS RUNNING" >&3
     echo "$dev LOG NVMe operation started" >&3
@@ -78,27 +135,32 @@ device::exec_nvme() {
     device::monitor_nvme "$dev"
 }
 
+# Poll `nvme sanitize-log` until the sanitize reaches a terminal state.
+#
+# Two independent guards, deliberately different in kind:
+#   * STALL  — an INACTIVITY detector. If neither SSTAT nor SPROG changes for
+#              NVME_STALL_POLLS polls (default 450 x 2s = 15 min) the
+#              controller's state machine has wedged. A slow but genuinely
+#              progressing overwrite sanitize resets this on every change, so
+#              long wipes are never killed for taking a long time.
+#   * CAP    — a 6-hour backstop for "still moving, still never finishing".
+# Both end in STALLED (drive needs operator intervention: a power cycle).
 device::monitor_nvme() {
     local dev="$1"
     local timeout=$((60 * 60 * 6))
+    local stall_polls="${NVME_STALL_POLLS:-450}"
     local start=$(ts::now)
     local no_progress=0
+    local state_sp state sprog sstat pct key window window_txt
+    local last_key="" last_change=0
+
+    window=$(( stall_polls * 2 ))
+    if (( window >= 60 )); then window_txt="$(( window / 60 )) min"; else window_txt="${window}s"; fi
 
     while :; do
         sleep 2
-        log="$(nvme sanitize-log /dev/$dev 2>&1 || true)"
-
-        sstat=$(awk '/SSTAT/ {print $NF}' <<<"$log")
-        sprog=$(awk '/SPROG/ {print $NF}' <<<"$log")
-
-        # Decode the most-recent-sanitize status from SSTAT bits 2:0.
-        # 0=never sanitized, 1=completed, 2=in progress, 3=failed, 4=completed w/ dealloc.
-        # SPROG=65535 is the idle sentinel and must NOT be treated as success on its own,
-        # otherwise a drive that never started a sanitize reports as completed.
-        local state=""
-        if [[ "$sstat" =~ ^0x[0-9A-Fa-f]+$ || "$sstat" =~ ^[0-9]+$ ]]; then
-            state=$(( sstat & 0x7 ))
-        fi
+        state_sp="$(device::nvme_sanitize_state "$dev")"
+        read -r state sprog sstat <<<"$state_sp"
 
         case "$state" in
             1|4)
@@ -119,8 +181,8 @@ device::monitor_nvme() {
                     echo "$dev STATUS RUNNING" >&3
                 fi
                 ;;
-            0|"")
-                # Never sanitized (or unparseable SSTAT): fail fast after a short
+            0|-|"")
+                # Never sanitized (or unreadable SSTAT): fail fast after a short
                 # grace period instead of burning the full 6-hour timeout.
                 no_progress=$((no_progress + 1))
                 if (( no_progress >= 15 )); then
@@ -132,8 +194,22 @@ device::monitor_nvme() {
                 ;;
         esac
 
+        # Stall detection: any change to (state, SPROG) proves the controller is
+        # still working. A frozen pair means it has wedged — SSTAT stays 2
+        # ("in progress") forever while reads fail with 0x1d.
+        key="$state:$sprog"
+        if [[ "$key" != "$last_key" ]]; then
+            last_key="$key"
+            last_change=$(ts::now)
+        elif (( $(ts::now) - last_change >= window )); then
+            echo "$dev STATUS STALLED" >&3
+            echo "$dev LOG sanitize stalled — no progress for $window_txt (SSTAT=$sstat, SPROG=$sprog); power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
+            return 1
+        fi
+
         if (( $(ts::now) - start > timeout )); then
-            echo "$dev STATUS FAILED" >&3
+            echo "$dev STATUS STALLED" >&3
+            echo "$dev LOG sanitize did not complete within $(( timeout / 3600 )) h (SSTAT=$sstat, SPROG=$sprog); power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
             return 1
         fi
     done

@@ -38,6 +38,7 @@ function cert_technique_label(string $method, string $cls, string $status = ''):
     if ($s === 'FAILED')    return 'No destruction — erasure failed';
     if ($s === 'BLOCKED')   return 'No destruction — blocked by firmware (Block SID)';
     if ($s === 'FROZEN')    return 'No destruction — frozen media requires physical destruction';
+    if ($s === 'STALLED')   return 'No destruction — sanitize stalled mid-operation (power-cycle the drive)';
     if ($s === 'UNKNOWN')   return 'No destruction — outcome unknown';
     if ($s === 'DRY-RUN')   return 'No destruction — dry run';
 

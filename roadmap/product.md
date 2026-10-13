@@ -204,6 +204,13 @@ with the release that carried them (per `CHANGELOG.md`).
 - [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
       power or was aborted without re-consuming a licence (Blancco). Today a
       worker death normalises to `UNKNOWN`, no resume. (§11.1)
+- [ ] NVMe sanitize stall detection + pre-flight — a drive whose sanitize state
+      machine wedges (`SSTAT=0x2` with a frozen `SPROG`) currently reads as
+      "in progress" and burns the full 6 h cap, then fails with no reason; and
+      a run started on a drive that is *already* sanitizing issues a doomed
+      command. Detect inactivity, fail fast with a power-cycle instruction, and
+      surface it as a distinct `STALLED` outcome. (§11.1)
+      → **Plan**: `research/nvme-stall-detect/README.md`
 
 ### 4.2 Media & platform coverage (§9.1, §6)
 

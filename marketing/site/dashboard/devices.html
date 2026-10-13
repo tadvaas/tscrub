@@ -1396,7 +1396,7 @@
           return {
             at: h.uploaded_at, kind: 'report', type: 'erasure', src: h,
             label: 'Erasure report submitted',
-            state: st === 'COMPLETED' ? 'ok' : (st === 'FAILED' || st === 'BLOCKED' ? 'fail' : 'info'),
+            state: st === 'COMPLETED' ? 'ok' : (st === 'FAILED' || st === 'BLOCKED' || st === 'STALLED' ? 'fail' : 'info'),
             detail: [d0.type, d0.size, d0.method, d0.status].filter(Boolean).join(' · '),
             ref: '',
             cocid: h.cocid || ''
@@ -1659,7 +1659,7 @@
       function erasureStatusClass(st) {
         var s = String(st || '').toUpperCase();
         if (s === 'COMPLETED') return 'font-semibold text-emerald-700 dark:text-emerald-400';
-        if (s === 'FAILED' || s === 'BLOCKED' || s === 'FROZEN') return 'font-semibold text-red-600 dark:text-red-400';
+        if (s === 'FAILED' || s === 'BLOCKED' || s === 'FROZEN' || s === 'STALLED') return 'font-semibold text-red-600 dark:text-red-400';
         if (s === 'DRY-RUN' || s === 'SKIPPED') return 'text-amber-700 dark:text-amber-400';
         return 'text-slate-600 dark:text-slate-400';
       }
