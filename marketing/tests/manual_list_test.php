@@ -227,6 +227,26 @@ try {
     t_check('ascending puts the Laptop before the phone', $aLap < $aPhn);
     t_check('descending puts the phone first — the direction actually reversed', $dPhn < $dLap);
     t_check('the two directions are different orderings', $ascStr !== $desStr);
+
+    // Status has TWO values, and an account is normally all-offline (only a booted machine
+    // is online), so the column value alone ties for every row. Comparing just that left asc
+    // and desc byte-identical — clicking Status twice did nothing, which is exactly what it
+    // looked like. The tie-break has to follow the direction for the toggle to mean anything.
+    $stAsc = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'status', 'dir' => 'asc']));
+    $stDes = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'status', 'dir' => 'desc']));
+    t_check('both units are on the page for the status sort',
+        $idxOf($stAsc, 'list-aaa-1') >= 0 && $idxOf($stAsc, 'list-imei-1') >= 0
+        && $idxOf($stDes, 'list-aaa-1') >= 0 && $idxOf($stDes, 'list-imei-1') >= 0);
+    t_check('status ascending orders the tied rows one way',
+        $idxOf($stAsc, 'list-aaa-1') < $idxOf($stAsc, 'list-imei-1'));
+    t_check('status descending reverses them — a tied column still toggles',
+        $idxOf($stDes, 'list-imei-1') < $idxOf($stDes, 'list-aaa-1'));
+    t_check('the two status directions are different orderings', $stAsc !== $stDes);
+
+    // MDM ties just as easily (almost every machine is "unchecked" or unranked).
+    $mdmA = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'mdm', 'dir' => 'asc']));
+    $mdmD = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'mdm', 'dir' => 'desc']));
+    t_check('the MDM column toggles too, even where its ranks tie', $mdmA !== $mdmD);
     t_check('a missing direction means descending, the long-standing default',
         query_dir('') === -1 && query_dir(0) === -1);
     t_check('the direction is read case-insensitively', query_dir('ASC') === 1);

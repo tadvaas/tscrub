@@ -2441,11 +2441,37 @@ function load_devices(int $userId, ?array $query = null): array {
             }
             return '';
         };
-        usort($list, function ($a, $b) use ($sortVal, $dir) {
-            $va = $sortVal($a);
-            $vb = $sortVal($b);
-            $cmp = (is_int($va) && is_int($vb)) ? ($va <=> $vb) : strcmp((string)$va, (string)$vb);
-            return $dir * $cmp;
+
+        // Two more keys, compared only when the column value ties — and multiplied by the
+        // direction like the first, which is the point.
+        //
+        // Status has TWO distinct values and MDM a handful, and a fleet is normally all
+        // offline (only a booted machine is online — 100 of 100 on this account when this
+        // was written). Comparing the column alone therefore gave every row the same key,
+        // usort left the order as it found it, and ascending and descending came back
+        // byte-identical: clicking Status (or MDM) twice did nothing at all, which reads as
+        // a broken header. Within a group the useful order is most-recently-seen first, and
+        // reversing that with the direction is what makes the toggle do something.
+        $keysOf = function (array $d) use ($sortVal): array {
+            // Identity last, so the tie-break is stable and human-meaningful. Not `_key`
+            // alone: an attested unit's key is 'attested:device:123', an internal row id,
+            // which would order those rows by insertion rather than by what they are.
+            $serial = strtolower((string)($d['sysserial'] ?? ''));
+            return [
+                $sortVal($d),
+                strtolower((string)($d['last_seen_at'] ?? $d['last'] ?? '')),
+                $serial !== '' ? $serial : strtolower((string)($d['_key'] ?? '')),
+            ];
+        };
+        usort($list, function ($a, $b) use ($keysOf, $dir) {
+            $ka = $keysOf($a);
+            $kb = $keysOf($b);
+            foreach ($ka as $i => $va) {
+                $vb = $kb[$i];
+                $cmp = (is_int($va) && is_int($vb)) ? ($va <=> $vb) : strcmp((string)$va, (string)$vb);
+                if ($cmp !== 0) { return $dir * $cmp; }
+            }
+            return 0;
         });
 
         $total = count($list);

@@ -510,29 +510,10 @@
       var currentQ = '';
       var pagerLoading = null;  // 'prev' | 'next' while a pager navigation is in flight
 
-      function mdmRank(dev) {
-        var st = String(dev.mdm_status || '');
-        var v = String(dev.mdm_verdict || '').toLowerCase();
-        var rep = String(dev.mdm || '').toLowerCase();
-        var REAL = ['locked_other', 'locked_this', 'unlocked', 'hash_invalid', 'ms_error', 'offline'];
-        if (st === 'checking') return 90;
-        if (st === 'queued') return 80;
-        if (st === 'unchecked') return 10;
-        var verdict = REAL.indexOf(v) !== -1 ? v : (REAL.indexOf(rep) !== -1 ? rep : (st === 'done' && v === 'unknown' ? 'unknown' : ''));
-        var r = { locked_other: 70, locked_this: 70, ms_error: 60, hash_invalid: 50, offline: 40, unlocked: 30, unknown: 20 };
-        return r[verdict] || 0;
-      }
-
-      function sortValue(key, dev) {
-        switch (key) {
-          case 'system': return String(dev.system || dev.sysserial || '').toLowerCase();
-          case 'serial': return String(dev.sysserial || '').toLowerCase();
-          case 'bios':   return String(dev.bioslock || '').toLowerCase();
-          case 'mdm':    return mdmRank(dev);
-          case 'status': return dev.online ? 1 : 0;
-        }
-        return '';
-      }
+      // Sorting is entirely server-side (see /api/devices): the page holds one page of rows,
+      // so ordering them here would only ever reorder the visible slice. There used to be a
+      // copy of the server's rank functions in this file, left over from when the table sorted
+      // client-side; it was unreachable and only invited the two to drift apart.
 
       function filteredDevices() {
         var q = currentQ.trim().toLowerCase();

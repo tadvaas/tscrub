@@ -131,6 +131,22 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **The Status and MDM columns could not reorder anything, so clicking them twice did
+  nothing.** Both have almost no distinct values — Status has two, and a fleet is normally
+  *entirely* offline, because only a booted machine is online (100 of 100 devices on the
+  account this was found on). Comparing the column value alone therefore gave every row the
+  same key, `usort` left the order exactly as it found it, and ascending and descending came
+  back byte-identical. Sorting now falls through to two tie-break keys — most-recently-seen,
+  then the machine's serial — and **the tie-break follows the direction too**, which is what
+  makes the toggle do something. It is keyed on the serial rather than the internal row id,
+  so an attested unit (whose row key is `attested:device:123`) orders by what it is rather
+  than by when it was typed in.
+
+  The dashboard also carried a second, unreachable copy of the sort logic (`mdmRank()` /
+  `sortValue()`) left over from when the table sorted client-side; it has been removed, since
+  the ordering is entirely server-side — the page holds one page of rows, so sorting them in
+  the browser could only ever shuffle the visible slice.
+
 - **Sorting a device column never actually changed direction, and the arrow said it had.**
   `api.php` normalised `?dir=` to ±1 before calling `load_devices()`, which then tested
   that value against the literal string `'asc'` — a comparison that can never be true. So
