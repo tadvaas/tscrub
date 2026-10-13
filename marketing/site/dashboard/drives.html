@@ -515,16 +515,22 @@
         gradeTd.appendChild(gradeCell);
         tr.appendChild(gradeTd);
 
-        var tdv = el('td', 'px-3 py-2 text-right whitespace-nowrap');
-        tdv.appendChild(el('span', 'mr-2 text-xs text-slate-400 dark:text-slate-500', d.cocid ? 'CoC ' + d.cocid : '—'));
+        // See devices.html: flex + truncating CoC text + shrink-0 button. The drives
+        // table gives this column only 17%, so the same clipping applied here.
+        var tdv = el('td', 'px-3 py-2');
+        var actWrap = el('div', 'flex items-center justify-end gap-2');
+        var coc = el('span', 'min-w-0 truncate text-xs text-slate-400 dark:text-slate-500', d.cocid ? 'CoC ' + d.cocid : '—');
+        coc.title = d.cocid ? 'The Chain of Custody this record belongs to: ' + d.cocid : 'No Chain of Custody recorded';
+        actWrap.appendChild(coc);
         // See devices.html: one confirm-then-DELETE flow for both pages.
-        var rmBtn = el('button', 'rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50', 'Remove');
+        var rmBtn = el('button', 'shrink-0 whitespace-nowrap rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50', 'Remove');
         rmBtn.title = 'Remove this attested drive';
         rmBtn.addEventListener('click', function () {
           if (window.ManualAssets) { ManualAssets.remove(d, rmBtn); }
           else { window.alert('The record tools did not load — reload the page and try again.'); }
         });
-        tdv.appendChild(rmBtn);
+        actWrap.appendChild(rmBtn);
+        tdv.appendChild(actWrap);
         tr.appendChild(tdv);
         return tr;
       }
