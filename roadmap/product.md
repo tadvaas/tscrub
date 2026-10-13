@@ -231,15 +231,15 @@ with the release that carried them (per `CHANGELOG.md`).
       ChromeOS GBB/VPD enrolment flags. (§9.1)
 - [ ] Broader media coverage — USB/SD targets and RAID/FC/iSCSI volumes (the
       long tail beyond eMMC). (§6)
-- [ ] **Attested sanitisation** for platforms tScrub cannot boot — phones, tablets
-      and anything with no supported boot interface, factory-reset by the
-      operator and **retained** (resale). A third claim class alongside verified
-      sanitisation and attested destruction: the level is a *declared* level
-      (Clear, or a manufacturer-declared Purge where the platform documents key
-      destruction) and is never instrument-verified. Retained devices are the
-      opposite of destroyed ones — they count in fleet/inventory and feed the
-      device grade. (§9.1)
-      → Plan: `research/attested-sanitisation/README.md`.
+- [x] **Factory reset for devices tScrub cannot boot** — switches, routers, IP phones
+      and phones reset by the operator with their own facilities and put back into
+      service. Recorded through the existing attested path (same modal, same
+      `operator-attested — not instrument-verified` qualifier) rather than as a third
+      claim class: the outcome is *derived* from the method, so a retained device can
+      never be certified as destroyed, and destroyed and retained figures are never
+      summed. No declared sanitisation level — a reset is not a verified Purge. (§9.1)
+      → As built: `research/attested-sanitisation/README.md`
+      (superseded design: `research/attested-sanitisation/README-superseded-plan.md`)
 - [ ] Legacy IDE/PATA — declared gap: state "SATA and newer" explicitly on
       `compare.html` (not planned). (§9.4)
 
