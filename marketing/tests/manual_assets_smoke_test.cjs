@@ -65,11 +65,46 @@ function makeNode(tag) {
     // Real elements have focus(); detail() moves focus to the Close button so keyboard
     // users land inside the dialog rather than behind it.
     focus() { global.__focused = this; },
+    closest(sel) {
+      let n = this;
+      while (n) {
+        if (sel.charAt(0) === '#' && n.id === sel.slice(1)) return n;
+        n = n.parentNode;
+      }
+      return null;
+    },
     querySelector() { return null; },
     querySelectorAll() { return []; },
   };
   n.classList._o = n;
   return n;
+}
+
+// Depth-first, document order — the order a real querySelector matches in. The previous
+// stub reached only two levels (b.children[i].children[j]), so it could not see the media
+// row's fields at all: they sit at body → #manual-modal-media → row → select. That is
+// exactly why the suite passed while Add on the Devices page was broken — the stub never
+// reproduced the situation the bug came from.
+function walkAll(node) {
+  const out = [];
+  (node.children || []).forEach(c => { out.push(c); walkAll(c).forEach(g => out.push(g)); });
+  return out;
+}
+
+// The selectors the module actually uses, against a whole subtree.
+function matches(root, sel) {
+  const all = walkAll(root);
+  if (sel === '#manual-modal-media') { return all.filter(n => n.id === 'manual-modal-media'); }
+  // 'input[name=serial]' and '[name=serial]' are both used, so the tag is optional.
+  const m = /^(?:([a-zA-Z]+))?\[name=([^\]]+)\]$/.exec(sel);
+  if (m) {
+    return all.filter(n => n.getAttribute('name') === m[2]
+      && (!m[1] || n.tagName === m[1].toUpperCase()));
+  }
+  if (sel === 'input,select') {
+    return all.filter(n => n.tagName === 'INPUT' || n.tagName === 'SELECT');
+  }
+  return [];
 }
 
 // The stub's textContent only holds an element's OWN text, whereas the browser
@@ -130,7 +165,7 @@ eval(src + '\n//# sourceURL=manual-assets.js');
 // wrong is not cosmetic: save() reads the device fields from the body and the media
 // fields from the media box, so a stub that puts the device fields only inside the media
 // row makes save() post an empty device and the after-save landing lose its serial.
-function fieldset(names) {
+function fieldset(names, values) {
   const wrap = makeNode('div');
   names.forEach(k => {
     const f = makeNode('input');
@@ -138,12 +173,13 @@ function fieldset(names) {
     // A real input reflects `name`/`value` as properties, which is how collect() and
     // save() read them; setting only the attribute would silently produce empty rows.
     f.name = k;
-    f.value = k === 'serial' ? 'SN-1'
+    f.value = (values && Object.prototype.hasOwnProperty.call(values, k)) ? String(values[k])
+      : (k === 'serial' ? 'SN-1'
       : (k === 'reason' ? 'media_soldered'
-      : (k === 'destroy_method' ? 'shredded' : 'x'));
+      : (k === 'destroy_method' ? 'shredded' : 'x')));
     wrap.appendChild(f);
   });
-  wrap.querySelectorAll = () => wrap.children;
+  wrap.querySelectorAll = (sel) => matches(wrap, sel);
   return wrap;
 }
 
@@ -154,15 +190,28 @@ function fillValidForm() {
   cocid.name = 'cocid';
   cocid.value = 'COC-1';
 
-  const deviceFields = fieldset(['category', 'make', 'model', 'serial']);
-  const deviceSerial = deviceFields.children.filter(c => c.name === 'serial')[0];
+  const deviceFields = fieldset(['category', 'make', 'model', 'serial'],
+    { category: 'ip_phone', make: 'Cisco', model: '7942G', serial: 'SN-1' });
 
   const media = makeNode('div');
   media.id = 'manual-modal-media';
-  const row = fieldset(['type', 'size', 'make', 'model', 'serial', 'bus']);
+  const row = fieldset(['type', 'size', 'make', 'model', 'serial', 'bus'],
+    { type: 'Flash (integrated)', size: '64 MB', serial: 'SN-1' });
+  // A media row really does carry its own Reason/Method pair — the "different outcome for
+  // this medium" override, hidden inside a nested div. The stub used to leave them out,
+  // which is why it never saw the collision that broke save(). They are POPULATED here
+  // deliberately: with the old document-order lookup the device would have been posted
+  // with the MEDIUM's reason and method — valid values, so no error, just the wrong record
+  // silently filed. A blank pair would instead make the save fail loudly with "A reason is
+  // required", which is the symptom the operator reported.
+  row.appendChild(fieldset(['reason', 'destroy_method'],
+    { reason: 'physically_damaged', destroy_method: 'crushed' }));
   media.appendChild(row);
 
-  const deviceEvidence = fieldset(['reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'evidence_ref']);
+  const deviceEvidence = fieldset(
+    ['reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'evidence_ref'],
+    { reason: 'not_supported_by_appliance', destroy_method: 'factory_reset',
+      destroy_vendor: '', destroy_date: '2026-10-16', destroy_witness: '', evidence_ref: '' });
 
   b.children = [];
   b.appendChild(cocid);
@@ -170,29 +219,16 @@ function fillValidForm() {
   b.appendChild(media);
   b.appendChild(deviceEvidence);
 
-  b.querySelector = (sel) => {
-    if (sel === '#manual-modal-media') return media;
-    const m = /\[name=([^\]]+)\]/.exec(sel);
-    if (m) {
-      // First match in document order, exactly as querySelector behaves — which is why
-      // the device's own serial wins over the media row's.
-      for (let i = 0; i < b.children.length; i++) {
-        const c = b.children[i];
-        if (c.getAttribute('name') === m[1]) return c;
-        for (let j = 0; j < c.children.length; j++) {
-          if (c.children[j].getAttribute('name') === m[1]) return c.children[j];
-        }
-      }
-    }
-    return null;
-  };
-  void deviceSerial;
+  b.querySelector = (sel) => matches(b, sel)[0] || null;
+  b.querySelectorAll = (sel) => matches(b, sel);
   return b;
 }
 
 function installResponse(response) {
   installHarness((url, opts) => {
-    global.__reqs.push({ url: String(url), method: (opts && opts.method) || 'GET' });
+    // The POST body is kept: the modal's payload building is where the real defect was, and
+    // asserting on what reached the wire is the only way to pin it.
+    global.__reqs.push({ url: String(url), method: (opts && opts.method) || 'GET', body: (opts && opts.body) || '' });
     if (String(url).indexOf('/api/csrf') !== -1) {
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ csrf: 'tok' }) });
     }
@@ -268,6 +304,30 @@ setTimeout(() => {
   // button would invite a second, duplicate record during that window.
   check('a 201 success — the button is not re-enabled (the page is navigating)',
     byId['manual-modal-save'].disabled === true);
+
+  // ---- what the modal actually posted -----------------------------------------
+  // The device's Reason and Method live in a block appended AFTER the media rows, and each
+  // media row carries its own hidden pair. save() resolved them by document order, so it
+  // read the MEDIUM's selects for the device: blank there meant the server refused every
+  // save ("A reason is required"), and filled there meant the device was filed with the
+  // medium's reason and method. Neither could be seen from here until the stub above could
+  // reach the media row at all.
+  const posted = JSON.parse(
+    ((global.__reqs.filter(r => r.url.indexOf('/api/certificates/devices') !== -1)[0] || {}).body) || '{}');
+  check('the posted device carries the DEVICE reason, not the medium\'s',
+    posted.device && posted.device.reason === 'not_supported_by_appliance',
+    posted.device && JSON.stringify(posted.device.reason));
+  check('the posted device carries the DEVICE method',
+    posted.device && posted.device.destroy_method === 'factory_reset',
+    posted.device && JSON.stringify(posted.device.destroy_method));
+  check('the posted device keeps the device serial and category',
+    posted.device && posted.device.serial === 'SN-1' && posted.device.category === 'ip_phone',
+    posted.device && JSON.stringify(posted.device));
+  check('the medium posts its OWN reason and method, untouched',
+    posted.media && posted.media.length === 1
+      && posted.media[0].reason === 'physically_damaged'
+      && posted.media[0].destroy_method === 'crushed',
+    JSON.stringify(posted.media));
 
   runFailureCase('a 400 with a JSON message',
     { status: 400, body: JSON.stringify({ ok: false, error: 'Media 1: A serial is required.' }) },

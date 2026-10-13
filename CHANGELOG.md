@@ -131,6 +131,33 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **Add on the Devices page could not save a device at all — and could silently file
+  the wrong one.** `save()` resolved each device field with a bare
+  `body.querySelector('[name=reason]')`, which returns the first match in *document
+  order*. The media rows are appended before the device's Reason/Method block, and each
+  media row carries its own hidden Reason/Method pair for the "different outcome for
+  this medium" override — so the device was posted with the **medium's** values:
+  - override left blank (the normal case): the device went to the server with an empty
+    reason and method, and every save was refused with *"A reason is required — why was
+    this not sanitised by the appliance?"*, however carefully the form had been filled
+    in. Standalone drives on the Drives page were unaffected, because that path posts
+    the medium's own row — which is why the fault looked like "devices only".
+  - override filled: both values were valid, so nothing failed at all — the device was
+    filed with the medium's reason and method, recording a retained device as a crushed
+    one, silently.
+
+  The device's fields are now resolved explicitly (first match that is *not* inside
+  `#manual-modal-media`). The other device fields only ever resolved correctly by
+  accident of ordering and now go through the same resolver.
+
+  The smoke test could not have caught this: its `querySelector` stub reached two levels
+  (`body → row → field`) while the media row's fields sit three levels down
+  (`body → #manual-modal-media → row → field`), so it never modelled the collision and
+  the posted payload always looked correct. The stub now walks the whole tree in
+  document order, models the media row's hidden pair, and asserts what is actually
+  posted — verified by running it against a copy with the old lookup restored, where it
+  fails on exactly the two assertions that matter.
+
 - **A unit's item detail contradicted its own summary when one of its media had a
   different outcome.** Recording a single pulled drive as factory-reset inside a
   destroyed unit (the per-medium "different outcome" override) produced a banner that

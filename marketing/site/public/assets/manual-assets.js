@@ -275,9 +275,24 @@
 
     var payload;
     if (isDevice) {
+      // The DEVICE's own field, never "the first match in the document".
+      //
+      // The media rows are appended BEFORE this block, and each media row carries a
+      // hidden Reason/Method pair for the "different outcome for this medium" override.
+      // A bare `body.querySelector('[name=reason]')` therefore returned the MEDIUM's
+      // hidden select, so the device was posted with an empty reason and method and the
+      // server refused every save with "A reason is required" — however carefully the
+      // operator had filled the form in. Add on the Devices page could not work at all.
+      var deviceField = function (name) {
+        var all = body.querySelectorAll('[name=' + name + ']');
+        for (var i = 0; i < all.length; i++) {
+          if (!all[i].closest('#manual-modal-media')) { return all[i]; }
+        }
+        return null;
+      };
       var dev = {};
       ['category', 'make', 'model', 'serial', 'reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'evidence_ref'].forEach(function (k) {
-        var f = body.querySelector('[name=' + k + ']');
+        var f = deviceField(k);
         if (f) { dev[k] = f.value.trim(); }
       });
       payload = { cocid: cocid.trim(), device: dev, media: media };
