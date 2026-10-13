@@ -264,7 +264,7 @@ function jsonld_drive(array $norm): array {
  * report rows. $summary keys: cert, cocid, issued_at, devices, methods, runs,
  * first, last, sha_state, sig_state, pdf_sha256.
  */
-function build_cert_jsonld(array $summary, array $drives, array $reports, array $issuer): array {
+function build_cert_jsonld(array $summary, array $drives, array $reports, array $issuer, array $attested = []): array {
     $context = [
         'https://schema.org',
         [
@@ -312,6 +312,60 @@ function build_cert_jsonld(array $summary, array $drives, array $reports, array 
     // — see research/cert-destruction-evidence/README.md).
     $mediaDisposition = cert_media_disposition($drives);
     if ($mediaDisposition !== '') { $doc['mediaDisposition'] = $mediaDisposition; }
+
+    // Manually recorded (attested) destruction, mirroring the PDF's attested
+    // appendix. Deliberately NOT folded into mediaDisposition or the `about` drive
+    // list: those describe instrument-verified sanitisation, and an automated auditor
+    // must be able to tell the two claims apart. Wording comes from
+    // manual_destruction.php so the two documents cannot drift.
+    if ($attested) {
+        require_once __DIR__ . '/manual_destruction.php';
+        $counts = md_attested_counts($attested);
+        $attestedItems = [];
+
+        $mediaEntry = function (array $m): array {
+            return [
+                'type'         => (string)($m['type'] ?? ''),
+                'model'        => (string)($m['model'] ?? ''),
+                'serial'       => (string)($m['serial'] ?? ''),
+                'size'         => (string)($m['size'] ?? ''),
+                'bus'          => (string)($m['bus'] ?? ''),
+                'disposition'  => 'destroyed',
+                'attestation'  => 'operator-attested',
+            ];
+        };
+
+        foreach (($attested['devices'] ?? []) as $dev) {
+            $media = [];
+            foreach (($dev['media'] ?? []) as $m) { $media[] = $mediaEntry($m); }
+            $attestedItems[] = [
+                'type'          => 'Device',
+                'name'          => md_device_line($dev),
+                'serial'        => (string)($dev['serial'] ?? ''),
+                'disposition'   => 'destroyed',
+                'attestation'   => 'operator-attested',
+                'destroyMethod' => md_destruction_line($dev),
+                'witness'       => (string)($dev['destroy_witness'] ?? ''),
+                'evidenceRef'   => (string)($dev['evidence_ref'] ?? ''),
+                'media'         => $media,
+            ];
+        }
+        foreach (($attested['media'] ?? []) as $m) {
+            $entry = $mediaEntry($m);
+            $entry['type'] = 'Medium';
+            $entry['destroyMethod'] = md_destruction_line($m);
+            $attestedItems[] = $entry;
+        }
+
+        if ($attestedItems) {
+            $doc['attestedDestruction'] = [
+                'qualifier' => md_attested_qualifier(),
+                'devices'   => $counts['devices'],
+                'media'     => $counts['media'],
+                'items'     => $attestedItems,
+            ];
+        }
+    }
 
     if (($summary['first'] ?? null) !== null && (string)$summary['first'] !== '') {
         $doc['dateCreated'] = jsonld_iso((string)$summary['first']);

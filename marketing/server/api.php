@@ -191,7 +191,8 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     // Build + sign + write the machine-readable JSON-LD beside the PDF, from
     // the same rendered data. Returns ['path', 'sha', 'ts'] — path is '' when
     // signing is unavailable, which must never block PDF issuance.
-    $writeJson = function (array $rendered, array $grp, string $certId) use ($certifier, $issuedAt): array {
+    $attested = [];
+    $writeJson = function (array $rendered, array $grp, string $certId) use ($certifier, $issuedAt, &$attested): array {
         $doc = build_cert_jsonld([
             'cert'       => $certId,
             'cocid'      => (string)$grp['cocid'],
@@ -204,7 +205,7 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
             'sha_state'  => (string)$grp['shaState'],
             'sig_state'  => (string)$grp['sigState'],
             'pdf_sha256' => (string)$rendered['sha'],
-        ], $rendered['drives'], $grp['reports'], $certifier);
+        ], $rendered['drives'], $grp['reports'], $certifier, $attested);
         $signed = jsonld_sign_document($doc);
         if ($signed === null) { return ['path' => '', 'sha' => '', 'ts' => 'none']; }
         return ['path' => jsonld_write($signed['json'], $certId), 'sha' => $signed['sha256'], 'ts' => $signed['ts_state']];
