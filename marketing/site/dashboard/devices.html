@@ -113,6 +113,24 @@
     </div>
   </div>
 
+  <div id="manual-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="manual-modal-title">
+    <div id="manual-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div id="manual-modal-panel" class="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-3">
+          <div class="min-w-0">
+            <h2 id="manual-modal-title" class="truncate text-lg font-bold text-ink-900 dark:text-white"></h2>
+            <p id="manual-modal-sub" class="truncate text-xs text-slate-500 dark:text-slate-400"></p>
+          </div>
+          <button id="manual-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
+        </div>
+        <div id="manual-modal-body" class="flex-1 overflow-y-auto p-5"></div>
+        <div class="flex items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-3">
+          <button id="manual-modal-save" type="button" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Record</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="export-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
     <div id="export-modal-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
     <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">

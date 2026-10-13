@@ -123,22 +123,24 @@
     return out;
   }
 
-  function open(kind, cocid) {
-    close();
-    var isDevice = kind === 'device';
+  function open(kind) {
+    isDevice = (kind !== 'drive');
+    var modal = document.getElementById('manual-modal');
+    var body = document.getElementById('manual-modal-body');
 
-    var body = el('div', { class: 'max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4' });
+    document.getElementById('manual-modal-title').textContent = isDevice
+      ? 'Record a destroyed device' : 'Record a destroyed drive';
+    document.getElementById('manual-modal-sub').textContent =
+      'Operator attestation — not instrument-verified destruction';
+    document.getElementById('manual-modal-save').textContent = isDevice ? 'Record device' : 'Record drive';
 
-    var notice = el('p', { class: 'rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
-      text: 'This records an operator attestation of physical destruction — it is not instrument-verified, and it will be labelled as attested on the certificate.' });
-    body.appendChild(notice);
+    body.innerHTML = '';
+    var err = el('p', { id: 'manual-modal-error', class: 'hidden rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300' });
 
-    var err = el('p', { class: 'hidden rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300' });
+    body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
+      text: 'This records an operator attestation of physical destruction — it is not instrument-verified, and it will be labelled as attested on the certificate.' }));
     body.appendChild(err);
-
     body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
-    var cocidField = body.querySelector('input[name=cocid]');
-    if (cocid) { cocidField.value = cocid; }
 
     if (isDevice) {
       body.appendChild(grid([
@@ -149,64 +151,66 @@
       ], 2));
     }
 
-    var mediaBox = el('div', { id: 'manual-assets-media', class: 'space-y-3' });
+    var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
     mediaBox.appendChild(mediaRow(isDevice));
     body.appendChild(mediaBox);
 
-    var addRow = el('button', { type: 'button', class: 'rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
+    var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
       text: isDevice ? '+ Add another medium' : '+ Add another drive' });
     addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow(isDevice)); });
     body.appendChild(addRow);
 
     if (isDevice) {
-      var ev = el('div', {}, [grid([
+      body.appendChild(el('div', { class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' }, [grid([
         select('Reason', 'reason', REASONS, true),
         select('Destruction method', 'destroy_method', METHODS, true),
         input('Destroyed by (vendor / facility)', 'destroy_vendor'),
         input('Date (YYYY-MM-DD)', 'destroy_date'),
         input('Witness', 'destroy_witness'),
         input('Evidence reference (vendor certificate no.)', 'evidence_ref')
-      ], 2)]);
-      ev.className = 'space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3';
-      body.appendChild(ev);
+      ], 2)]));
     }
 
-    var modal = el('div', { id: 'manual-assets-modal', class: 'fixed inset-0 z-50', role: 'dialog', 'aria-modal': 'true' }, [
-      el('div', { class: 'absolute inset-0 bg-slate-900/60 backdrop-blur-sm' }),
-      el('div', { class: 'absolute left-1/2 top-1/2 w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-ink-900' }, [
-        el('div', { class: 'flex items-center justify-between border-b border-slate-200 dark:border-ink-700 px-5 py-3' }, [
-          el('h2', { class: 'text-lg font-bold text-ink-900 dark:text-white',
-            text: isDevice ? 'Record a destroyed device' : 'Record a destroyed drive' }),
-          el('button', { type: 'button', id: 'manual-assets-cancel', class: 'rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300', text: 'Cancel' })
-        ]),
-        body,
-        el('div', { class: 'flex items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-3' }, [
-          el('button', { type: 'button', id: 'manual-assets-save',
-            class: 'rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700',
-            text: isDevice ? 'Record device' : 'Record drive' })
-        ])
-      ])
-    ]);
+    // The page's own COCID, when one is in view, so the operator does not retype it.
+    var pre = document.querySelector('[data-cocid]');
+    if (pre) { body.querySelector('input[name=cocid]').value = pre.getAttribute('data-cocid'); }
 
-    modal.querySelector('#manual-assets-cancel').addEventListener('click', close);
-    modal.querySelector('.absolute.inset-0').addEventListener('click', close);
-    modal.querySelector('#manual-assets-save').addEventListener('click', function () {
-      save(isDevice, body, err, this);
-    });
-
-    document.body.appendChild(modal);
-    root = modal;
-    cocidField.focus();
+    // Same open strategy as the Operations and Export modals.
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    var focus = body.querySelector('input[name=cocid]');
+    if (focus) { focus.focus(); }
   }
 
   function close() {
-    if (root && root.parentNode) { root.parentNode.removeChild(root); }
-    root = null;
+    document.getElementById('manual-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // Bound once: the container markup is static in the page.
+  function wire() {
+    var modal = document.getElementById('manual-modal');
+    if (!modal) { return; }
+    document.getElementById('manual-modal-close').addEventListener('click', close);
+    document.getElementById('manual-modal-backdrop').addEventListener('click', close);
+    document.getElementById('manual-modal-save').addEventListener('click', function () {
+      save(isDevice, document.getElementById('manual-modal-body'),
+        document.getElementById('manual-modal-error'), this);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) { close(); }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
   }
 
   function save(isDevice, body, err, button) {
     var cocid = (body.querySelector('input[name=cocid]') || {}).value || '';
-    var media = collect(body.querySelector('#manual-assets-media'));
+    var media = collect(body.querySelector('#manual-modal-media'));
     if (!cocid.trim()) { return show(err, 'A Chain of Custody ID is required.'); }
     if (!media.length) {
       return show(err, isDevice
