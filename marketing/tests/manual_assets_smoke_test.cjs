@@ -97,6 +97,8 @@ global.document = {
   querySelector() { return null; },
   addEventListener() {},
   createElement: makeNode,
+  // The icons are inline SVG, built with createElementNS.
+  createElementNS(ns, tag) { return makeNode(tag); },
 };
 
 function installHarness(fetchImpl) {
@@ -450,8 +452,57 @@ setTimeout(() => {
                           check('detail — unknown values render as a dash, not "undefined"',
                             !/undefined/.test(dBot));
 
-                          console.log('\n' + count + ' checks, ' + fails + ' failed');
-                          process.exit(fails === 0 ? 0 : 1);
+                          // ---- actions(): the icon-button cell shared by both tables ----
+                          installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
+                          const cell = window.ManualAssets.actions(Object.assign({}, devRow, { attested_id: 5 }));
+                          const abtns = cell.children.filter(c => c.tagName === 'BUTTON');
+                          check('actions — two buttons are built', abtns.length === 2, abtns.length);
+                          // Icon-only: the accessible name cannot come from the content, so an
+                          // aria-label is mandatory — a glyph with only a tooltip is unusable
+                          // with a screen reader and invisible on touch.
+                          check('actions — each icon button has an accessible name',
+                            abtns.every(b => String(b.getAttribute('aria-label') || '').length > 0),
+                            abtns.map(b => b.getAttribute('aria-label')).join(', '));
+                          check('actions — each icon button has a tooltip', abtns.every(b => !!b.title));
+                          check('actions — each button holds an svg with one path',
+                            abtns.every(b => b.children.length === 1 && b.children[0].children.length === 1));
+                          check('actions — the icons differ (details vs remove)',
+                            abtns[0].children[0].children[0].getAttribute('d') !== abtns[1].children[0].children[0].getAttribute('d'));
+                          check('actions — the buttons are not labelled with words',
+                            abtns.every(b => !/Details|Remove/.test(b.textContent || '')));
+
+                          byId['manual-detail-modal']._classes.add('hidden');
+                          abtns[0]._on.click();
+                          check('actions — the Details button opens the record view',
+                            byId['manual-detail-modal']._classes.has('hidden') === false);
+
+                          global.__confirmAnswer = true;
+                          global.__reqs = [];
+                          abtns[1]._on.click();
+                          setTimeout(() => {
+                            const del = global.__reqs.filter(r => r.method === 'DELETE');
+                            // attested_kind drives the route, so pin both: a device removal must
+                            // go to /devices (which also takes its media) and a medium to /media.
+                            check('actions — a device row removes via /api/certificates/devices',
+                              del.length === 1 && del[0].url.indexOf('/api/certificates/devices/5?cocid=') !== -1,
+                              JSON.stringify(global.__reqs));
+
+                            global.__reqs = [];
+                            global.__reloaded = false;
+                            global.__confirmAnswer = true;
+                            const mCell = window.ManualAssets.actions({ attested_kind: 'media', attested_id: 9, cocid: 'COC-1' });
+                            const mBtns = mCell.children.filter(c => c.tagName === 'BUTTON');
+                            mBtns[1]._on.click();
+                            setTimeout(() => {
+                              const mdl = global.__reqs.filter(r => r.method === 'DELETE');
+                              check('actions — a media row removes via /api/certificates/media',
+                                mdl.length === 1 && mdl[0].url.indexOf('/api/certificates/media/9?cocid=') !== -1,
+                                JSON.stringify(global.__reqs));
+
+                              console.log('\n' + count + ' checks, ' + fails + ' failed');
+                              process.exit(fails === 0 ? 0 : 1);
+                            }, 80);
+                          }, 80);
                         }, 60);
                       }, 60);
                     }, 60);

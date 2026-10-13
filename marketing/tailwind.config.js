@@ -9,6 +9,12 @@ export default {
     './site/dashboard/**/*.html',
     './site/resources/**/*.html',
     './site/src/**/*.{html,js}',
+    // The dashboard's own JS assets build DOM with Tailwind classes (the attested-record
+    // modals and their icon buttons live in site/public/assets/manual-assets.js). Without
+    // this glob, any class used ONLY there is never generated — it silently renders
+    // unstyled if it does not also happen to appear in an HTML file. h-7/w-7 and gap-1.5
+    // were missing for exactly that reason.
+    './site/public/**/*.js',
     './node_modules/flowbite/**/*.js'
   ],
   theme: {

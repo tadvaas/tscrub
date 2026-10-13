@@ -51,7 +51,7 @@
       <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the device inventory">Export</button>
       <button type="button" id="add-btn" onclick="ManualAssets.openFor('device')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a device that was physically destroyed (an operator attestation)">Add</button>
     </div>
-    <script src="/assets/manual-assets.js?v=13" defer></script>
+    <script src="/assets/manual-assets.js?v=14" defer></script>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
       <div id="device-list" class="min-h-[200px]">
@@ -722,37 +722,16 @@
           + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
         tr.appendChild(stCell);
 
-        // A flex row, not inline text: with the CoC ID and the buttons on one nowrap
-        // line the cell needed 263px in a 218px column, so the button hung 46px past
-        // the table edge and was clipped. shrink-0 on each button makes a clipped
-        // control structurally impossible.
-        //
-        // The CoC ID is no longer printed here: two buttons plus the id did not fit in
-        // this column at any sensible width, and no other row in this table shows a
-        // COCID. It stays on the cell as a title and in full in the Details view.
+        // Built by the shared module: the same two controls appear in the Drives table,
+        // and icon-only buttons are narrow enough that the cell no longer risks pushing
+        // a control past the table edge. Each carries an aria-label as well as a title.
         var tdv = el('td', 'px-4 py-2.5');
-        var actWrap = el('div', 'flex items-center justify-end gap-2');
         if (dev.cocid) { tdv.title = 'Chain of Custody ' + dev.cocid; }
-
-        var detBtn = el('button', 'shrink-0 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800', 'Details');
-        detBtn.title = 'Show everything recorded for this attested item — the evidence that goes on the certificate';
-        detBtn.addEventListener('click', function () {
-          if (window.ManualAssets) { ManualAssets.detail(dev); }
-          else { window.alert('The record tools did not load — reload the page and try again.'); }
-        });
-        actWrap.appendChild(detBtn);
-
-        // Removal is the only correction available: a record cannot be edited, so a
-        // mistyped one is removed and re-entered. The flow (confirm, then DELETE) lives
-        // in manual-assets.js so both pages behave identically.
-        var rmBtn = el('button', 'shrink-0 whitespace-nowrap rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50', 'Remove');
-        rmBtn.title = 'Remove this attested device and every medium recorded with it';
-        rmBtn.addEventListener('click', function () {
-          if (window.ManualAssets) { ManualAssets.remove(dev, rmBtn); }
-          else { window.alert('The record tools did not load — reload the page and try again.'); }
-        });
-        actWrap.appendChild(rmBtn);
-        tdv.appendChild(actWrap);
+        if (window.ManualAssets) {
+          tdv.appendChild(ManualAssets.actions(dev));
+        } else {
+          tdv.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'record tools did not load'));
+        }
         tr.appendChild(tdv);
         return tr;
       }
@@ -773,6 +752,10 @@
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
         var cols = [
+          // The actions column cannot shrink to suit the attested icon buttons: it is shared
+          // with the scanned rows, whose Log/Ops/Rep word buttons need 184px (plus padding).
+          // Shrinking it to 11% for the icons cut those by 75px — so it stays at 22% and the
+          // icon buttons simply sit comfortably inside it.
           ['System', 'w-[20%]', 'system'],
           // 14%: a 13-character service tag is 133px, which did not fit 13%.
           ['Serial', 'w-[14%]', 'serial'],

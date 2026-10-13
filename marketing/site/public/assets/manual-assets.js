@@ -480,6 +480,67 @@
     return wrap;
   }
 
+  // Inline heroicons-style SVG (fill=currentColor, 20x20 viewBox) to match the one icon
+  // already in the dashboard chrome.
+  var ICON_PATHS = {
+    details: 'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z',
+    remove: 'M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z'
+  };
+
+  /**
+   * An icon-only button.
+   *
+   * Icon-only means the accessible name cannot come from the content, so it is set
+   * explicitly as aria-label as well as title — a bare glyph with only a tooltip is
+   * unusable with a screen reader and invisible on touch.
+   */
+  function iconBtn(kind, label, tooltip, cls) {
+    var b = el('button', {
+      type: 'button',
+      class: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ' + cls,
+      'aria-label': label
+    });
+    b.title = tooltip;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 20 20');
+    svg.setAttribute('fill', 'currentColor');
+    svg.setAttribute('class', 'h-4 w-4');
+    svg.setAttribute('aria-hidden', 'true');
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', ICON_PATHS[kind]);
+    path.setAttribute('fill-rule', 'evenodd');
+    path.setAttribute('clip-rule', 'evenodd');
+    svg.appendChild(path);
+    b.appendChild(svg);
+    return b;
+  }
+
+  /**
+   * The action cell for an attested row, as icon buttons.
+   *
+   * Built here rather than in each page because the same two controls appear in the
+   * Devices and Drives tables; two copies would drift the moment one was restyled. Icons
+   * rather than words also buy back most of a table column, which is why the widths could
+   * be rebalanced afterwards.
+   */
+  function actions(row) {
+    var wrap = el('div', { class: 'flex items-center justify-end gap-1.5' });
+
+    var det = iconBtn('details', 'Details',
+      'Show everything recorded for this attested item — the evidence that goes on the certificate',
+      'border-slate-300 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800');
+    det.addEventListener('click', function () { detail(row); });
+    wrap.appendChild(det);
+
+    var rm = iconBtn('remove', 'Remove',
+      row.attested_kind === 'media' ? 'Remove this attested drive' : 'Remove this attested device and every medium recorded with it',
+      'border-red-300 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50');
+    rm.addEventListener('click', function () { remove(row, rm); });
+    wrap.appendChild(rm);
+
+    return wrap;
+  }
+
   /**
    * Read-only detail view for one attested record.
    *
@@ -578,6 +639,7 @@
     open: open,
     remove: remove,
     detail: detail,
+    actions: actions,
     // The button carries the page's own COCID when one is in view (the drives page
     // uploads per job), so the operator does not retype it.
     openFor: function (kind) {
