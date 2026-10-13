@@ -50,6 +50,11 @@ require_once __DIR__ . '/device_log.php';
 require_once __DIR__ . '/org.php';
 require_once __DIR__ . '/certifier.php';
 require_once __DIR__ . '/jsonld.php';
+// The attested-destruction vocabulary and validation. The routes call md_validate_*
+// directly, so this must be loaded up front: requiring it lazily (inside a save) is
+// too late and the route hits "Call to undefined function md_validate_device()" —
+// a fatal, which the dashboard can only report as a generic failure.
+require_once __DIR__ . '/manual_destruction.php';
 
 auth_start();
 
