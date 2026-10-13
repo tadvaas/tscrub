@@ -8,57 +8,7 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
-### Changed
-
-- **Certificates now state how the data was destroyed.** The Certificate of
-  Destruction title is unchanged (it is what buyers search for), but the
-  document now carries the evidence to back it: page 1 gained a `Technique` line
-  and a `Media disposition` line — e.g. *"3 media sanitised in place (data
-  destroyed; hardware reusable); 1 media physically destroyed"* — the outcome
-  banner now reads `DATA DESTROYED ON ALL N DEVICE(S)` (amber `N DEVICE(S) NOT
-  DESTROYED` when any drive failed), and the attestation states the *data* was
-  destroyed by in-place sanitisation (Clear/Purge) or by physical destruction
-  where recorded. Annex A gained a **DESTRUCTION METHOD SUMMARY** block (one line
-  per method: label, NIST SP 800-88 level, technique, device count). The signed
-  JSON-LD twin carries the same evidence (`sanitizationTechnique` + `nistLevel`
-  per drive, `mediaDisposition` at chain level). Shared vocabulary lives in the
-  new `marketing/server/cert_terms.php` so the PDF and the machine-readable twin
-  cannot drift apart. Plan: `research/cert-destruction-evidence/README.md`.
-
-### Removed
-
-- **The `tscrub_autopilotcheck` opt-in flag is gone.** The Windows Autopilot
-  (MDM) check is started from the dashboard, so the appliance no longer has to
-  opt in: with a dashboard token it reports the machine's identifiers at boot
-  and reads the latest check state back (a stray `tscrub_autopilotcheck=` line in
-  `tscrub.conf` is simply ignored as an unknown key). The `--autopilotcheck` CLI
-  flag and the `tscrub_autopilotcheck=` kernel parameter / `tscrub.conf` key are
-  removed, and `mdm::is_configured()` now needs only the token. Whether a check
-  runs — and its one-credit cost — is still controlled entirely from the
-  dashboard. Docs, `triage-conversion.md` and the tests are updated to match.
-
-### Fixed
-
-- **The dashboard now says *why* a remote BIOS unlock did not succeed.** A clear
-  that fails arrives as a single status for two completely different reasons — a
-  wrong password (retry with the right one) and a firmware that has no reset path
-  from Linux (retrying can never work) — and the dashboard showed the same "Clear
-  failed" plus a retry box for both, inviting the operator to keep re-entering a
-  password that was already correct. The server now derives a machine-readable
-  `verdict` from the appliance's result + detail (`bios_unlock.php` →
-  `unlock_verdict()`, returned by `GET /api/bios/unlock`), which the dashboard
-  renders as *Wrong BIOS password* / *Rejected by the firmware password policy* /
-  *Cannot be cleared from Linux* / *Firmware cannot set or clear passwords* /
-  *Password interface is read-only* / *No BIOS password interface*; a retry box is
-  only offered where a different password could actually change the outcome.
-  `bios_unlock.detail` was also widened `VARCHAR(255)` → `VARCHAR(512)`: the
-  v1.11.45 no-clear-path explanation is 253 characters, and 284 with an absolute
-  sysfs path, so it was being clipped mid-sentence. Commands resolved before this
-  change are classified on read, so they render correctly too — the v1.11.44
-  wording ("wrong password, or this firmware exposes no reset path from Linux")
-  now correctly resolves to *no clear path* rather than *wrong password*.
-
-## [v1.11.54] - 2026-10-12
+## [v1.11.54] - 2026-10-13
 
 ### Added
 
@@ -90,6 +40,18 @@ and this project uses date-based versioning (`v1.x`).
   `FROZEN` and `BLOCKED`, so when one drive serial appears in several reports
   the label shown never depends on upload order.
 
+### Removed
+
+- **The `tscrub_autopilotcheck` opt-in flag is gone.** The Windows Autopilot
+  (MDM) check is started from the dashboard, so the appliance no longer has to
+  opt in: with a dashboard token it reports the machine's identifiers at boot
+  and reads the latest check state back (a stray `tscrub_autopilotcheck=` line in
+  `tscrub.conf` is simply ignored as an unknown key). The `--autopilotcheck` CLI
+  flag and the `tscrub_autopilotcheck=` kernel parameter / `tscrub.conf` key are
+  removed, and `mdm::is_configured()` now needs only the token. Whether a check
+  runs — and its one-credit cost — is still controlled entirely from the
+  dashboard. Docs, `triage-conversion.md` and the tests are updated to match.
+
 ## [v1.11.53] - 2026-10-12
 
 ### Added
@@ -117,6 +79,21 @@ and this project uses date-based versioning (`v1.x`).
 ## [v1.11.51] - 2026-10-10
 
 ### Changed
+
+- **Certificates now state how the data was destroyed.** The Certificate of
+  Destruction title is unchanged (it is what buyers search for), but the
+  document now carries the evidence to back it: page 1 gained a `Technique` line
+  and a `Media disposition` line — e.g. *"3 media sanitised in place (data
+  destroyed; hardware reusable); 1 media physically destroyed"* — the outcome
+  banner now reads `DATA DESTROYED ON ALL N DEVICE(S)` (amber `N DEVICE(S) NOT
+  DESTROYED` when any drive failed), and the attestation states the *data* was
+  destroyed by in-place sanitisation (Clear/Purge) or by physical destruction
+  where recorded. Annex A gained a **DESTRUCTION METHOD SUMMARY** block (one line
+  per method: label, NIST SP 800-88 level, technique, device count). The signed
+  JSON-LD twin carries the same evidence (`sanitizationTechnique` + `nistLevel`
+  per drive, `mediaDisposition` at chain level). Shared vocabulary lives in the
+  new `marketing/server/cert_terms.php` so the PDF and the machine-readable twin
+  cannot drift apart. Plan: `research/cert-destruction-evidence/README.md`.
 
 - **An `UNKNOWN` BIOS-lock verdict now says why.** `UNKNOWN` covered three quite
   different situations — a firmware that publishes no password state at all, one
@@ -296,6 +273,25 @@ and this project uses date-based versioning (`v1.x`).
   `research/bios-unlock/18-live-wmi-probing-results.md`.
 
 ### Fixed
+
+- **The dashboard now says *why* a remote BIOS unlock did not succeed.** A clear
+  that fails arrives as a single status for two completely different reasons — a
+  wrong password (retry with the right one) and a firmware that has no reset path
+  from Linux (retrying can never work) — and the dashboard showed the same "Clear
+  failed" plus a retry box for both, inviting the operator to keep re-entering a
+  password that was already correct. The server now derives a machine-readable
+  `verdict` from the appliance's result + detail (`bios_unlock.php` →
+  `unlock_verdict()`, returned by `GET /api/bios/unlock`), which the dashboard
+  renders as *Wrong BIOS password* / *Rejected by the firmware password policy* /
+  *Cannot be cleared from Linux* / *Firmware cannot set or clear passwords* /
+  *Password interface is read-only* / *No BIOS password interface*; a retry box is
+  only offered where a different password could actually change the outcome.
+  `bios_unlock.detail` was also widened `VARCHAR(255)` → `VARCHAR(512)`: the
+  v1.11.45 no-clear-path explanation is 253 characters, and 284 with an absolute
+  sysfs path, so it was being clipped mid-sentence. Commands resolved before this
+  change are classified on read, so they render correctly too — the v1.11.44
+  wording ("wrong password, or this firmware exposes no reset path from Linux")
+  now correctly resolves to *no clear path* rather than *wrong password*.
 
 - **A BIOS-unlock could be reported as cleared while the password was still
   set.** On HP firmware the sysfs password attributes are cached from probe time,
