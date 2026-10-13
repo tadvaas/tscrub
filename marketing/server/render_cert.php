@@ -636,7 +636,10 @@ function cert_render_attested_device($pdf, array $dev, float $y, float $x, float
     $pdf->MultiCell($w, 3.8, md_device_line($dev), 0, 'L');
     $y = $pdf->GetY() + 0.4;
 
-    $line = 'Destroyed by ' . md_destruction_line($dev);
+    // "Destroyed — Shredded (Acme Shredding, 2026-10-13) · attested by …". The
+    // method label is a noun ("Shredded"), so it cannot follow "Destroyed by" without
+    // reading as a mistake; a dash also matches how the dashboard words the same row.
+    $line = 'Destroyed — ' . md_destruction_line($dev);
     $by = trim((string)($dev['attested_by'] ?? ''));
     if ($by !== '') { $line .= ' · attested by ' . $by; }
     $wit = trim((string)($dev['destroy_witness'] ?? ''));

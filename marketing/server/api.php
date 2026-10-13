@@ -1731,6 +1731,11 @@ if ($method === 'GET' && $route === '/devices') {
         'ok'      => true,
         'devices' => $res['devices'],
         'total'   => $res['total'],
+        // Forwarded explicitly: this response is rebuilt here, so a key added to
+        // load_devices() is NOT automatically visible to the dashboard. Attested
+        // units are included in `total`, so without this the page cannot say how
+        // many of them are attestations.
+        'attested_total' => (int)($res['attested_total'] ?? 0),
         'page'    => $page,
         'per'     => $per,
         'version' => devices_list_version((int)$u['id']),
@@ -1892,6 +1897,8 @@ if ($method === 'GET' && $route === '/drives') {
         'ok'     => true,
         'drives' => $res['drives'],
         'total'  => $res['total'],
+        // As on /devices: rebuilt here, so the attested count must be forwarded.
+        'attested_total' => (int)($res['attested_total'] ?? 0),
         'page'   => $page,
         'per'    => $per,
     ]);

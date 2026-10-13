@@ -91,6 +91,9 @@ try {
         'destroy_method' => 'shredded'])['clean'];
     $r = manual_attested_save_media($certId, $cocid, $solo, 'operator@example.com');
     t_check('standalone destroyed media saves', $r['ok'] === true);
+    // The caller needs this id to delete the record again; it is read inside the
+    // transaction because lastInsertId() after commit() returns 0.
+    t_check('standalone destroyed media returns its row id', (int)$r['id'] > 0);
     $load = manual_attested_load($certId);
     t_check('standalone media is not attached to a device', count($load['media']) === 1);
     t_check('standalone media has no device link',

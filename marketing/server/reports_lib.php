@@ -779,8 +779,14 @@ function manual_attested_save_media(int $certId, string $cocid, array $m, string
         db()->beginTransaction();
         // No device: this medium has no host recorded (see manual_media_insert).
         manual_media_insert($certId, 0, $cocid, $m, [], $attestedBy);
+        // Read the id BEFORE committing: after commit() lastInsertId() returns 0 on
+        // this connection, so the route was answering {"ok":true,"id":0} and the
+        // caller had no id with which to delete the record it had just created.
+        // The device path already captured it inside the transaction, which is why
+        // only standalone media were affected.
+        $mediaId = (int)db()->lastInsertId();
         db()->commit();
-        return ['ok' => true, 'id' => (int)db()->lastInsertId(), 'error' => ''];
+        return ['ok' => true, 'id' => $mediaId, 'error' => ''];
     } catch (Throwable $e) {
         if (db()->inTransaction()) { db()->rollBack(); }
         error_log('manual_attested_save_media: ' . $e->getMessage());
