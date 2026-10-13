@@ -272,12 +272,18 @@
       // identity and tells the operator to assign an asset tag) — show it verbatim.
       // If it sent none, at least say which HTTP status failed, so a report of
       // "internal error" identifies the request next time instead of the UI hiding it.
-      show((res.body && (res.body.error || res.body.message))
-        || ('Could not save the record (HTTP ' + res.status + ').'));
+      var message = (res.body && (res.body.error || res.body.message)) || '';
+      if (!message) {
+        // No JSON message: state the status and what the body actually said, so a real
+        // failure identifies itself instead of looking like a network problem.
+        var snippet = String(res.raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+        message = 'Save failed (HTTP ' + res.status + ')' + (snippet ? ': ' + snippet : '.');
+      }
+      show(message);
       button.disabled = false;
       button.textContent = isDevice ? 'Record device' : 'Record drive';
     }).catch(function () {
-      show(err, 'Could not reach the server.');
+      show('Could not send the request — check your connection.');
       button.disabled = false;
       button.textContent = isDevice ? 'Record device' : 'Record drive';
     });
