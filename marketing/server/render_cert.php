@@ -551,6 +551,134 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
  * Returns the PDF bytes, its SHA-256, the computed counts, and the sorted
  * drive rows (so the caller can persist them in the same order).
  */
+/**
+ * Annex A appendix: the manually recorded (attested) destruction.
+ *
+ * Everything drawn here is an operator attestation, not instrument-verified
+ * evidence, so every block carries md_attested_qualifier() and nothing on this
+ * section may imply a readback or a NIST Clear/Purge level. The section manages its
+ * own Y coordinate so it can grow without disturbing page 1, whose layout is
+ * fixed-coordinate (see research/manual-destruction/README.md §10).
+ *
+ * Returns the Y position after the section.
+ *
+ * NOT YET WIRED: nothing calls this until step (2) of the plan, so it cannot affect
+ * certificate issuance.
+ */
+function cert_render_attested_section($pdf, array $attested, float $startY): float
+{
+    require_once __DIR__ . '/manual_destruction.php';
+
+    $devices = $attested['devices'] ?? [];
+    $loose   = $attested['media'] ?? [];
+    if (!$devices && !$loose) {
+        return $startY;
+    }
+
+    $counts = md_attested_counts($attested);
+    $x = 30.0;
+    $w = 237.0;
+    $y = $startY;
+
+    $pdf->SetFont('helvetica', 'B', 9);
+    $pdf->SetTextColor(11, 18, 32);
+    $pdf->SetXY($x, $y);
+    $pdf->Cell($w, 4.5, 'PHYSICALLY DESTROYED — OPERATOR ATTESTATION', 0, 1, 'L');
+    $y += 5.0;
+
+    $mediaWord = $counts['media'] === 1 ? 'medium' : 'media';
+    $devWord   = $counts['devices'] === 1 ? 'device' : 'devices';
+    $pdf->SetFont('helvetica', '', 8.5);
+    $pdf->SetTextColor(51, 65, 85);
+    $pdf->SetXY($x, $y);
+    $pdf->MultiCell($w, 3.8, $counts['media'] . ' ' . $mediaWord . ' destroyed with '
+        . $counts['devices'] . ' ' . $devWord . '. These items are '
+        . md_attested_qualifier() . '.', 0, 'L');
+    $y = $pdf->GetY() + 1.6;
+
+    foreach ($devices as $dev) {
+        $rows = count($dev['media'] ?? []);
+        if ($y + 12.0 + ($rows * 7.0) > 268.0) {   // keep a device block together
+            $pdf->AddPage();
+            $y = 28.0;
+        }
+        $y = cert_render_attested_device($pdf, $dev, $y, $x, $w);
+    }
+
+    foreach ($loose as $m) {
+        if ($y + 14.0 > 268.0) {
+            $pdf->AddPage();
+            $y = 28.0;
+        }
+        $y = cert_render_attested_device($pdf, $m, $y, $x, $w, false);
+    }
+
+    $pdf->SetFont('helvetica', 'I', 8);
+    $pdf->SetTextColor(100, 116, 139);
+    $pdf->SetXY($x, $y + 1.0);
+    $pdf->MultiCell($w, 3.6, md_attested_footnote(), 0, 'L');
+
+    return $pdf->GetY() + 2.0;
+}
+
+/**
+ * One attested item: the unit, what was done to it, who attested it, and the media
+ * that were destroyed with it ($withMedia false for a standalone destroyed drive,
+ * which has no host and must not be given one).
+ */
+function cert_render_attested_device($pdf, array $dev, float $y, float $x, float $w, bool $withMedia = true): float
+{
+    require_once __DIR__ . '/manual_destruction.php';
+
+    $pdf->SetFont('helvetica', 'B', 8.5);
+    $pdf->SetTextColor(11, 18, 32);
+    $pdf->SetXY($x, $y);
+    $pdf->MultiCell($w, 3.8, md_device_line($dev), 0, 'L');
+    $y = $pdf->GetY() + 0.4;
+
+    $line = 'Destroyed by ' . md_destruction_line($dev);
+    $by = trim((string)($dev['attested_by'] ?? ''));
+    if ($by !== '') { $line .= ' · attested by ' . $by; }
+    $wit = trim((string)($dev['destroy_witness'] ?? ''));
+    if ($wit !== '') { $line .= ' · witnessed by ' . $wit; }
+    $ref = trim((string)($dev['evidence_ref'] ?? ''));
+    if ($ref !== '') { $line .= ' · evidence ' . $ref; }
+
+    $pdf->SetFont('helvetica', '', 8);
+    $pdf->SetTextColor(51, 65, 85);
+    $pdf->SetXY($x + 4.0, $y);
+    $pdf->MultiCell($w - 4.0, 3.6, $line, 0, 'L');
+    $y = $pdf->GetY();
+
+    foreach (($dev['media'] ?? []) as $m) {
+        if (!$withMedia) { break; }
+        $y = cert_render_attested_media_row($pdf, $m, $y, $x + 4.0, $w - 4.0);
+    }
+
+    return $y + 2.4;
+}
+
+/** One attested medium, as it appears in the drive annex: what it was and its identity. */
+function cert_render_attested_media_row($pdf, array $m, float $y, float $x, float $w): float
+{
+    $type   = trim((string)($m['type'] ?? ''));
+    $model  = trim((string)($m['model'] ?? ''));
+    $serial = trim((string)($m['serial'] ?? ''));
+    $size   = trim((string)($m['size'] ?? ''));
+    $bus    = trim((string)($m['bus'] ?? ''));
+
+    $bits = array_filter([$type, $model, $size, $bus]);
+    $line = '• ' . implode(' · ', $bits);
+    if ($serial !== '') { $line .= ' — ' . $serial; }
+
+    $pdf->SetFont('helvetica', '', 8);
+    $pdf->SetTextColor(51, 65, 85);
+    $pdf->SetXY($x + 4.0, $y);
+    $pdf->MultiCell($w - 4.0, 3.6, $line, 0, 'L');
+
+    return $pdf->GetY() + 0.2;
+}
+
 function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = []): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
