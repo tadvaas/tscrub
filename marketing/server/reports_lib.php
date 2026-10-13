@@ -597,6 +597,46 @@ function insert_certificate_records(array $entries, ?int $userId, string $pdfSha
  * same Chain of Custody ID.
  */
 /**
+ * The certificate row for a COCID, created as a DRAFT when none exists yet.
+ *
+ * A job made only of manually recorded destruction — a pallet of phones, none of
+ * which ever ran the appliance — has no report and therefore no certificate. Rather
+ * than keep a second parallel store, the certificate row is created here, and
+ * generate_certificate() finds it later by COCID and renders it.
+ *
+ * Drafts carry no pdf_path; the certificate list filters them out so they cannot
+ * appear as phantom certificates in the dashboard.
+ */
+function manual_cert_row(int $userId, string $cocid): ?array
+{
+    if ($cocid === '') { return null; }
+
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    $q = db()->prepare("SELECT * FROM certificates WHERE user_id IN ($ph) AND cocid = ? ORDER BY id DESC LIMIT 1");
+    $q->execute(array_merge($ids, [$cocid]));
+    $row = $q->fetch();
+    if ($row !== false) { return $row; }
+
+    $certId   = gen_cert_id();
+    $issuedAt = gmdate('Y-m-d H:i:s');
+    insert_certificate_records([[
+        'cert' => $certId, 'cocid' => $cocid, 'devices' => 0, 'methods' => 0, 'runs' => 0,
+        'first' => null, 'last' => null, 'sha_state' => 'unverified', 'sig_state' => 'none',
+        'reports' => [], 'drives' => [], 'pdf_sha' => '', 'pdf_path' => '',
+        'json_path' => '', 'json_sha256' => '', 'json_ts_state' => 'none',
+    ]], $userId, '', '', $issuedAt);
+    // Mark it a draft: it is a job record, not an issued certificate. The flag is
+    // cleared when generate_certificate() renders this COCID.
+    db()->prepare('UPDATE certificates SET is_draft = 1 WHERE cert_id = ?')->execute([$certId]);
+
+    $q = db()->prepare('SELECT * FROM certificates WHERE cert_id = ?');
+    $q->execute([$certId]);
+    $row = $q->fetch();
+    return $row === false ? null : $row;
+}
+
+/**
  * Load the manually recorded (attested) destruction for a certificate: the units
  * and their media, plus any standalone destroyed media with no host recorded.
  * Media are attached to their device in memory via certificate_device_id.

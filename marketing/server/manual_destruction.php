@@ -73,6 +73,18 @@ function md_attested_qualifier(): string
     return 'operator-attested — not instrument-verified';
 }
 
+/**
+ * Who attested, taken from the SESSION user — never from a client-supplied name.
+ * An attestation is a statement of record, so who made it is part of the record.
+ */
+function manual_attester(array $user): string
+{
+    $name = trim((string)($user['name'] ?? ''));
+    $mail = trim((string)($user['email'] ?? ''));
+    if ($name !== '' && $mail !== '') { return $name . ' <' . $mail . '>'; }
+    return $name !== '' ? $name : $mail;
+}
+
 /** Machine value -> label, falling back to the raw value (never a blank cell). */
 function md_label(array $map, string $key): string
 {

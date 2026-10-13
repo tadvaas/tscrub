@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS certificates (
   json_path  VARCHAR(255)    NOT NULL DEFAULT '',
   json_sha256 CHAR(64)       NOT NULL DEFAULT '',
   json_ts_state VARCHAR(16)  NOT NULL DEFAULT 'none',
+  -- 1 = a job record created before anything was issued for it (a job made only of
+  -- manually recorded destruction). Every issued certificate is 0.
+  is_draft   TINYINT(1)      NOT NULL DEFAULT 0,
   issued_at  DATETIME        NOT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_certificates_cert (cert_id),

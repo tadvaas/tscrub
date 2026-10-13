@@ -472,6 +472,15 @@ function certs_ensure_schema(): void {
     if (!isset($cols['json_ts_state'])) {
         db()->exec("ALTER TABLE certificates ADD COLUMN json_ts_state VARCHAR(16) NOT NULL DEFAULT 'none'");
     }
+    // A job whose only content is manually recorded destruction has no report, so a
+    // certificate row is created for it before anything can be issued (see
+    // manual_cert_row()). Drafts must not appear as issued certificates; every
+    // pre-existing row defaults to 0 and stays visible. Deliberately NOT inferred
+    // from pdf_path: 26 of the 45 certificates on the production database have an
+    // empty pdf_path, so filtering on it would hide over half of them.
+    if (!isset($cols['is_draft'])) {
+        db()->exec('ALTER TABLE certificates ADD COLUMN is_draft TINYINT(1) NOT NULL DEFAULT 0');
+    }
 
     // ---- Manual (attested) destruction -------------------------------------
     // Additive and idempotent, mirroring schema.sql. See

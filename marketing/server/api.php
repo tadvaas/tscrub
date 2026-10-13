@@ -223,7 +223,7 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
         try {
             db()->beginTransaction();
             $stmt = db()->prepare(
-                'UPDATE certificates SET devices = ?, methods = ?, runs = ?, first_ts = ?, last_ts = ?, sha_state = ?, sig_state = ?, pdf_sha256 = ?, pdf_path = ?, json_path = ?, json_sha256 = ?, json_ts_state = ?, issued_at = ? WHERE id = ?'
+                'UPDATE certificates SET devices = ?, methods = ?, runs = ?, first_ts = ?, last_ts = ?, sha_state = ?, sig_state = ?, pdf_sha256 = ?, pdf_path = ?, json_path = ?, json_sha256 = ?, json_ts_state = ?, is_draft = 0, issued_at = ? WHERE id = ?'
             );
             $stmt->execute([
                 (int)$rendered['devices'],
@@ -646,7 +646,12 @@ if ($method === 'GET' && $route === '/certs') {
     $per = 20;
     $offset = ($page - 1) * $per;
 
-    $where = 'user_id IN (' . implode(',', array_fill(0, count(org_member_ids((int)$u['id'])), '?')) . ')';
+    // Draft certificates (a job whose only content is manually recorded destruction,
+    // not yet generated) are job records, not issued certificates, so they must not
+    // appear as phantom entries in the list. Keyed on the explicit is_draft flag —
+    // never on pdf_path, which is empty on 26 of the 45 production certificates.
+    $where = 'user_id IN (' . implode(',', array_fill(0, count(org_member_ids((int)$u['id'])), '?')) . ")"
+        . " AND is_draft = 0";
     $params = org_member_ids((int)$u['id']);
     $types = array_fill(0, count($params), PDO::PARAM_INT);
     if ($q !== '') {
@@ -2078,6 +2083,95 @@ if ($method === 'POST' && $route === '/stripe/webhook') {
     }
 
     json_out(['ok' => true, 'handled' => true]);
+}
+
+// POST /api/certificates/devices — record a manually destroyed device (unit) with
+// the media it contained. An operator ATTESTATION, never instrument-verified: see
+// research/manual-destruction/README.md.
+if ($method === 'POST' && $route === '/certificates/devices') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+
+    $cocid = trim((string)($d['cocid'] ?? ''));
+    if ($cocid === '' || mb_strlen($cocid, 'UTF-8') > 64) {
+        fail(400, 'Provide a valid Chain of Custody ID.');
+    }
+
+    $rawMedia = (is_array($d['media'] ?? null)) ? $d['media'] : [];
+    if (count($rawMedia) < 1) {
+        fail(400, 'Record at least one medium — a device that held no storage has nothing to certify here.');
+    }
+    if (count($rawMedia) > 64) {
+        fail(400, 'Too many media on one device (64 maximum).');
+    }
+
+    $dev = md_validate_device(is_array($d['device'] ?? null) ? $d['device'] : []);
+    if ($dev['errors']) { fail(400, $dev['errors'][0]); }
+
+    $media = [];
+    foreach ($rawMedia as $i => $m) {
+        $v = md_validate_media(is_array($m) ? $m : []);
+        if ($v['errors']) { fail(400, 'Media ' . ($i + 1) . ': ' . $v['errors'][0]); }
+        $media[] = $v['clean'];
+    }
+
+    $cert = manual_cert_row((int)$u['id'], $cocid);
+    if ($cert === null) { fail(500, 'Could not open a job record for that Chain of Custody ID.'); }
+
+    $res = manual_attested_save_device((int)$cert['id'], $cocid, $dev['clean'], $media, manual_attester($u));
+    if (!$res['ok']) { fail(409, $res['error']); }
+
+    json_out(['ok' => true, 'id' => $res['id'], 'cert' => (string)$cert['cert_id']], 201);
+}
+
+// POST /api/certificates/media — record one standalone destroyed medium (a drive
+// with no device recorded: stripped from a dead host, or never attached at all).
+if ($method === 'POST' && $route === '/certificates/media') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+
+    $cocid = trim((string)($d['cocid'] ?? ''));
+    if ($cocid === '' || mb_strlen($cocid, 'UTF-8') > 64) {
+        fail(400, 'Provide a valid Chain of Custody ID.');
+    }
+
+    $v = md_validate_media(is_array($d['media'] ?? null) ? $d['media'] : []);
+    if ($v['errors']) { fail(400, $v['errors'][0]); }
+
+    $cert = manual_cert_row((int)$u['id'], $cocid);
+    if ($cert === null) { fail(500, 'Could not open a job record for that Chain of Custody ID.'); }
+
+    $res = manual_attested_save_media((int)$cert['id'], $cocid, $v['clean'], manual_attester($u));
+    if (!$res['ok']) { fail(409, $res['error']); }
+
+    json_out(['ok' => true, 'id' => $res['id'], 'cert' => (string)$cert['cert_id']], 201);
+}
+
+// DELETE /api/certificates/devices/{id}?cocid=... — remove an attested device and
+// the media recorded with it.
+if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'certificates' && $seg[1] === 'devices') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $cocid = trim((string)($_GET['cocid'] ?? ''));
+    if ($cocid === '') { fail(400, 'Provide the Chain of Custody ID.'); }
+    $cert = manual_cert_row((int)$u['id'], $cocid);
+    if ($cert === null) { fail(404, 'No job found for that Chain of Custody ID.'); }
+    $n = manual_attested_delete((int)$cert['id'], (int)$seg[2], true);
+    json_out(['ok' => true, 'removed' => $n]);
+}
+
+// DELETE /api/certificates/media/{id}?cocid=... — remove one standalone medium.
+if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'certificates' && $seg[1] === 'media') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $cocid = trim((string)($_GET['cocid'] ?? ''));
+    if ($cocid === '') { fail(400, 'Provide the Chain of Custody ID.'); }
+    $cert = manual_cert_row((int)$u['id'], $cocid);
+    if ($cert === null) { fail(404, 'No job found for that Chain of Custody ID.'); }
+    $n = manual_attested_delete((int)$cert['id'], (int)$seg[2], false);
+    json_out(['ok' => true, 'removed' => $n]);
 }
 
 // POST /api/certs — generate a consolidated certificate for a COCID from stored reports.
