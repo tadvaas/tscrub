@@ -2115,7 +2115,15 @@ if ($method === 'POST' && $route === '/certificates/devices') {
 
     $media = [];
     foreach ($rawMedia as $i => $m) {
-        $v = md_validate_media(is_array($m) ? $m : []);
+        $row = is_array($m) ? $m : [];
+        // A medium belongs to the device, so it inherits the device's reason and
+        // destruction method unless the operator set a different outcome for it. The
+        // modal hides those two per-medium selects behind a toggle, so they arrive
+        // empty in the normal case — without this, every device save was rejected with
+        // "A reason is required".
+        if (($row['reason'] ?? '') === '')           { $row['reason'] = $dev['clean']['reason']; }
+        if (($row['destroy_method'] ?? '') === '')   { $row['destroy_method'] = $dev['clean']['destroy_method']; }
+        $v = md_validate_media($row);
         if ($v['errors']) { fail(400, 'Media ' . ($i + 1) . ': ' . $v['errors'][0]); }
         $media[] = $v['clean'];
     }

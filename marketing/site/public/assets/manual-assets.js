@@ -270,7 +270,10 @@
       }
       // The server's message is field-shaped and actionable (it names the duplicate
       // identity and tells the operator to assign an asset tag) — show it verbatim.
-      show(err, (res.body && (res.body.error || res.body.message)) || 'Could not save the record.');
+      // If it sent none, at least say which HTTP status failed, so a report of
+      // "internal error" identifies the request next time instead of the UI hiding it.
+      show((res.body && (res.body.error || res.body.message))
+        || ('Could not save the record (HTTP ' + res.status + ').'));
       button.disabled = false;
       button.textContent = isDevice ? 'Record device' : 'Record drive';
     }).catch(function () {
