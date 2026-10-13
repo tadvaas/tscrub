@@ -488,7 +488,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(100, 116, 139);
     $pdf->SetXY($x, 21);
-    $pdf->Cell($W - 2 * $x, 4.5, 'Item-level record of ' . count($drives) . ' device(s) processed under Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
+    $pdf->Cell($W - 2 * $x, 4.5, 'Item-level record of ' . count($drives) . ' media item(s) processed under Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
 
     if ($drives === []) {
         $pdf->SetFont('helvetica', '', 11);
@@ -522,7 +522,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
             $line  = '• ' . $label
                 . ' — ' . ($b['level'] !== '' ? $b['level'] : 'Not sanitised')
                 . ' — ' . $b['technique']
-                . ' — ' . $b['n'] . ' device(s)';
+                . ' — ' . $b['n'] . ' media item(s)';
             $pdf->SetTextColor(51, 65, 85);
             $pdf->SetX($x);
             $pdf->MultiCell($W - 2 * $x, 3.8, $line, 0, 'L');
@@ -825,17 +825,17 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetFont('helvetica', '', 11);
     $pdf->SetTextColor(71, 85, 105);
     $pdf->SetXY(10, 32);
-    $pdf->Cell($W - 20, 5, 'Chain of Custody ID ' . $cocid . '  ·  ' . $devices . ' device(s)  ·  issued ' . gmdate('Y-m-d H:i') . ' UTC', 0, 1, 'C');
+    $pdf->Cell($W - 20, 5, 'Chain of Custody ID ' . $cocid . '  ·  ' . $devices . ($devices === 1 ? ' media item' : ' media items') . '  ·  issued ' . gmdate('Y-m-d H:i') . ' UTC', 0, 1, 'C');
 
     // Outcome banner — states the claim ("data destroyed") plus, implicitly, the
     // how: a run that is part sanitised in place and part physically destroyed is
     // fully destroyed; only FAILED/BLOCKED/FROZEN/UNKNOWN/DRY-RUN amber-flag.
     $otherCount = $nonCompleted - $destroyedCount;
     if ($otherCount === 0) {
-        $bannerTxt = 'DATA DESTROYED ON ALL ' . $devices . ' DEVICE(S)';
+        $bannerTxt = 'DATA DESTROYED ON ALL ' . $devices . ($devices === 1 ? ' MEDIA ITEM' : ' MEDIA ITEMS');
         $bannerColor = [5, 150, 105];
     } else {
-        $bannerTxt = $otherCount . ' DEVICE(S) NOT DESTROYED — SEE ANNEX A';
+        $bannerTxt = $otherCount . ($otherCount === 1 ? ' MEDIA ITEM' : ' MEDIA ITEMS') . ' NOT DESTROYED — SEE ANNEX A';
         $bannerColor = [217, 119, 6];
     }
     $pdf->SetFillColor($bannerColor[0], $bannerColor[1], $bannerColor[2]);
