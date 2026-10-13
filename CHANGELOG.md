@@ -59,6 +59,17 @@ and this project uses date-based versioning (`v1.x`).
   because no SMART was ever read, and there are no Log/Ops/Rep controls because
   none of them have anything to act on.
 
+- **Remove control on attested rows, and the Add modal now lands on the record it just
+  created.** Removal is the only correction available today — a record cannot be edited
+  — so a mistyped serial is removed and re-entered: the button confirms with the
+  specifics (what will go, and which certificate to regenerate to issue without it)
+  rather than "are you sure?". The landing fixes a real usability trap found by using
+  the feature: an attested item is never "online", so the default status sort filed it
+  on the *last* page of a busy account, and an operator seeing an unchanged list would
+  reasonably report the save as having failed. The modal now goes to
+  `/dashboard/devices?q=<serial>`, so the record they just entered is the first thing
+  on screen.
+
   Server + site only — no appliance change. Plan:
   `research/manual-destruction/README.md`.
 

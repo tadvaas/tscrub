@@ -285,9 +285,17 @@
       if (res.ok && res.body && res.body.ok) {
         clearTimeout(timer);
         close();
-        // The job (and the certificate) is rebuilt on the server; a reload is the
-        // honest way to show it rather than guessing what the lists now contain.
-        window.location.reload();
+        // Land ON the record, rather than reloading to the top of the list. An
+        // attested item is never "online", so the default status sort files it on the
+        // LAST page of a busy account: the operator saved, saw the list unchanged, and
+        // reasonably reported it as a failed save. Opening the search on the serial we
+        // just recorded shows it immediately — which is also how they verify a typo.
+        var raw = isDevice
+          ? (payload.device && payload.device.serial)
+          : (payload.media && payload.media.serial);
+        var created = String(raw || '').trim();
+        var dest = isDevice ? '/dashboard/devices' : '/dashboard/drives';
+        window.location.href = dest + (created ? '?q=' + encodeURIComponent(created) : '');
         return;
       }
       // The server's message is field-shaped and actionable (it names the duplicate
@@ -312,6 +320,87 @@
     });
   }
 
+  /**
+   * Remove an attested record.
+   *
+   * This is the ONLY correction available today: a record cannot be edited, so a
+   * mistyped serial is removed and re-entered. It is a compliance record, and it is
+   * the operator's own evidence, so confirm first — and confirm with specifics rather
+   * than "are you sure?", because the button sits on a row they may be skimming.
+   */
+  function remove(row, btn) {
+    if (!row || !btn) { return; }
+    // A row with no id cannot be addressed: the request would be "/media/undefined",
+    // which cannot succeed and would surface as a confusing server error.
+    var id = parseInt(row.attested_id, 10);
+    if (!isFinite(id) || id <= 0) {
+      window.alert('That record has no id, so it cannot be removed — reload the page and try again.');
+      return;
+    }
+    var kind = (row.attested_kind === 'media') ? 'media' : 'device';
+    var what = (kind === 'device')
+      ? 'this device and every medium recorded with it'
+      : 'this drive';
+    var cocid = String(row.cocid || '');
+
+    var question = 'Remove ' + what + ' from this record?\n\n'
+      + 'The attested record is deleted. Regenerate the certificate'
+      + (cocid ? ' for ' + cocid : '') + ' to issue it without this item.';
+    if (!window.confirm(question)) { return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Removing…';
+
+    var url = '/api/certificates/' + (kind === 'device' ? 'devices' : 'media')
+      + '/' + encodeURIComponent(String(id))
+      + '?cocid=' + encodeURIComponent(cocid);
+
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) { ctl.abort(); } }, 30000);
+
+    function restore() {
+      clearTimeout(timer);
+      btn.disabled = false;
+      btn.textContent = 'Remove';
+    }
+
+    fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) {
+      return fetch(url, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': (d && d.csrf) || '' },
+        signal: ctl ? ctl.signal : undefined
+      });
+    }).then(function (r) {
+      // Parse defensively, exactly as save() does: a fatal returns HTML, and calling
+      // .json() on it would report the failure as a connection problem.
+      return r.text().then(function (t) {
+        var j = null;
+        try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; }
+        return { ok: r.ok, status: r.status, body: j, raw: t };
+      });
+    }).then(function (res) {
+      if (res.ok && res.body && res.body.ok) {
+        clearTimeout(timer);
+        window.location.reload();
+        return;
+      }
+      var msg = (res.body && (res.body.error || res.body.message)) || '';
+      if (!msg) {
+        var snippet = String(res.raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+        msg = 'Could not remove it (HTTP ' + res.status + ')' + (snippet ? ': ' + snippet : '.');
+      }
+      window.alert(msg);
+      restore();
+    }).catch(function (e) {
+      var aborted = e && (e.name === 'AbortError' || e.name === 'TimeoutError');
+      window.alert(aborted
+        ? 'The server did not answer within 30 seconds, so nothing was removed.'
+        : 'Could not send the request — check your connection.');
+      restore();
+    });
+  }
+
   // Takes the message only, and finds the box itself.
   //
   // It used to take (err, message) while its failure paths called it with one
@@ -328,6 +417,7 @@
 
   window.ManualAssets = {
     open: open,
+    remove: remove,
     // The button carries the page's own COCID when one is in view (the drives page
     // uploads per job), so the operator does not retype it.
     openFor: function (kind) {
