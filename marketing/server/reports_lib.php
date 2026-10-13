@@ -676,7 +676,7 @@ function manual_is_duplicate(Throwable $e): bool
 }
 
 /** The one-row INSERT for a media record belonging to an attested device. */
-function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m, array $dev): void
+function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m, array $dev, string $attestedBy = ''): void
 {
     // The attested-destruction vocabulary and identity rules live in one module so
     // the API, the PDF and the JSON-LD twin cannot drift apart.
@@ -687,8 +687,8 @@ function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m
          (certificate_id, device, type, model, serial, size, bus, class, method, certification,
           final_status, system_name, system_serial, source, certificate_device_id,
           reason, destroy_method, destroy_vendor, destroy_date, destroy_witness,
-          evidence_ref, evidence_sha256, identity_key)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+          evidence_ref, evidence_sha256, identity_key, attested_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     );
     $q->execute([
         $certId,
@@ -717,6 +717,9 @@ function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m
         (string)($m['evidence_ref'] ?? $dev['evidence_ref'] ?? ''),
         (string)($m['evidence_sha256'] ?? $dev['evidence_sha256'] ?? ''),
         md_identity_key((string)$m['serial'], (string)$m['make'], (string)$m['model']),
+        // The attester, recorded from the session by the route. Stored here too
+        // because a standalone destroyed drive has no unit row to carry it.
+        $attestedBy,
     ]);
 }
 
@@ -727,6 +730,7 @@ function manual_media_insert(int $certId, int $deviceId, string $cocid, array $m
  */
 function manual_attested_save_device(int $certId, string $cocid, array $dev, array $media, string $attestedBy): array
 {
+    manual_list_cache([]);   // the lists are about to change
     try {
         db()->beginTransaction();
 
@@ -749,7 +753,7 @@ function manual_attested_save_device(int $certId, string $cocid, array $dev, arr
         $deviceId = (int)db()->lastInsertId();
 
         foreach ($media as $m) {
-            manual_media_insert($certId, $deviceId, $cocid, $m, $dev);
+            manual_media_insert($certId, $deviceId, $cocid, $m, $dev, $attestedBy);
         }
 
         db()->commit();
@@ -770,10 +774,11 @@ function manual_attested_save_device(int $certId, string $cocid, array $dev, arr
 /** Save one standalone destroyed medium (a drive with no device recorded). */
 function manual_attested_save_media(int $certId, string $cocid, array $m, string $attestedBy): array
 {
+    manual_list_cache([]);   // the lists are about to change
     try {
         db()->beginTransaction();
         // No device: this medium has no host recorded (see manual_media_insert).
-        manual_media_insert($certId, 0, $cocid, $m, []);
+        manual_media_insert($certId, 0, $cocid, $m, [], $attestedBy);
         db()->commit();
         return ['ok' => true, 'id' => (int)db()->lastInsertId(), 'error' => ''];
     } catch (Throwable $e) {
@@ -799,6 +804,7 @@ function manual_attested_delete(int $certId, int $id, bool $isDevice): int
 {
     if ($id <= 0) { return 0; }
 
+    manual_list_cache([]);   // the lists are about to change
     $n = 0;
     db()->beginTransaction();
     try {
@@ -1898,6 +1904,230 @@ function report_notes_set(int $userId, int $reportId, string $notes): bool {
  * the dashboard "Devices" tab.
  */
 /**
+ * One attested medium, shaped as a Drives-tab row.
+ *
+ * Shared by the device annex and the standalone list so a destroyed drive reads
+ * the same wherever it appears. `status`/`cert` are set here rather than derived:
+ * an attested medium is DESTROYED by attestation, and the row must never imply it
+ * was wiped (there is no scan data, so `grade` stays empty and `graded` false).
+ */
+function manual_drive_row(array $m, string $cocid = ''): array
+{
+    require_once __DIR__ . '/manual_destruction.php';
+
+    $row = [
+        '_key'      => 'attested:media:' . (int)$m['id'],
+        '_attested' => true,
+        'attested'  => true,
+        'attested_id'   => (int)$m['id'],
+        'attested_kind' => 'media',
+        'attested_qualifier' => md_attested_qualifier(),
+        'id'        => (int)$m['id'],
+        'cocid'     => $cocid,
+        'serial'    => (string)$m['serial'],
+        'model'     => (string)$m['model'],
+        'type'      => (string)$m['type'],
+        'size'      => (string)$m['size'],
+        'bus'       => (string)$m['bus'],
+        'method'    => (string)$m['method'],
+        'status'    => 'DESTROYED',
+        'final_status' => 'DESTROYED',
+        'cert'      => 'DESTRUCTION',
+        'certification' => 'NOT SANITISED',
+        // The unit this medium came from, when one was recorded. A standalone
+        // destroyed drive has no host and must not be given one.
+        'system'    => (string)$m['system_name'],
+        'sysserial' => (string)$m['system_serial'],
+        'reason'    => (string)$m['reason'],
+        'destroy_method'  => (string)$m['destroy_method'],
+        'destroy_vendor'  => (string)$m['destroy_vendor'],
+        'destroy_date'    => (string)$m['destroy_date'],
+        'destroy_witness' => (string)$m['destroy_witness'],
+        'evidence_ref'    => (string)$m['evidence_ref'],
+        'attested_by'     => (string)($m['attested_by'] ?? ''),
+        // No SMART was ever read, so no resale grade exists. Leaving the keys out
+        // would let the table fall back to "ungraded", which reads as "not yet
+        // checked" rather than "never read because it no longer exists".
+        'grade'     => '',
+        'grade_reason' => '',
+        'graded'    => false,
+        'reports'   => 1,
+        'multiple'  => false,
+        'report_id' => 0,
+    ];
+    $row['history'] = [$row];
+    return $row;
+}
+
+/**
+ * Per-request memo for manual_list_devices(), keyed by user.
+ *
+ * It lives in its own function so it can be *cleared*: load_devices() reads the list
+ * twice, but a request that deletes an attested record and then lists devices must
+ * not be served the pre-delete list. Every mutator clears it before it writes.
+ */
+function manual_list_cache(?array $set = null): array
+{
+    static $cache = [];
+    if ($set !== null) { $cache = $set; }
+    return $cache;
+}
+
+/**
+ * Manually recorded (attested) destroyed units, shaped as Devices-tab rows so they
+ * take part in the same search, sort and pagination as scanned machines.
+ *
+ * Every row is flagged `attested`. The page uses that to badge it and to hide the
+ * scan-only controls: the appliance never saw these units, so Log/Ops/Rep have
+ * nothing to show. The qualifier travels with the row so no surface re-derives it.
+ *
+ * Cached per user for the request (see manual_list_cache).
+ *
+ * Plan: research/manual-destruction/README.md
+ */
+function manual_list_devices(int $userId): array
+{
+    $cache = manual_list_cache();
+    if (array_key_exists($userId, $cache)) return $cache[$userId];
+
+    require_once __DIR__ . '/manual_destruction.php';
+    $out = [];
+    try {
+        $ids = org_member_ids($userId);
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+
+        $q = db()->prepare(
+            "SELECT d.*, c.cert_id
+               FROM certificate_devices d
+               JOIN certificates c ON c.id = d.certificate_id
+              WHERE c.user_id IN ($ph)
+              ORDER BY d.id DESC"
+        );
+        $q->execute($ids);
+        $devices = $q->fetchAll(PDO::FETCH_ASSOC);
+
+        $media = [];
+        if ($devices !== []) {
+            $dids = array_map(static fn($d) => (int)$d['id'], $devices);
+            $mph  = implode(',', array_fill(0, count($dids), '?'));
+            // Scoped by certificate_device_id, so this cannot pick up another
+            // account's media even though the ids are global.
+            $mq = db()->prepare("SELECT * FROM certificate_drives WHERE source = 'manual' AND certificate_device_id IN ($mph) ORDER BY id");
+            $mq->execute($dids);
+            foreach ($mq->fetchAll(PDO::FETCH_ASSOC) as $m) {
+                $media[(int)$m['certificate_device_id']][] = $m;
+            }
+        }
+
+        foreach ($devices as $d) {
+            $rows   = $media[(int)$d['id']] ?? [];
+            $drives = [];
+            foreach ($rows as $m) { $drives[] = manual_drive_row($m, (string)$d['cocid']); }
+            $seen = ts_local((string)$d['created_at']);
+
+            $out[] = [
+                // Namespaced so it can never collide with a device_key (which is a
+                // lowercased serial).
+                '_key'      => 'attested:device:' . (int)$d['id'],
+                '_attested' => true,
+                'attested'  => true,
+                'attested_id'   => (int)$d['id'],
+                'attested_kind' => 'device',
+                'attested_qualifier' => md_attested_qualifier(),
+                'cocid'     => (string)$d['cocid'],
+                'cert_id'   => (string)$d['cert_id'],
+                'system'    => md_device_line($d),
+                'sysserial' => (string)$d['serial'],
+                'bbserial'  => '',
+                'systemuuid' => '',
+                'category'  => (string)$d['category'],
+                'make'      => (string)$d['make'],
+                'model'     => (string)$d['model'],
+                'reason'    => (string)$d['reason'],
+                'destroy_method'  => (string)$d['destroy_method'],
+                'destroy_vendor'  => (string)$d['destroy_vendor'],
+                'destroy_date'    => (string)$d['destroy_date'],
+                'destroy_witness' => (string)$d['destroy_witness'],
+                'evidence_ref'    => (string)$d['evidence_ref'],
+                'attested_by'     => (string)$d['attested_by'],
+                // Scan-only fields stay empty rather than being faked: nothing
+                // observed this unit, so it has no BIOS state, no MDM state and no
+                // presence. `online` false is what stops it being mistaken for a
+                // machine that is merely switched off.
+                'bioslock'  => '',
+                'bioslockmethod' => '',
+                'mdm'       => '',
+                'refurb_grade' => '',
+                'notes'     => '',
+                'online'    => false,
+                'lan_ip'    => '',
+                'erasure'   => null,
+                'last_seen' => null,
+                'last_seen_at' => null,
+                'first'     => $seen,
+                'last'      => $seen,
+                'drive_count' => count($drives),
+                'drives'    => $drives,
+                'history'   => [[
+                    'report_type' => 'attested',
+                    'uploaded_at' => $seen,
+                    'cocid'       => (string)$d['cocid'],
+                    'drive_count' => count($drives),
+                    'drives'      => $drives,
+                ]],
+            ];
+        }
+    } catch (Throwable $e) {
+        // A schema that predates the attested tables (or a failed migration) must
+        // not take the whole Devices page down with it.
+        error_log('manual_list_devices: ' . $e->getMessage());
+        $out = [];
+    }
+
+    $cache[$userId] = $out;
+    manual_list_cache($cache);
+    return $out;
+}
+
+/**
+ * Manually recorded (attested) destroyed media, shaped as Drives-tab rows.
+ *
+ * Includes media that belonged to an attested unit as well as standalone destroyed
+ * drives, so a serial search finds a destroyed drive wherever it was recorded. The
+ * host, when there was one, is carried in `system`/`sysserial`.
+ */
+function manual_list_drives(int $userId): array
+{
+    require_once __DIR__ . '/manual_destruction.php';
+    try {
+        $ids = org_member_ids($userId);
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+        $q = db()->prepare(
+            "SELECT m.*, c.cert_id, c.cocid AS cert_cocid
+               FROM certificate_drives m
+               JOIN certificates c ON c.id = m.certificate_id
+              WHERE c.user_id IN ($ph) AND m.source = 'manual'
+              ORDER BY m.id DESC"
+        );
+        $q->execute($ids);
+        $rows = $q->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('manual_list_drives: ' . $e->getMessage());
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $m) {
+        // certificate_drives carries no COCID of its own — the job it belongs to is
+        // on the certificate, which is also what proves ownership above.
+        $row = manual_drive_row($m, (string)($m['cert_cocid'] ?? ''));
+        $row['cert_id'] = (string)($m['cert_id'] ?? '');
+        $out[] = $row;
+    }
+    return $out;
+}
+
+/**
  * Phase A of the Devices-tab pagination: one candidate per distinct machine,
  * built from the small `summary_json` (no full-payload decode). Returns
  * [device_key => summary + '_key'/'_latest_id'/'_cocids'/refurb_grade/notes/first/last].
@@ -2040,6 +2270,15 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         ];
     }
 
+    // Manually recorded (attested) destruction. Folded in here, not just appended to
+    // the final page, so the units take part in the same search, sort and pagination
+    // as scanned machines and are counted in `total`. Their `_key` is namespaced
+    // ("attested:device:N") so it cannot collide with a device_key.
+    foreach (manual_list_devices($userId) as $row) {
+        $key = (string)$row['_key'];
+        if ($key !== '' && !isset($devices[$key])) { $devices[$key] = $row; }
+    }
+
     return $devices;
 }
 
@@ -2052,6 +2291,7 @@ function load_devices(int $userId, ?array $query = null): array {
     // summary cache, then restrict the full-payload loops below to those keys. ----
     $onlyKeys = null;
     $total = 0;
+    $attestedTotal = 0;
     if ($query !== null) {
         $q = trim((string)($query['q'] ?? ''));
         $page = max(1, (int)($query['page'] ?? 1));
@@ -2119,6 +2359,9 @@ function load_devices(int $userId, ?array $query = null): array {
         });
 
         $total = count($list);
+        // Attested rows in the *filtered* result, so the figure describes what the
+        // search box is showing rather than the account-wide total.
+        $attestedTotal = count(array_filter($list, static fn($d) => !empty($d['attested'])));
         $onlyKeys = [];
         foreach (array_slice($list, ($page - 1) * $per, $per) as $d) {
             $onlyKeys[] = $d['_key'];
@@ -2510,6 +2753,11 @@ function load_devices(int $userId, ?array $query = null): array {
         ];
     }
 
+    // Attested (manually recorded) destruction, appended after the scanned machines.
+    // They are already in $onlyKeys (devices_candidates folded them in), so the
+    // ordering step below places them on their page like any other row.
+    $out = array_merge($out, manual_list_devices($userId));
+
     // Fold MDM (Autopilot) + remote command state (previously done by the
     // caller). Re-applied here so sort/output stay consistent; cheap.
     if (function_exists('mdm_fold_devices')) $out = mdm_fold_devices($userId, $out);
@@ -2519,14 +2767,21 @@ function load_devices(int $userId, ?array $query = null): array {
         return $out;
     }
 
-    // Order the page to match the candidate order computed in Phase A.
+    // Order the page to match the candidate order computed in Phase A. An attested
+    // row's `_key` is a namespaced id that device_key() cannot re-derive, so prefer
+    // it when the row carries one.
     $ordered = [];
     foreach ($onlyKeys as $key) {
         foreach ($out as $d) {
-            if (device_key($d) === $key) { $ordered[] = $d; break; }
+            $dk = (string)($d['_key'] ?? '');
+            if ($dk === '') { $dk = device_key($d); }
+            if ($dk === $key) { $ordered[] = $d; break; }
         }
     }
-    return ['devices' => $ordered, 'total' => $total];
+    // `total` already counts attested units (they are candidates). The separate
+    // figure lets the page say how many of the rows are attestations rather than
+    // letting a destroyed phone quietly inflate the scanned-fleet count.
+    return ['devices' => $ordered, 'total' => $total, 'attested_total' => $attestedTotal];
 }
 
 /**
@@ -2548,7 +2803,7 @@ function load_drives(int $userId, ?array $query = null): array {
     // Fast path: no search → paginate over the small `drive_serials` cache
     // without decoding every erasure payload.
     if ($query !== null && $q === '') {
-        return drives_paged($ids, $ph, $page, $per);
+        return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId));
     }
 
     $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
@@ -2609,6 +2864,13 @@ function load_drives(int $userId, ?array $query = null): array {
         return strcasecmp((string)($a['serial'] ?? ''), (string)($b['serial'] ?? ''));
     });
 
+    // Attested (manually recorded) destroyed media lead the list, matching the
+    // no-search path — a drive must not change position when the operator starts
+    // typing in the search box. Merged after the grade loop so an attested row keeps
+    // its empty grade: no SMART was ever read from it.
+    $attested = manual_list_drives($userId);
+    $out = array_merge($attested, $out);
+
     if ($query === null) {
         return $out;
     }
@@ -2624,7 +2886,13 @@ function load_drives(int $userId, ?array $query = null): array {
         }));
     }
     $total = count($out);
-    return ['drives' => array_slice($out, ($page - 1) * $per, $per), 'total' => $total];
+    // Counted after the filter: the figure must describe the rows being shown.
+    $attestedTotal = count(array_filter($out, static fn($d) => !empty($d['attested'])));
+    return [
+        'drives'         => array_slice($out, ($page - 1) * $per, $per),
+        'total'          => $total,
+        'attested_total' => $attestedTotal,
+    ];
 }
 
 /**
@@ -2632,7 +2900,7 @@ function load_drives(int $userId, ?array $query = null): array {
  * `drive_serials` cache (no full-payload decode), then fetch payloads only for
  * the reports those drives appear in.
  */
-function drives_paged(array $ids, string $ph, int $page, int $per): array {
+function drives_paged(array $ids, string $ph, int $page, int $per, array $attested = []): array {
     $stmt = db()->prepare("SELECT id, uploaded_at, drive_serials FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($ids);
     $newest = [];
@@ -2659,40 +2927,59 @@ function drives_paged(array $ids, string $ph, int $page, int $per): array {
         return strcasecmp((string)$a, (string)$b);
     });
 
+    // Attested (manually recorded) destroyed media are paginated together with the
+    // scanned ones rather than bolted onto the last page, which is why they are
+    // merged into the key list before slicing. They lead the list: a destroyed drive
+    // is a different class of row, and keeping it in a fixed position means it does
+    // not jump when the operator pages or searches.
+    $attByKey = [];
+    foreach ($attested as $a) {
+        $k = (string)($a['_key'] ?? '');
+        if ($k !== '' && !isset($attByKey[$k])) { $attByKey[$k] = $a; }
+    }
+    $serials = array_merge(array_keys($attByKey), $serials);
+
     $total = count($serials);
     $pageSerials = array_slice($serials, ($page - 1) * $per, $per);
-    if ($pageSerials === []) return ['drives' => [], 'total' => $total];
+    if ($pageSerials === []) {
+        return ['drives' => [], 'total' => $total, 'attested_total' => count($attByKey)];
+    }
 
+    // Only the scanned keys need a payload fetch — an attested key has no report.
     $needIds = [];
     foreach ($pageSerials as $s) {
+        if (isset($attByKey[$s])) continue;
         foreach ($reportSerials[$s] ?? [] as $rid) $needIds[$rid] = true;
     }
-    $idPh = implode(',', array_fill(0, count($needIds), '?'));
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE id IN ($idPh) ORDER BY uploaded_at DESC, id DESC");
-    $stmt->execute(array_keys($needIds));
 
     $drives = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $g = json_decode((string)$r['payload'], true);
-        if (!is_array($g) || empty($g['drives'])) continue;
-        foreach ($g['drives'] as $d) {
-            if (!is_array($d)) continue;
-            $serial = trim((string)($d['serial'] ?? ''));
-            $key = $serial !== '' ? strtolower($serial) : '';
-            if ($key === '' || !isset($newest[$key])) continue;
+    if ($needIds !== []) {
+        $idPh = implode(',', array_fill(0, count($needIds), '?'));
+        $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE id IN ($idPh) ORDER BY uploaded_at DESC, id DESC");
+        $stmt->execute(array_keys($needIds));
 
-            $entry = $d;
-            $entry['report_id']      = (int)$r['id'];
-            $entry['cocid']          = (string)$r['cocid'];
-            $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
-            $entry['ts']             = ts_local((string)($d['ts'] ?? ''));
-            $entry['report_devices'] = (int)$r['devices'];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $g = json_decode((string)$r['payload'], true);
+            if (!is_array($g) || empty($g['drives'])) continue;
+            foreach ($g['drives'] as $d) {
+                if (!is_array($d)) continue;
+                $serial = trim((string)($d['serial'] ?? ''));
+                $key = $serial !== '' ? strtolower($serial) : '';
+                if ($key === '' || !isset($newest[$key])) continue;
 
-            if (!isset($drives[$key])) {
-                $drives[$key] = $entry;
-                $drives[$key]['history'] = [$entry];
-            } else {
-                $drives[$key]['history'][] = $entry;
+                $entry = $d;
+                $entry['report_id']      = (int)$r['id'];
+                $entry['cocid']          = (string)$r['cocid'];
+                $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
+                $entry['ts']             = ts_local((string)($d['ts'] ?? ''));
+                $entry['report_devices'] = (int)$r['devices'];
+
+                if (!isset($drives[$key])) {
+                    $drives[$key] = $entry;
+                    $drives[$key]['history'] = [$entry];
+                } else {
+                    $drives[$key]['history'][] = $entry;
+                }
             }
         }
     }
@@ -2711,7 +2998,10 @@ function drives_paged(array $ids, string $ph, int $page, int $per): array {
     $byKey = [];
     foreach ($out as $dv) $byKey[strtolower((string)($dv['serial'] ?? ''))] = $dv;
     $ordered = [];
-    foreach ($pageSerials as $s) if (isset($byKey[$s])) $ordered[] = $byKey[$s];
+    foreach ($pageSerials as $s) {
+        if (isset($attByKey[$s]))      { $ordered[] = $attByKey[$s]; }
+        elseif (isset($byKey[$s]))     { $ordered[] = $byKey[$s]; }
+    }
 
-    return ['drives' => $ordered, 'total' => $total];
+    return ['drives' => $ordered, 'total' => $total, 'attested_total' => count($attByKey)];
 }

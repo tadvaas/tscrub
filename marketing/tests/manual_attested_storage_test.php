@@ -96,6 +96,11 @@ try {
     t_check('standalone media has no device link',
         (int)($load['media'][0]['certificate_device_id'] ?? -1) === 0);
     t_check('standalone media has no host recorded', (string)$load['media'][0]['system_name'] === '');
+    // The attester must survive on the media row itself: unlike device media, this
+    // row has no unit to carry it, and "who attested this" is the first question an
+    // auditor asks about an attestation.
+    t_check('standalone media records the attesting operator',
+        (string)$load['media'][0]['attested_by'] === 'operator@example.com');
 
     $dupSolo = manual_attested_save_media($certId, $cocid, $solo, 'operator@example.com');
     t_check('duplicate standalone media is rejected', $dupSolo['ok'] === false);

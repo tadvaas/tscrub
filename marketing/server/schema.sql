@@ -136,6 +136,10 @@ CREATE TABLE IF NOT EXISTS certificate_drives (
   destroy_witness     VARCHAR(255)  NOT NULL DEFAULT '',
   evidence_ref        VARCHAR(255)  NOT NULL DEFAULT '',
   evidence_sha256     CHAR(64)      NOT NULL DEFAULT '',
+  -- Who attested this medium. Kept here as well as on certificate_devices because a
+  -- standalone destroyed drive has no unit row to carry it, and the honest minimum
+  -- for an attestation is method/date/attester/vendor/witness.
+  attested_by         VARCHAR(255)  NOT NULL DEFAULT '',
   -- Normalised serial|make|model. NULL for report rows, so uq_cdr_identity
   -- constrains attested rows only (MySQL allows unlimited NULLs in a unique key).
   -- utf8mb4_bin so the comparison is byte-exact and agrees with md_normalise();

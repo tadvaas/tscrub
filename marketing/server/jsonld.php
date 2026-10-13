@@ -587,6 +587,9 @@ function certs_ensure_schema(): void {
             'destroy_witness'       => "ALTER TABLE certificate_drives ADD COLUMN destroy_witness VARCHAR(255) NOT NULL DEFAULT ''",
             'evidence_ref'          => "ALTER TABLE certificate_drives ADD COLUMN evidence_ref VARCHAR(255) NOT NULL DEFAULT ''",
             'evidence_sha256'       => "ALTER TABLE certificate_drives ADD COLUMN evidence_sha256 CHAR(64) NOT NULL DEFAULT ''",
+            // The attester of a standalone destroyed medium: such a row has no
+            // certificate_devices row to carry it (see manual_attested_save_media).
+            'attested_by'           => "ALTER TABLE certificate_drives ADD COLUMN attested_by VARCHAR(255) NOT NULL DEFAULT ''",
             // NULL for report rows, so the unique key below constrains attested
             // media only: MySQL allows unlimited NULLs in a unique index.
             'identity_key'          => 'ALTER TABLE certificate_drives ADD COLUMN identity_key VARCHAR(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL',

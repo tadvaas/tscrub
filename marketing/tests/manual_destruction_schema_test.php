@@ -56,7 +56,10 @@ foreach (db()->query('SHOW COLUMNS FROM certificate_drives')->fetchAll() as $c) 
     $dcols[strtolower((string)$c['Field'])] = true;
 }
 foreach (['source', 'certificate_device_id', 'reason', 'destroy_method', 'destroy_vendor',
-          'destroy_date', 'destroy_witness', 'evidence_ref', 'evidence_sha256', 'identity_key'] as $col) {
+          'destroy_date', 'destroy_witness', 'evidence_ref', 'evidence_sha256', 'identity_key',
+          // Needed on the media row too: a standalone destroyed drive has no
+          // certificate_devices row to carry its attester.
+          'attested_by'] as $col) {
     t_check("certificate_drives.$col", isset($dcols[$col]));
 }
 
