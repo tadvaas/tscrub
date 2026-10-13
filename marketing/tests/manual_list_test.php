@@ -91,6 +91,19 @@ try {
     $r = manual_attested_save_device($certId, $cocid, $dev, $media, 'operator@example.com');
     t_check('the attested device saves', $r['ok'] === true);
 
+    // A SECOND unit whose system line sorts before the phone's ("Laptop …" < "Mobile
+    // phone …"). The sort direction can only be observed by comparing two rows, and the
+    // test must not depend on whatever else the account happens to hold — it scopes to the
+    // first user in the database, which on a clean install has almost nothing. It carries
+    // its own COCID so every by-COCID lookup elsewhere in this test stays unambiguous.
+    $sortCoc = $cocid . '-SORT';
+    $dev2 = md_validate_device([
+        'category' => 'laptop', 'make' => 'Acer', 'model' => 'Aspire 5',
+        'serial' => 'LIST-AAA-1', 'reason' => 'would_not_boot', 'destroy_method' => 'shredded',
+    ])['clean'];
+    $r1b = manual_attested_save_device($certId, $sortCoc, $dev2, [], 'operator@example.com');
+    t_check('a second attested unit saves, for the sort comparison', $r1b['ok'] === true);
+
     $standalone = md_validate_media(['serial' => 'LIST-LOOSE-1', 'make' => 'Samsung',
         'model' => '870 EVO', 'type' => 'SSD', 'size' => '500 GB', 'bus' => 'SATA',
         'reason' => 'physically_damaged', 'destroy_method' => 'crushed'])['clean'];
@@ -100,7 +113,7 @@ try {
     // --- Devices list ---------------------------------------------------------
     $page = load_devices($userId, ['page' => 1, 'per' => 10]);
     t_check('the Devices page still returns a devices array', isset($page['devices']) && is_array($page['devices']));
-    t_check('the response separates the attested count', ($page['attested_total'] ?? -1) === 1);
+    t_check('the response separates the attested count', ($page['attested_total'] ?? -1) === 2);
     t_check('the attested total is included in the page total', (int)$page['total'] >= 1);
 
     $found = null;
@@ -176,6 +189,54 @@ try {
     $hit4 = false;
     foreach (($q4['devices'] ?? []) as $d) { if (($d['cocid'] ?? '') === $cocid) { $hit4 = true; break; } }
     t_check('the attested device is findable by its destruction method', $hit4);
+
+    // --- sort direction -------------------------------------------------------
+    // Nothing asserted the DIRECTION until now, which is how a total failure hid: the API
+    // converts ?dir= to ±1 before calling this, while load_devices() tested for the literal
+    // string 'asc' — so the comparison was never true, every column sorted descending
+    // whatever the header said, and the arrow the dashboard drew was a lie.
+    $systems = static function (array $r): array {
+        return array_map(static fn($d) => strtolower((string)($d['system'] ?? '')), $r['devices'] ?? []);
+    };
+    $ascStr = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'system', 'dir' => 'asc']));
+    $ascInt = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'system', 'dir' => 1]));
+    $desStr = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'system', 'dir' => 'desc']));
+    $desInt = $systems(load_devices($userId, ['page' => 1, 'per' => 100, 'sort' => 'system', 'dir' => -1]));
+    t_check("'asc' and 1 are read as the same direction", $ascStr === $ascInt);
+    t_check("'desc' and -1 are read as the same direction", $desStr === $desInt);
+
+    $want = $ascStr;
+    sort($want);
+    t_check('ascending really is ascending', $ascStr === $want);
+    $wantDesc = $desStr;
+    rsort($wantDesc);
+    t_check('descending really is descending', $desStr === $wantDesc);
+
+    // The direction is only observable by comparing the two rows this test created: the
+    // phone's system line sorts after the laptop's.
+    $idxOf = static function (array $list, string $needle): int {
+        foreach ($list as $i => $v) { if (strpos($v, $needle) !== false) { return $i; } }
+        return -1;
+    };
+    $aLap = $idxOf($ascStr, 'list-aaa-1');
+    $aPhn = $idxOf($ascStr, 'list-imei-1');
+    $dLap = $idxOf($desStr, 'list-aaa-1');
+    $dPhn = $idxOf($desStr, 'list-imei-1');
+    t_check('both units are on the page, so the order can be compared',
+        $aLap >= 0 && $aPhn >= 0 && $dLap >= 0 && $dPhn >= 0);
+    t_check('ascending puts the Laptop before the phone', $aLap < $aPhn);
+    t_check('descending puts the phone first — the direction actually reversed', $dPhn < $dLap);
+    t_check('the two directions are different orderings', $ascStr !== $desStr);
+    t_check('a missing direction means descending, the long-standing default',
+        query_dir('') === -1 && query_dir(0) === -1);
+    t_check('the direction is read case-insensitively', query_dir('ASC') === 1);
+
+    // The comparison unit has done its job — remove it, so the assertions below (which
+    // count attested rows) describe the original fixture alone.
+    t_check('the comparison unit deletes', manual_attested_delete($certId, (int)$r1b['id'], true) === 1);
+    $restored = load_devices($userId, ['page' => 1, 'per' => 10]);
+    t_check('the attested count is back to the single fixture unit',
+        (int)($restored['attested_total'] ?? -1) === 1);
 
     // --- the empty page that used to raise 1064 -------------------------------
     // A page past the end yields no keys; the query must be valid SQL, not IN ().

@@ -1710,7 +1710,9 @@ if ($method === 'GET' && $route === '/devices') {
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = min(100, max(1, (int)($_GET['per'] ?? 10)));
     $sort = (string)($_GET['sort'] ?? 'status');
-    $dir = (($_GET['dir'] ?? '') === 'asc') ? 1 : -1;
+    // Normalised (and passed through load_devices()'s own normaliser) so 'asc', ±1 and a
+    // missing value cannot be read three different ways.
+    $dir = query_dir($_GET['dir'] ?? '');
 
     $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per, 'sort' => $sort, 'dir' => $dir]);
 

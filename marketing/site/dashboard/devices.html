@@ -484,6 +484,28 @@
       var sortKey = 'status';   // initial sort: Status column
       var sortDir = -1;         // descending (Online first)
       var lastDevicesJson = '';
+
+      // Paint the sort arrows from the CURRENT sort state. $root is the header being built
+      // during a render — passing it matters: at that point the new table is not in the
+      // document yet, so a document query would find the PREVIOUS header, paint that, and
+      // leave the new one showing every column as unsorted. Called with no argument when a
+      // header is clicked, since the live header is then the right thing to repaint.
+      //
+      // It is drawn on the click itself rather than only during a full render, because an
+      // unchanged response skips the render: without this the arrow kept showing the first
+      // click while the request had already asked for the other direction.
+      function paintSortArrows(root) {
+        var scope = root || document.querySelector('#device-list thead');
+        if (!scope) { return; }
+        Array.prototype.forEach.call(scope.querySelectorAll('th'), function (th) {
+          if (!th._sortArrow) { return; }
+          var active = (th._sortKey === sortKey);
+          th._sortArrow.textContent = active ? (sortDir === 1 ? '▲' : '▼') : '↕';
+          th._sortArrow.className = active
+            ? 'text-xs font-normal text-brand-600 dark:text-brand-400'
+            : 'text-xs font-normal text-slate-400 dark:text-slate-500';
+        });
+      }
       var devicesFetchSeq = 0;  // guards against out-of-order /api/devices responses
       var currentQ = '';
       var pagerLoading = null;  // 'prev' | 'next' while a pager navigation is in flight
@@ -621,7 +643,13 @@
           if (seq !== devicesFetchSeq) return;   // a newer request superseded this one
           if (d.version) devicesVersion = d.version;
           var json = JSON.stringify(d.devices || []) + '|' + (d.total || 0);
-          if (json === lastDevicesJson) return;   // nothing changed — keep the current view
+          if (json === lastDevicesJson) {
+            // The rows are unchanged, but the sort state the header shows may not be —
+            // the arrow must still follow the click, or the table reads as though it did
+            // nothing.
+            paintSortArrows();
+            return;
+          }
           lastDevicesJson = json;
           devices = d.devices || [];
           total = d.total || 0;
@@ -782,18 +810,18 @@
           var th = el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
           if (c[2]) {
             th.classList.add('cursor-pointer', 'select-none', 'hover:bg-slate-200', 'dark:hover:bg-ink-700');
+            th._sortKey = c[2];
             var lbl = el('span', 'inline-flex items-center gap-1', c[0]);
             var arrow = el('span', 'text-xs font-normal text-slate-400 dark:text-slate-500', '↕');
-            if (sortKey === c[2]) {
-              arrow.textContent = sortDir === 1 ? '▲' : '▼';
-              arrow.className = 'text-xs font-normal text-brand-600 dark:text-brand-400';
-            }
+            th._sortArrow = arrow;
             lbl.appendChild(arrow);
             th.appendChild(lbl);
             th.addEventListener('click', function () {
               if (sortKey === c[2]) sortDir = -sortDir;
               else { sortKey = c[2]; sortDir = 1; }
               page = 1;
+              // Follow the click immediately; the fetch only supplies rows.
+              paintSortArrows();
               loadDevices();
             });
           } else {
@@ -803,6 +831,9 @@
         });
         thead.appendChild(hr);
         table.appendChild(thead);
+        // Paint the header being built (see paintSortArrows): the table is not in the
+        // document yet, so this must be scoped to $hr rather than looked up.
+        paintSortArrows(hr);
 
         var body = el('tbody');
         slice.forEach(function (dev, idx) {

@@ -2346,6 +2346,28 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
     return $devices;
 }
 
+/**
+ * Normalise a sort direction.
+ *
+ * Accepts what the HTTP layer has ('asc', 'desc', anything) AND what an internal caller
+ * passes (±1), because the two used to disagree: api.php converted the query value to ±1
+ * while load_devices() tested it against the literal string 'asc'. That comparison could
+ * never be true, so EVERY column sorted descending however the header was clicked, and the
+ * ▲ arrow the dashboard drew described a sort that was not being applied. One normaliser,
+ * used by both, means a caller cannot get this wrong again.
+ *
+ * Anything unrecognised means descending, which is the long-standing default (newest or
+ * highest first).
+ */
+function query_dir($value): int
+{
+    // ±1 from an internal caller ('> 0' so 0 falls through to descending, matching the
+    // empty-string case below rather than being a third meaning for "nothing given").
+    if (is_int($value)) { return $value > 0 ? 1 : -1; }
+    $v = strtolower(trim((string)$value));
+    return ($v === 'asc' || $v === '1') ? 1 : -1;
+}
+
 function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
@@ -2361,7 +2383,7 @@ function load_devices(int $userId, ?array $query = null): array {
         $page = max(1, (int)($query['page'] ?? 1));
         $per = min(100, max(1, (int)($query['per'] ?? 10)));
         $sort = (string)($query['sort'] ?? 'status');
-        $dir = (($query['dir'] ?? '') === 'asc') ? 1 : -1;
+        $dir = query_dir($query['dir'] ?? '');
 
         $cand = devices_candidates($ids, $ph, $userId);
         $presence = presence_map($userId);

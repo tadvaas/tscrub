@@ -131,6 +131,27 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **Sorting a device column never actually changed direction, and the arrow said it had.**
+  `api.php` normalised `?dir=` to ±1 before calling `load_devices()`, which then tested
+  that value against the literal string `'asc'` — a comparison that can never be true. So
+  **every column sorted descending however the header was clicked**, while the dashboard
+  drew ▲ to claim otherwise; clicking the same header twice looked like it did nothing,
+  because the second response was byte-identical to the first and the client's
+  "nothing changed" guard skipped the re-render that would have repainted the arrow.
+
+  One `query_dir()` normaliser now accepts both spellings and is used by the API and the
+  loader, so a caller cannot pass the wrong type again. The arrow is painted when the
+  header is built and again the moment a column is clicked, so it follows the click rather
+  than the response — and it is painted by passing the header row being built, because
+  during a render the new table is not yet in the document and a document query repaints
+  the *previous* header, leaving every column looking unsorted.
+
+  Nothing had ever asserted the *direction*: `manual_list_test.php` claims to cover sorting
+  in its docblock but contained no sort assertion at all. It now creates a second unit whose
+  system line sorts before the first and asserts that ascending and descending genuinely
+  reverse their relative order, that `'asc'` and `1` are read as the same direction, and
+  that a missing direction still means descending (39 → 52 assertions).
+
 - **The operator-attestation pages were cut off after the first page.** The section
   paginated against a hardcoded `268.0` — a figure that only makes sense on a *portrait*
   page — while the certificate is A4 **landscape** (297 × 210). The limit therefore sat
