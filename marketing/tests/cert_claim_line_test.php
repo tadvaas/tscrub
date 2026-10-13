@@ -114,7 +114,33 @@ function pdf_lines(string $pdf): string
     // this whole extraction the first time it was written.
     $joined = implode(' ', $parts);
     $flat = preg_replace('/\s+/', ' ', $joined);
-    return trim($flat === null ? $joined : $flat);
+    $flat = trim($flat === null ? $joined : $flat);
+
+    // The certificate uses the core Helvetica fonts, which are WinAnsi-encoded: an em
+    // dash is written as the single octal escape \227, not as UTF-8. Left alone, that byte
+    // is invalid UTF-8 and every assertion containing a typographic character fails for a
+    // reason that has nothing to do with the certificate.
+    if ($flat !== '' && !mb_check_encoding($flat, 'UTF-8')) {
+        $conv = @mb_convert_encoding($flat, 'UTF-8', 'Windows-1252');
+        if ($conv !== false && $conv !== '') { $flat = $conv; }
+    }
+
+    return $flat;
+}
+
+/**
+ * The value that follows a page-1 meta label — used to read the certification date.
+ *
+ * Page 1 writes the three labels first and then the three values, so the text after the
+ * LAST label begins with the certification date. The label must be matched in its
+ * uppercase form: the subtitle also contains "Chain of Custody ID", and strpos is
+ * case-sensitive.
+ */
+function meta_value_after(string $lines, string $label): string
+{
+    $i = strpos($lines, $label);
+    if ($i === false) { return ''; }
+    return trim(substr($lines, $i + strlen($label)));
 }
 
 function drive(string $serial, string $status): array
@@ -176,6 +202,60 @@ function attested_pair(): array
     ];
 }
 
+/** A destroyed unit with no recorded medium: the operator may not have recorded the disk. */
+function attested_no_media(): array
+{
+    return ['devices' => [[
+        'category' => 'laptop', 'make' => 'Dell', 'model' => 'Latitude E5470',
+        'serial' => 'NOMEDIA-1', 'reason' => 'would_not_boot', 'destroy_method' => 'shredded',
+        'destroy_vendor' => 'Acme Shredding', 'destroy_date' => '2026-10-15',
+        'attested_by' => 'Jane Operator', 'destroy_witness' => 'W. Ness',
+        'media' => [],
+    ]], 'media' => []];
+}
+
+/** Standalone destroyed media with no host unit at all. */
+function attested_loose_only(): array
+{
+    return ['devices' => [], 'media' => [[
+        'type' => 'SSD', 'make' => 'Samsung', 'model' => '870 EVO', 'serial' => 'LOOSE-9',
+        'size' => '500 GB', 'bus' => 'SATA', 'reason' => 'physically_damaged',
+        'destroy_method' => 'crushed', 'destroy_date' => '2026-10-12',
+        'attested_by' => 'Jane Operator',
+    ]]];
+}
+
+/** Nothing recorded for WHEN the destruction happened. */
+function attested_undated(): array
+{
+    return ['devices' => [[
+        'category' => 'mobile_phone', 'make' => 'Apple', 'model' => 'iPhone 5',
+        'serial' => 'UNDATED-1', 'reason' => 'media_soldered', 'destroy_method' => 'shredded',
+        'destroy_vendor' => 'Acme Shredding', 'destroy_date' => '', 'attested_by' => 'Jane Operator',
+        'media' => [[
+            'type' => 'eMMC/UFS (integrated)', 'make' => 'Apple', 'model' => 'iPhone 5',
+            'serial' => 'UNDATED-1', 'size' => '16 GB', 'bus' => '',
+            'destroy_method' => 'shredded', 'destroy_date' => '',
+        ]],
+    ]], 'media' => []];
+}
+
+/** A date typed by hand in a spreadsheet, not the canonical Y-m-d form. */
+function attested_odd_date(): array
+{
+    return ['devices' => [[
+        'category' => 'mobile_phone', 'make' => 'Apple', 'model' => 'iPhone 4',
+        'serial' => 'ODDDATE-1', 'reason' => 'media_soldered', 'destroy_method' => 'shredded',
+        'destroy_vendor' => 'Acme Shredding', 'destroy_date' => '13/10/2026',
+        'attested_by' => 'Jane Operator',
+        'media' => [[
+            'type' => 'eMMC/UFS (integrated)', 'make' => 'Apple', 'model' => 'iPhone 4',
+            'serial' => 'ODDDATE-1', 'size' => '8 GB', 'bus' => '',
+            'destroy_method' => 'shredded', 'destroy_date' => '13/10/2026',
+        ]],
+    ]], 'media' => []];
+}
+
 try {
     $verifiedOnly = pdf_lines(render_certificate_pdf(
         group([drive('VER-A', 'COMPLETED'), drive('VER-B', 'COMPLETED')]),
@@ -193,13 +273,37 @@ try {
         group([], null, null),
         'COD-CLAIM-ATT', false, [], [], attested_pair()
     )['data']);
+
+    $noMedia = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-NOMEDIA', false, [], [], attested_no_media()
+    )['data']);
+
+    $looseOnly = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-LOOSE', false, [], [], attested_loose_only()
+    )['data']);
+
+    $undated = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-UNDATED', false, [], [], attested_undated()
+    )['data']);
+
+    $oddDate = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-ODDDATE', false, [], [], attested_odd_date()
+    )['data']);
+
+    // The appliance ran, one medium FAILED, and other items were attested: the failure
+    // warning has to win the banner, but the attested figures must still be stated.
+    $failedMixed = pdf_lines(render_certificate_pdf(
+        group([drive('VER-F', 'FAILED')]), 'COD-CLAIM-FAILMIX', false, [], [], attested_pair()
+    )['data']);
 } catch (Throwable $e) {
     t_check('all three job shapes render without a fatal (' . $e->getMessage() . ')', false);
     echo "\n$count tests, $fails failures\n";
     exit(1);
 }
 
-foreach (['verified only' => $verifiedOnly, 'mixed' => $mixed, 'attested only' => $attestedOnly] as $name => $t) {
+foreach (['verified only' => $verifiedOnly, 'mixed' => $mixed, 'attested only' => $attestedOnly,
+          'no media' => $noMedia, 'loose media only' => $looseOnly, 'undated' => $undated,
+          'odd date' => $oddDate, 'failed + attested' => $failedMixed] as $name => $t) {
     t_check("$name: a certificate was produced", strlen($t) > 500);
 }
 
@@ -245,6 +349,52 @@ t_check('attested only: the scope line points at the attested section',
     strpos($attestedOnly, 'the operator attestation section') !== false);
 t_check('attested only: the qualifier is still printed',
     stripos($attestedOnly, 'not instrument-verified') !== false);
+
+// --- 4. edge: a destroyed unit with no recorded medium -----------------------
+// This used to render '0 MEDIA DESTROYED (ATTESTED, 1 DEVICE)' — a banner contradicting
+// itself in one sentence, on a certificate, about a destroyed machine.
+t_check('no media: the banner leads with the device, not a zero media count',
+    strpos($noMedia, '1 DEVICE DESTROYED (ATTESTED, NO MEDIA RECORDED)') !== false);
+t_check('no media: the banner never says zero media were destroyed',
+    strpos($noMedia, '0 MEDIA DESTROYED') === false);
+t_check('no media: the unit is still named', strpos($noMedia, 'NOMEDIA-1') !== false);
+t_check('no media: the missing medium is stated rather than implied',
+    strpos($noMedia, 'NO MEDIA RECORDED') !== false);
+t_check('no media: the certification date still comes from the device',
+    strpos(meta_value_after($noMedia, 'CHAIN OF CUSTODY ID'), '2026-10-15') === 0);
+
+// --- 5. edge: standalone destroyed media, no host unit ----------------------
+t_check('loose media only: the banner claims the media, not a device',
+    strpos($looseOnly, '1 MEDIA DESTROYED (ATTESTED)') !== false);
+t_check('loose media only: no phantom ", 0 DEVICES" is printed',
+    strpos($looseOnly, '0 DEVICES') === false);
+t_check('loose media only: the medium is listed', strpos($looseOnly, 'LOOSE-9') !== false);
+t_check('loose media only: the certification date comes from the medium',
+    strpos(meta_value_after($looseOnly, 'CHAIN OF CUSTODY ID'), '2026-10-12') === 0);
+
+// --- 6. edge: dates that cannot be trusted ----------------------------------
+// An unparseable date must not be invented into the summary, but it must not be hidden
+// either: the item line still prints exactly what the operator entered.
+t_check('undated: no certification date is invented',
+    strpos(meta_value_after($undated, 'CHAIN OF CUSTODY ID'), 'N/A') === 0);
+t_check('odd date: a spreadsheet-typed date is not turned into a range',
+    strpos(meta_value_after($oddDate, 'CHAIN OF CUSTODY ID'), 'N/A') === 0);
+t_check('odd date: the date as entered is still printed against its item',
+    strpos($oddDate, '13/10/2026') !== false);
+t_check('odd date: no range is built from the malformed value',
+    strpos($oddDate, '13/10/2026 to') === false);
+
+// --- 7. edge: failures present AND attested items ---------------------------
+t_check('failed + attested: the failure warning wins the banner',
+    strpos($failedMixed, '1 MEDIA ITEM NOT DESTROYED — SEE ANNEX A') !== false);
+t_check('failed + attested: no all-destroyed claim is made',
+    strpos($failedMixed, 'DATA DESTROYED ON ALL') === false);
+t_check('failed + attested: the attested figures are still stated',
+    strpos($failedMixed, '2 items destroyed by attestation') !== false);
+t_check('failed + attested: the attested section still renders',
+    strpos($failedMixed, 'PHYSICALLY DESTROYED') !== false);
+t_check('failed + attested: a verified item is still reported as verified',
+    strpos($failedMixed, '1 verified media item') !== false);
 
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);

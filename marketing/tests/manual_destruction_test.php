@@ -179,6 +179,18 @@ t_eq('banner: mixed job states both figures separately',
 t_eq('banner: plural devices',
     '5 MEDIA DESTROYED (ATTESTED, 2 DEVICES)',
     md_attested_banner(0, 2, 5));
+// A unit can be destroyed with no medium recorded (the operator did not record the disk,
+// or there was none left). Leading with '0 MEDIA DESTROYED' contradicts the attestation
+// in the same sentence, which is precisely the class of claim this helper exists to stop.
+t_eq('banner: a destroyed unit with no recorded medium is not reported as zero media',
+    '1 DEVICE DESTROYED (ATTESTED, NO MEDIA RECORDED)',
+    md_attested_banner(0, 1, 0));
+t_eq('banner: plural devices with no media',
+    '2 DEVICES DESTROYED (ATTESTED, NO MEDIA RECORDED)',
+    md_attested_banner(0, 2, 0));
+t_eq('banner: verified media plus a unit with no media states both',
+    '4 MEDIA SANITISED IN PLACE (VERIFIED) · 1 DEVICE DESTROYED (ATTESTED, NO MEDIA RECORDED)',
+    md_attested_banner(4, 1, 0));
 
 $onlyAttested = md_attested_banner(0, 1, 1);
 t_check('banner: an attested-only job makes no verified claim',

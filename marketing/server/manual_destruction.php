@@ -106,12 +106,20 @@ function md_attested_banner(int $verifiedMedia, int $attestedDevices, int $attes
     if ($verifiedMedia > 0) {
         $parts[] = $verifiedMedia . ' MEDIA SANITISED IN PLACE (VERIFIED)';
     }
-    if ($attestedMedia > 0 || $attestedDevices > 0) {
+
+    if ($attestedMedia > 0) {
         $devices = '';
         if ($attestedDevices > 0) {
             $devices = ', ' . $attestedDevices . ($attestedDevices === 1 ? ' DEVICE' : ' DEVICES');
         }
         $parts[] = $attestedMedia . ' MEDIA DESTROYED (ATTESTED' . $devices . ')';
+    } elseif ($attestedDevices > 0) {
+        // A destroyed unit with no recorded medium is a real case: the operator may not
+        // have recorded the disk, or the unit had none left to record. Leading with
+        // '0 MEDIA DESTROYED' would contradict the attestation in the same sentence, so
+        // the device figure leads and the missing media is stated rather than implied.
+        $parts[] = $attestedDevices . ($attestedDevices === 1 ? ' DEVICE' : ' DEVICES')
+            . ' DESTROYED (ATTESTED, NO MEDIA RECORDED)';
     }
 
     return $parts ? implode(' · ', $parts) : 'NO MEDIA RECORDED';

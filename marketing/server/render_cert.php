@@ -750,23 +750,25 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // certification date would print N/A even though the operator recorded exactly when
     // each item was destroyed. Fall back to those dates rather than certify 'N/A'.
     if ($range === 'N/A' && $attItems > 0) {
+        // Only dates in the canonical Y-m-d form are used for the RANGE. An unparseable
+        // one (a spreadsheet-typed 13/10/2026, say) is still printed verbatim against its
+        // own item in the attested section, but mixing formats into a plain string sort
+        // can produce a range whose start falls after its end — worse than no range.
         $destroyDates = [];
+        $wantDate = function ($row) use (&$destroyDates): void {
+            $d = trim((string)($row['destroy_date'] ?? ''));
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) { $destroyDates[] = $d; }
+        };
         foreach (($attested['devices'] ?? []) as $dv) {
-            $d = trim((string)($dv['destroy_date'] ?? ''));
-            if ($d !== '') { $destroyDates[] = $d; }
-            foreach (($dv['media'] ?? []) as $m) {
-                $d = trim((string)($m['destroy_date'] ?? ''));
-                if ($d !== '') { $destroyDates[] = $d; }
-            }
+            $wantDate($dv);
+            foreach (($dv['media'] ?? []) as $m) { $wantDate($m); }
         }
-        foreach (($attested['media'] ?? []) as $m) {
-            $d = trim((string)($m['destroy_date'] ?? ''));
-            if ($d !== '') { $destroyDates[] = $d; }
-        }
+        foreach (($attested['media'] ?? []) as $m) { $wantDate($m); }
+
         if ($destroyDates !== []) {
             sort($destroyDates);
-            $lo = fmt_date($destroyDates[0]);
-            $hi = fmt_date($destroyDates[count($destroyDates) - 1]);
+            $lo = $destroyDates[0];
+            $hi = $destroyDates[count($destroyDates) - 1];
             $range = $lo === $hi ? $lo : $lo . ' to ' . $hi;
         }
     }

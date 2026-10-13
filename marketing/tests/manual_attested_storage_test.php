@@ -147,6 +147,32 @@ try {
     t_check('standalone media survives the device delete', count($load['media']) === 1);
     t_check('deleting the same device again is a no-op', manual_attested_delete($certId, $deviceId, true) === 0);
     t_check('deleting a non-existent id is a no-op', manual_attested_delete($certId, 999999999, false) === 0);
+
+    // --- edge: a blank/legacy source is still VERIFIED evidence -------------
+    // The column default is 'report', but a row written before that column existed (or by
+    // some other path) can be blank. Gating the verified list on `source = 'report'`
+    // instead of `source <> 'manual'` would silently drop real evidence out of Annex A,
+    // so the weaker — correct — condition is pinned here.
+    db()->prepare("UPDATE certificate_drives SET source = '' WHERE certificate_id = ? AND source <> 'manual'")
+        ->execute([$certId]);
+    $blank = load_cert_drives($certId);
+    t_check('a blank source still counts as a verified drive', count($blank) === 1);
+    t_check('a blank source is not mistaken for an attestation',
+        (int)db()->query("SELECT COUNT(*) FROM certificate_drives WHERE certificate_id = $certId AND source = 'manual'")->fetchColumn() > 0);
+
+    // --- edge: nothing recorded is an empty list, not an error --------------
+    db()->prepare('DELETE FROM certificate_drives WHERE certificate_id = ?')->execute([$certId]);
+    t_check('no drives at all yields an empty verified list', load_cert_drives($certId) === []);
+    t_check('no drives at all yields an empty JSON-LD list', jsonld_load_drives($certId) === []);
+    t_check('an attested load with everything deleted is still well-formed',
+        isset(manual_attested_load($certId)['devices'], manual_attested_load($certId)['media']));
+    // The unit itself lives in certificate_devices, so deleting the drive rows leaves a
+    // destroyed unit with NO recorded medium — the exact shape the certificate banner has
+    // to describe without contradicting itself ('1 DEVICE DESTROYED', never '0 MEDIA').
+    $emptied = manual_attested_load($certId);
+    t_check('deleting the media leaves the destroyed unit recorded', count($emptied['devices']) === 1);
+    t_check('a unit whose media were deleted counts as one device, no media',
+        md_attested_counts($emptied) === ['devices' => 1, 'media' => 0]);
 } finally {
     db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ?")->execute([$certId]);
     db()->prepare('DELETE FROM certificate_devices WHERE certificate_id = ?')->execute([$certId]);

@@ -103,7 +103,28 @@ for x in d['drives']:
 sys.exit(1)
 " && echo true || echo false)"
 
-# 7. delete both, and confirm they leave
+# 7. certificate generation for a job of ONLY manually recorded destruction. This is the
+#    case that used to answer 404, and the case that used to fold the attested media into
+#    the verified drive list — so "devices":0 is the assertion that matters: two attested
+#    items must never be counted as instrument-verified evidence.
+echo "{\"cocid\":\"$COC\"}" > /tmp/rv_cert.json
+c=$(code -X POST "$BASE/api/certs" -b "$COOKIE" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" --data-binary @/tmp/rv_cert.json)
+chk 'an attested-only job generates a certificate' 201 "$c"
+chk 'the verified device count is 0 (attested media are not laundered in)' true "$(grep -q '"devices":0' /tmp/rv_body.json && echo true || echo false)"
+chk 'the certificate reports a PDF' true "$(grep -q '"has_pdf":true' /tmp/rv_body.json && echo true || echo false)"
+chk 'an attested-only job asks for no destruction decision' true "$(grep -q 'decision_required' /tmp/rv_body.json && echo false || echo true)"
+
+# 8. generation guards. NOTE the phantom-draft risk (answering "is there a job for this
+#    COCID?" by INSERTING a row) is not observable over HTTP, because drafts are hidden
+#    from the list — the route uses a read-only SELECT, asserted by inspection there.
+c=$(code -X POST "$BASE/api/certs" -b "$COOKIE" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" -d '{}')
+chk 'generating without a COCID is refused' 400 "$c"
+c=$(code -X POST "$BASE/api/certs" -b "$COOKIE" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" -d '{"cocid":"ROUTE-VERIFY-NOTHING-HERE"}')
+chk 'generating for a COCID with no reports and no attested records is refused' 404 "$c"
+c=$(code -X POST "$BASE/api/certs" -b "$COOKIE" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" -d '{"cocid":"'"$(printf 'x%.0s' $(seq 1 65))"'"}')
+chk 'an over-long COCID is refused' 400 "$c"
+
+# 9. delete both, and confirm they leave
 c=$(code -X DELETE "$BASE/api/certificates/devices/$DEV_ID?cocid=$COC" -b "$COOKIE" -H "X-CSRF-Token: $CSRF")
 chk 'DELETE /api/certificates/devices removes the unit' 200 "$c"
 c=$(code -X DELETE "$BASE/api/certificates/media/$MEDIA_ID?cocid=$COC" -b "$COOKIE" -H "X-CSRF-Token: $CSRF")
