@@ -99,12 +99,25 @@
       input('Bus', 'bus')
     ], 3));
     if (isDevice) {
+      // The device already carries the reason and the destruction method, so asking
+      // again per medium showed the same two questions twice. A medium only needs its
+      // own when its outcome differed (e.g. one drive pulled and wiped, the rest
+      // destroyed), so that pair stays behind a toggle.
       row.appendChild(el('p', { class: 'mt-2 text-xs text-slate-500 dark:text-slate-400',
-        text: 'Media inherit the device\'s reason and destruction method unless you set them here.' }));
-      row.appendChild(grid([
-        select('Reason', 'reason', REASONS, false),
-        select('Destruction method', 'destroy_method', METHODS, false)
-      ], 2));
+        text: 'Integrated or soldered storage: use the device\'s own make, model and serial — the medium IS that storage.' }));
+
+      var override = el('div', { class: 'mt-2 hidden' }, [grid([
+        select('Reason for this medium', 'reason', REASONS, false),
+        select('Destruction method for this medium', 'destroy_method', METHODS, false)
+      ], 2)]);
+      var toggle = el('button', { type: 'button', class: 'mt-2 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline',
+        text: 'Different outcome for this medium…' });
+      toggle.addEventListener('click', function () {
+        override.classList.remove('hidden');
+        toggle.classList.add('hidden');
+      });
+      row.appendChild(toggle);
+      row.appendChild(override);
     } else {
       row.appendChild(grid([
         select('Reason', 'reason', REASONS, true),
