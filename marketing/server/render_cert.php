@@ -679,7 +679,7 @@ function cert_render_attested_media_row($pdf, array $m, float $y, float $x, floa
     return $pdf->GetY() + 0.2;
 }
 
-function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = []): array {
+function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = []): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
     usort($drives, function ($a, $b) {
@@ -1068,6 +1068,14 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
 
     // ---- Annex A ----
     cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports']);
+
+    // Manually recorded (attested) destruction goes on its own page, so it can never
+    // collide with the annex table or push page 1's fixed layout around. A
+    // certificate with no attested records takes exactly the path it always did.
+    if ($attested) {
+        $pdf->AddPage();
+        cert_render_attested_section($pdf, $attested, 28.0);
+    }
 
     $data = $pdf->Output('', 'S');
     return [

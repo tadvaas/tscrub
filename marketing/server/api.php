@@ -214,7 +214,10 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
         // One COCID = one consolidated cert: merge and re-render the same cert.
         $merged = merge_group($g, load_cert_drives((int)$existing['id']), load_cert_reports((int)$existing['id']), $existing);
         $certId = (string)$existing['cert_id'];
-        $rendered = render_certificate_pdf($merged, $certId, $canSign, $certifier, $destroyed);
+        // Manually recorded destruction lives with the certificate, not in the report
+        // merge: load it and hand it to the renderer as its own (attested) section.
+        $attested = manual_attested_load((int)$existing['id']);
+        $rendered = render_certificate_pdf($merged, $certId, $canSign, $certifier, $destroyed, $attested);
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
