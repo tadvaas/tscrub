@@ -465,6 +465,14 @@ function jsonld_load_reports(int $certId): array {
  * Return the JSON-LD for a certificate row, generating + persisting it lazily
  * when it doesn't exist yet (e.g. certs issued before this feature shipped).
  */
+function jsonld_read_cert(array $certRow): ?array {
+    $dir = __DIR__ . '/certs';
+    $path = (string)($certRow['json_path'] ?? '');
+    if ($path === '' || !is_file($dir . '/' . $path)) { return null; }
+    $decoded = json_decode((string)file_get_contents($dir . '/' . $path), true);
+    return is_array($decoded) ? $decoded : null;
+}
+
 function jsonld_ensure_cert(array $certRow): ?array {
     $certId = (string)$certRow['cert_id'];
     $dir = __DIR__ . '/certs';
@@ -494,7 +502,16 @@ function jsonld_ensure_cert(array $certRow): ?array {
         'pdf_sha256' => (string)$certRow['pdf_sha256'],
     ];
     $issuer = certifier_for_user((int)($certRow['user_id'] ?? 0));
-    $doc = build_cert_jsonld($summary, jsonld_load_drives((int)$certRow['id']), jsonld_load_reports((int)$certRow['id']), $issuer);
+    // The attested records belong in here too. Rebuilding without them wrote a JSON-LD twin
+    // that denied the operator-attested destruction the PDF still shows — and then
+    // persisted the file and stamped json_path/json_sha256, so the two documents disagreed
+    // from that point on with nothing left to indicate which was right. Loaded lazily so
+    // that merely reading a certificate never pulls the whole reports library in.
+    if (!function_exists('manual_attested_load')) {
+        require_once __DIR__ . '/reports_lib.php';
+    }
+    $attested = manual_attested_load((int)$certRow['id']);
+    $doc = build_cert_jsonld($summary, jsonld_load_drives((int)$certRow['id']), jsonld_load_reports((int)$certRow['id']), $issuer, $attested);
     $signed = jsonld_sign_document($doc);
     if ($signed === null) return null;
 

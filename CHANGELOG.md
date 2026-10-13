@@ -10,6 +10,42 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **The public verification page denied attested destruction and stated things that
+  were not true.** For a certificate covering only operator-attested destruction,
+  `/verify` read *"Devices / Methods / Runs 0 / 0 / 0"* — zero devices on a certificate
+  recording three destroyed machines — claimed *"this certificate's reports are signed,
+  but the signature could not be matched to the account's licence"* and *"some
+  underlying reports did not pass integrity checks at the time of issuance"* when there
+  were no reports at all, and offered a JSON-LD link labelled *"Signed"* next to
+  `Signature: NOT SIGNED`. It now states the attested figures, labels the verified row
+  as verified, drops the empty sanitisation window, reports the signature as *not
+  applicable — no appliance reports*, and never claims an integrity check that did not
+  happen.
+
+- **The verification page showed live records while the certificate is a document.**
+  The figures it states are now read back from the stored JSON-LD snapshot, so the page
+  describes the certificate rather than whatever the records say today. When they
+  disagree it says so — *"These records have changed since this certificate was
+  issued"* — with both sets of figures, instead of silently showing either one.
+  Adding or removing attested records after issue previously changed what the page
+  reported about an already-issued, already-hashed document.
+
+- **The machine-readable twin silently dropped the attested records when rebuilt.**
+  `jsonld_ensure_cert()` reconstructs the JSON-LD whenever the stored file is missing
+  (a legacy certificate, or one whose file was lost) — and it called
+  `build_cert_jsonld()` without the attested records. The rebuilt document therefore
+  denied the destruction the PDF still showed, and then persisted that file and stamped
+  `json_path`/`json_sha256`, leaving the two documents permanently disagreeing. It now
+  loads and passes the attested records.
+
+### Added
+
+- `jsonld_read_cert()` — reads a stored JSON-LD snapshot without regenerating it, for
+  callers that must describe the document rather than the live records.
+- The attested storage test now guards the JSON-LD rebuild: a rebuilt twin must carry
+  the attested block, must count it as the live records do, must not promote attested
+  items to verified evidence, and must persist the file it stamps on the row.
+
 - **A job consisting only of attested destruction could never be certified.**
   `POST /api/certs` required at least one stored *report*, so a pallet of phones that
   never ran the appliance — the main reason attested destruction exists — answered

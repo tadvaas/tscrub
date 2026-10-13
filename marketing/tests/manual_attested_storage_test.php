@@ -139,6 +139,41 @@ try {
     t_check('the JSON-LD list is the same single reported drive',
         array_column($jsonD, 'serial') === $verifiedSerials);
 
+    // --- the lazy JSON-LD rebuild must not drop the attested records ---------
+    // jsonld_ensure_cert() rebuilds the machine-readable twin whenever the stored file is
+    // missing (a legacy certificate, or one whose file was lost). It used to call
+    // build_cert_jsonld() without the attested records, so the rebuild produced a document
+    // that denied the destruction the PDF still showed — and then persisted it and stamped
+    // json_path/json_sha256, leaving the two documents disagreeing for good.
+    $certRow = db()->query("SELECT * FROM certificates WHERE id = $certId")->fetch();
+    t_check('the certificate starts with no stored JSON-LD', (string)($certRow['json_path'] ?? '') === '');
+    $snap = jsonld_ensure_cert($certRow);
+    t_check('the lazy JSON-LD rebuild produced a document', is_array($snap) && ($snap['json'] ?? '') !== '');
+    $doc = json_decode((string)($snap['json'] ?? ''), true);
+    $att = is_array($doc) ? ($doc['attestedDestruction'] ?? null) : null;
+    $live = md_attested_counts(manual_attested_load($certId));
+    t_check('there are attested items that the rebuild could have dropped',
+        $live['devices'] > 0 && $live['media'] > 0);
+    t_check('the rebuilt JSON-LD carries the attested destruction block', is_array($att));
+    t_check('the rebuilt JSON-LD counts the attested devices',
+        (int)($att['devices'] ?? -1) === $live['devices']);
+    t_check('the rebuilt JSON-LD counts the attested media',
+        (int)($att['media'] ?? -1) === $live['media']);
+    t_check('the rebuilt JSON-LD does not promote attested items to verified evidence',
+        (int)($doc['devices'] ?? -1) === (int)$certRow['devices']);
+    // Re-read the row: the rebuild stamps json_path, so asserting against the pre-rebuild
+    // array would test nothing. This also holds the rebuild to persisting what it claims —
+    // a row pointing at a file that was never written is worse than no file at all.
+    $after = db()->query("SELECT * FROM certificates WHERE id = $certId")->fetch();
+    $snapFile = $serverDir . '/certs/' . basename((string)($after['json_path'] ?? ''));
+    t_check('the rebuild persisted the snapshot it stamped on the row',
+        (string)($after['json_path'] ?? '') !== '' && is_file($snapFile));
+    t_check('the snapshot can be read back for a caller that must describe the document',
+        is_array(jsonld_read_cert($after)));
+    @unlink($snapFile);
+    db()->prepare("UPDATE certificates SET json_path = '', json_sha256 = '', json_ts_state = 'none' WHERE id = ?")
+        ->execute([$certId]);
+
     // --- delete -------------------------------------------------------------
     $removed = manual_attested_delete($certId, $deviceId, true);
     t_check('deleting a device removes it and its media', $removed === 3);

@@ -8,6 +8,9 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/certifier.php';
 require_once __DIR__ . '/jsonld.php';
+// Pure vocabulary only (no DB) — the qualifier string must be the same one the PDF and
+// the JSON-LD twin print, so a verifier cannot read a different claim on the web page.
+require_once __DIR__ . '/manual_destruction.php';
 
 $cert = strtoupper(trim((string)($_GET['cert'] ?? '')));
 $format = strtolower(trim((string)($_GET['format'] ?? '')));
@@ -18,6 +21,12 @@ $record = null;
 $certRow = null;
 $recordTier = 'free';
 $dbError = false;
+$attDevices = 0;
+$attMedia = 0;
+$hasReports = false;
+$hasAttested = false;
+$attestedSummary = '';
+$recordsMoved = false;
 if ($isValidId) {
     try {
         $stmt = db()->prepare('SELECT * FROM certificates WHERE cert_id = ?');
@@ -41,6 +50,58 @@ if ($isValidId) {
                 'issued'     => (string)$row['issued_at'],
                 'reports'    => $rq->fetchAll(),
             ];
+            // Operator-attested destruction is not a report and lives in its own tables, so
+            // a job made only of it legitimately has zero verified devices. Without these
+            // figures the page reads '0 / 0 / 0' on a certificate that records three
+            // destroyed machines — and says nothing at all about the destruction it covers.
+            try {
+                $aq = db()->prepare('SELECT COUNT(*) FROM certificate_devices WHERE certificate_id = ?');
+                $aq->execute([(int)$row['id']]);
+                $attDevices = (int)$aq->fetchColumn();
+                $aq = db()->prepare("SELECT COUNT(*) FROM certificate_drives WHERE certificate_id = ? AND source = 'manual'");
+                $aq->execute([(int)$row['id']]);
+                $attMedia = (int)$aq->fetchColumn();
+            } catch (Throwable $e) {
+                // Installs predating attested destruction have no such tables; zero is right.
+                $attDevices = 0;
+                $attMedia = 0;
+            }
+
+            // This page exists to verify a DOCUMENT, so the figures it states are the ones the
+            // document carries, read back from the stored JSON-LD snapshot. The live counts
+            // are kept alongside them so drift is reported rather than silently papered over.
+            $docAttDevices = $attDevices;
+            $docAttMedia   = $attMedia;
+            $snapshot = jsonld_read_cert($row);
+            if (is_array($snapshot['attestedDestruction'] ?? null)) {
+                $docAttDevices = (int)($snapshot['attestedDestruction']['devices'] ?? 0);
+                $docAttMedia   = (int)($snapshot['attestedDestruction']['media'] ?? 0);
+            }
+            $recordsMoved = ($docAttDevices !== $attDevices) || ($docAttMedia !== $attMedia);
+
+            // Computed here, BEFORE any prose is chosen: the integrity sentence below has a
+            // case for 'no reports at all', and deciding that from an undefined variable
+            // would misstate every ordinary certificate.
+            $hasReports  = !empty($record['reports']);
+            $hasAttested = ($docAttDevices + $docAttMedia) > 0;
+
+            // Two separate figures, never summed: one is instrument-verified, the other is
+            // the operator's word. Same rule as the PDF and the JSON-LD twin.
+            if ($hasAttested) {
+                $devWord = $docAttDevices === 1 ? 'device' : 'devices';
+                $medWord = $docAttMedia === 1 ? 'medium' : 'media';
+                if ($docAttDevices > 0 && $docAttMedia > 0) {
+                    $attestedSummary = $docAttDevices . ' ' . $devWord . ' · ' . $docAttMedia . ' ' . $medWord;
+                } elseif ($docAttDevices > 0) {
+                    $attestedSummary = $docAttDevices . ' ' . $devWord . ' · no media recorded';
+                } else {
+                    $attestedSummary = $docAttMedia . ' ' . $medWord;
+                }
+                // The row label already says 'operator-attested', so only the second half of
+                // the canonical qualifier is appended — same string, without the repetition.
+                $qualBits = explode('—', md_attested_qualifier());
+                $attestedSummary .= ' — ' . trim((string)end($qualBits));
+            }
             // Free-tier licences carry no report key, so their reports are
             // self-signed by the appliance and cannot be independently confirmed
             // or attributed. Determine the owner's tier to drive the upsell.
@@ -124,7 +185,14 @@ if ($found) {
         && ($record['sig_state'] ?? '') === 'attributed';
     $allGood = ($record['sha_state'] === 'verified')
         && ($record['sig_state'] === 'attributed');
-    if ($allGood) {
+    if (!$hasReports) {
+        // Saying 'some underlying reports did not pass integrity checks' when there are no
+        // reports at all is simply false, and it is the sentence the previous code fell
+        // through to for exactly this case.
+        $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no '
+            . 'appliance reports: the destruction it records is a statement by the operator, '
+            . 'not an instrument-verified sanitisation.';
+    } elseif ($allGood) {
         $integrityNote = 'This certificate of destruction was issued by tScrub and its underlying reports passed integrity checks at the time of issuance.';
     } else {
         $integrityNote = 'This certificate of destruction was issued by tScrub. Note: some underlying reports did not pass integrity checks at the time of issuance — see the report list below.';
@@ -170,7 +238,10 @@ if ($found) {
 <main>
   <div class="card">
 <?php if ($found): ?>
-    <?php if ($recordTier !== 'free' && $verified): ?>
+    <?php if ($hasAttested && !$hasReports): ?>
+    <div class="status"><span class="dot warn"></span><span class="warn">Certificate Record — operator-attested destruction</span></div>
+    <div class="sub"><?= v_h($integrityNote) ?></div>
+    <?php elseif ($recordTier !== 'free' && $verified): ?>
     <div class="status"><span class="dot ok"></span><span class="ok">Certificate Verified</span></div>
     <div class="sub"><?= v_h($integrityNote) ?></div>
     <?php elseif ($recordTier !== 'free'): ?>
@@ -185,13 +256,32 @@ if ($found) {
       <tr><th>Certificate ID</th><td><code><?= v_h($record['cert'] ?? $cert) ?></code></td></tr>
       <tr><th>Chain of Custody ID</th><td><?= v_h($record['cocid'] ?? '') ?></td></tr>
       <tr><th>Issued</th><td><?= v_h(v_ts($record['issued'] ?? '')) ?></td></tr>
+      <?php if ($window !== ''): ?>
       <tr><th>Sanitisation window</th><td><?= v_h($window) ?></td></tr>
-      <tr><th>Devices / Methods / Runs</th><td><?= (int)($record['devices'] ?? 0) ?> / <?= (int)($record['methods'] ?? 0) ?> / <?= (int)($record['runs'] ?? 0) ?></td></tr>
+      <?php endif; ?>
+      <tr><th><?= $hasAttested ? 'Verified devices / methods / runs' : 'Devices / Methods / Runs' ?></th><td><?= (int)($record['devices'] ?? 0) ?> / <?= (int)($record['methods'] ?? 0) ?> / <?= (int)($record['runs'] ?? 0) ?></td></tr>
+      <?php if ($hasAttested): ?>
+      <tr><th>Operator-attested</th><td><?= v_h($attestedSummary) ?></td></tr>
+      <?php endif; ?>
       <tr><th>Integrity</th><td><?= v_h(v_sha_state($record['sha_state'] ?? 'unverified')) ?></td></tr>
-      <tr><th>Signature</th><td><?= $recordTier === 'free' ? 'Self-signed — not attributable' : v_h(v_sig_state($record['sig_state'] ?? 'none')) ?></td></tr>
+      <tr><th>Signature</th><td><?php
+        // 'Self-signed by the appliance' describes a report signature, so it is wrong on a
+        // certificate with no reports — as is claiming an unsigned document is signed.
+        if (!$hasReports) { echo 'Not applicable — this certificate covers no appliance reports'; }
+        elseif ($recordTier === 'free') { echo 'Self-signed — not attributable'; }
+        else { echo v_h(v_sig_state($record['sig_state'] ?? 'none')); }
+      ?></td></tr>
       <tr><th>Document hash (SHA-256)</th><td><code><?= v_h($record['pdf_sha256'] ?? '') ?></code></td></tr>
-      <tr><th>Machine-readable</th><td><a href="/verify?cert=<?= v_h(urlencode($record['cert'] ?? $cert)) ?>&amp;format=jsonld">Signed JSON-LD certificate</a></td></tr>
+      <tr><th>Machine-readable</th><td><a href="/verify?cert=<?= v_h(urlencode($record['cert'] ?? $cert)) ?>&amp;format=jsonld">Machine-readable JSON-LD certificate</a></td></tr>
     </table>
+    <?php if ($recordsMoved): ?>
+    <div class="note"><strong>These records have changed since this certificate was issued.</strong>
+      The certificate states <?= (int)$docAttDevices ?> <?= $docAttDevices === 1 ? 'device' : 'devices' ?> and
+      <?= (int)$docAttMedia ?> <?= $docAttMedia === 1 ? 'medium' : 'media' ?> recorded as operator-attested;
+      the records now hold <?= (int)$attDevices ?> <?= $attDevices === 1 ? 'device' : 'devices' ?> and
+      <?= (int)$attMedia ?> <?= $attMedia === 1 ? 'medium' : 'media' ?>. The document hash above still identifies
+      the certificate as issued, so regenerate the certificate if an updated document is needed.</div>
+    <?php endif; ?>
     <?php if (!empty($record['reports'])): ?>
     <div class="reports">
       <p>Consolidated reports</p>
