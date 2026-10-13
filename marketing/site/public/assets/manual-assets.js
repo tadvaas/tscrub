@@ -91,7 +91,7 @@
     head.appendChild(rm);
     row.appendChild(head);
     row.appendChild(grid([
-      input('Type (SSD, HDD, eMMC/UFS (integrated)…)', 'type'),
+      input('Type', 'type', 'SSD, HDD, eMMC/UFS (integrated)'),
       input('Size', 'size'),
       input('Make', 'make'),
       input('Model', 'model'),
