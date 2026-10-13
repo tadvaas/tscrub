@@ -446,7 +446,7 @@ function jsonld_load_drives(int $certId): array {
                 smartpost, tempcpost, poweronhourspost,
                 firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest,
                 start_time, end_time, duration_secs, tool_version, operator, validator, media_source, media_destination
-         FROM certificate_drives WHERE certificate_id = ? ORDER BY id'
+         FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
     );
     $stmt->execute([$certId]);
     return $stmt->fetchAll();

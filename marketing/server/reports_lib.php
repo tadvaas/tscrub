@@ -835,6 +835,30 @@ function manual_attested_delete(int $certId, int $id, bool $isDevice): int
     return $n;
 }
 
+/**
+ * The REPORT-DERIVED drives of a certificate, in the group-drive shape.
+ *
+ * source <> 'manual' is essential, not tidiness. Attested media live in the same table,
+ * and they are not appliance findings. Without the filter they are merged into the
+ * verified drive list, rendered in Annex A as instrument-verified items, counted into
+ * the certificate's device total, and then written straight back by
+ * rewrite_certificate_details() as source='report' rows — laundering an operator's
+ * claim into the appliance's evidence, permanently. Lives here rather than in api.php
+ * so the storage test can guard it.
+ */
+function load_cert_drives(int $certId): array {
+    $stmt = db()->prepare(
+        'SELECT id, certificate_id, ts, device, type, model, serial, size, bus, class, method, certification, final_status,
+                system_name AS `system`, system_serial, baseboard_serial,
+                smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
+                firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
+                tool_version, operator, validator, media_source, media_destination
+         FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
+    );
+    $stmt->execute([$certId]);
+    return $stmt->fetchAll();
+}
+
 function rewrite_certificate_details(int $dbCertId, array $reports, array $drives): void {
     db()->prepare('DELETE FROM certificate_reports WHERE certificate_id = ?')->execute([$dbCertId]);
     // Manually recorded media (source = 'manual') are NOT part of a report rewrite:

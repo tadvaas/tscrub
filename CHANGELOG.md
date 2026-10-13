@@ -8,6 +8,48 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A job consisting only of attested destruction could never be certified.**
+  `POST /api/certs` required at least one stored *report*, so a pallet of phones that
+  never ran the appliance — the main reason attested destruction exists — answered
+  `404 No reports found for that Chain of Custody ID`. The draft certificate created
+  with the first attested record *is* the job record, so generation now starts from
+  it. The lookup is deliberately read-only rather than reusing `manual_cert_row()`,
+  which would create an empty certificate as the side effect of a *failed* request —
+  as it did, once, while this was being built.
+
+- **Attested items were laundered into the verified evidence.** `load_cert_drives()`
+  selected every `certificate_drives` row for a certificate, and attested media live
+  in that same table. Generating a certificate for a job with 3 attested media
+  counted them as verified (`devices` = 3, not 0), printed them in Annex A as
+  instrument-verified findings, and then wrote them **back** as `source='report'`
+  rows via `rewrite_certificate_details()` — permanently turning an operator's
+  statement into appliance evidence. `load_cert_drives()`, `jsonld_load_drives()` and
+  the device log now all exclude `source='manual'`, so attested items appear only in
+  the attested section, and the verified counts for such a job are honestly 0.
+  `load_cert_drives()` moved into `reports_lib.php` so the storage test can guard it.
+
+- **A pure-attestation certificate claimed the tool had sanitised the data.** Page 1
+  carried the standard wording — including *"tScrub was used as the sanitisation
+  tool"* — under a green banner reading *"DATA DESTROYED ON ALL 0 MEDIA ITEMS"*.
+  Page 1 now states the verified and attested figures separately and never sums them,
+  via `md_attested_banner()`. That helper was written for exactly this purpose but had
+  never been wired in (only its unit tests called it). The certification date now
+  falls back to the operator's recorded destruction dates instead of printing `N/A`,
+  the attestation paragraph disclaims instrument verification when nothing was
+  verified, and the scope line names the attested section rather than an empty Annex
+  A. Wording for a verified-only job is unchanged.
+
+### Added
+
+- `cert_claim_line_test.php` — 22 checks covering the three kinds of job page 1 can
+  describe (verified only, mixed, attested only), so the claim line cannot silently
+  drift. The verified-only case doubles as a regression guard for the wording above.
+- The attested storage test now guards the laundering bug directly: after a report
+  rewrite, neither `load_cert_drives()` nor `jsonld_load_drives()` may return an
+  attested row.
+
 ## [v1.11.55] - 2026-10-13
 
 ### Fixed

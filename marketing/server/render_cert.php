@@ -494,7 +494,9 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $pdf->SetFont('helvetica', '', 11);
         $pdf->SetTextColor(100, 116, 139);
         $pdf->SetXY($x, 60);
-        $pdf->Cell($W - 2 * $x, 8, 'No devices recorded.', 0, 1, 'C');
+        // Not 'No devices recorded': a job can consist entirely of attested destruction,
+        // in which case the next page is the substantive record.
+        $pdf->Cell($W - 2 * $x, 8, 'No appliance-verified media in this job.', 0, 1, 'C');
         return;
     }
 
@@ -724,6 +726,15 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $methods = count($methodsUsed);
     $runs = count($g['reports']);
 
+    // Attested (manually recorded) destruction is a different class of evidence from a
+    // verified sanitisation, and the two figures are never summed. Counted here so the
+    // claim on page 1 and the annex cannot disagree.
+    require_once __DIR__ . '/manual_destruction.php';
+    $attCounts  = md_attested_counts($attested);
+    $attDevices = (int)$attCounts['devices'];
+    $attMedia   = (int)$attCounts['media'];
+    $attItems   = count($attested['devices'] ?? []) + count($attested['media'] ?? []);
+
     $range = 'N/A';
     if (($g['first'] ?? null) !== null) {
         if ($g['first'] === $g['last']) {
@@ -732,6 +743,31 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
             $range = fmt_ts($g['first']) . ' to ' . fmt_ts($g['last']);
         } else {
             $range = fmt_date($g['first']) . ' to ' . fmt_date($g['last']);
+        }
+    }
+
+    // A pure-attestation job has no appliance run, so there are no run timestamps and the
+    // certification date would print N/A even though the operator recorded exactly when
+    // each item was destroyed. Fall back to those dates rather than certify 'N/A'.
+    if ($range === 'N/A' && $attItems > 0) {
+        $destroyDates = [];
+        foreach (($attested['devices'] ?? []) as $dv) {
+            $d = trim((string)($dv['destroy_date'] ?? ''));
+            if ($d !== '') { $destroyDates[] = $d; }
+            foreach (($dv['media'] ?? []) as $m) {
+                $d = trim((string)($m['destroy_date'] ?? ''));
+                if ($d !== '') { $destroyDates[] = $d; }
+            }
+        }
+        foreach (($attested['media'] ?? []) as $m) {
+            $d = trim((string)($m['destroy_date'] ?? ''));
+            if ($d !== '') { $destroyDates[] = $d; }
+        }
+        if ($destroyDates !== []) {
+            sort($destroyDates);
+            $lo = fmt_date($destroyDates[0]);
+            $hi = fmt_date($destroyDates[count($destroyDates) - 1]);
+            $range = $lo === $hi ? $lo : $lo . ' to ' . $hi;
         }
     }
 
@@ -825,21 +861,37 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetXY(10, 16);
     $pdf->Cell($W - 20, 12, 'CERTIFICATE OF DESTRUCTION', 0, 1, 'C');
 
+    // The claim is the sentence a customer reads, so the verified and attested figures
+    // are stated separately. Summing them would claim more than the evidence supports.
+    // A pure-attestation job has no verified media at all, where '0 media items' on its
+    // own would read as though nothing had been destroyed.
+    $subParts = ['Chain of Custody ID ' . $cocid];
+    if ($devices > 0)  { $subParts[] = $devices . ($devices === 1 ? ' verified media item' : ' verified media items'); }
+    if ($attItems > 0) { $subParts[] = $attItems . ($attItems === 1 ? ' item' : ' items') . ' destroyed by attestation'; }
+    if ($devices === 0 && $attItems === 0) { $subParts[] = '0 media items'; }
+    $subParts[] = 'issued ' . gmdate('Y-m-d H:i') . ' UTC';
     $pdf->SetFont('helvetica', '', 11);
     $pdf->SetTextColor(71, 85, 105);
     $pdf->SetXY(10, 32);
-    $pdf->Cell($W - 20, 5, 'Chain of Custody ID ' . $cocid . '  ·  ' . $devices . ($devices === 1 ? ' media item' : ' media items') . '  ·  issued ' . gmdate('Y-m-d H:i') . ' UTC', 0, 1, 'C');
+    $pdf->Cell($W - 20, 5, implode('  ·  ', $subParts), 0, 1, 'C');
 
     // Outcome banner — states the claim ("data destroyed") plus, implicitly, the
     // how: a run that is part sanitised in place and part physically destroyed is
     // fully destroyed; only FAILED/BLOCKED/FROZEN/UNKNOWN/DRY-RUN amber-flag.
     $otherCount = $nonCompleted - $destroyedCount;
-    if ($otherCount === 0) {
-        $bannerTxt = 'DATA DESTROYED ON ALL ' . $devices . ($devices === 1 ? ' MEDIA ITEM' : ' MEDIA ITEMS');
-        $bannerColor = [5, 150, 105];
-    } else {
+    if ($otherCount > 0) {
+        // A failure is the one thing a reader must not miss, so it keeps the banner.
         $bannerTxt = $otherCount . ($otherCount === 1 ? ' MEDIA ITEM' : ' MEDIA ITEMS') . ' NOT DESTROYED — SEE ANNEX A';
         $bannerColor = [217, 119, 6];
+    } elseif ($attItems > 0) {
+        // Verified and attested are never summed: one is instrument-verified, the other
+        // is a statement by the operator. Amber when nothing was instrument-verified, so
+        // an attestation is never dressed up as a sanitisation.
+        $bannerTxt = md_attested_banner($devices, $attDevices, $attMedia);
+        $bannerColor = $devices > 0 ? [5, 150, 105] : [217, 119, 6];
+    } else {
+        $bannerTxt = 'DATA DESTROYED ON ALL ' . $devices . ($devices === 1 ? ' MEDIA ITEM' : ' MEDIA ITEMS');
+        $bannerColor = [5, 150, 105];
     }
     $pdf->SetFillColor($bannerColor[0], $bannerColor[1], $bannerColor[2]);
     $pdf->RoundedRect(30, 41, $W - 60, 7.5, 1.5, '1111', 'F');
@@ -980,10 +1032,25 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
 
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(51, 65, 85);
-    $attestation = 'This is to certify that the data on the storage devices listed in Annex A was destroyed — by in-place sanitisation '
+    $toolName = ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub');
+    $sanitisedClaim = 'This is to certify that the data on the storage devices listed in Annex A was destroyed — by in-place sanitisation '
         . '(Clear / Purge), or by physical destruction where recorded — in accordance with the methods, techniques, standards and levels '
         . 'set out herein, under controlled chain-of-custody procedures from receipt to final verification. '
-        . ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub') . ' was used as the sanitisation tool.';
+        . $toolName . ' was used as the sanitisation tool.';
+    if ($devices > 0 && $attItems === 0) {
+        $attestation = $sanitisedClaim;
+    } elseif ($devices > 0) {
+        $attestation = $sanitisedClaim . ' The further items listed in the operator attestation section were not sanitised by this tool: '
+            . 'they were recorded as physically destroyed by the operator named above, and are ' . md_attested_qualifier() . '.';
+    } else {
+        // Pure attestation. Saying 'tScrub was used as the sanitisation tool' here would be
+        // simply untrue — the tool never ran — so the certificate claims only what the
+        // operator has actually attested to.
+        $attestation = 'This is to certify that the items listed in the operator attestation section were physically destroyed, as recorded '
+            . 'by the operator named above, under controlled chain-of-custody procedures from receipt to final verification. No data in this '
+            . 'job was sanitised in place by ' . $toolName . ', and no appliance-verified sanitisation is claimed: this certificate records '
+            . 'destruction by operator attestation only, and the attested items are ' . md_attested_qualifier() . '.';
+    }
     $pdf->SetXY(30, 123);
     $pdf->MultiCell(237, 3.8, $attestation, 0, 'L');
 
@@ -1048,7 +1115,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // Scope + retention line.
     $pdf->SetFont('helvetica', '', 7.5);
     $pdf->SetTextColor(100, 116, 139);
-    $scope = 'Item-level evidence is recorded in Annex A and traceable by Certificate ID ' . $certId
+    $scope = 'Item-level evidence is recorded in '
+        . ($devices > 0 ? 'Annex A' : 'the operator attestation section')
+        . (($devices > 0 && $attItems > 0) ? ' and the operator attestation section' : '')
+        . ' and traceable by Certificate ID ' . $certId
         . ' and Chain of Custody ID ' . $cocid . '. Records are retained for ' . $RETENTION . '.';
     $pdf->SetXY(30, 185);
     $pdf->MultiCell(195, 3.4, $scope, 0, 'L');

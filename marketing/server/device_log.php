@@ -251,6 +251,7 @@ function device_events(int $userId, string $serial, string $uuid = '', int $limi
                                      FROM certificate_drives cd
                                      JOIN certificates c ON c.id = cd.certificate_id
                                     WHERE c.user_id IN ($ph) AND cd.system_serial = ?
+                                      AND cd.source <> 'manual'
                                     ORDER BY cd.id DESC LIMIT 40");
             $stmt->execute(array_merge($ids, [$serial !== '' ? $serial : "\0"]));
             $certs = [];

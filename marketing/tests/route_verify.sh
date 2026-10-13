@@ -25,6 +25,15 @@
 #
 # Then:  bash route_verify.sh https://tscrub.com <token> <csrf>
 # Afterwards, delete the session row and any certificate with the test COCID.
+#
+# The session must belong to an account with NO existing attested records. Several
+# checks assert exact attested counts and that the lists are "empty of attestations
+# again" after cleanup, so an account that already owns attested rows fails four of
+# them (user 38, which holds the demo records, does; user 1 does not). Those failures
+# are data, not code — check the row count before believing them:
+#
+#   SELECT COUNT(*) FROM certificate_drives d JOIN certificates c ON c.id = d.certificate_id
+#    WHERE d.source = 'manual' AND c.user_id = <id>;
 
 set -u
 BASE=${1:?usage: route_verify.sh BASE_URL TOKEN CSRF}

@@ -143,19 +143,6 @@ function load_cert_reports(int $certId): array {
     );
 }
 
-function load_cert_drives(int $certId): array {
-    $stmt = db()->prepare(
-        'SELECT id, certificate_id, ts, device, type, model, serial, size, bus, class, method, certification, final_status,
-                system_name AS `system`, system_serial, baseboard_serial,
-                smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
-                firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
-                tool_version, operator, validator, media_source, media_destination
-         FROM certificate_drives WHERE certificate_id = ? ORDER BY id'
-    );
-    $stmt->execute([$certId]);
-    return $stmt->fetchAll();
-}
-
 function fetch_cert_by_cert_id(string $certId): ?array {
     $stmt = db()->prepare('SELECT * FROM certificates WHERE cert_id = ?');
     $stmt->execute([$certId]);
@@ -2209,12 +2196,46 @@ if ($method === 'POST' && $route === '/certs') {
     }
 
     $payloads = load_report_payloads((int)$u['id'], $cocid);
+    $attestedOnly = false;
     if (!$payloads) {
-        fail(404, 'No reports found for that Chain of Custody ID. Upload reports first.');
+        // A job can consist ONLY of manually recorded (attested) destruction: a pallet of
+        // phones that never ran the appliance, which is the main reason this feature
+        // exists. This route used to refuse exactly that case, so a pure-destruction job
+        // could never be certified — the draft certificate created with the first attested
+        // record IS the job record, and generation has to start from it rather than demand
+        // a report. generate_certificate() finds that row and loads the attested records
+        // itself; all we need to supply is an empty report group.
+        // Read the job row WITHOUT creating one. manual_cert_row() would happily insert an
+        // empty draft, so a generate request for a COCID with nothing in it would leave a
+        // phantom certificate behind — which is exactly what happened while developing this.
+        $ids = org_member_ids((int)$u['id']);
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+        $q   = db()->prepare("SELECT id FROM certificates WHERE user_id IN ($ph) AND cocid = ? ORDER BY id DESC LIMIT 1");
+        $q->execute(array_merge($ids, [$cocid]));
+        $jobId = (int)$q->fetchColumn();
+
+        $have   = $jobId > 0 ? manual_attested_load($jobId) : ['devices' => [], 'media' => []];
+        $counts = md_attested_counts($have);
+        if ($counts['devices'] === 0 && $counts['media'] === 0) {
+            fail(404, 'No reports found for that Chain of Custody ID. Upload reports first.');
+        }
+        $attestedOnly = true;
+        $payloads = [];
     }
 
     // Fold every stored report group for this COCID into one consolidated group.
-    $g = null;
+    $g = $attestedOnly ? [
+        'cocid'    => $cocid,
+        'drives'   => [],
+        'reports'  => [],
+        'devices'  => 0,
+        'methods'  => 0,
+        'runs'     => 0,
+        'first'    => null,
+        'last'     => null,
+        'shaState' => 'unverified',
+        'sigState' => 'none',
+    ] : null;
     foreach ($payloads as $grp) {
         if ($g === null) {
             $g = $grp;

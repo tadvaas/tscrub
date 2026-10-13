@@ -122,6 +122,23 @@ try {
     $reportRows = (int)db()->query("SELECT COUNT(*) FROM certificate_drives WHERE certificate_id = $certId AND source <> 'manual'")->fetchColumn();
     t_check('report rewrite still writes the reported drive', $reportRows === 1);
 
+    // --- attested rows must never enter the VERIFIED drive list -------------
+    // This is the guard for the worst bug this feature has had. load_cert_drives() feeds
+    // both Annex A and rewrite_certificate_details(), so a manual row leaking in was
+    // rendered as an instrument-verified finding AND written back as source='report' —
+    // turning an operator's attestation into appliance evidence, then doubling the
+    // certificate's device count. The JSON-LD twin has the same exposure.
+    $verified = load_cert_drives($certId);
+    t_check('the verified drive list holds only the reported drive', count($verified) === 1);
+    $verifiedSerials = array_column($verified, 'serial');
+    t_check('no attested media appear in the verified drive list',
+        !in_array('SD-1', $verifiedSerials, true) && !in_array('IMEI-1', $verifiedSerials, true));
+
+    $jsonD = jsonld_load_drives($certId);
+    t_check('the JSON-LD verified list also excludes attested media', count($jsonD) === 1);
+    t_check('the JSON-LD list is the same single reported drive',
+        array_column($jsonD, 'serial') === $verifiedSerials);
+
     // --- delete -------------------------------------------------------------
     $removed = manual_attested_delete($certId, $deviceId, true);
     t_check('deleting a device removes it and its media', $removed === 3);
