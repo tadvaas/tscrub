@@ -567,7 +567,8 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
  * NOT YET WIRED: nothing calls this until step (2) of the plan, so it cannot affect
  * certificate issuance.
  */
-function cert_render_attested_section($pdf, array $attested, float $startY): float
+function cert_render_attested_section($pdf, array $attested, float $startY, string $certId = '',
+                                       float $W = 297.0, float $H = 210.0): float
 {
     require_once __DIR__ . '/manual_destruction.php';
 
@@ -583,6 +584,46 @@ function cert_render_attested_section($pdf, array $attested, float $startY): flo
     $x = 30.0;
     $w = 237.0;
     $y = $startY;
+
+    // NOTE the page is A4 LANDSCAPE: 297 x 210. This check used to compare against a
+    // hardcoded 268 — a figure that only makes sense on a PORTRAIT page (297 tall) — so
+    // on the real document it sat 58mm BELOW the paper. The explicit AddPage() could not
+    // fire before the content had already run off the bottom edge, and TCPDF then reports
+    // a clamped Y, so the guard never fired at all: every attested record after the first
+    // page's worth was drawn past the foot and clipped. A 24-device job showed its first
+    // few entries and then simply stopped. The limit comes from the page geometry the
+    // caller passes in — NOT from getPageHeight(), which warns and returns nothing in
+    // this TCPDF build (that is why the renderer carries 297/210 as literals).
+    $limit = $H - 12.0;
+
+    $pageStart = function () use ($pdf, $W, $H, $x, $w, $certId): void {
+        $pdf->SetFillColor(250, 249, 246);
+        $pdf->Rect(0, 0, $W, $H, 'F');
+        if ($certId === '') { return; }
+        $pdf->SetFont('helvetica', '', 7.5);
+        $pdf->SetTextColor(90, 90, 90);
+        $pdf->SetXY($x, 16);
+        $pdf->Cell($w, 4, 'Certificate ID: ' . $certId . '  |  Page '
+            . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
+    };
+
+    $pageStart();
+
+    // Measure the block before writing it, rather than guessing from the media count. The
+    // old estimate ($rows * 7.0) ignored the device and the method lines altogether, so a
+    // block could overflow even with the limit correct. The fonts are the ones the
+    // renderers use, and the slack covers the gaps they add between lines.
+    $blockHeight = function (array $dev) use ($pdf, $w): float {
+        $h = 4.0;
+        $pdf->SetFont('helvetica', 'B', 8.5);
+        $h += $pdf->getStringHeight($w, md_device_line($dev));
+        $pdf->SetFont('helvetica', '', 8);
+        $h += $pdf->getStringHeight($w - 4.0, md_attested_line($dev));
+        foreach (($dev['media'] ?? []) as $m) {
+            $h += $pdf->getStringHeight($w - 8.0, md_attested_media_line($m, $dev)) + 0.2;
+        }
+        return $h;
+    };
 
     // Heading is neutral only when a retained item is present. A factory reset is not a
     // physical destruction, and the heading must not file it under one.
@@ -602,20 +643,30 @@ function cert_render_attested_section($pdf, array $attested, float $startY): flo
     $y = $pdf->GetY() + 1.6;
 
     foreach ($devices as $dev) {
-        $rows = count($dev['media'] ?? []);
-        if ($y + 12.0 + ($rows * 7.0) > 268.0) {   // keep a device block together
+        // Keep a whole block together: start a new page rather than split a unit from its
+        // media or run the block off the bottom.
+        if ($y + $blockHeight($dev) + 2.0 > $limit) {
             $pdf->AddPage();
-            $y = 28.0;
+            $pageStart();
+            $y = $startY;
         }
-        $y = cert_render_attested_device($pdf, $dev, $y, $x, $w);
+        $y = cert_render_attested_device($pdf, $dev, $y, $x, $w, true, $H);
     }
 
     foreach ($loose as $m) {
-        if ($y + 14.0 > 268.0) {
+        if ($y + 16.0 > $limit) {
             $pdf->AddPage();
-            $y = 28.0;
+            $pageStart();
+            $y = $startY;
         }
-        $y = cert_render_attested_device($pdf, $m, $y, $x, $w, false);
+        $y = cert_render_attested_device($pdf, $m, $y, $x, $w, false, $H);
+    }
+
+    // The footnote is part of the claim, so it may not be left off the bottom either.
+    if ($y + 12.0 > $limit) {
+        $pdf->AddPage();
+        $pageStart();
+        $y = $startY;
     }
 
     $pdf->SetFont('helvetica', 'I', 8);
@@ -631,7 +682,8 @@ function cert_render_attested_section($pdf, array $attested, float $startY): flo
  * that were destroyed with it ($withMedia false for a standalone destroyed drive,
  * which has no host and must not be given one).
  */
-function cert_render_attested_device($pdf, array $dev, float $y, float $x, float $w, bool $withMedia = true): float
+function cert_render_attested_device($pdf, array $dev, float $y, float $x, float $w, bool $withMedia = true,
+                                     float $H = 210.0): float
 {
     require_once __DIR__ . '/manual_destruction.php';
 
@@ -662,6 +714,13 @@ function cert_render_attested_device($pdf, array $dev, float $y, float $x, float
 
     foreach (($dev['media'] ?? []) as $m) {
         if (!$withMedia) { break; }
+        // A single unit can carry more media than a page holds (a 24-bay chassis), so the
+        // block's own rows have to break as well — the caller only guarantees that the
+        // block STARTS on a page it can mostly fit on.
+        if ($y > $H - 20.0) {
+            $pdf->AddPage();
+            $y = 28.0;
+        }
         $y = cert_render_attested_media_row($pdf, $m, $y, $x + 4.0, $w - 4.0, $dev);
     }
 
@@ -1184,7 +1243,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // certificate with no attested records takes exactly the path it always did.
     if ($attested) {
         $pdf->AddPage();
-        cert_render_attested_section($pdf, $attested, 28.0);
+        cert_render_attested_section($pdf, $attested, 28.0, $certId, $W, $H);
     }
 
     $data = $pdf->Output('', 'S');

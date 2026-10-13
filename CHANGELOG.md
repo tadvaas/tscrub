@@ -131,6 +131,36 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **The operator-attestation pages were cut off after the first page.** The section
+  paginated against a hardcoded `268.0` — a figure that only makes sense on a *portrait*
+  page — while the certificate is A4 **landscape** (297 × 210). The limit therefore sat
+  **58mm below the paper**, so the section's own `AddPage()` could not fire before the
+  content had already run off the foot, and TCPDF then reports a clamped Y, so it never
+  fired at all: everything after the first page's worth was drawn past the bottom edge and
+  clipped by every reader. The real COCID 33380 certificate — 24 attested units — came out
+  as 4 pages, **one** of which held all 24 units; a reader saw a handful of entries and
+  then nothing.
+
+  The limit now comes from the page geometry (`$H - 12`, exactly as the annex and the
+  manifest have always done), the block height is **measured** rather than guessed
+  (`$rows * 7.0` ignored the device and method lines altogether), a unit holding more media
+  than a page can take breaks inside its own media list, and the footnote is kept on the
+  page as well. Continuation pages now carry the same background and
+  `Certificate ID … | Page n of m` header as every other sheet, so a multi-page attestation
+  reads as one document rather than as loose paper.
+
+  The same job now renders **6 pages** with the attestation across three of them
+  (10 units, 11 units, 3 units + the footnote) and all 24 blocks placed. Certificates
+  already issued keep the clipped document — regenerating is what fixes them, and that
+  changes the document hash, so it is the operator's call.
+
+  The smoke test could not have caught this either, for a related reason: it built a
+  **portrait** A4 page, on which 268 falls just *inside* the paper — making a limit that
+  can never fire on the real document look reasonable — and it asserted `$endY < 280.0`,
+  which a 210mm page satisfies whether or not anything was clipped. It now uses the real
+  landscape geometry and asserts the **page count**, which clipping cannot fake: the text
+  of a clipped record is still in the content stream, so only its position is wrong.
+
 - **Add on the Devices page could not save a device at all — and could silently file
   the wrong one.** `save()` resolved each device field with a bare
   `body.querySelector('[name=reason]')`, which returns the first match in *document
