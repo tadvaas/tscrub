@@ -74,6 +74,58 @@ function md_attested_qualifier(): string
 }
 
 /**
+ * Counts for the attested half of a certificate. Devices are units; media are the
+ * drive rows. They are counted separately from verified media and never merged into
+ * a single figure.
+ */
+function md_attested_counts(array $attested): array
+{
+    $devices = 0;
+    $media   = 0;
+    foreach (($attested['devices'] ?? []) as $d) {
+        $devices++;
+        $media += count($d['media'] ?? []);
+    }
+    $media += count($attested['media'] ?? []);   // standalone destroyed media
+
+    return ['devices' => $devices, 'media' => $media];
+}
+
+/**
+ * The certificate's claim line for a mixed job.
+ *
+ * Verified and attested are stated as two separate figures. They are never summed:
+ * one is instrument-verified, the other is an operator attestation, and a single
+ * total would claim more than the evidence supports. Wording lives here so the PDF
+ * and the JSON-LD twin cannot drift apart.
+ */
+function md_attested_banner(int $verifiedMedia, int $attestedDevices, int $attestedMedia): string
+{
+    $parts = [];
+
+    if ($verifiedMedia > 0) {
+        $parts[] = $verifiedMedia . ' MEDIA SANITISED IN PLACE (VERIFIED)';
+    }
+    if ($attestedMedia > 0 || $attestedDevices > 0) {
+        $devices = '';
+        if ($attestedDevices > 0) {
+            $devices = ', ' . $attestedDevices . ($attestedDevices === 1 ? ' DEVICE' : ' DEVICES');
+        }
+        $parts[] = $attestedMedia . ' MEDIA DESTROYED (ATTESTED' . $devices . ')';
+    }
+
+    return $parts ? implode(' · ', $parts) : 'NO MEDIA RECORDED';
+}
+
+/** The sentence that must accompany the attested figures. */
+function md_attested_footnote(): string
+{
+    return 'Attested items were not sanitised by this tool: they were recorded as '
+        . 'physically destroyed by the operator named above, and are '
+        . md_attested_qualifier() . '.';
+}
+
+/**
  * Who attested, taken from the SESSION user — never from a client-supplied name.
  * An attestation is a statement of record, so who made it is part of the record.
  */

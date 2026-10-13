@@ -165,5 +165,36 @@ t_check('qualifier names both roles',
     strpos(md_attested_qualifier(), 'attested') !== false
     && strpos(md_attested_qualifier(), 'not instrument-verified') !== false);
 
+// --- claim wording (PDF + JSON-LD read these, so they cannot drift) ---------
+$attested = [
+    'devices' => [['media' => [['serial' => 'A'], ['serial' => 'B']]]],
+    'media'   => [['serial' => 'C']],
+];
+t_eq('counts: a device and all its media', ['devices' => 1, 'media' => 3], md_attested_counts($attested));
+t_eq('counts: nothing recorded', ['devices' => 0, 'media' => 0], md_attested_counts([]));
+
+t_eq('banner: mixed job states both figures separately',
+    '12 MEDIA SANITISED IN PLACE (VERIFIED) · 3 MEDIA DESTROYED (ATTESTED, 1 DEVICE)',
+    md_attested_banner(12, 1, 3));
+t_eq('banner: plural devices',
+    '5 MEDIA DESTROYED (ATTESTED, 2 DEVICES)',
+    md_attested_banner(0, 2, 5));
+
+$onlyAttested = md_attested_banner(0, 1, 1);
+t_check('banner: an attested-only job makes no verified claim',
+    strpos($onlyAttested, 'VERIFIED') === false);
+t_check('banner: an attested-only job still says attested',
+    strpos($onlyAttested, 'ATTESTED') !== false);
+
+$onlyVerified = md_attested_banner(7, 0, 0);
+t_check('banner: a verified-only job makes no attested claim',
+    strpos($onlyVerified, 'ATTESTED') === false);
+
+t_eq('banner: nothing recorded is stated, not left blank',
+    'NO MEDIA RECORDED', md_attested_banner(0, 0, 0));
+t_check('footnote explains that attested items were not sanitised by us',
+    strpos(md_attested_footnote(), 'not sanitised by this tool') !== false
+    && strpos(md_attested_footnote(), 'not instrument-verified') !== false);
+
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);
