@@ -454,3 +454,44 @@ function md_attested_line(array $row): string
     }
     return 'Destroyed — ' . md_attested_method_line($row);
 }
+
+/**
+ * One medium as the certificate lists it beneath its host unit, e.g.
+ * "• SSD · 870 EVO · 500 GB — S1234".
+ *
+ * The outcome is appended ONLY when it differs from the host's, so a unit dealt with as a
+ * whole reads exactly as it always did and only the exception is called out — the same rule
+ * the dashboard's detail view already applies. Without it the detail contradicted the
+ * summary: the banner counted "1 MEDIA FACTORY RESET (ATTESTED, RETAINED)" while the bullet
+ * sat silently under a line reading "Destroyed", which is the class of false claim this
+ * module exists to stop.
+ *
+ * The test is against the HOST's method, not "is a method set at all": the storage layer
+ * fills a blank medium method from its host, so an inherited value is indistinguishable
+ * from a deliberately repeated one. Only a genuine difference is worth printing.
+ */
+function md_attested_media_line(array $m, array $dev = []): string
+{
+    $bits = array_filter([
+        trim((string)($m['type'] ?? '')),
+        trim((string)($m['model'] ?? '')),
+        trim((string)($m['size'] ?? '')),
+        trim((string)($m['bus'] ?? '')),
+    ], static fn($v) => $v !== '');
+
+    $line   = '• ' . implode(' · ', $bits);
+    $serial = trim((string)($m['serial'] ?? ''));
+    if ($serial !== '') { $line .= ' — ' . $serial; }
+
+    $own  = trim((string)($m['destroy_method'] ?? ''));
+    $host = trim((string)($dev['destroy_method'] ?? ''));
+    // A host is required for anything to differ from: with none, the plain bullet is the
+    // honest answer, and a standalone medium is printed through md_attested_line() anyway.
+    if ($host !== '' && $own !== '' && $own !== $host) {
+        $line .= md_method_disposition($own) === 'retained'
+            ? ' · retained — ' . md_attested_method_line($m)
+            : ' · destroyed — ' . md_attested_method_line($m);
+    }
+
+    return $line;
+}

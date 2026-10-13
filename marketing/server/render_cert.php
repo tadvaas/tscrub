@@ -662,29 +662,26 @@ function cert_render_attested_device($pdf, array $dev, float $y, float $x, float
 
     foreach (($dev['media'] ?? []) as $m) {
         if (!$withMedia) { break; }
-        $y = cert_render_attested_media_row($pdf, $m, $y, $x + 4.0, $w - 4.0);
+        $y = cert_render_attested_media_row($pdf, $m, $y, $x + 4.0, $w - 4.0, $dev);
     }
 
     return $y + 2.4;
 }
 
-/** One attested medium, as it appears in the drive annex: what it was and its identity. */
-function cert_render_attested_media_row($pdf, array $m, float $y, float $x, float $w): float
+/**
+ * One attested medium beneath its host unit: what it was, its identity, and — when it
+ * differs from the unit it came out of — its own outcome. The wording lives in
+ * md_attested_media_line() so the certificate and the dashboard cannot describe the same
+ * medium differently.
+ */
+function cert_render_attested_media_row($pdf, array $m, float $y, float $x, float $w, array $dev = []): float
 {
-    $type   = trim((string)($m['type'] ?? ''));
-    $model  = trim((string)($m['model'] ?? ''));
-    $serial = trim((string)($m['serial'] ?? ''));
-    $size   = trim((string)($m['size'] ?? ''));
-    $bus    = trim((string)($m['bus'] ?? ''));
-
-    $bits = array_filter([$type, $model, $size, $bus]);
-    $line = '• ' . implode(' · ', $bits);
-    if ($serial !== '') { $line .= ' — ' . $serial; }
+    require_once __DIR__ . '/manual_destruction.php';
 
     $pdf->SetFont('helvetica', '', 8);
     $pdf->SetTextColor(51, 65, 85);
     $pdf->SetXY($x + 4.0, $y);
-    $pdf->MultiCell($w - 4.0, 3.6, $line, 0, 'L');
+    $pdf->MultiCell($w - 4.0, 3.6, md_attested_media_line($m, $dev), 0, 'L');
 
     return $pdf->GetY() + 0.2;
 }

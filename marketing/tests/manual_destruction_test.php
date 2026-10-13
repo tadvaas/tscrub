@@ -183,6 +183,30 @@ $resetLine = md_attested_line(['destroy_method' => 'factory_reset', 'destroy_dat
 t_eq('item line: a reset states retention', 'Factory reset (2026-10-13) — device retained', $resetLine);
 t_check('item line: a reset is never called destroyed', stripos($resetLine, 'destroy') === false);
 
+// --- a medium prints its outcome only when it differs from its host ----------
+// The storage layer fills a blank medium method from its host, so an inherited value is
+// indistinguishable from a deliberately repeated one: the test is against the host's
+// method, not "is a method set at all".
+$inherited = ['type' => 'SSD', 'model' => '870 EVO', 'size' => '500 GB', 'serial' => 'S1234',
+    'destroy_method' => 'shredded'];
+t_eq('media line: a medium destroyed with its unit is plain',
+    '• SSD · 870 EVO · 500 GB — S1234', md_attested_media_line($inherited, ['destroy_method' => 'shredded']));
+t_eq('media line: with no host recorded there is nothing to differ from',
+    '• SSD · 870 EVO · 500 GB — S1234', md_attested_media_line($inherited));
+t_eq('media line: a retained medium under a destroyed unit is called out',
+    '• SSD · 870 EVO · 500 GB — S1234 · retained — Factory reset (2026-10-16)',
+    md_attested_media_line(['type' => 'SSD', 'model' => '870 EVO', 'size' => '500 GB',
+        'serial' => 'S1234', 'destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-16'],
+        ['destroy_method' => 'shredded']));
+t_eq('media line: a destroyed medium under a retained unit is called out',
+    '• SSD · 870 EVO · 500 GB — S1234 · destroyed — Shredded (Acme, 2026-10-16)',
+    md_attested_media_line(['type' => 'SSD', 'model' => '870 EVO', 'size' => '500 GB',
+        'serial' => 'S1234', 'destroy_method' => 'shredded', 'destroy_vendor' => 'Acme',
+        'destroy_date' => '2026-10-16'], ['destroy_method' => 'factory_reset']));
+t_check('media line: a differing outcome never claims verification',
+    stripos(md_attested_media_line(['type' => 'SSD', 'serial' => 'S1',
+        'destroy_method' => 'factory_reset'], ['destroy_method' => 'shredded']), 'verified') === false);
+
 // --- disposition is derived from the method, so the two cannot disagree ------
 t_eq('factory reset is retained', 'retained', md_method_disposition('factory_reset'));
 t_eq('shredding is destroyed', 'destroyed', md_method_disposition('shredded'));

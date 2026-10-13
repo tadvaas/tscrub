@@ -294,6 +294,27 @@ function attested_reset_and_destroy(): array
     return ['devices' => array_merge($pair['devices'], $reset['devices']), 'media' => []];
 }
 
+/**
+ * One unit destroyed with its media, EXCEPT one drive pulled out and reset. The banner
+ * already counted the two outcomes apart; the item detail did not, so the bullet sat
+ * silently under a line reading "Destroyed" while the summary said "RETAINED".
+ */
+function attested_mixed_unit(): array
+{
+    return ['devices' => [[
+        'category' => 'laptop', 'make' => 'Dell', 'model' => 'Latitude E5470',
+        'serial' => 'MIXED-1', 'reason' => 'beyond_economic_repair', 'destroy_method' => 'shredded',
+        'destroy_vendor' => 'Acme Shredding', 'destroy_date' => '2026-10-17',
+        'attested_by' => 'Jane Operator',
+        'media' => [
+            ['type' => 'eMMC/UFS (integrated)', 'model' => 'Latitude E5470', 'serial' => 'MIXED-1',
+             'size' => '128 GB', 'destroy_method' => 'shredded'],
+            ['type' => 'SSD', 'model' => '870 EVO', 'serial' => 'MIXED-SSD-1', 'size' => '500 GB',
+             'bus' => 'SATA', 'destroy_method' => 'factory_reset', 'destroy_date' => '2026-10-17'],
+        ],
+    ]], 'media' => []];
+}
+
 try {
     $verifiedOnly = pdf_lines(render_certificate_pdf(
         group([drive('VER-A', 'COMPLETED'), drive('VER-B', 'COMPLETED')]),
@@ -341,6 +362,10 @@ try {
     $resetAndDestroy = pdf_lines(render_certificate_pdf(
         group([], null, null), 'COD-CLAIM-RESETMIX', false, [], [], attested_reset_and_destroy()
     )['data']);
+
+    $mixedUnit = pdf_lines(render_certificate_pdf(
+        group([], null, null), 'COD-CLAIM-MIXEDUNIT', false, [], [], attested_mixed_unit()
+    )['data']);
 } catch (Throwable $e) {
     t_check('all three job shapes render without a fatal (' . $e->getMessage() . ')', false);
     echo "\n$count tests, $fails failures\n";
@@ -350,7 +375,8 @@ try {
 foreach (['verified only' => $verifiedOnly, 'mixed' => $mixed, 'attested only' => $attestedOnly,
           'no media' => $noMedia, 'loose media only' => $looseOnly, 'undated' => $undated,
           'odd date' => $oddDate, 'failed + attested' => $failedMixed,
-          'factory reset' => $resetOnly, 'reset + destroy' => $resetAndDestroy] as $name => $t) {
+          'factory reset' => $resetOnly, 'reset + destroy' => $resetAndDestroy,
+          'mixed unit' => $mixedUnit] as $name => $t) {
     t_check("$name: a certificate was produced", strlen($t) > 500);
 }
 
@@ -481,6 +507,20 @@ t_check('reset + destroy: the reset item does not carry it',
     strpos($resetAndDestroy, 'Factory reset (2026-10-16) — device retained') !== false);
 t_check('reset + destroy: the summary names both outcomes',
     strpos($resetAndDestroy, 'reset to factory settings and retained') !== false);
+
+// --- 10. one unit, two outcomes: the detail must agree with the summary ------
+// The banner counted them apart, but the bullet under the device said nothing, so the
+// detail contradicted the summary on the same page.
+t_check('mixed unit: the retained medium is called out under its destroyed host',
+    strpos($mixedUnit, 'MIXED-SSD-1 · retained — Factory reset (2026-10-17)') !== false);
+t_check('mixed unit: the medium destroyed with the unit is not labelled',
+    strpos($mixedUnit, 'MIXED-1 · destroyed') === false
+    && strpos($mixedUnit, 'MIXED-1 · retained') === false);
+t_check('mixed unit: the summary states both figures',
+    strpos($mixedUnit, '1 MEDIA DESTROYED (ATTESTED, 1 DEVICE)') !== false
+    && strpos($mixedUnit, '1 MEDIA FACTORY RESET (ATTESTED, RETAINED)') !== false);
+t_check('mixed unit: the unit itself is still reported as destroyed',
+    strpos($mixedUnit, 'Destroyed — Shredded (Acme Shredding, 2026-10-17)') !== false);
 
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);

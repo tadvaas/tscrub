@@ -131,6 +131,19 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **A unit's item detail contradicted its own summary when one of its media had a
+  different outcome.** Recording a single pulled drive as factory-reset inside a
+  destroyed unit (the per-medium "different outcome" override) produced a banner that
+  counted the two apart — `1 MEDIA DESTROYED (ATTESTED, 1 DEVICE) · 1 MEDIA FACTORY
+  RESET (ATTESTED, RETAINED)` — while the bullet under that device said nothing at all,
+  so the detail sat silently beneath a line reading *"Destroyed"*. The bullet now names
+  the difference: `• SSD · 870 EVO · 500 GB — S1234 · retained — Factory reset
+  (2026-10-17)`. It is printed **only** when the outcome genuinely differs, and the test
+  is against the host's method rather than "is a method set at all" — the storage layer
+  fills a blank medium method from its host, so an inherited value is indistinguishable
+  from a deliberately repeated one. A unit dealt with as a whole renders byte-identically
+  to before.
+
 - **A medium recorded without its own method stored a blank one.**
   `manual_media_insert()` used `$m['destroy_method'] ?? $dev['destroy_method']`, but
   the validator always *sets* that key (to `''` when the method is missing), so `??`
