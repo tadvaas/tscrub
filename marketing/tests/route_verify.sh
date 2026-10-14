@@ -124,6 +124,16 @@ chk 'generating for a COCID with no reports and no attested records is refused' 
 c=$(code -X POST "$BASE/api/certs" -b "$COOKIE" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" -d '{"cocid":"'"$(printf 'x%.0s' $(seq 1 65))"'"}')
 chk 'an over-long COCID is refused' 400 "$c"
 
+# 8b. the certificates list must STATE the attested figures. They are deliberately not part
+#     of `devices`/`runs` (those count instrument-verified evidence, and the two classes are
+#     never summed), but a job made only of attested items read as "0 devices" — a
+#     certificate covering this unit and two media looked empty.
+curl -s -b "$COOKIE" "$BASE/api/certs?page=1&per=20" > /tmp/rv_certs.json
+chk 'the certificates list carries the attested device count' true "$(grep -q '"attested_devices":1' /tmp/rv_certs.json && echo true || echo false)"
+chk 'the certificates list carries the attested media count' true "$(grep -q '"attested_media":2' /tmp/rv_certs.json && echo true || echo false)"
+chk 'the certificates list gives a single item figure to show' true "$(grep -q '"attested_items":3' /tmp/rv_certs.json && echo true || echo false)"
+chk 'the attested figures did not inflate the verified ones' true "$(grep -q '"devices":0' /tmp/rv_certs.json && echo true || echo false)"
+
 # 9. delete both, and confirm they leave
 c=$(code -X DELETE "$BASE/api/certificates/devices/$DEV_ID?cocid=$COC" -b "$COOKIE" -H "X-CSRF-Token: $CSRF")
 chk 'DELETE /api/certificates/devices removes the unit' 200 "$c"

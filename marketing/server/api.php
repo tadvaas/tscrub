@@ -112,7 +112,20 @@ function send_reset_email(array $u): void {
     );
 }
 
-function cert_row(array $c): array {
+function cert_row(array $c, ?array $att = null): array {
+    // Attested (operator-recorded) items live in their own tables and are deliberately NOT
+    // part of `devices`/`methods`/`runs` — those count instrument-verified evidence, and the
+    // two classes are never summed (the PDF, /verify and the JSON-LD twin all keep them
+    // apart). They are carried alongside so a list can state them rather than showing "0
+    // devices" for a job that certified 24 operator-attested units.
+    //
+    // $att is passed in by the list (one batched lookup for the whole page); a single-row
+    // caller gets it looked up, so no caller can accidentally emit a row without it.
+    if ($att === null) {
+        $att = attested_counts([(int)($c['id'] ?? 0)])[(int)($c['id'] ?? 0)] ?? [];
+    }
+    $attDevices = (int)($att['devices'] ?? 0);
+    $attMedia   = (int)($att['media'] ?? 0);
     return [
         'id'         => (int)$c['id'],
         'cert'       => (string)$c['cert_id'],
@@ -120,6 +133,11 @@ function cert_row(array $c): array {
         'devices'    => (int)$c['devices'],
         'methods'    => (int)$c['methods'],
         'runs'       => (int)$c['runs'],
+        'attested_devices' => $attDevices,
+        'attested_media'   => $attMedia,
+        // The figure a list wants to show: every attested ITEM, units and media together, so
+        // the definition lives in one place rather than being re-derived per surface.
+        'attested_items'   => $attDevices + $attMedia,
         'first'      => (string)($c['first_ts'] ?? ''),
         'last'       => (string)($c['last_ts'] ?? ''),
         'sha_state'  => (string)$c['sha_state'],
@@ -667,7 +685,13 @@ if ($method === 'GET' && $route === '/certs') {
     $stmt->bindValue(count($params) + 1, $per, PDO::PARAM_INT);
     $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
     $stmt->execute();
-    $certs = array_map('cert_row', $stmt->fetchAll());
+    $rows = $stmt->fetchAll();
+
+    // Attested counts for this page, in one batched lookup rather than two queries per row.
+    // Kept out of the WHERE/SELECT above so the verified figures stay exactly what they were:
+    // an attested item is not instrument-verified evidence and must not inflate them.
+    $att = attested_counts(array_map(static fn($r) => (int)$r['id'], $rows));
+    $certs = array_map(static fn($r) => cert_row($r, $att[(int)$r['id']] ?? []), $rows);
     json_out(['ok' => true, 'certs' => $certs, 'total' => $total, 'page' => $page, 'per' => $per]);
 }
 

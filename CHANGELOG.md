@@ -131,6 +131,23 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **The certificates tab did not count operator-attested items, so a job of them read as
+  empty.** The list showed only the stored `devices` and `runs` — the instrument-verified
+  figures — and attested records live in their own tables, deliberately outside those
+  counts. A certificate covering 24 attested units therefore appeared as **"0 devices"**,
+  and the demo job as `0 devices, 0 runs` for three attested units.
+
+  The list now carries `attested_devices`, `attested_media` and a single `attested_items`
+  figure, resolved by one batched lookup for the page (`attested_counts()`), and shows them
+  as their own **Attested** column — amber, with `—` when there are none, and a tooltip
+  breaking the figure into devices and media. They are stated *beside* the verified figures
+  and never added to them, which is the same rule the PDF, `/verify` and the JSON-LD twin
+  follow; `Devices` now has a tooltip saying it means instrument-verified devices. The
+  generate-confirmation message names the attested items too.
+
+  `cert_row()` resolves the counts itself when a caller does not pass them, so a single-row
+  route (the generate response, `GET /api/certs/{id}`) cannot emit a row without them.
+
 - **The Status and MDM columns could not reorder anything, so clicking them twice did
   nothing.** Both have almost no distinct values — Status has two, and a fleet is normally
   *entirely* offline, because only a booted machine is online (100 of 100 devices on the

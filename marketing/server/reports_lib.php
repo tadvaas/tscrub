@@ -2368,6 +2368,43 @@ function query_dir($value): int
     return ($v === 'asc' || $v === '1') ? 1 : -1;
 }
 
+/**
+ * Attested (operator-recorded) item counts per certificate id: units and media.
+ *
+ * Kept deliberately OUT of the stored verified figures — `certificates.devices`/`runs` count
+ * instrument-verified evidence, and the PDF, /verify and the JSON-LD twin all state the two
+ * classes separately and never sum them. But a surface that says "N devices" needs these too,
+ * or it reports 0 for a job that certified 24 operator-attested units: that is exactly what
+ * the certificates tab did.
+ *
+ * Batched because the list calls it for a whole page.
+ */
+function attested_counts(array $certIds): array
+{
+    $out = [];
+    $certIds = array_values(array_unique(array_map('intval', $certIds)));
+    if ($certIds === []) { return $out; }
+
+    $ph = implode(',', array_fill(0, count($certIds), '?'));
+    try {
+        $q = db()->prepare("SELECT certificate_id, COUNT(*) AS n FROM certificate_devices WHERE certificate_id IN ($ph) GROUP BY certificate_id");
+        $q->execute($certIds);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['certificate_id']]['devices'] = (int)$r['n'];
+        }
+
+        $q = db()->prepare("SELECT certificate_id, COUNT(*) AS n FROM certificate_drives WHERE certificate_id IN ($ph) AND source = 'manual' GROUP BY certificate_id");
+        $q->execute($certIds);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['certificate_id']]['media'] = (int)$r['n'];
+        }
+    } catch (Throwable $e) {
+        // An install predating the attested tables simply has no attested records.
+        $out = [];
+    }
+    return $out;
+}
+
 function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);

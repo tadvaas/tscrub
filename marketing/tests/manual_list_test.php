@@ -114,6 +114,18 @@ try {
     $page = load_devices($userId, ['page' => 1, 'per' => 10]);
     t_check('the Devices page still returns a devices array', isset($page['devices']) && is_array($page['devices']));
     t_check('the response separates the attested count', ($page['attested_total'] ?? -1) === 2);
+
+    // The certificates list needs the same figures per certificate, and it must get them
+    // WITHOUT them leaking into the stored verified counts — a job of 24 attested units
+    // reported "0 devices" in that tab.
+    $att = attested_counts([$certId])[$certId] ?? [];
+    t_check('attested counts: the units are counted', ($att['devices'] ?? -1) === 2);
+    t_check('attested counts: the media are counted, including the standalone one',
+        ($att['media'] ?? -1) === 3);
+    t_check('attested counts: a certificate with none returns nothing to state',
+        attested_counts([999999999]) === []);
+    t_check('attested counts: the stored verified figures are untouched',
+        (int)db()->query("SELECT devices FROM certificates WHERE id = $certId")->fetchColumn() === 0);
     t_check('the attested total is included in the page total', (int)$page['total'] >= 1);
 
     $found = null;

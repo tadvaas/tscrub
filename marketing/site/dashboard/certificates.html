@@ -274,7 +274,8 @@
             var c = res.data.cert;
             status.className = 'text-xs font-semibold text-brand-700 dark:text-brand-400';
             status.innerHTML = '';
-            status.appendChild(document.createTextNode('Consolidated certificate ' + c.cert + ' (' + c.devices + ' devices, ' + c.runs + ' runs). '));
+            status.appendChild(document.createTextNode('Consolidated certificate ' + c.cert + ' (' + c.devices + ' devices, ' + c.runs + ' runs'
+              + (Number(c.attested_items || 0) ? ', ' + c.attested_items + ' operator-attested' : '') + '). '));
             var dl = el('a', 'font-semibold underline', 'Download PDF');
             dl.href = '/api/certs/' + encodeURIComponent(c.cert) + '/download';
             status.appendChild(dl);
@@ -338,8 +339,18 @@
           }
           var table = el('table', 'w-full border-collapse text-sm');
           var hr = el('tr');
-          ['Certificate ID', 'Chain of custody', 'Devices', 'Runs', 'Issued', 'Files'].forEach(function (h) {
-            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
+          // 'Attested' sits BESIDE the verified figures and is never folded into them: an
+          // operator attestation is not instrument-verified evidence, and the certificate,
+          // /verify and the JSON-LD twin all state the two separately. Without the column a
+          // job of 24 attested units read as "0 devices".
+          [['Certificate ID', ''],
+           ['Chain of custody', ''],
+           ['Devices', 'Instrument-verified devices, recorded by the appliance'],
+           ['Attested', 'Devices and media recorded by an operator attestation — not instrument-verified, and never counted with the verified figures'],
+           ['Runs', ''], ['Issued', ''], ['Files', '']].forEach(function (h) {
+            var th = el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h[0]);
+            if (h[1]) { th.title = h[1]; }
+            hr.appendChild(th);
           });
           table.appendChild(hr);
           rows.forEach(function (c) {
@@ -347,6 +358,15 @@
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 font-mono text-xs font-semibold text-ink-900 dark:text-white', c.cert));
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', c.cocid));
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.devices)));
+            var attItems = Number(c.attested_items || 0);
+            var attTd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', attItems ? String(attItems) : '—');
+            if (attItems) {
+              attTd.className += ' font-semibold text-amber-700 dark:text-amber-400';
+              attTd.title = attItems + ' operator-attested item(s): ' + Number(c.attested_devices || 0)
+                + ' device(s) and ' + Number(c.attested_media || 0)
+                + ' medium/media, recorded by the operator and not instrument-verified';
+            }
+            tr.appendChild(attTd);
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.runs)));
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', (c.issued || '').slice(0, 10)));
             var pdfTd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2');
