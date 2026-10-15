@@ -339,6 +339,15 @@ t_check('footnote: a reset item is described as retained',
     && strpos($retainedFootnote, 'not instrument-verified') !== false);
 t_check('footnote: the destroyed-only wording is unchanged',
     strpos(md_attested_footnote(), 'RETAINED') === false);
+// The footnote sits under item lines that each name their own attester. Crediting the
+// whole section to one name — the page-1 signature block is the account that GENERATED
+// the PDF — would be a false statement about a person: COCID 33380's certificate carries
+// 14 items attested by one person and 10 by another.
+t_check('footnote does not credit the recording to a single name above it',
+    strpos(md_attested_footnote(), 'operator named above') === false
+    && strpos(md_attested_footnote(true), 'operator named above') === false);
+t_check('footnote points at the person named against each item',
+    strpos(md_attested_footnote(), 'person named against it') !== false);
 
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);

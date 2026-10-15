@@ -167,8 +167,11 @@ function md_attested_banner(int $verifiedMedia, int $destroyedDevices, int $dest
 /** The sentence that must accompany the attested figures. */
 function md_attested_footnote(bool $hasRetained = false): string
 {
-    $s = 'Attested items were not sanitised by this tool: they were recorded by the '
-        . 'operator named above as physically destroyed';
+    // Not 'by the operator named above': the item lines on this page each name their own
+    // attester, and one job can have several — so pointing at a single name would credit
+    // the wrong person. See the COCID 33380 certificate, attested by two people.
+    $s = 'Attested items were not sanitised by this tool. Each was recorded as physically destroyed by the '
+        . 'person named against it';
     if ($hasRetained) {
         $s .= ', or — for the factory-reset items — as reset using the device\'s own '
             . 'facilities and RETAINED. A factory reset destroys no hardware and the '
