@@ -745,6 +745,109 @@ function cert_render_attested_media_row($pdf, array $m, float $y, float $x, floa
     return $pdf->GetY() + 0.2;
 }
 
+/**
+ * The band the page-1 attestation paragraph is drawn in.
+ *
+ * It is fixed, because the signature blocks, badges and issuer block below it are
+ * placed at absolute Y positions. Its height is therefore a hard budget for the
+ * wording: page 1 is landscape A4, the heading sits at y=118 and the operator
+ * signature block at y=140, so the paragraph gets the 17mm between them — four
+ * lines of 3.8mm.
+ *
+ * The paragraph is not a constant: a mixed job appends a caveat and a job with
+ * factory-reset items appends a retention clause, so the text grows with the shape
+ * of the job. Anything that adds words here has to be measured against this budget
+ * rather than assumed to fit — which is exactly how the mixed wording came to print
+ * through the operator's name.
+ */
+function cert_attestation_band(): array
+{
+    return [
+        'x'    => 30.0,
+        'y'    => 123.0,
+        'w'    => 237.0,
+        'h'    => 140.0 - 123.0,   // signature block Y minus the paragraph's start Y
+        'line' => 3.8,
+        'max'  => 8.5,             // the size it is drawn at when the wording fits
+        'min'  => 7.4,
+    ];
+}
+
+/**
+ * The size to draw the attestation paragraph at: the largest step at which it fits the
+ * band, so a long job shape shrinks the type instead of printing through the signature
+ * block. Returns the smallest step when even that will not fit, in which case the
+ * wording is over budget and needs shortening — not a smaller font.
+ *
+ * Pure (needs TCPDF only for the measurement): the caller passes the paragraph in.
+ */
+function cert_attestation_size($pdf, string $text, float $w, float $availH, float $max = 8.5, float $min = 7.4): float
+{
+    $size = $min;
+    foreach ([$max, 8.2, 7.8, $min] as $step) {
+        if ($step > $max) { continue; }
+        $pdf->SetFont('helvetica', '', $step);
+        $size = $step;
+        if ($pdf->getStringHeight($w, $text) <= $availH) { break; }
+    }
+    return $size;
+}
+
+/**
+ * The page-1 attestation sentence, for the shape of job being certified.
+ *
+ * Three genuinely different documents share this paragraph:
+ *   1. verified only — everything was sanitised by the appliance;
+ *   2. mixed         — verified items, plus items the operator recorded as destroyed;
+ *   3. attested only — nothing ran through the appliance at all.
+ *
+ * 'tScrub was used as the sanitisation tool' may only be claimed where it is true, so
+ * case 3 never contains it, and a retained (factory-reset) item adds what it needs
+ * rather than quietly widening the destroy claim to cover a device handed back.
+ *
+ * Every clause here is load-bearing, and the band above is only four lines, so the
+ * wording is deliberately as short as it can be while still saying: what was destroyed,
+ * by what means, under what custody, that the tool did the sanitising, and that the
+ * attested items were not sanitised by it and are not instrument-verified.
+ */
+function cert_attestation_text(string $toolName, int $devices, int $attItems, int $attRetained): string
+{
+    $sanitisedClaim = 'This is to certify that the data on the storage devices listed in Annex A was destroyed — by in-place sanitisation '
+        . '(Clear / Purge), or by physical destruction where recorded — under controlled chain-of-custody from receipt to final '
+        . 'verification, in accordance with the methods, techniques, standards and levels set out herein. '
+        . $toolName . ' was used as the sanitisation tool.';
+
+    if ($devices > 0 && $attItems === 0) {
+        return $sanitisedClaim;
+    }
+
+    if ($devices > 0) {
+        return $sanitisedClaim . ' The further items in the operator attestation section were not sanitised by this tool: the operator '
+            . 'named above recorded them as physically destroyed'
+            . ($attRetained > 0
+                ? ', or — where a factory reset is recorded — as reset to factory settings and retained'
+                : '')
+            . '. They are ' . md_attested_qualifier() . '.';
+    }
+
+    // Pure attestation. Saying 'tScrub was used as the sanitisation tool' here would be
+    // simply untrue — the tool never ran — so the certificate claims only what the
+    // operator has actually attested to.
+    $outcome = $attRetained > 0
+        ? 'taken out of service as recorded by the operator named above — physically destroyed, or reset to factory settings and retained —'
+        : 'physically destroyed, as recorded by the operator named above,';
+    $claimKind = $attRetained > 0 ? 'operator-attested outcomes only' : 'destruction by operator attestation only';
+    $text = 'This is to certify that the items listed in the operator attestation section were ' . $outcome
+        . ' under controlled chain-of-custody from receipt to final verification. No data in this job was sanitised in place by '
+        . $toolName . ', and no appliance-verified sanitisation is claimed: this certificate records '
+        . $claimKind . ', and the attested items are ' . md_attested_qualifier() . '.';
+    if ($attRetained > 0) {
+        $text .= ' A factory reset destroys no hardware, so a reset device remains in circulation and no claim is made about it '
+            . 'beyond the declaration above.';
+    }
+    return $text;
+}
+
 function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = []): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
@@ -1109,46 +1212,18 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetXY(30, 118);
     $pdf->Cell(237, 4.5, 'ATTESTATION', 0, 1, 'L');
 
-    $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(51, 65, 85);
     $toolName = ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub');
-    $sanitisedClaim = 'This is to certify that the data on the storage devices listed in Annex A was destroyed — by in-place sanitisation '
-        . '(Clear / Purge), or by physical destruction where recorded — in accordance with the methods, techniques, standards and levels '
-        . 'set out herein, under controlled chain-of-custody procedures from receipt to final verification. '
-        . $toolName . ' was used as the sanitisation tool.';
-    // A retained item changes what this sentence may claim: 'the data was destroyed'
-    // cannot cover a device that was reset and handed back, so the retained case adds a
-    // clause rather than quietly widening the destroy claim. A job with no factory-reset
-    // items produces exactly the text it did before.
     $attRetained = (int)$attSplit['retained']['devices'] + (int)$attSplit['retained']['media'];
-    if ($devices > 0 && $attItems === 0) {
-        $attestation = $sanitisedClaim;
-    } elseif ($devices > 0) {
-        $attestation = $sanitisedClaim . ' The further items listed in the operator attestation section were not sanitised by this tool: '
-            . 'they were recorded as physically destroyed by the operator named above'
-            . ($attRetained > 0
-                ? ', or — where a factory reset is recorded — as reset to factory settings, the device being retained and still in circulation'
-                : '')
-            . ', and are ' . md_attested_qualifier() . '.';
-    } else {
-        // Pure attestation. Saying 'tScrub was used as the sanitisation tool' here would be
-        // simply untrue — the tool never ran — so the certificate claims only what the
-        // operator has actually attested to.
-        $outcome = $attRetained > 0
-            ? 'taken out of service as recorded by the operator named above — physically destroyed, or reset to factory settings and retained —'
-            : 'physically destroyed, as recorded by the operator named above,';
-        $claimKind = $attRetained > 0 ? 'operator-attested outcomes only' : 'destruction by operator attestation only';
-        $attestation = 'This is to certify that the items listed in the operator attestation section were ' . $outcome
-            . ' under controlled chain-of-custody procedures from receipt to final verification. No data in this '
-            . 'job was sanitised in place by ' . $toolName . ', and no appliance-verified sanitisation is claimed: this certificate records '
-            . $claimKind . ', and the attested items are ' . md_attested_qualifier() . '.';
-        if ($attRetained > 0) {
-            $attestation .= ' A factory reset destroys no hardware, so a reset device remains in circulation and this '
-                . 'certificate makes no claim about it beyond the declaration recorded above.';
-        }
-    }
-    $pdf->SetXY(30, 123);
-    $pdf->MultiCell(237, 3.8, $attestation, 0, 'L');
+    $attestation = cert_attestation_text($toolName, (int)$devices, $attItems, $attRetained);
+
+    // Drawn at the largest size that fits the band. The wording above is short enough to
+    // fit at the full size for every job shape; this is the guard that keeps it that way,
+    // because the alternative to shrinking is printing over the operator's name.
+    $band = cert_attestation_band();
+    $pdf->SetFont('helvetica', '', cert_attestation_size($pdf, $attestation, $band['w'], $band['h'], $band['max'], $band['min']));
+    $pdf->SetXY($band['x'], $band['y']);
+    $pdf->MultiCell($band['w'], $band['line'], $attestation, 0, 'L');
 
     // Signature blocks. The operator line carries the erasure completion date;
     // the validator line is only drawn when a validator was actually supplied

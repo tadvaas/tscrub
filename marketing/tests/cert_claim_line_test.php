@@ -522,5 +522,86 @@ t_check('mixed unit: the summary states both figures',
 t_check('mixed unit: the unit itself is still reported as destroyed',
     strpos($mixedUnit, 'Destroyed — Shredded (Acme Shredding, 2026-10-17)') !== false);
 
+// --- 11. the attestation paragraph fits the space page 1 gives it -------------
+// The paragraph is drawn in a FIXED band: page 1 is landscape A4, its heading is at
+// y=118 and the operator signature block at y=140, so 17mm — four lines — is the whole
+// budget. The text is NOT fixed: a mixed job appends the caveat clause and a job with
+// reset items appends a retention note. Drawn at 8.5pt without measuring, the mixed
+// wording came to 18.7mm and printed straight through the operator's own name.
+//
+// No wording assertion can catch that: every sentence was present, correct and in the
+// PDF. Only the geometry fails, so the geometry is what is asserted here. Each shape is
+// built from the same fixtures the render checks above use, and measured with the same
+// helpers the renderer uses, so a future clause that pushes a shape over budget fails
+// here rather than on a customer's certificate.
+$band = cert_attestation_band();
+$measure = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+$measure->SetPrintHeader(false);
+$measure->SetPrintFooter(false);
+$measure->SetAutoPageBreak(false);
+$measure->SetMargins(0, 0, 0, true);
+$measure->AddPage();
+
+$shapes = [
+    'verified only'            => [2, []],
+    'mixed'                    => [1, attested_pair()],
+    'mixed with retained items' => [1, attested_reset_and_destroy()],
+    'attested only'            => [0, attested_pair()],
+    'attested only, reset'     => [0, attested_reset()],
+    'attested only, loose media' => [0, attested_loose_only()],
+    'attested only, no media'  => [0, attested_no_media()],
+];
+foreach ($shapes as $name => [$verified, $attested]) {
+    $split    = md_attested_split($attested);
+    $items    = count($attested['devices'] ?? []) + count($attested['media'] ?? []);
+    $retained = (int)$split['retained']['devices'] + (int)$split['retained']['media'];
+    $text     = cert_attestation_text('tScrub v1.11.51', $verified, $items, $retained);
+
+    $measure->SetFont('helvetica', '', $band['max']);
+    $h = $measure->getStringHeight($band['w'], $text);
+    // 1.5mm of headroom, not merely 'inside': the paragraph must still fit if the tool
+    // version string grows a character or two.
+    t_check("$name: the attestation fits the band at the full {$band['max']}pt "
+        . '(' . round($h, 2) . 'mm of ' . $band['h'] . 'mm, bottom edge '
+        . round($band['y'] + $h, 1) . 'mm vs the signature block at ' . ($band['y'] + $band['h']) . 'mm)',
+        $h <= $band['h'] - 1.5);
+}
+
+t_check('the band leaves room for four lines and starts where the renderer starts',
+    $band['h'] === 17.0 && $band['line'] * 4 <= $band['h']);
+
+// A job shape that outgrows the wording (the next clause someone adds, or an operator
+// account with a much longer issuer name) must shrink the type rather than overlap.
+$overlong = cert_attestation_text('tScrub v1.11.51', 1, 4, 2)
+    . ' ' . str_repeat('An added clause that keeps going and going. ', 6);
+$size = cert_attestation_size($measure, $overlong, $band['w'], $band['h'], $band['max'], $band['min']);
+$measure->SetFont('helvetica', '', $size);
+t_check('an over-long attestation is shrunk to fit rather than printed over the signature '
+    . "($size pt, " . round($measure->getStringHeight($band['w'], $overlong), 2) . 'mm of ' . $band['h'] . 'mm)',
+    $size < $band['max'] && $measure->getStringHeight($band['w'], $overlong) <= $band['h']);
+t_check('the real wording is not shrunk — the guard is a backstop, not the fix',
+    cert_attestation_size($measure, cert_attestation_text('tScrub v1.11.51', 1, 4, 0), $band['w'], $band['h'],
+        $band['max'], $band['min']) === $band['max']);
+
+// --- 12. the shortened wording still makes every claim it has to --------------
+$mixedLong = cert_attestation_text('tScrub v1.11.51', 1, 4, 2);
+$pureLong  = cert_attestation_text('tScrub v1.11.51', 0, 4, 2);
+t_check('shortened: the verified claim still names the means, the custody and the tool',
+    strpos($mixedLong, 'by in-place sanitisation') !== false
+    && strpos($mixedLong, 'chain-of-custody from receipt to final verification') !== false
+    && strpos($mixedLong, 'was used as the sanitisation tool.') !== false);
+t_check('shortened: the mixed caveat still says the tool did not sanitise them',
+    strpos($mixedLong, 'were not sanitised by this tool') !== false);
+t_check('shortened: the retained case is still stated, not dropped for length',
+    strpos($mixedLong, 'as reset to factory settings and retained') !== false);
+t_check('shortened: the pure case still refuses the appliance claim',
+    strpos($pureLong, 'was used as the sanitisation tool') === false
+    && strpos($pureLong, 'no appliance-verified sanitisation is claimed') !== false);
+t_check('shortened: the pure reset case still warns the device is still out there',
+    strpos($pureLong, 'remains in circulation') !== false);
+t_check('shortened: every shape still carries the qualifier',
+    stripos($mixedLong, 'not instrument-verified') !== false
+    && stripos($pureLong, 'not instrument-verified') !== false);
+
 echo "\n$count tests, $fails failures\n";
 exit($fails === 0 ? 0 : 1);

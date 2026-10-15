@@ -10,6 +10,30 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **The page-1 attestation paragraph printed through the operator's own name.** On a
+  certificate that mixes verified and attested destruction, the paragraph ran to five
+  lines and the last line — `verified.` — landed on top of the operator signature block
+  at y=140mm, so the document was defective as printed. Both halves were "correct":
+  every clause was present and the band was where it had always been. The paragraph is
+  drawn in a **fixed 17mm band** (its heading at y=118, the signature block at y=140 —
+  four lines of 3.8mm), but its length is **not** fixed: a mixed job appends the
+  not-sanitised-by-this-tool caveat, and a job with factory-reset items appends a
+  retention clause. At 8.5pt the mixed wording measured **18.7mm** — 1.7mm over budget.
+
+  The wording is now shorter — **740 → 676 characters** — and every job shape fits at
+  the full 8.5pt with the mixed case's bottom edge at 138mm, 2mm clear of the signature
+  block. Nothing load-bearing was dropped: what was destroyed, by what means, under what
+  custody, that tScrub did the sanitising, that the attested items were *not* sanitised
+  by it and are not instrument-verified, and that a factory-reset device is retained.
+  The measure-then-shrink the page-1 banner already uses is now applied here too, so a
+  future clause shrinks the type instead of printing over the signature.
+
+  The wording and the band are extracted as `cert_attestation_text()` and
+  `cert_attestation_band()`, with `cert_attestation_size()` doing the fitting, so this is
+  testable arithmetic rather than something only a printed page reveals. `cert_claim_line_test.php`
+  measures all seven job shapes against the band and fails if one overruns it (67 → 83
+  tests).
+
 - **The public verification page denied attested destruction and stated things that
   were not true.** For a certificate covering only operator-attested destruction,
   `/verify` read *"Devices / Methods / Runs 0 / 0 / 0"* — zero devices on a certificate
