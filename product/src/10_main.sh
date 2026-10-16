@@ -100,6 +100,9 @@ fn_main() {
     # Apply any on-stick tscrub.conf (dashboard upload, COCID, licence URL)
     # first, so the licence/COCID resolution below sees it.
     config::load_usb
+    # Load any per-serial PSID map (psids.conf) for automatic PSID revert of
+    # locked SEDs under --disable-block-sid=psid.
+    config::load_psids
     # Also parse the kernel command line NOW (rather than at report-upload time)
     # so a PXE-supplied tscrub_api_token= / tscrub_upload= is available to the
     # boot-time device registration and presence heartbeat, both of which run

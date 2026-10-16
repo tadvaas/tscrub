@@ -300,13 +300,57 @@ device::rediscover() {
     return 0
 }
 
+device::psid_lookup() {
+    local dev="$1" key
+    key="$(printf '%s' "${serial[$dev]:-}" | xargs | tr '[:lower:]' '[:upper:]')"
+    [[ -n "$key" ]] && printf '%s' "${PSID_MAP[$key]:-}"
+}
+
+# Handle hardware locks on SED (OPAL) drives per TS_BLOCK_SID_POLICY:
+#   ask  — interactive PSID prompt (operator types the 32-char PSID).
+#   psid — automatic: one PSID revert per locked drive whose serial is in the
+#          on-stick PSID map (psids.conf). No terminal is read, so an
+#          unattended bench never blocks; a missing/refused PSID degrades to
+#          physical destruction, not a retry loop.
+#   off  — no PSID attempt; locked drives go straight to physical destruction.
+# A successful revert sets opal_locked=NO so device::detect (later) classifies
+# the now-unlocked drive for a normal erase instead of PHYS_DESTR.
 device::handle_locks() {
+    local dev psid attempt max_attempts
+
     for dev in "${devices[@]}"; do
         # Only process if discovery flagged it as YES
         if [[ "${opal_locked[$dev]}" == "YES" ]]; then
-            local attempt=1
-            local max_attempts=20
-            local ctrl="/dev/${dev%n*}"
+            # Record the lock shape for the report: a TCG-locked SED
+            # (read/write protected). The "password" shape (purge-gated but
+            # read/write fine) is set later in device::normalize_outcome when a
+            # purge returns 0x4286/0x4015.
+            devrow["$dev.lock_kind"]="locked"
+
+            case "${TS_BLOCK_SID_POLICY:-ask}" in
+                off)
+                    echo "$dev: PSID handling disabled (--disable-block-sid=off) — physical destruction required" >&5
+                    continue
+                    ;;
+                psid)
+                    psid="$(device::psid_lookup "$dev")"
+                    if [[ -z "$psid" ]]; then
+                        devrow["$dev.psid_revert"]="na"
+                        echo "$dev: no PSID supplied — physical destruction required" >&5
+                        continue
+                    fi
+                    if device::psid_revert "$dev" "$psid"; then
+                        printf "%s%s: PSID revert succeeded — drive unlocked.\n" "$TABLE_INDENT" "$dev"
+                    else
+                        printf "%s%s: PSID revert failed — %s\n" "$TABLE_INDENT" "$dev" "$(device::lock_hint block_sid)"
+                    fi
+                    continue
+                    ;;
+            esac
+
+            # --- ask (default): interactive, one bounded retry loop ---
+            attempt=1
+            max_attempts=20
 
             while [ $attempt -le $max_attempts ]; do
                 clear
@@ -315,23 +359,23 @@ device::handle_locks() {
                 printf "%sModel:  %s\n" "$TABLE_INDENT" "${model[$dev]}"
                 printf "%sSerial: %s\n" "$TABLE_INDENT" "${serial[$dev]}"
                 printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 60 "" | tr ' ' '-')"
-                
-                # --- START COCID STRATEGY ---
+
                 ui::cursor_show
                 printf "%sEnter 32-char PSID (blank to skip): " "$TABLE_INDENT"
-                
-                # Read specifically from tty
-                read -r psid < /dev/tty
+                if ! read -r psid < /dev/tty 2>/dev/null; then
+                    ui::cursor_hide
+                    echo "$dev: no terminal — PSID prompt aborted" >&5
+                    break
+                fi
                 ui::cursor_hide
 
-                # Trim whitespace using xargs and force Uppercase
+                # Trim whitespace and force uppercase.
                 psid="$(printf "%s" "$psid" | xargs | tr '[:lower:]' '[:upper:]')"
-                # --- END COCID STRATEGY ---
 
-                # Exit loop if user skips
+                # Exit loop if user skips.
                 [[ -z "$psid" ]] && break
 
-                # Length Guard (PSIDs are strictly 32 chars)
+                # Length Guard (PSIDs are strictly 32 chars).
                 if [[ ${#psid} -ne 32 ]]; then
                     printf "\n%s[!] Error: Input is %d chars. PSID must be 32.\n" "$TABLE_INDENT" "${#psid}"
                     sleep 2
@@ -340,47 +384,16 @@ device::handle_locks() {
                 fi
 
                 printf "\n%s[i] Sending PSID Revert command... " "$TABLE_INDENT"
-                
-                # Execute the PSID revert ONCE and log the result.
-                cmd_result=$(sedutil-cli --yesIreallywanttoERASEALLmydatausingthePSID "$psid" "$ctrl" 2>&1)
-                
-                {
-                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: PSID_REVERT"
-                    echo "COMMAND OUTPUT: $cmd_result"
-                    echo "----------------------------------------------------------"
-                } >> "$LOG_FILE"
-
-                # --- FRESH QUERY VERIFICATION (The Source of Truth) ---
-                # We ignore the cmd_result for a moment and ask the drive directly
-                current_query=$(sedutil-cli --query "$ctrl" 2>/dev/null)
-
-                if echo "$current_query" | grep -q "Locked = N"; then
-                    # The drive is definitely unlocked
+                if device::psid_revert "$dev" "$psid"; then
                     printf "SUCCESS!\n"
                     printf "%sHardware lock removed. Drive is ready for sanitization.\n" "$TABLE_INDENT"
-                    opal_locked[$dev]="NO"
-                    
-                    # Log the verification success
-                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] VERIFICATION: SUCCESS - Drive /dev/$dev is UNLOCKED" >> "$LOG_FILE"
-                    
                     sleep 2
                     break
-                else
-                    # The drive is still locked. Now we check the result to see WHY.
-                    if echo "$cmd_result" | grep -qi "NOT.AUTHORIZED"; then
-                        printf "REJECTED.\n"
-                        printf "%sThe drive rejected the PSID. Check characters carefully.\n" "$TABLE_INDENT"
-                    else
-                        printf "FAILED.\n"
-                        printf "%sThe drive is still locked. Check $LOG_FILE for errors.\n" "$TABLE_INDENT"
-                    fi
-                    
-                    # Log the verification failure
-                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] VERIFICATION: FAILED - Drive /dev/$dev remains LOCKED" >> "$LOG_FILE"
-                    
-                    ((attempt++))
-                    sleep 2
                 fi
+                printf "FAILED.\n"
+                printf "%sThe drive is still locked. Check %s for errors.\n" "$TABLE_INDENT" "$LOG_FILE"
+                ((attempt++))
+                sleep 2
             done
 
             if [[ "${opal_locked[$dev]}" == "YES" ]]; then
@@ -728,6 +741,7 @@ device::normalize_outcome() {
                 devrow["$dev.cert"]="NOT SANITISED"
                 devrow["$dev.method"]="Blocked by firmware (Block SID)"
                 devrow["$dev.block_sid"]="yes"
+                devrow["$dev.lock_kind"]="password"
                 ;;
             STALLED)
                 devrow["$dev.class"]="STALLED"
@@ -747,7 +761,11 @@ device::normalize_outcome() {
             *)
                 devrow["$dev.class"]="FAILED"
                 devrow["$dev.cert"]="NOT SANITISED"
-                devrow["$dev.method"]="Sanitisation failed"
+                if [[ "${devrow[$dev.lock_kind]:-none}" == "locked" ]]; then
+                    devrow["$dev.method"]="TCG locked — physical destruction required"
+                else
+                    devrow["$dev.method"]="Sanitisation failed"
+                fi
                 ;;
         esac
     done

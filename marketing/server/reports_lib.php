@@ -457,6 +457,8 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'freeze_lock' => clip_str($get($row, 'freezelock'), 20),
                 'block_sid' => clip_str($get($row, 'blocksid'), 20),
                 'flr_attempts' => clip_str($get($row, 'flrattempts'), 16),
+                'psid_revert' => clip_str($get($row, 'psidrevert'), 16),
+                'lock_kind' => clip_str($get($row, 'lockkind'), 16),
             ];
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
@@ -1030,6 +1032,8 @@ function db_drive_to_group(array $d): array {
         'freeze_lock' => (string)($d['freeze_lock'] ?? ''),
         'block_sid' => (string)($d['block_sid'] ?? ''),
         'flr_attempts' => (string)($d['flr_attempts'] ?? ''),
+        'psid_revert' => (string)($d['psid_revert'] ?? ''),
+        'lock_kind' => (string)($d['lock_kind'] ?? ''),
     ];
 }
 

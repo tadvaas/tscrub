@@ -6,7 +6,38 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.58] - 2026-10-16
+
+### Added
+
+- **Automatic PSID revert for locked SEDs.** The `--disable-block-sid=psid`
+  policy value now does something: when a drive is discovered OPAL-locked,
+  tScrub looks its serial up in a `psids.conf` map on the boot USB (one
+  `SERIAL=PSID` line per drive) and PSID-reverts it non-interactively — the
+  previously-shipped `psid` value was parsed but inert. `ask` keeps the
+  interactive prompt; `off` disables it. The inline revert is promoted to a
+  shared `device::psid_revert` primitive (the interactive and automatic paths
+  can no longer drift), success is decided by the drive's own re-query, and
+  the PSID is never logged or reported — only the boolean `PSIDRevert`
+  outcome (CSV, dashboard, certificate Annex A, JSON-LD). A missing PSID
+  under `psid` degrades to physical destruction (no prompt, no hang); a
+  refused revert is reported as Block-SID guidance, not retried. Plan:
+  `research/psid-revert/plan.md`. Tests: `test_psid.sh` (22).
+
+- **PSID revert fallback cascade.** `device::psid_revert` now tries, least
+  destructive first, the plain PSID revert and then the Admin-SP revert
+  (`--PSIDrevertAdminSP`, BitRaser's method 2) for drives whose PSID
+  authority lives on the Admin SP rather than the SID authority. Success is
+  still decided by the drive's own re-query; the re-own-and-revert flow is
+  deliberately not used as an unlock step (its unlock is the same PSID
+  revert).
+
+- **"TCG locked" vs "TCG password" classification.** A locked SED is now
+  recorded as `LockKind=locked` (read/write protected) and a purge-gated
+  drive as `LockKind=password` (the `0x4286`/`0x4015` family), instead of one
+  `BLOCKED` bucket. A locked drive's report method now reads "TCG locked —
+  physical destruction required" instead of the misleading "Sanitisation
+  failed"; the column flows through the server and the Media tab.
 
 ## [v1.11.57] - 2026-10-16
 

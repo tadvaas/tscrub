@@ -264,6 +264,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'sysserial'=> ['label' => 'Machine SN',   'w' => 23, 'align' => 'C'],
         'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'C'],
         'format'   => ['label' => 'Formatted',    'w' => 18, 'align' => 'C'],
+        'psid'     => ['label' => 'PSID',         'w' => 14, 'align' => 'C'],
         'ts'       => ['label' => 'Erased',       'w' => 22, 'align' => 'C'],
     ];
 
@@ -289,6 +290,13 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 if ($fr === 'ok' && $fs !== '') return strtoupper($fs);
                 return '';
             }
+            case 'psid': {
+                $p = strtolower(trim((string)($d['psid_revert'] ?? '')));
+                if ($p === 'yes') return 'Yes';
+                if ($p === 'failed') return 'Failed';
+                if ($p === 'na') return 'N/A';
+                return '';
+            }
             case 'status': return (string)($d['status'] ?? '');
             case 'ts':     return (strtoupper(trim((string)($d['status'] ?? ''))) === 'COMPLETED') ? fmt_ts((string)($d['ts'] ?? '')) : '';
         }
@@ -310,6 +318,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'format': {
                 $fr = strtolower(trim((string)($d['format_result'] ?? '')));
                 return $fr !== 'ok';
+            }
+            case 'psid': {
+                $p = strtolower(trim((string)($d['psid_revert'] ?? '')));
+                return $p !== 'yes' && $p !== 'failed' && $p !== 'na';
             }
             case 'status': return trim((string)($d['status'] ?? '')) === '';
             case 'ts':     return trim((string)($d['ts'] ?? '')) === '';

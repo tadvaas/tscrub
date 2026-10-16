@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind"
         for dev in "${devices[@]}"; do
             local st en dur sed_status
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -103,7 +103,8 @@ report::csv() {
                 "${raid[$dev]:-none}" "${SYS_BIOS_LOCKDOWN:-0}" \
                 "${FORMAT_MODE:-auto}" "${devrow[$dev.format_fs]:-}" "${devrow[$dev.format_scheme]:-}" \
                 "${devrow[$dev.format_label]:-}" "${devrow[$dev.format_result]:-n/a}" "${devrow[$dev.format_confirm]:-}" \
-                "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}"
+                "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}" \
+                "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}"
         done
     } > "$report_file"
 
@@ -619,6 +620,57 @@ config::load_usb() {
 
     CONFIG_USB_DEBUG+="no tscrub.conf found on any volume"$'\n'
     return 1
+}
+
+# Load a per-serial PSID map from the boot USB (psids.conf, one
+# "SERIAL=PSID" line per locked SED). PSIDs are only ever held in memory —
+# never logged, never in the report, never on the kernel command line. Serial
+# keys are normalised (trim + upper) so a space/case mismatch in the map never
+# misses a drive. A malformed line (PSID not 32 chars) is skipped with a
+# warning, never a hard error.
+config::load_psids() {
+    local name type rm fstype dev mnt mounted pass line serial psid
+
+    command -v lsblk >/dev/null 2>&1 || return 1
+
+    for pass in 1 2; do
+        while read -r name type rm fstype; do
+            [[ "$type" == "part" || "$type" == "disk" ]] || continue
+            case "$fstype" in
+                vfat|fat16|fat32|iso9660) : ;;
+                *) continue ;;
+            esac
+            [[ "$pass" -eq 1 && "$rm" != "1" ]] && continue
+            dev="/dev/$name"
+
+            mounted=0
+            mnt="$(findmnt -no TARGET "$dev" 2>/dev/null || true)"
+            if [[ -z "$mnt" || ! -d "$mnt" ]]; then
+                mnt="$(mktemp -d /tmp/tscrub-psid.XXXXXX)"
+                mount -o ro "$dev" "$mnt" 2>/dev/null || { rmdir "$mnt" 2>/dev/null; continue; }
+                mounted=1
+            fi
+
+            if [[ -f "$mnt/psids.conf" ]]; then
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                    line="${line#$'\357\273\277'}"   # strip a UTF-8 BOM
+                    [[ "$line" =~ ^[[:space:]]*(#.*)?$ ]] && continue
+                    serial="${line%%=*}"
+                    psid="${line#*=}"
+                    serial="$(printf '%s' "$serial" | xargs | tr '[:lower:]' '[:upper:]')"
+                    psid="$(printf '%s' "$psid" | xargs | tr '[:lower:]' '[:upper:]')"
+                    if [[ ${#psid} -ne 32 ]]; then
+                        printf "%s[!] psids.conf: entry for '%s' ignored (PSID must be 32 chars)\n" "$TABLE_INDENT" "$serial" >&5
+                        continue
+                    fi
+                    PSID_MAP["$serial"]="$psid"
+                done < "$mnt/psids.conf"
+            fi
+
+            if [[ "$mounted" -eq 1 ]]; then umount "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; fi
+        done < <(lsblk -rno NAME,TYPE,RM,FSTYPE 2>/dev/null)
+    done
+    return 0
 }
 
 # Resolve the licence location, in priority order:

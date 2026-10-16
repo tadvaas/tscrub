@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.57"
+SCRIPT_VERSION="v1.11.58"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -64,6 +64,7 @@ SMART_TIMEOUT="${SMART_TIMEOUT:-10}"
 declare -Ag devrow
 declare -Ag ui_eta_row
 declare -Ag ui_last_key
+declare -Ag PSID_MAP
 UI_LAYOUT_FP=""
 UI_LAYOUT_FP_CACHED=""
 UI_THEME_LAST=""

@@ -227,6 +227,22 @@ with the release that carried them (per `CHANGELOG.md`).
       `--disable-block-sid` policy flag. Plan:
       `research/freeze-lock-block-sid/plan.md`; tests `product/tests/test_frozen.sh`
       (12) + `test_execute.sh` (27).
+      → **Automatic PSID revert (follow-on, unreleased):** `--disable-block-sid=psid`
+      now PSID-reverts a locked SED from a `psids.conf` serial→PSID map on the boot
+      USB (the flag was previously parsed but inert). Plan `research/psid-revert/plan.md`;
+      tests `product/tests/test_psid.sh` (16).
+- [x] Block SID / SED lock parity — sedutil fallback + TCG lock classification
+      (unreleased). `device::psid_revert` now cascades to `--PSIDrevertAdminSP`
+      (BitRaser method 2), and a locked SED reports `LockKind=locked` with the
+      honest "TCG locked — physical destruction required" method while a
+      purge-gated drive reports `LockKind=password` (Blancco's "TCG password"
+      shape) instead of one BLOCKED bucket. (§11.1)
+      → **Plan**: `research/psid-revert/phase-2-competitor-parity.md`
+- [ ] PPI "disable block SID authentication" (Blancco's Lenovo fix, the only
+      in-place route for a Block-SID-locked NVMe). Deferred — the efivar/ACPI
+      interface is firmware-specific and needs a hardware probe before writing
+      to NVRAM. (§11.1)
+      → **Plan**: `research/psid-revert/phase-2-competitor-parity.md` §3.1
 - [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
       power or was aborted without re-consuming a licence (Blancco). Today a
       worker death normalises to `UNKNOWN`, no resume. (§11.1)

@@ -3,13 +3,45 @@
 [[ -n "${FAKE_SEDUTIL_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_SEDUTIL_LOG"
 case "$1" in
     --query)
-        if [[ "${FAKE_SEDUTIL_LOCKED:-0}" == "1" ]]; then
+        local locked="${FAKE_SEDUTIL_LOCKED:-0}"
+        if [[ -n "${FAKE_SEDUTIL_LOCK_STATE:-}" && -f "$FAKE_SEDUTIL_LOCK_STATE" ]]; then
+            locked="$(cat "$FAKE_SEDUTIL_LOCK_STATE")"
+        fi
+        if [[ "$locked" == "1" ]]; then
             printf 'Locked = Y\n'
         else
             printf 'Locked = N\n'
         fi
         printf 'LockingEnabled = N\n'
         exit 0
+        ;;
+    --yesIreallywanttoERASEALLmydatausingthePSID)
+        # Record the outcome in the lock-state file so the follow-up --query
+        # (the source of truth) reflects whether the revert unlocked the drive.
+        if [[ "${FAKE_PSID_RC:-0}" == "0" ]]; then
+            [[ -n "${FAKE_SEDUTIL_LOCK_STATE:-}" ]] && printf '0' > "$FAKE_SEDUTIL_LOCK_STATE"
+            printf 'revertTper completed successfully\n'
+        else
+            [[ -n "${FAKE_SEDUTIL_LOCK_STATE:-}" ]] && printf '1' > "$FAKE_SEDUTIL_LOCK_STATE"
+            if [[ "${FAKE_PSID_RESULT:-}" == "NOT.AUTHORIZED" ]]; then
+                printf 'authorityLocked NOT AUTHORIZED\n'
+            else
+                printf 'revertTper failed\n'
+            fi
+        fi
+        exit "${FAKE_PSID_RC:-0}"
+        ;;
+    --PSIDrevertAdminSP)
+        # Admin-SP PSID revert: same shape as the plain PSID revert, but its
+        # own knob so a test can fail method 1 and succeed method 2.
+        if [[ "${FAKE_PSID_ADMINSP_RC:-1}" == "0" ]]; then
+            [[ -n "${FAKE_SEDUTIL_LOCK_STATE:-}" ]] && printf '0' > "$FAKE_SEDUTIL_LOCK_STATE"
+            printf 'revertTper completed successfully\n'
+        else
+            [[ -n "${FAKE_SEDUTIL_LOCK_STATE:-}" ]] && printf '1' > "$FAKE_SEDUTIL_LOCK_STATE"
+            printf 'authorityLocked NOT AUTHORIZED\n'
+        fi
+        exit "${FAKE_PSID_ADMINSP_RC:-1}"
         ;;
     --initialSetup)
         if [[ "${FAKE_SEDUTIL_INITIALSETUP_RC:-0}" == "0" ]]; then
