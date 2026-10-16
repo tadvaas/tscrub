@@ -5,6 +5,7 @@ t::source_src
 
 declare -A capability bus
 OUT="$(mktemp)"
+tmp="$(mktemp -d)"
 
 # ATA frozen -> STATUS FROZEN (regression: previously short-circuited to FAILED)
 devices=(sda)
@@ -69,6 +70,24 @@ device::execute nvme0n1
 exec 3>&-
 captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "NVMe crypto -> COMPLETED"
+
+# NVMe sanitize fails once (generic firmware error) then the FLR retry succeeds
+: > "$OUT"
+devices=(nvme0n1)
+capability[nvme0n1]="CAP_NVME_PURGE_CRYPTO"
+devrow[nvme0n1.class]="PURGE"
+devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
+printf '1\n0\n' > "$tmp/rcseq"
+export FAKE_NVME_SANITIZE_RC_SEQ="$tmp/rcseq"
+export FAKE_NVME_SANITIZE_OUT="NVMe status 0x1: Invalid Field in CDB"
+export FAKE_NVME_SSTAT=0x1
+exec 3>"$OUT"
+device::execute nvme0n1
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "retry: second purge succeeds -> COMPLETED"
+t::assert_contains "$captured" "retrying once" "retry: announces the FLR retry"
+unset FAKE_NVME_SANITIZE_RC_SEQ FAKE_NVME_SANITIZE_OUT
 
 # SCSI (non-ATA) nwipe success
 : > "$OUT"
@@ -149,4 +168,5 @@ t::assert_eq "NOT SANITISED" "${devrow[sda.cert]}" "dry-run cert -> NOT SANITISE
 t::assert_eq "Dry run — no sanitisation performed" "${devrow[sda.method]}" "dry-run method honest"
 
 rm -f "$OUT"
+rm -rf "$tmp"
 t::summary

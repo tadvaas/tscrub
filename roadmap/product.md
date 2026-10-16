@@ -208,9 +208,25 @@ with the release that carried them (per `CHANGELOG.md`).
       cover it). (§11.1)
 - [ ] eMMC/MMC media — add `mmcblk*` to `device::discover` (currently excluded),
       erase via `blkdiscard` (no ATA/NVMe sanitise available). (§11.1)
-- [ ] Reformat SATA/SAS drives after erasure — leave a drive in a clean,
+- [x] Reformat SATA/SAS drives after erasure — leave a drive in a clean,
       re-partitioned state (Blancco ships this; auditors sometimes expect a
       blank partition table rather than an unformatted disk). (§11.1)
+      → **Shipped v1.11.56** (2026-10-16): automatic post-wipe formatting —
+      single partition, exFAT >32 GiB / FAT32 ≤32 GiB, MBR-first, tool-chain
+      cascade (sfdisk/sgdisk, dosfstools/busybox, exfatprogs/exfat-utils),
+      recorded across CSV/manifest/finish-screen/dashboard/cert/JSON-LD. Plan:
+      `research/drive-formatting/README.md`; tests `product/tests/test_format.sh`.
+- [x] ATA/NVMe freeze-lock removal + Block-SID detection — clear the ATA
+      security freeze lock by suspend/resume instead of failing the wipe,
+      retry a failed NVMe sanitize after one suspend, and detect/record
+      Block-SID lockdown with vendor-tuned finish-screen guidance. (§11.1)
+      → **Shipped v1.11.57** (2026-10-16): `device::unfreeze` (was
+      `device::frozen`), `--flr=auto|forced|disabled`, NVMe retry-after-suspend
+      inside `device::exec_nvme`, `device::lock_hint` vendor hints, three new
+      CSV columns `FreezeLock,BlockSID,FLRAttempts`, and a parsed
+      `--disable-block-sid` policy flag. Plan:
+      `research/freeze-lock-block-sid/plan.md`; tests `product/tests/test_frozen.sh`
+      (12) + `test_execute.sh` (27).
 - [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
       power or was aborted without re-consuming a licence (Blancco). Today a
       worker death normalises to `UNKNOWN`, no resume. (§11.1)

@@ -19,7 +19,7 @@ device::discover
 device::handle_locks
 
 ipc::open
-device::frozen >/dev/null 2>&1
+device::unfreeze >/dev/null 2>&1
 device::detect
 table::build
 table::render >/dev/null 2>&1

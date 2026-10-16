@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake sfdisk for the format module tests. Consumes stdin (the partition
+# script) so the writer's printf pipe never gets SIGPIPE, logs the invocation,
+# and exits with FAKE_SFDISK_RC.
+cat >/dev/null 2>&1 || true
+[[ -n "${FAKE_FORMAT_CMDLOG:-}" ]] && printf 'sfdisk %s\n' "$*" >> "$FAKE_FORMAT_CMDLOG"
+[[ -n "${FAKE_SFDISK_OUT:-}" ]] && printf '%s\n' "$FAKE_SFDISK_OUT"
+exit "${FAKE_SFDISK_RC:-0}"

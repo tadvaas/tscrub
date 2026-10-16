@@ -215,7 +215,7 @@ fn_main() {
     # Unfreezing prints its own lines (the suspend/resume IS the progress), so
     # the spinner is off here to keep them from fighting over the same line.
     device::handle_locks
-    device::frozen
+    device::unfreeze
 
     ui::spinner_start "Preparing..."
     device::detect
@@ -308,6 +308,11 @@ erasure::run() {
         devrow["$dev.verify_sectors"]=""
         devrow["$dev.hpa_result"]=""
         devrow["$dev.dco_result"]=""
+        devrow["$dev.format_result"]=""
+        devrow["$dev.format_fs"]=""
+        devrow["$dev.format_scheme"]=""
+        devrow["$dev.format_label"]=""
+        devrow["$dev.format_confirm"]=""
     done
     ui_eta_row=()
     pids=()
@@ -452,6 +457,7 @@ erasure::run() {
 
     smart::capture_all post
     verify::check_all
+    format::run_all
 
     # A dry-run report is not evidence of a real wipe — never vendor-sign it.
     if [[ "$DRY_RUN" -eq 1 ]]; then

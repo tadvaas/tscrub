@@ -8,6 +8,63 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.57] - 2026-10-16
+
+### Added
+
+- **ATA/NVMe freeze-lock removal and Block-SID detection.** A frozen ATA drive
+  no longer fails the wipe: `device::unfreeze` (formerly `device::frozen`)
+  clears the ATA security freeze lock with suspend/resume, honouring
+  `--flr=auto|forced|disabled` (or `tscrub_flr=`), a max-attempt count and a
+  suspend duration; `forced` escalates the final attempt to a 10 s suspend.
+  NVMe has no reliable pre-command freeze signal, so a failed sanitize/format
+  now triggers one suspend/resume and one retry inside `device::exec_nvme`
+  (Blancco's "second purge often succeeds"), gated on `TS_RETRY_PURGE` and
+  `--flr=disabled`. A Block-SID lockdown (`0x4286`/`0x4015`) is still
+  detected as `BLOCKED`; it is now recorded per-drive (`block_sid`) and the
+  finish screen prints vendor-specific remediation hints (`device::lock_hint`:
+  Dell "Block Sleep (S3 State)", Lenovo "clear Block SID", Surface/X1 BIOS
+  S3). Three new report columns — `FreezeLock,BlockSID,FLRAttempts` — flow
+  into the server and the dashboard. A `--disable-block-sid=ask|psid|off`
+  policy flag is parsed and validated (default `ask`; automatic PSID revert
+  is future work). Plan: `research/freeze-lock-block-sid/plan.md`. Tests:
+  `test_frozen.sh` (12), `test_execute.sh` (27).
+
+### Changed
+
+- **The finish-screen report summary is now a single line in the sticky footer.**
+  The per-drive `Verification` / `Formatted` / `HPA/DCO` blocks scaled 3×N with
+  the drive count and pushed the result off the bottom of the screen on
+  multi-drive benches. They are aggregated into one status line pinned in the
+  footer beside the key legend — `Report: USB ✓ · Dash ✓ · Verify 24 passed ·
+  Format 23 exFAT · 1 FAT32 · HPA/DCO 3` — and the verbose blocks are gone from
+  the screen. The full per-drive detail is unchanged in the CSV report,
+  dashboard, certificate and JSON-LD: the console is a summary view, not the
+  audit record. The footer's row budget is recomputed dynamically so the extra
+  line can never push the footer off-screen. Tests: `product/tests/test_ui.sh`
+  (`report::footer_status`).
+
+## [v1.11.56] - 2026-10-16
+
+### Added
+
+- **Post-erasure drive formatting.** Every drive that completes a wipe is now
+  left ready to use: a single aligned partition and a cross-platform filesystem
+  (exFAT for drives > 32 GiB, FAT32 for ≤ 32 GiB; MBR where the capacity allows,
+  GPT beyond). It runs automatically after post-erasure verification and before
+  the report is written, so the sentinel read-back is never disturbed, and it is
+  a cosmetic convenience — orthogonal to the sanitisation claim, which is
+  unchanged. Formatting uses a tool-chain cascade (util-linux `sfdisk`→`sgdisk`,
+  dosfstools→busybox `mkfs.vfat`, exfatprogs→exfat-utils) and records an honest
+  `ok`/`unsupported`/`failed`/`skipped`/`n/a` verdict rather than faking a
+  format. The outcome is surfaced in six new CSV columns (`Format` … `FormatConfirm`),
+  the JSON manifest, the finish screen, the dashboard Media tab (modal, exports,
+  history), the certificate Annex A, and the JSON-LD twin. Opt out with
+  `--format off` / `tscrub_format=off`; force the filesystem/scheme with
+  `--fs`/`--scheme`. Requires the appliance image to ship `dosfstools`,
+  `exfatprogs` and a partitioner (`sfdisk` or `sgdisk`) — otherwise drives are
+  reported `unsupported`. Plan: `research/drive-formatting/README.md`.
+
 ### Changed
 
 - **The dashboard's "Drives" tab is now "Media".** The tab was already a superset of

@@ -56,10 +56,42 @@ device::nvme_fail() {
     fi
 }
 
+# Issue the NVMe firmware-erasure command for a capability, capturing output in
+# the global NVME_CMD_OUT/NVME_CMD_OP and returning the command's exit status.
+# Kept as one seam so exec_nvme can retry a failed command after a freeze-lock
+# suspend/resume (the "second purge often succeeds" behaviour).
+device::nvme_issue() {
+    local dev="$1" cap="$2"
+    NVME_CMD_OUT=""
+    case "$cap" in
+        CAP_NVME_CLEAR_ONLY)
+            NVME_CMD_OP="format"
+            NVME_CMD_OUT="$(nvme format /dev/$dev -s 1 2>&1)"; return $?
+            ;;
+        CAP_NVME_PURGE_CRYPTO)
+            NVME_CMD_OP="sanitize"
+            NVME_CMD_OUT="$(nvme sanitize /dev/$dev -a 4 2>&1)"; return $?
+            ;;
+        CAP_NVME_PURGE_BLOCK)
+            NVME_CMD_OP="sanitize"
+            NVME_CMD_OUT="$(nvme sanitize /dev/$dev -a 2 2>&1)"; return $?
+            ;;
+        CAP_NVME_PURGE_OVERWRITE)
+            NVME_CMD_OP="sanitize"
+            NVME_CMD_OUT="$(nvme sanitize /dev/$dev -a 3 2>&1)"; return $?
+            ;;
+        *)
+            NVME_CMD_OP="sanitize"
+            NVME_CMD_OUT="unsupported capability"
+            return 1
+            ;;
+    esac
+}
+
 device::exec_nvme() {
     local dev="$1"
     local cap="$2"
-    local out rc pre state
+    local pre state
 
     # ---- Pre-flight -------------------------------------------------------
     # A sanitize left "in progress" by an earlier run or an interrupted wipe
@@ -99,40 +131,39 @@ device::exec_nvme() {
     echo "$dev STATUS RUNNING" >&3
     echo "$dev LOG NVMe operation started" >&3
 
-    case "$cap" in
-        CAP_NVME_CLEAR_ONLY)
-            out="$(nvme format /dev/$dev -s 1 2>&1)"; rc=$?
-            echo "$out" >&5
-            if (( rc == 0 )); then
-                echo "$dev STATUS COMPLETED" >&3
-            else
-                device::nvme_fail "$dev" "format" "$out"
-            fi
-            return
-            ;;
-        CAP_NVME_PURGE_CRYPTO)
-            out="$(nvme sanitize /dev/$dev -a 4 2>&1)"; rc=$?
-            ;;
-        CAP_NVME_PURGE_BLOCK)
-            out="$(nvme sanitize /dev/$dev -a 2 2>&1)"; rc=$?
-            ;;
-        CAP_NVME_PURGE_OVERWRITE)
-            out="$(nvme sanitize /dev/$dev -a 3 2>&1)"; rc=$?
-            ;;
-        *)
-            echo "$dev STATUS FAILED" >&3
-            return
-            ;;
-    esac
-
-    echo "$out" >&5
-
-    if (( rc != 0 )); then
-        device::nvme_fail "$dev" "sanitize" "$out"
+    if device::nvme_issue "$dev" "$cap"; then
+        echo "$NVME_CMD_OUT" >&5
+        if [[ "$cap" == "CAP_NVME_CLEAR_ONLY" ]]; then
+            echo "$dev STATUS COMPLETED" >&3
+        else
+            device::monitor_nvme "$dev"
+        fi
         return
     fi
+    echo "$NVME_CMD_OUT" >&5
 
-    device::monitor_nvme "$dev"
+    # Firmware command failed. Block SID (0x4286/0x4015) is an access-rights
+    # lockdown, not a fault — but a suspend/resume clears the state that caused
+    # it on some machines, so attempt ONE freeze-lock-style retry before giving
+    # up (the "second purge often succeeds" behaviour). Honours TS_RETRY_PURGE
+    # and TS_FLR_MODE.
+    if [[ "${TS_RETRY_PURGE:-1}" == "1" && "${TS_FLR_MODE:-auto}" != "disabled" ]]; then
+        echo "$dev LOG firmware command failed — suspending to clear the freeze lock, then retrying once" >&3
+        device::flr_suspend_resume "$dev"
+        if device::nvme_issue "$dev" "$cap"; then
+            echo "$NVME_CMD_OUT" >&5
+            echo "$dev LOG retry after freeze-lock removal succeeded" >&3
+            if [[ "$cap" == "CAP_NVME_CLEAR_ONLY" ]]; then
+                echo "$dev STATUS COMPLETED" >&3
+            else
+                device::monitor_nvme "$dev"
+            fi
+            return
+        fi
+        echo "$NVME_CMD_OUT" >&5
+    fi
+
+    device::nvme_fail "$dev" "${NVME_CMD_OP:-sanitize}" "$NVME_CMD_OUT"
 }
 
 # Poll `nvme sanitize-log` until the sanitize reaches a terminal state.

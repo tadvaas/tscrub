@@ -35,6 +35,17 @@ case "$sub" in
         printf 'SPROG %s\n' "${FAKE_NVME_SPROG:-65535}"
         ;;
     sanitize)
+        # FAKE_NVME_SANITIZE_RC_SEQ: a file of exit codes, one per call, the
+        # LAST line repeating — lets a test make the first purge fail and the
+        # FLR retry pass.
+        if [[ -n "${FAKE_NVME_SANITIZE_RC_SEQ:-}" && -s "${FAKE_NVME_SANITIZE_RC_SEQ}" ]]; then
+            read -r _rc < "${FAKE_NVME_SANITIZE_RC_SEQ}"
+            if [[ "$(awk 'END{print NR}' "$FAKE_NVME_SANITIZE_RC_SEQ")" -gt 1 ]]; then
+                awk 'NR>1' "$FAKE_NVME_SANITIZE_RC_SEQ" > "$FAKE_NVME_SANITIZE_RC_SEQ.tmp" && mv "$FAKE_NVME_SANITIZE_RC_SEQ.tmp" "$FAKE_NVME_SANITIZE_RC_SEQ"
+            fi
+            [[ -n "${FAKE_NVME_SANITIZE_OUT:-}" ]] && printf '%s\n' "$FAKE_NVME_SANITIZE_OUT"
+            exit "${_rc:-0}"
+        fi
         [[ -n "${FAKE_NVME_SANITIZE_OUT:-}" ]] && printf '%s\n' "$FAKE_NVME_SANITIZE_OUT"
         exit "${FAKE_NVME_SANITIZE_RC:-0}"
         ;;

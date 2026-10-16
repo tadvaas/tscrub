@@ -355,7 +355,7 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'cocid' => $cocid, 'drives' => [], 'reports' => [],
                 'shaState' => 'unverified', 'sigState' => 'none',
                 'system' => '', 'sysserial' => '', 'bbserial' => '',
-                'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '', 'verify' => '',
+                'cpu' => '', 'gpu' => '', 'ram' => '', 'enrollment' => '', 'verify' => '', 'format' => '',
                 'chassisserial' => '', 'chassistype' => '', 'biosversion' => '',
                 'biosdate' => '', 'systemuuid' => '', 'bioslock' => '', 'bioslockmethod' => '',
                 'sku' => '', 'asset_tag' => '', 'bios_vendor' => '', 'board' => '', 'tpm' => '',
@@ -448,6 +448,15 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'verify_result' => clip_str($get($row, 'verifyresult'), 32),
                 'verify_sectors' => clip_str($get($row, 'verifysectors'), 16),
                 'raid' => clip_str($get($row, 'raid'), 16),
+                'format' => clip_str($get($row, 'format'), 16),
+                'format_fs' => clip_str($get($row, 'formatfs'), 16),
+                'format_scheme' => clip_str($get($row, 'formatscheme'), 16),
+                'format_label' => clip_str($get($row, 'formatlabel'), 32),
+                'format_result' => clip_str($get($row, 'formatresult'), 16),
+                'format_confirm' => clip_str($get($row, 'formatconfirm'), 32),
+                'freeze_lock' => clip_str($get($row, 'freezelock'), 20),
+                'block_sid' => clip_str($get($row, 'blocksid'), 20),
+                'flr_attempts' => clip_str($get($row, 'flrattempts'), 16),
             ];
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
@@ -470,6 +479,9 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
             }
             if ($g['verify'] === '' && isset($map['verify'])) {
                 $g['verify'] = clip_str($get($row, 'verify'), 16);
+            }
+            if ($g['format'] === '' && isset($map['format'])) {
+                $g['format'] = clip_str($get($row, 'format'), 16);
             }
             if ($g['cpu'] === '' && isset($map['cpu'])) {
                 $g['cpu'] = clip_str($get($row, 'cpu'), 255);
@@ -1009,6 +1021,15 @@ function db_drive_to_group(array $d): array {
         'enrollment' => (string)($d['enrollment'] ?? ''),
         'verify_result' => (string)($d['verify_result'] ?? ''),
         'verify_sectors' => (string)($d['verify_sectors'] ?? ''),
+        'format' => (string)($d['format'] ?? ''),
+        'format_fs' => (string)($d['format_fs'] ?? ''),
+        'format_scheme' => (string)($d['format_scheme'] ?? ''),
+        'format_label' => (string)($d['format_label'] ?? ''),
+        'format_result' => (string)($d['format_result'] ?? ''),
+        'format_confirm' => (string)($d['format_confirm'] ?? ''),
+        'freeze_lock' => (string)($d['freeze_lock'] ?? ''),
+        'block_sid' => (string)($d['block_sid'] ?? ''),
+        'flr_attempts' => (string)($d['flr_attempts'] ?? ''),
     ];
 }
 
@@ -1130,6 +1151,7 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
         'ram' => (string)($g['ram'] ?? ''),
         'enrollment' => (string)($g['enrollment'] ?? ''),
         'verify' => (string)($g['verify'] ?? ''),
+        'format' => (string)($g['format'] ?? ''),
         'chassisserial' => (string)($g['chassisserial'] ?? ''),
         'chassistype' => (string)($g['chassistype'] ?? ''),
         'biosversion' => (string)($g['biosversion'] ?? ''),

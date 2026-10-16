@@ -164,7 +164,6 @@ ui::paint_finish() {
         printf "\033[K%sWiped %s of %d drive(s); %d skipped (not selected).\n" \
             "$TABLE_INDENT" "$(report::selected_count)" "${#devices[@]}" "$(report::skipped_count)"
     fi
-    report::print_summary
 }
 
 # Returns success (0) if at least one drive ended in a non-success state
@@ -194,10 +193,10 @@ ui::print_drive_guidance() {
         status="${devrow[$dev.status]:-}"
         case "$status" in
             BLOCKED)
-                printf "\033[K%s${blink_on}%s: blocked by firmware (Block SID / access-rights lockdown) — clear Block SID or hard-disk security in BIOS, or move the drive to another machine, then re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"
+                printf "\033[K%s${blink_on}%s: blocked by firmware (Block SID / access-rights lockdown) — %s.${blink_off}\n" "$TABLE_INDENT" "$dev" "$(device::lock_hint block_sid)"
                 ;;
             FROZEN)
-                printf "\033[K%s${blink_on}%s: frozen by the host BIOS — power-cycle (or suspend/resume) and re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"
+                printf "\033[K%s${blink_on}%s: frozen by the host BIOS — %s.${blink_off}\n" "$TABLE_INDENT" "$dev" "$(device::lock_hint frozen)"
                 ;;
             STALLED)
                 printf "\033[K%s${blink_on}%s: sanitize stalled mid-operation — power-cycle the drive (disconnect power ~10-30 s), then re-run.${blink_off}\n" "$TABLE_INDENT" "$dev"

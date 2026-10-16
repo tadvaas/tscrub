@@ -191,4 +191,54 @@ t::check "layout_changed true on selection-mode change" 'ui::layout_changed'
 UI_MODE_LAST="0:"; UI_DEV_COUNT_LAST=3
 t::check "layout_changed true on device-count change" 'ui::layout_changed'
 
+# --- report::footer_status (one-line finish-screen summary) ---
+UI_COMPLETE_THEME=0
+t::assert_eq "" "$(report::footer_status)" "footer_status empty off finish screen"
+UI_COMPLETE_THEME=4
+t::assert_eq "" "$(report::footer_status)" "footer_status empty during wipe"
+
+UI_COMPLETE_THEME=1
+REPORT_USB_STATUS="ok"
+TSCRUB_API_TOKEN=""; TSCRUB_NET_PROTO=""; REPORT_DASH_STATUS=""; REPORT_NET_STATUS=""
+VERIFY_MODE="none"; FORMAT_MODE="off"
+devices=(d1)
+devrow=()
+devrow[d1.selected]=1
+t::assert_eq "Report: USB ✓" "$(report::footer_status)" "footer_status delivery only"
+
+REPORT_USB_STATUS="fail"
+t::assert_eq "Report: USB ✗" "$(report::footer_status)" "footer_status delivery fail"
+REPORT_USB_STATUS="ok"
+TSCRUB_API_TOKEN="tok"
+REPORT_DASH_STATUS="ok"
+t::assert_eq "Report: USB ✓ · Dash ✓" "$(report::footer_status)" "footer_status USB+Dash"
+REPORT_DASH_STATUS="fail"
+t::assert_eq "Report: USB ✓ · Dash ✗" "$(report::footer_status)" "footer_status Dash fail"
+TSCRUB_API_TOKEN=""; REPORT_DASH_STATUS=""
+
+# verify aggregate
+VERIFY_MODE="sampled"
+devices=(d1 d2 d3)
+devrow=()
+devrow[d1.selected]=1; devrow[d1.verify_result]="passed"
+devrow[d2.selected]=1; devrow[d2.verify_result]="passed"
+devrow[d3.selected]=1; devrow[d3.verify_result]="failed"
+t::assert_eq "Report: USB ✓ · Verify 2 passed · 1 failed" "$(report::footer_status)" "footer_status verify aggregate"
+
+# format aggregate
+FORMAT_MODE="auto"
+devrow[d1.format_result]="ok"; devrow[d1.format_fs]="exfat"
+devrow[d2.format_result]="ok"; devrow[d2.format_fs]="fat32"
+devrow[d3.format_result]="unsupported"
+t::assert_eq "Report: USB ✓ · Verify 2 passed · 1 failed · Format 1 exFAT · 1 FAT32 · 1 unsupported" "$(report::footer_status)" "footer_status format aggregate"
+
+# hpa/dco aggregate
+devrow[d1.hpa_result]="removed"
+devrow[d2.dco_result]="failed"
+t::assert_eq "Report: USB ✓ · Verify 2 passed · 1 failed · Format 1 exFAT · 1 FAT32 · 1 unsupported · HPA/DCO 2" "$(report::footer_status)" "footer_status hpa aggregate"
+
+# unselected drives are ignored in every aggregate
+devrow[d3.selected]=0
+t::assert_eq "Report: USB ✓ · Verify 2 passed · Format 1 exFAT · 1 FAT32 · HPA/DCO 2" "$(report::footer_status)" "footer_status ignores unselected"
+
 t::summary

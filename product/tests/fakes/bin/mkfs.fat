@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake mkfs.fat (dosfstools) for the format module tests.
+[[ -n "${FAKE_FORMAT_CMDLOG:-}" ]] && printf 'mkfs.fat %s\n' "$*" >> "$FAKE_FORMAT_CMDLOG"
+[[ -n "${FAKE_MKFS_OUT:-}" ]] && printf '%s\n' "$FAKE_MKFS_OUT"
+exit "${FAKE_MKFS_RC:-0}"

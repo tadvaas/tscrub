@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake wipefs for the format module tests.
+[[ -n "${FAKE_FORMAT_CMDLOG:-}" ]] && printf 'wipefs %s\n' "$*" >> "$FAKE_FORMAT_CMDLOG"
+[[ -n "${FAKE_WIPEFS_OUT:-}" ]] && printf '%s\n' "$FAKE_WIPEFS_OUT"
+exit "${FAKE_WIPEFS_RC:-0}"

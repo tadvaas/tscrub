@@ -220,6 +220,12 @@ function jsonld_normalize_drive(array $d): array {
         'validator'     => jsonld_na((string)($d['validator'] ?? '')),
         'media_source'  => jsonld_na((string)($d['media_source'] ?? '')),
         'media_destination' => jsonld_na((string)($d['media_destination'] ?? '')),
+        'format'         => jsonld_na((string)($d['format'] ?? '')),
+        'format_fs'      => jsonld_na((string)($d['format_fs'] ?? '')),
+        'format_scheme'  => jsonld_na((string)($d['format_scheme'] ?? '')),
+        'format_label'   => jsonld_na((string)($d['format_label'] ?? '')),
+        'format_result'  => jsonld_na((string)($d['format_result'] ?? '')),
+        'format_confirm' => jsonld_na((string)($d['format_confirm'] ?? '')),
     ];
 }
 
@@ -232,6 +238,7 @@ function jsonld_drive(array $norm): array {
         'poweronhourspost', 'firmware', 'sector_size', 'sectors', 'hpa', 'dco',
         'sed_status', 'reallocsectorspost', 'selftest', 'tool_version', 'operator',
         'validator', 'media_source', 'media_destination',
+        'format_fs', 'format_scheme', 'format_label', 'format_result', 'format_confirm',
     ] as $k) {
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }
     }

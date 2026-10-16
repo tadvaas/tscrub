@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake sgdisk for the format module tests.
+[[ -n "${FAKE_FORMAT_CMDLOG:-}" ]] && printf 'sgdisk %s\n' "$*" >> "$FAKE_FORMAT_CMDLOG"
+[[ -n "${FAKE_SGDISK_OUT:-}" ]] && printf '%s\n' "$FAKE_SGDISK_OUT"
+exit "${FAKE_SGDISK_RC:-0}"

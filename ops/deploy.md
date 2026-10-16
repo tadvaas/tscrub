@@ -373,6 +373,39 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
+## 5. Marketing docs sweep (after any feature that changes the CLI, report, or statuses)
+
+Before finishing a release, go over the marketing docs and make sure they match
+what the appliance and dashboard actually do now. Surfaces to check, in priority
+order:
+
+- `marketing/site/docs.html` — the **kernel-parameters table** (§13), the
+  **console-flags table** (§13), the **report/CSV column description** (§8), and
+  the **drive final-status table** (§8). Any new `--flag`, `tscrub_*=` parameter,
+  CSV column, or drive status must appear here.
+- `marketing/site/download.html` — the Download page's feature list and the
+  manifest `FALLBACK` checksum block.
+- `marketing/site/faq.html`, `compliance.html`, `compare.html`,
+  `resources/*.html` — any prose that names flags, columns, statuses, or counts.
+  (A blind find-and-replace of a renamed label has bit us before — sweep prose
+  too, not just the UI.)
+- `marketing/site/public/llms.txt` + `llms-full.txt` — whenever a page is added
+  or retitled, or a service/feature list changes (keep the LLM context files in
+  sync per the SEO preference).
+
+Find every mention of the new token, then update + deploy:
+
+```bash
+cd marketing/site && grep -rn -- '--flr\|--disable-block-sid\|FreezeLock\|BlockSID\|FLRAttempts\|tscrub_flr\|tscrub_block_sid' .
+cd marketing && npm run build && npm run deploy
+```
+
+If a report-schema field changed, the backend parser
+(`marketing/server/reports_lib.php`) must go out in the **same pass**:
+`npm run deploy:server`.
+
+---
+
 ## Post-deploy verification
 
 ```bash

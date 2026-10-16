@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.54"
+SCRIPT_VERSION="v1.11.57"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -20,6 +20,14 @@ SELFTEST_CPU=""
 LOG_FILE="/$SCRIPT_NAME.log"
 DRY_RUN=0
 DRY_RUN_SIM_ETA_MINS=0
+# Freeze-lock removal (FLR) + TCG Block SID handling.
+#   TS_FLR_MODE        auto | forced | disabled   (how hard to try clearing freeze locks)
+#   TS_BLOCK_SID_POLICY ask | psid | off         (what to do when Block SID blocks purge)
+TS_FLR_MODE=auto
+TS_FLR_MAX_ATTEMPTS=5
+TS_FLR_SUSPEND_SECS=5
+TS_RETRY_PURGE=1
+TS_BLOCK_SID_POLICY=ask
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -865,6 +873,10 @@ ipc::close() {
 parse_args() {
     local arg mins
 
+    # Kernel-cmdline defaults first, so explicit CLI flags below win.
+    cmdline::flr || true
+    cmdline::block_sid || true
+
     while (($# > 0)); do
         arg="$1"
         case "$arg" in
@@ -904,6 +916,38 @@ parse_args() {
                 ;;
             --hpa=*)
                 HPA_MODE="${arg#*=}"
+                ;;
+            --format)
+                shift
+                [[ $# -gt 0 ]] || { echo "--format requires auto|off"; exit 1; }
+                FORMAT_MODE="$1"
+                ;;
+            --format=*)
+                FORMAT_MODE="${arg#*=}"
+                ;;
+            --fs)
+                shift
+                [[ $# -gt 0 ]] || { echo "--fs requires auto|fat32|exfat"; exit 1; }
+                FORMAT_FS="$1"
+                ;;
+            --fs=*)
+                FORMAT_FS="${arg#*=}"
+                ;;
+            --scheme)
+                shift
+                [[ $# -gt 0 ]] || { echo "--scheme requires auto|mbr|gpt"; exit 1; }
+                FORMAT_SCHEME="$1"
+                ;;
+            --scheme=*)
+                FORMAT_SCHEME="${arg#*=}"
+                ;;
+            --label)
+                shift
+                [[ $# -gt 0 ]] || { echo "--label requires a volume label"; exit 1; }
+                FORMAT_LABEL="$1"
+                ;;
+            --label=*)
+                FORMAT_LABEL="${arg#*=}"
                 ;;
             --simulate-running-eta=*)
                 mins="${arg#*=}"
@@ -1002,6 +1046,34 @@ parse_args() {
                 [[ $# -gt 0 ]] || { echo "--media-destination requires a value"; exit 1; }
                 MEDIA_DESTINATION="$1"
                 ;;
+            --flr=*)
+                case "${arg#*=}" in
+                    auto|forced|disabled) TS_FLR_MODE="${arg#*=}" ;;
+                    *) echo "Invalid --flr value: '${arg#*=}' (auto|forced|disabled)"; exit 1 ;;
+                esac
+                ;;
+            --flr)
+                shift
+                [[ $# -gt 0 ]] || { echo "--flr requires auto|forced|disabled"; exit 1; }
+                case "$1" in
+                    auto|forced|disabled) TS_FLR_MODE="$1" ;;
+                    *) echo "Invalid --flr value: '$1' (auto|forced|disabled)"; exit 1 ;;
+                esac
+                ;;
+            --disable-block-sid=*)
+                case "${arg#*=}" in
+                    ask|psid|off) TS_BLOCK_SID_POLICY="${arg#*=}" ;;
+                    *) echo "Invalid --disable-block-sid value: '${arg#*=}' (ask|psid|off)"; exit 1 ;;
+                esac
+                ;;
+            --disable-block-sid)
+                shift
+                [[ $# -gt 0 ]] || { echo "--disable-block-sid requires ask|psid|off"; exit 1; }
+                case "$1" in
+                    ask|psid|off) TS_BLOCK_SID_POLICY="$1" ;;
+                    *) echo "Invalid --disable-block-sid value: '$1' (ask|psid|off)"; exit 1 ;;
+                esac
+                ;;
             --help|-h)
                 echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
@@ -1021,6 +1093,12 @@ parse_args() {
                 echo "  --media-destination DST  Record the media destination (e.g. 'resale', 'recycle')."
                 echo "  --verify MODE       Post-erasure verification: none|sampled|full (default sampled)."
                 echo "  --hpa MODE         Reset HPA/DCO hidden areas before erasure: on|off (default on)."
+                echo "  --format MODE      Format wiped drives for reuse: auto|off (default auto)."
+                echo "  --fs FS            Filesystem: auto|fat32|exfat (default auto: exfat >32GiB)."
+                echo "  --scheme SCHEME    Partition table: auto|mbr|gpt (default auto)."
+                echo "  --label LABEL      Volume label for formatted drives (default TSCRUB)."
+                echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
+                echo "  --disable-block-sid P  Block SID handling: ask|psid|off (default ask)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -1073,5 +1151,32 @@ cmdline::diag() {
         true|1|yes|on|all) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# Freeze-lock removal mode from the kernel command line (tscrub_flr=auto|forced|
+# disabled) — the PXE-fleet way to tune FLR without re-baking the image.
+cmdline::flr() {
+    local param
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_flr=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    case "$param" in
+        auto|forced|disabled) TS_FLR_MODE="$param" ;;
+        *) TS_FLR_MODE="auto" ;;
+    esac
+    return 0
+}
+
+# Block SID policy from the kernel command line (tscrub_block_sid=ask|psid|off).
+cmdline::block_sid() {
+    local param
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_block_sid=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    case "$param" in
+        ask|psid|off) TS_BLOCK_SID_POLICY="$param" ;;
+        *) TS_BLOCK_SID_POLICY="ask" ;;
+    esac
+    return 0
 }
 

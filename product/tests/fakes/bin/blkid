@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Fake blkid for the format module tests: `blkid -s TYPE -o value /dev/sda1`
+# prints FAKE_BLKID_TYPE (empty by default = no type detected).
+[[ -n "${FAKE_FORMAT_CMDLOG:-}" ]] && printf 'blkid %s\n' "$*" >> "$FAKE_FORMAT_CMDLOG"
+printf '%s\n' "${FAKE_BLKID_TYPE:-}"
+exit "${FAKE_BLKID_RC:-0}"

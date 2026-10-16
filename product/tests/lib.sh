@@ -31,6 +31,9 @@ t::setup_env() {
           FAKE_SEDUTIL_REVERT_RC FAKE_SEDUTIL_INITIALSETUP_RC \
           FAKE_NWIPE_RC FAKE_SG_SANITIZE_RC FAKE_SG_SANITIZE_OUT \
           FAKE_SG_OPCODES_SUPPORTED FAKE_MDADM_MEMBER \
+          FAKE_WIPEFS_RC FAKE_WIPEFS_OUT FAKE_SFDISK_RC FAKE_SFDISK_OUT \
+          FAKE_SGDISK_RC FAKE_SGDISK_OUT FAKE_MKFS_RC FAKE_MKFS_OUT \
+          FAKE_BLKID_TYPE FAKE_BLKID_RC FAKE_FORMAT_CMDLOG \
           FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA FAKE_LSPCI_BROKEN 2>/dev/null || true
 }
 
@@ -60,6 +63,7 @@ t::source_src() {
         "$ROOT_DIR/src/46_hardware.sh" \
         "$ROOT_DIR/src/47_hotplug.sh" \
         "$ROOT_DIR/src/48_diag.sh" \
+        "$ROOT_DIR/src/49_format.sh" \
         "$ROOT_DIR/src/50_report.sh"; do
         source "$f" || return 1
     done

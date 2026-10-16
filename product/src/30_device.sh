@@ -391,54 +391,107 @@ device::handle_locks() {
     done
 }
 
-device::frozen() {
-    local status
-    local i
-    local times
+# One suspend-to-RAM cycle (ACPI S3). The freeze lock is volatile and is
+# re-asserted only at POST, so entering S3 and resuming clears it on both ATA
+# and NVMe drives. Kept as its own seam so tests can stub it and so the ATA
+# unfreeze loop and the NVMe retry path share one implementation.
+# NOTE: rtcwake must never run inside command substitution — the suspend would
+# hold the subshell's pipe open (same class as the SMART watchdog fix).
+device::flr_suspend_resume() {
+    local secs="${TS_FLR_SUSPEND_SECS:-5}"
+    rtcwake -m mem -s "$secs" >&5 2>&5
+    return 0
+}
+
+# Vendor-tuned remediation hint for a lock the software could not clear on its
+# own. The manufacturer comes from the DMI capture (SYS_MANUFACTURER), so a
+# generic "clear Block SID in BIOS" becomes the menu the operator actually has.
+device::lock_hint() {
+    local kind="$1"
+    local up="$(printf '%s' "${SYS_MANUFACTURER:-}" | tr '[:lower:]' '[:upper:]')"
+    case "$kind" in
+        frozen)
+            case "$up" in
+                *DELL*)     echo "enable S3 suspend: BIOS -> Power Management -> uncheck 'Block Sleep (S3 State)', then re-run" ;;
+                *MICROSOFT*|*SURFACE*) echo "this BIOS may not support suspend-to-RAM; try a newer (or older) BIOS, then re-run" ;;
+                *)          echo "power-cycle (or suspend/resume) the machine, or enable Suspend-to-RAM (S3) in the BIOS, then re-run" ;;
+            esac
+            ;;
+        block_sid)
+            case "$up" in
+                *LENOVO*)   echo "clear Block SID: BIOS -> Security -> Hard Drive Utilities (or Hard Disk Passwords) -> clear Block SID, then re-run" ;;
+                *)          echo "clear Block SID / hard-disk security in the BIOS, or move the drive to another machine, then re-run" ;;
+            esac
+            ;;
+        *)          echo "power-cycle the machine and re-run" ;;
+    esac
+}
+
+# Remove freeze locks so firmware-erasure commands can run. ATA drives expose
+# the lock directly in IDENTIFY (hdparm); NVMe has no equivalent up-front
+# probe, so NVMe is handled at execution time (device::exec_nvme retries a
+# failed command after one suspend/resume). Honours TS_FLR_MODE:
+#   auto     — suspend/resume up to TS_FLR_MAX_ATTEMPTS times
+#   forced   — same, plus a final longer suspend before giving up
+#   disabled — skip entirely (leave the lock in place)
+device::unfreeze() {
+    local dev status i times secs
 
     for dev in "${devices[@]}"; do
-        if [[ "$dev" == sd* ]]; then
-            if [[ "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ]]; then
-                continue
-            fi
+        if [[ "$dev" != sd* || ( "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ) ]]; then
+            continue
+        fi
+        if [[ "${TS_FLR_MODE:-auto}" == "disabled" ]]; then
+            continue
+        fi
 
-            i=1
-            times=5
-            while :; do
-                status="$(hdparm -I /dev/$dev 2>&5)"
-                if [[ $status == *"not"?"frozen"* || $status != *"frozen"* ]]; then
-                    # Confirm success only when we actually unfroze it — a drive
-                    # that was never frozen needs no line (keeps the boot quiet).
-                    if [[ "$i" -gt 1 ]]; then
-                        printf "%s%s: not frozen\n" "$TABLE_INDENT" "$dev"
-                    fi
+        i=1
+        times="${TS_FLR_MAX_ATTEMPTS:-5}"
+        while :; do
+            status="$(hdparm -I /dev/$dev 2>&5)"
+            if [[ $status == *"not"?"frozen"* || $status != *"frozen"* ]]; then
+                # Confirm success only when we actually unfroze it — a drive
+                # that was never frozen needs no line (keeps the boot quiet).
+                if [[ "$i" -gt 1 ]]; then
+                    printf "%s%s: not frozen\n" "$TABLE_INDENT" "$dev"
+                    devrow["$dev.freeze_state"]="removed"
+                    devrow["$dev.flr_attempts"]="$((i - 1))"
+                fi
+                break
+            fi
+            # Frozen: one clear line instead of the old "frozen" then
+            # "unfreezing" pair — the unfreeze IS a suspend/resume, so say
+            # so (the brief blank screen is the machine suspending to RAM).
+            printf "%s%s: frozen — suspending to clear the freeze lock (attempt %s/%s)\n" "$TABLE_INDENT" "$dev" "$i" "$times"
+            sleep 1 #give some time to CTRL+C if wanted
+            secs="${TS_FLR_SUSPEND_SECS:-5}"
+            # Forced mode escalates the final attempt to a longer suspend — some
+            # firmwares only release the lock on a deeper sleep cycle.
+            if [[ "${TS_FLR_MODE:-auto}" == "forced" && "$i" -eq "$times" ]]; then
+                secs=10
+            fi
+            rtcwake -m mem -s "$secs" >&5 2>&5
+            if [[ $i -ge $times ]]; then
+                devrow["$dev.freeze_state"]="stuck"
+                devrow["$dev.flr_attempts"]="$i"
+                if [[ "${AUTONUKE:-0}" -eq 1 ]]; then
+                    printf "%s%s: still frozen — giving up (autonuke)\n" "$TABLE_INDENT" "$dev"
                     break
                 fi
-                # Frozen: one clear line instead of the old "frozen" then
-                # "unfreezing" pair — the unfreeze IS a suspend/resume, so say
-                # so (the brief blank screen is the machine suspending to RAM).
-                printf "%s%s: frozen — suspending to clear the freeze lock (attempt %s/%s)\n" "$TABLE_INDENT" "$dev" "$i" "$times"
-                sleep 1 #give some time to CTRL+C if wanted
-                rtcwake -m mem -s 5 >&5 2>&5
-                if [[ $i -ge $times ]];then
-                    if [[ "${AUTONUKE:-0}" -eq 1 ]]; then
-                        printf "%s%s: still frozen — giving up (autonuke)\n" "$TABLE_INDENT" "$dev"
-                        break
-                    fi
-                    printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"
-                    if ! read -r answer < /dev/tty 2>/dev/null; then
-                        printf "%s%s: aborted (no terminal).\n" "$TABLE_INDENT" "$dev"
-                        exit 1
-                    fi
-                    i=0
-                    if [[ "$answer" != "${answer#[Nn]}" ]]; then
-                        printf "%s%s: aborted.\n" "$TABLE_INDENT" "$dev"
-                        exit 0
-                    fi
+                printf "%s%s: still frozen — %s\n" "$TABLE_INDENT" "$dev" "$(device::lock_hint frozen)"
+                printf "%sTried unfreezing %s %s times: Continue? [Y/n]: " "$TABLE_INDENT" "$dev" "$i"
+                if ! read -r answer < /dev/tty 2>/dev/null; then
+                    printf "%s%s: aborted (no terminal).\n" "$TABLE_INDENT" "$dev"
+                    exit 1
                 fi
+                i=0
+                if [[ "$answer" != "${answer#[Nn]}" ]]; then
+                    printf "%s%s: aborted.\n" "$TABLE_INDENT" "$dev"
+                    exit 0
+                fi
+            fi
             ((i++))
-            done
-        fi
+        done
     done
 }
 
@@ -674,6 +727,7 @@ device::normalize_outcome() {
                 devrow["$dev.class"]="BLOCKED"
                 devrow["$dev.cert"]="NOT SANITISED"
                 devrow["$dev.method"]="Blocked by firmware (Block SID)"
+                devrow["$dev.block_sid"]="yes"
                 ;;
             STALLED)
                 devrow["$dev.class"]="STALLED"

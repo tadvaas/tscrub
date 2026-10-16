@@ -403,7 +403,7 @@ ui::bios_render() {
 # line. Called with the cursor on the separator's row; it leaves the cursor on
 # the footer text row (the caller's blank bottom-margin row sits below it).
 ui::footer() {
-    local text term_w pad sep legend=""
+    local text term_w pad sep legend="" status=""
     text="${SCRIPT_NAME} ${SCRIPT_VERSION} — tscrub.com"
     term_w="$(table::detect_terminal_width)"
     sep="$(printf "%*s" "$UI_TABLE_MAIN_W" "" | tr ' ' '-')"
@@ -411,6 +411,13 @@ ui::footer() {
     pad=$(( (term_w - ${#text}) / 2 ))
     (( pad < 0 )) && pad=0
     printf "\033[K%*s%s" "$pad" "" "$text"
+    status="$(report::footer_status)"
+    if [[ -n "$status" ]]; then
+        status="${status:0:$term_w}"
+        pad=$(( (term_w - ${#status}) / 2 ))
+        (( pad < 0 )) && pad=0
+        printf "\n\033[K%*s%s" "$pad" "" "$status"
+    fi
     if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
         legend="$(select::legend)"
     elif [[ "${TRIAGE_MODE:-0}" -eq 1 ]]; then
@@ -818,15 +825,21 @@ table::render() {
     # the top), with a separator line above it. In selection mode an extra key
     # legend line is appended, so the footer starts one row higher. Save/restore
     # the cursor so the caller's position (finish message, in-place tick) is kept.
-    if [[ -t 1 ]] && (( rows > 3 )); then
-        local footer_row=$(( rows - 2 ))
+    if [[ -t 1 ]]; then
+        local footer_lines=2
         if [[ "${SELECT_MODE:-0}" -eq 1 || "${TRIAGE_MODE:-0}" -eq 1 ]]; then
-            footer_row=$(( rows - 3 ))
+            footer_lines=$((footer_lines + 1))
         fi
-        printf "\0337"
-        printf "\033[%d;1H" "$footer_row"
-        ui::footer
-        printf "\0338"
+        if [[ -n "$(report::footer_status)" ]]; then
+            footer_lines=$((footer_lines + 1))
+        fi
+        if (( rows > footer_lines )); then
+            local footer_row=$(( rows - footer_lines ))
+            printf "\0337"
+            printf "\033[%d;1H" "$footer_row"
+            ui::footer
+            printf "\0338"
+        fi
     fi
 
 }

@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts"
         for dev in "${devices[@]}"; do
             local st en dur sed_status
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -100,7 +100,10 @@ report::csv() {
                 "$sys_macs" "$sys_ctrls" "$sys_toolver" \
                 "$sys_operator" "$sys_validator" "$sys_media_src" "$sys_media_dst" \
                 "${VERIFY_MODE:-none}" "${devrow[$dev.verify_sectors]:-}" "${devrow[$dev.verify_result]:-n/a}" \
-                "${raid[$dev]:-none}" "${SYS_BIOS_LOCKDOWN:-0}"
+                "${raid[$dev]:-none}" "${SYS_BIOS_LOCKDOWN:-0}" \
+                "${FORMAT_MODE:-auto}" "${devrow[$dev.format_fs]:-}" "${devrow[$dev.format_scheme]:-}" \
+                "${devrow[$dev.format_label]:-}" "${devrow[$dev.format_result]:-n/a}" "${devrow[$dev.format_confirm]:-}" \
+                "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}"
         done
     } > "$report_file"
 
@@ -267,6 +270,8 @@ report::sign() {
         printf '  "macs": "%s",\n' "$(report::_json_field "${SYS_MAC_LIST:-N/A}")"
         printf '  "storage_controllers": "%s",\n' "$(report::_json_field "${SYS_STORAGE_CTRLS:-N/A}")"
         printf '  "verify": "%s",\n' "$(report::_json_field "${VERIFY_MODE:-none}")"
+        printf '  "format": "%s",\n' "$(report::_json_field "${FORMAT_MODE:-auto}")"
+        printf '  "format_policy": "exfat>32GiB,fat32<=32GiB,mbr-first",\n'
         printf '  "hpa": "%s",\n' "$(report::_json_field "${HPA_MODE:-on}")"
         printf '  "selected": %s,\n' "$(report::selected_count)"
         printf '  "skipped": %s\n' "$(report::skipped_count)"
@@ -581,6 +586,22 @@ config::load_usb() {
                         tscrub_hpa)
                             [[ -z "${HPA_MODE:-}" ]] && HPA_MODE="$val"
                             CONFIG_USB_DEBUG+="  tscrub_hpa: set"$'\n'
+                            ;;
+                        tscrub_format)
+                            [[ -z "${FORMAT_MODE:-}" ]] && FORMAT_MODE="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_format: set"$'\n'
+                            ;;
+                        tscrub_fs)
+                            [[ -z "${FORMAT_FS:-}" ]] && FORMAT_FS="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_fs: set"$'\n'
+                            ;;
+                        tscrub_scheme)
+                            [[ -z "${FORMAT_SCHEME:-}" ]] && FORMAT_SCHEME="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_scheme: set"$'\n'
+                            ;;
+                        tscrub_label)
+                            [[ -z "${FORMAT_LABEL:-}" ]] && FORMAT_LABEL="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_label: set"$'\n'
                             ;;
                         *)
                             CONFIG_USB_DEBUG+="  ignored key: ${key}"$'\n'
@@ -1149,68 +1170,98 @@ report::upload() {
     return 0
 }
 
-# Print a per-destination delivery summary for the finish screen. Shows the
-# outcome (OK / FAILED + reason / not configured) of each report destination.
-report::print_summary() {
-    local usb dash net netlabel
+# One-line report status for the sticky footer (the finish screen's result
+# view). Replaces the old multi-line, per-drive summary, which scaled 3×N with
+# the drive count and pushed the footer off the bottom of the screen. The full
+# per-drive detail lives in the CSV report, the dashboard and the certificate.
+# Returns an empty string when there is no completed result to summarise (i.e.
+# whenever we are not on the finish screen).
+report::footer_status() {
+    case "${UI_COMPLETE_THEME:-0}" in
+        1|2|3) ;;
+        *) return 0 ;;
+    esac
 
+    local segs=() s dev
+
+    # Report delivery — one token per configured destination.
+    s=""
     case "${REPORT_USB_STATUS:-}" in
-        ok)   usb="OK" ;;
-        fail) usb="FAILED — ${REPORT_USB_REASON:-unknown}" ;;
-        *)    usb="not attempted" ;;
+        ok)   s="USB ✓" ;;
+        fail) s="USB ✗" ;;
     esac
-    case "${REPORT_DASH_STATUS:-}" in
-        ok)   dash="OK" ;;
-        fail) dash="FAILED — ${REPORT_DASH_REASON:-unknown}" ;;
-        *)    dash="not configured" ;;
-    esac
-    case "${REPORT_NET_STATUS:-}" in
-        ok)   net="OK" ;;
-        fail) net="FAILED — ${REPORT_NET_REASON:-unknown}" ;;
-        *)    net="not configured" ;;
-    esac
-    netlabel="Network"
-    [[ -n "${TSCRUB_NET_PROTO:-}" ]] && netlabel="Network (${TSCRUB_NET_PROTO})"
-
-    printf "%sReport delivery:\n" "$TABLE_INDENT"
-    printf "%s  %-14s %s\n" "$TABLE_INDENT" "USB:" "$usb"
     if [[ -n "${TSCRUB_API_TOKEN:-}" ]]; then
-        printf "%s  %-14s %s\n" "$TABLE_INDENT" "Dashboard:" "$dash"
+        case "${REPORT_DASH_STATUS:-}" in
+            ok)   s+="${s:+ · }Dash ✓" ;;
+            fail) s+="${s:+ · }Dash ✗" ;;
+        esac
     fi
     if [[ -n "${TSCRUB_NET_PROTO:-}" ]]; then
-        printf "%s  %-14s %s\n" "$TABLE_INDENT" "${netlabel}:" "$net"
+        case "${REPORT_NET_STATUS:-}" in
+            ok)   s+="${s:+ · }Net ✓" ;;
+            fail) s+="${s:+ · }Net ✗" ;;
+        esac
     fi
+    [[ -n "$s" ]] && segs+=("Report: $s")
 
-    # Post-erasure verification outcome, so the operator sees it on the finish
-    # screen without opening the CSV. Shown only when verification actually ran.
+    # Verification aggregate (selected drives only).
     if [[ "${VERIFY_MODE:-none}" != "none" ]]; then
-        local dev
-        printf "%sVerification:\n" "$TABLE_INDENT"
+        local v_passed=0 v_failed=0 v_unreadable=0
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
-            printf "%s  %-10s %s (%s sectors)\n" "$TABLE_INDENT" "$dev:" \
-                "${devrow[$dev.verify_result]:-n/a}" "${devrow[$dev.verify_sectors]:-0}"
+            case "${devrow[$dev.verify_result]:-}" in
+                passed)     v_passed=$((v_passed+1)) ;;
+                failed)     v_failed=$((v_failed+1)) ;;
+                unreadable) v_unreadable=$((v_unreadable+1)) ;;
+            esac
         done
+        s=""
+        (( v_passed > 0 ))     && s="Verify $v_passed passed"
+        (( v_failed > 0 ))     && s+="${s:+ · }$v_failed failed"
+        (( v_unreadable > 0 )) && s+="${s:+ · }$v_unreadable unreadable"
+        [[ -n "$s" ]] && segs+=("$s")
     fi
 
-    # HPA/DCO hidden-area outcome — shown only when non-trivial (a detected
-    # area was removed, covered by firmware, or left behind as a residual risk).
-    local hpa_note=0 _r
+    # Format aggregate (selected drives only).
+    if [[ "${FORMAT_MODE:-auto}" == "auto" ]]; then
+        local f_exfat=0 f_fat32=0 f_unsup=0 f_failed=0
+        for dev in "${devices[@]}"; do
+            [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
+            case "${devrow[$dev.format_result]:-}" in
+                ok)
+                    case "${devrow[$dev.format_fs]:-}" in
+                        exfat) f_exfat=$((f_exfat+1)) ;;
+                        fat32) f_fat32=$((f_fat32+1)) ;;
+                    esac
+                    ;;
+                unsupported) f_unsup=$((f_unsup+1)) ;;
+                failed)      f_failed=$((f_failed+1)) ;;
+            esac
+        done
+        s=""
+        (( f_exfat > 0 )) && s="Format $f_exfat exFAT"
+        (( f_fat32 > 0 )) && s+="${s:+ · }$f_fat32 FAT32"
+        (( f_unsup > 0 )) && s+="${s:+ · }$f_unsup unsupported"
+        (( f_failed > 0 )) && s+="${s:+ · }$f_failed failed"
+        [[ -n "$s" ]] && segs+=("$s")
+    fi
+
+    # HPA/DCO hidden-area outcome (selected drives only).
+    local h=0 _r
     for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
         for _r in "${devrow[$dev.hpa_result]:-}" "${devrow[$dev.dco_result]:-}"; do
-            case "$_r" in removed|firmware-erased|failed) hpa_note=1 ;; esac
+            case "$_r" in removed|firmware-erased|failed) h=$((h+1)) ;; esac
         done
     done
-    if [[ "$hpa_note" -eq 1 ]]; then
-        printf "%sHPA/DCO:\n" "$TABLE_INDENT"
-        for dev in "${devices[@]}"; do
-            [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
-            local _hr="${devrow[$dev.hpa_result]:-n/a}" _dr="${devrow[$dev.dco_result]:-n/a}"
-            local _hint=""
-            [[ "$_hr" == "failed" || "$_dr" == "failed" ]] && _hint=" — data may remain"
-            printf "%s  %-10s HPA=%s DCO=%s%s\n" "$TABLE_INDENT" "$dev:" "$_hr" "$_dr" "$_hint"
-        done
-    fi
+    (( h > 0 )) && segs+=("HPA/DCO $h")
+
+    (( ${#segs[@]} > 0 )) || return 0
+    local out="" seg
+    for seg in "${segs[@]}"; do
+        out+="${out:+ · }$seg"
+    done
+    printf '%s' "$out"
 }
 
 # Write a diagnostics bundle (network state, dmesg, tScrub log, report outcome)
