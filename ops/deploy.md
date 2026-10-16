@@ -1,6 +1,38 @@
 # Deploy Runbook
 
-There are three things that get deployed, each with its own path.
+There are three things that get deployed, each with its own path. For the
+canonical end-to-end order of a full appliance release (script → ISO → PXE
+kernel → manifest → site → git tag), start with the release runbook below.
+
+## Release runbook (the short version)
+
+A full appliance release ships the script, the ISO, the PXE kernel, the
+manifest, the Download page and the marketing site. Run these in order; each
+step links to the detailed section that follows:
+
+1. **Bump the version** — `SCRIPT_VERSION` in `product/src/00_bootstrap.sh`, and
+   a dated `## [vX.Y.Z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md`.
+2. **Host + sign the script** — `bash ops/host-download.sh` builds `tscrub.sh`,
+   signs it with the vendor key, updates the manifest `script` block, deploys
+   the backend and copies the manifest under `/downloads/` (§2).
+3. **Stage the slim script into the appliance** — `make -C product build-slim`,
+   scp it to `board/shredos/fsoverlay/usr/bin/tscrub.sh` on `.6`, `chmod 755`,
+   and commit on the build host (§2 "Appliance ISO + PXE kernel").
+4. **Rebuild the appliance** — under tmux: `build-into-overlay.sh && make`, then
+   poll `build_tscrub.log` for `TSCRUB_BUILD_DONE` (§2).
+5. **Publish the ISO** — copy `output/images/tscrub-…-<hash>.iso` into
+   `~/webs/tscrub/downloads/`, write its `.sha256`, repoint the
+   `tscrub-appliance.iso` symlink (§2).
+6. **Publish + sign the PXE kernel** — copy `bzImage` to
+   `~/webs/lan/ipxe/tscrub/`, `sbsign` it, verify the issuer (§2).
+7. **Update the surfaces that show the ISO** — `download-manifest.json`
+   `appliance` block + `download.html` `FALLBACK`, then `npm run deploy:server`,
+   copy the manifest to `/downloads/manifest.json`, and
+   `npm run build && npm run deploy` (§2).
+8. **Commit + tag + push on the Mac repo** — `git add -A && git commit`,
+   `git tag -a vX.Y.Z -m "tScrub vX.Y.Z"`, `git push origin main &&
+   git push origin vX.Y.Z` (§6).
+9. **Verify the release is live** — run the curl checks in §7.
 
 ## Signing keys (overview)
 
@@ -430,3 +462,58 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-
 # product build
 cd product && grep -c 'LICENSE_VENDOR_PUBLIC_KEY_B64' build/tscrub.sh
 ```
+
+## 6. Git commit, tag & push (Mac repo)
+
+The Mac repo (`/Users/user/Documents/Repositories/tscrub`) holds the source, the
+marketing site and the server code; the build host (`~/shredos.x86_64` on `.6`)
+is a separate repo, committed during the appliance step above. After everything
+is deployed and verified, commit the Mac repo and tag the release:
+
+```bash
+cd /Users/user/Documents/Repositories/tscrub
+git add -A && git status --short
+git commit -m "Release tScrub vX.Y.Z"
+git tag -a vX.Y.Z -m "tScrub vX.Y.Z"
+git push origin main && git push origin vX.Y.Z
+```
+
+- Tag the same `main` HEAD you just committed; the tag is annotated.
+- Use `git add -A` (not `git commit -am`) — a release often adds new files, e.g.
+  a new `product/tests/test_*.sh`, which `-am` would miss.
+- Push the tag explicitly: `git push origin vX.Y.Z`.
+
+## 7. Verify a release is live
+
+These assert the **new version's artifacts** are actually served (complementing
+the component-health checks in "Post-deploy verification" above). Run them after
+every release; each must succeed before you call it shipped:
+
+```bash
+# Manifest: appliance version + filename, script version + checksum prefix
+curl -fsS https://tscrub.com/downloads/manifest.json \
+  | python3 -c 'import json,sys; m=json.load(sys.stdin); a=m["appliance"]; s=m["script"]; print("appliance:", a["version"], a["filename"]); print("script:", s["version"], s["sha256"][:16])'
+
+# ISO reachable via BOTH the stable symlink and the versioned URL
+curl -fsSI https://tscrub.com/downloads/tscrub-appliance.iso | head -1
+curl -fsSI https://tscrub.com/downloads/tscrub-v<VER>_..._<hash>.iso | head -1
+
+# Script, signature and public key reachable
+curl -fsSI https://tscrub.com/downloads/tscrub.sh | head -1
+curl -fsSI https://tscrub.com/downloads/tscrub.sh.sig | head -1
+curl -fsSI https://tscrub.com/downloads/tscrub.pub | head -1
+
+# Download page serves the NEW build hash (the in-page FALLBACK and the runtime
+# manifest read must agree)
+curl -fsS https://tscrub.com/download.html | grep -c '<hash>'
+
+# docs.html carries any newly-added flag / config token (e.g. psids.conf)
+curl -fsS https://tscrub.com/docs.html | grep -oE 'psids\.conf'
+```
+
+> **Cloudflare cache.** `/assets/*` (and the generated site JS) is served with
+> `cache-control: public, max-age=2592000, immutable`, so a redeploy does not
+> change what users get until the cache key changes; the page HTML itself can
+> also be heuristically browser-cached. If a freshly-deployed page still shows
+> old bytes, fetch it with a throwaway query (`?fresh=1`); for `/assets/*`,
+> bump the `?v=N` on the page's `<script src="…">` tag and re-deploy.

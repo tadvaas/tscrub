@@ -163,6 +163,29 @@ device::exec_nvme() {
         echo "$NVME_CMD_OUT" >&5
     fi
 
+    # Block SID (0x4286/0x4015) is a firmware lockdown, not a hardware fault.
+    # The TCG tables are typically unlocked here (Locked = N), so the
+    # pre-execution PSID prompt in handle_locks never saw this drive. Under the
+    # automatic `psid` policy the PSID is already on hand (psids.conf) and the
+    # revert itself is the purge: it crypto-erases the media key and factory
+    # resets the drive without needing the BIOS-blocked sanitize command. The
+    # interactive `ask` policy is deliberately NOT attempted here — this runs
+    # inside a wipe worker, where reading /dev/tty would race the UI loop — so
+    # under `ask` the drive falls through to BLOCKED with the clear-Block-SID
+    # hint.
+    if [[ "${TS_BLOCK_SID_POLICY:-ask}" == "psid" ]] \
+        && grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$NVME_CMD_OUT"; then
+        if device::psid_unlock_auto "$dev"; then
+            devrow["$dev.method"]="PSID Revert (Purge)"
+            devrow["$dev.class"]="PURGE"
+            devrow["$dev.cert"]="DESTRUCTION"
+            devrow["$dev.lock_kind"]="password"
+            echo "$dev LOG Block SID lockdown — PSID revert crypto-erased and factory-reset the drive" >&3
+            echo "$dev STATUS COMPLETED" >&3
+            return
+        fi
+    fi
+
     device::nvme_fail "$dev" "${NVME_CMD_OP:-sanitize}" "$NVME_CMD_OUT"
 }
 

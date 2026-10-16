@@ -62,16 +62,20 @@ device::exec_opal() {
 # credential: it is never logged, never echoed, and never written into the
 # report — only the boolean `psid_revert` outcome is recorded.
 #
-# Success is decided by the drive's OWN re-query (`Locked = N`), never by a
-# command's exit code or stdout. The unlock cascade tries, least-destructive
-# first (BitRaser's SED methods, minus the re-own-and-revert flow whose unlock
-# step is the same PSID revert):
+# Success is decided by sedutil's OWN completion marker, never by a command's
+# exit code or by re-querying `Locked = N`. The re-query is an unreliable
+# signal here: a Block-SID-locked drive is already `Locked = N` (its TCG tables
+# are unlocked and unprovisioned — the lock is the BIOS refusing sanitize), so
+# a re-query would prove nothing about whether the revert actually ran.
+# sedutil routes both PSID-revert methods through DtaDev*::revertTPer(), which
+# prints "revertTper completed successfully" only on a real revert. The unlock
+# cascade tries, least-destructive first (BitRaser's SED methods, minus the
+# re-own-and-revert flow whose unlock step is the same PSID revert):
 #   1. plain PSID revert (--yesIreallywanttoERASEALLmydatausingthePSID)
 #   2. Admin-SP PSID revert (--PSIDrevertAdminSP) — drives whose PSID
 #      authority lives on the Admin SP rather than the SID authority
-device::psid_verified_unlocked() {
-    local ctrl="$1"
-    sedutil-cli --query "$ctrl" 2>/dev/null | grep -q "Locked = N"
+device::psid_revert_succeeded() {
+    grep -qiE 'revertTper completed successfully' <<<"${1:-}"
 }
 
 device::psid_revert() {
@@ -92,7 +96,7 @@ device::psid_revert() {
     #    credential).
     method="PSID revert"
     out="$(sedutil-cli --yesIreallywanttoERASEALLmydatausingthePSID "$psid" "$ctrl" 2>&1)"
-    if device::psid_verified_unlocked "$ctrl"; then
+    if device::psid_revert_succeeded "$out"; then
         opal_locked[$dev]="NO"
         devrow["$dev.psid_revert"]="yes"
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] VERIFICATION: SUCCESS - Drive /dev/$dev is UNLOCKED ($method)" >> "$LOG_FILE"
@@ -102,7 +106,7 @@ device::psid_revert() {
     # 2. Admin-SP PSID revert — some drives gate the PSID on the Admin SP.
     method="Admin-SP PSID revert"
     out="$(sedutil-cli --PSIDrevertAdminSP "$psid" "$ctrl" 2>&1)"
-    if device::psid_verified_unlocked "$ctrl"; then
+    if device::psid_revert_succeeded "$out"; then
         opal_locked[$dev]="NO"
         devrow["$dev.psid_revert"]="yes"
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] VERIFICATION: SUCCESS - Drive /dev/$dev is UNLOCKED ($method)" >> "$LOG_FILE"
@@ -116,5 +120,25 @@ device::psid_revert() {
         reason="failed (drive still locked — Block SID may be enabled)"
     fi
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] VERIFICATION: FAILED - Drive /dev/$dev remains LOCKED ($reason)" >> "$LOG_FILE"
+    return 1
+}
+
+# Non-interactive, map-driven PSID unlock. Worker-safe: it never reads a
+# terminal, so it is the only unlock path usable both by handle_locks' `psid`
+# policy (pre-execution) and by the NVMe Block-SID fallback inside the wipe
+# worker. Returns 0 when the drive was reverted/unlocked; non-zero otherwise.
+device::psid_unlock_auto() {
+    local dev="$1" psid
+    psid="$(device::psid_lookup "$dev")"
+    if [[ -z "$psid" ]]; then
+        devrow["$dev.psid_revert"]="na"
+        echo "$dev: no PSID supplied — physical destruction required" >&5
+        return 1
+    fi
+    if device::psid_revert "$dev" "$psid"; then
+        printf "%s%s: PSID revert succeeded — drive unlocked.\n" "$TABLE_INDENT" "$dev"
+        return 0
+    fi
+    printf "%s%s: PSID revert failed — %s\n" "$TABLE_INDENT" "$dev" "$(device::lock_hint block_sid)"
     return 1
 }

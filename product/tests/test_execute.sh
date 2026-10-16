@@ -60,6 +60,48 @@ t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "0x4015 -> BLOCKED"
 t::check "0x4015 does NOT emit FAILED" '[[ "$captured" != *"nvme0n1 STATUS FAILED"* ]]'
 unset FAKE_NVME_SANITIZE_OUT
 
+# Block SID (0x4286) with automatic PSID policy -> PSID revert is the purge
+: > "$OUT"
+devices=(nvme0n1)
+declare -A serial
+capability[nvme0n1]="CAP_NVME_PURGE_CRYPTO"
+devrow[nvme0n1.class]="PURGE"
+devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
+serial[nvme0n1]="SED-SERIAL-1"
+PSID_MAP=()
+PSID_MAP[SED-SERIAL-1]="ABCDEF1234567890ABCDEF1234567890"
+export TS_BLOCK_SID_POLICY=psid
+export FAKE_NVME_SANITIZE_RC=1
+export FAKE_NVME_SANITIZE_OUT="NVMe status 0x4286: Access Denied"
+export FAKE_PSID_RC=0
+exec 3>"$OUT"
+device::execute nvme0n1
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "Block SID + psid policy -> PSID revert COMPLETED"
+t::assert_eq "PSID Revert (Purge)" "${devrow[nvme0n1.method]}" "Block SID + psid -> method recorded"
+t::assert_eq "PURGE" "${devrow[nvme0n1.class]}" "Block SID + psid -> class PURGE"
+t::assert_eq "yes" "${devrow[nvme0n1.psid_revert]}" "Block SID + psid -> psid_revert=yes"
+unset TS_BLOCK_SID_POLICY FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC
+
+# Block SID with psid policy but no PSID in the map -> BLOCKED (unchanged)
+: > "$OUT"
+devices=(nvme0n1)
+capability[nvme0n1]="CAP_NVME_PURGE_CRYPTO"
+devrow[nvme0n1.class]="PURGE"
+devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
+serial[nvme0n1]="SED-SERIAL-1"
+PSID_MAP=()
+export TS_BLOCK_SID_POLICY=psid
+export FAKE_NVME_SANITIZE_RC=1
+export FAKE_NVME_SANITIZE_OUT="NVMe status 0x4286: Access Denied"
+exec 3>"$OUT"
+device::execute nvme0n1
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "Block SID + psid policy, no PSID -> BLOCKED"
+unset TS_BLOCK_SID_POLICY FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT
+
 # NVMe crypto sanitize success (monitor sees SSTAT=0x1)
 : > "$OUT"
 export FAKE_NVME_SANITIZE_RC=0

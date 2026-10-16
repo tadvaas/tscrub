@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.59] - 2026-10-16
+
+### Changed
+
+- **Block-SID-locked NVMe drives can now be purged via PSID revert.** When a
+  sanitize/format is refused with a firmware access-rights lockdown
+  (`0x4286`/`0x4015`) and the automatic `--disable-block-sid=psid` policy is
+  active, tScrub now attempts a PSID revert from the on-stick `psids.conf` map
+  as the purge itself (crypto-erase + factory reset) instead of marking the
+  drive `BLOCKED`. PSID-revert success is now keyed on sedutil's own
+  `revertTper completed successfully` marker rather than the drive's
+  `Locked = N` state — a Block-SID drive is already `Locked = N`, so the old
+  check proved nothing about whether the revert actually ran.
+
 ## [v1.11.58] - 2026-10-16
 
 ### Added

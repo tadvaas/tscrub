@@ -333,17 +333,7 @@ device::handle_locks() {
                     continue
                     ;;
                 psid)
-                    psid="$(device::psid_lookup "$dev")"
-                    if [[ -z "$psid" ]]; then
-                        devrow["$dev.psid_revert"]="na"
-                        echo "$dev: no PSID supplied — physical destruction required" >&5
-                        continue
-                    fi
-                    if device::psid_revert "$dev" "$psid"; then
-                        printf "%s%s: PSID revert succeeded — drive unlocked.\n" "$TABLE_INDENT" "$dev"
-                    else
-                        printf "%s%s: PSID revert failed — %s\n" "$TABLE_INDENT" "$dev" "$(device::lock_hint block_sid)"
-                    fi
+                    device::psid_unlock_auto "$dev"
                     continue
                     ;;
             esac
