@@ -161,10 +161,10 @@
     var body = document.getElementById('manual-modal-body');
 
     document.getElementById('manual-modal-title').textContent = isDevice
-      ? 'Record a destroyed device' : 'Record a destroyed drive';
+      ? 'Record a destroyed device' : 'Record a destroyed media item';
     document.getElementById('manual-modal-sub').textContent =
       'Operator attestation — not instrument-verified destruction';
-    document.getElementById('manual-modal-save').textContent = isDevice ? 'Record device' : 'Record drive';
+    document.getElementById('manual-modal-save').textContent = isDevice ? 'Record device' : 'Record media item';
 
     body.innerHTML = '';
     var err = el('p', { id: 'manual-modal-error', class: 'hidden rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300' });
@@ -188,7 +188,7 @@
     body.appendChild(mediaBox);
 
     var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
-      text: isDevice ? '+ Add another medium' : '+ Add another drive' });
+      text: isDevice ? '+ Add another medium' : '+ Add another media item' });
     addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow(isDevice)); });
     body.appendChild(addRow);
 
@@ -270,7 +270,7 @@
     if (!media.length) {
       return show(isDevice
         ? 'Add at least one medium — a device that held no storage has nothing to record.'
-        : 'Fill in the drive you are recording.');
+        : 'Fill in the media item you are recording.');
     }
 
     var payload;
@@ -313,7 +313,7 @@
     function restore() {
       clearTimeout(timer);
       button.disabled = false;
-      button.textContent = isDevice ? 'Record device' : 'Record drive';
+      button.textContent = isDevice ? 'Record device' : 'Record media item';
     }
 
     fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) {
@@ -393,7 +393,7 @@
     var kind = (row.attested_kind === 'media') ? 'media' : 'device';
     var what = (kind === 'device')
       ? 'this device and every medium recorded with it'
-      : 'this drive';
+      : 'this media item';
     var cocid = String(row.cocid || '');
 
     var question = 'Remove ' + what + ' from this record?\n\n'
@@ -573,7 +573,7 @@
     wrap.appendChild(det);
 
     var rm = iconBtn('remove', 'Remove',
-      row.attested_kind === 'media' ? 'Remove this attested drive' : 'Remove this attested device and every medium recorded with it',
+      row.attested_kind === 'media' ? 'Remove this attested media item' : 'Remove this attested device and every medium recorded with it',
       'border-red-300 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50');
     rm.addEventListener('click', function () { remove(row, rm); });
     wrap.appendChild(rm);
@@ -599,7 +599,7 @@
 
     document.getElementById('manual-detail-title').textContent = isDevice
       ? String(row.system || row.sysserial || 'Attested device')
-      : (String([row.type, row.make, row.model].filter(Boolean).join(' ')) || String(row.serial || 'Attested drive'));
+      : (String([row.type, row.make, row.model].filter(Boolean).join(' ')) || String(row.serial || 'Attested media item'));
     document.getElementById('manual-detail-sub').textContent =
       String(row.attested_qualifier || 'operator-attested — not instrument-verified');
 

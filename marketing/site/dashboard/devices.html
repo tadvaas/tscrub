@@ -41,7 +41,7 @@
 
     <div class="mt-10">
       <h2 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Devices</h2>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Machines seen by tScrub at boot — hardware, firmware and attached drives, consolidated from your diagnostics uploads.</p>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Machines seen by tScrub at boot — hardware, firmware and the media inside them, consolidated from your diagnostics uploads.</p>
     </div>
 
     <div class="mt-3 flex items-center gap-2">
@@ -51,7 +51,7 @@
       <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the device inventory">Export</button>
       <button type="button" id="add-btn" onclick="ManualAssets.openFor('device')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a unit that was destroyed, or factory reset and kept (an operator attestation)">Add</button>
     </div>
-    <script src="/assets/manual-assets.js?v=16" defer></script>
+    <script src="/assets/manual-assets.js?v=17" defer></script>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
       <div id="device-list" class="min-h-[200px]">
@@ -560,7 +560,7 @@
         ['bioslock','BIOS lock'], ['bioslockmethod','BIOS lock method'], ['tpm','TPM'], ['macs','MAC address'], ['storage_controllers','Storage controllers'],
         ['battery','Battery'], ['secure_boot','Secure boot'], ['dimms','DIMMs'], ['product_key','Windows product key'], ['product_key_id','Product key ID'],
         ['mdm_status','MDM status'], ['mdm_verdict','MDM verdict'], ['mdm_label','MDM label'], ['refurb_grade','Refurb grade'], ['notes','Notes'],
-        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['drive_count','Drives'], ['first','First report'], ['last','Last report'],
+        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['drive_count','Media'], ['first','First report'], ['last','Last report'],
         ['report_id','Report ID'], ['digital_identifier','Digital identifier']
       ];
       function buildExportFields() {
@@ -743,7 +743,7 @@
           + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
         tr.appendChild(stCell);
 
-        // Built by the shared module: the same two controls appear in the Drives table,
+        // Built by the shared module: the same two controls appear in the Media table,
         // and icon-only buttons are narrow enough that the cell no longer risks pushing
         // a control past the table edge. Each carries an aria-label as well as a title.
         var tdv = el('td', 'px-4 py-2.5');
@@ -899,7 +899,7 @@
           var logBtn = el('button', 'ml-2 inline-flex h-7 items-center rounded-lg border px-3 text-xs font-semibold ' + (logOpen[key]
             ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
             : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Log' + (logOpen[key] ? ' ▴' : ' ▾'));
-          logBtn.title = 'Everything recorded for this machine — report submissions, remote commands and their results, Autopilot checks, registrations and drives';
+          logBtn.title = 'Everything recorded for this machine — report submissions, remote commands and their results, Autopilot checks, registrations and media';
           logBtn.addEventListener('click', function () { toggleLog(dev, key); });
           tdv.appendChild(logBtn);
           var opBtn = el('button', 'relative ml-1 inline-flex h-7 items-center rounded-lg bg-brand-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-brand-700', 'Ops');
@@ -1339,7 +1339,7 @@
         ]));
 
         var drives = Array.isArray(dev.drives) ? dev.drives : [];
-        var drvCard = card('Drives');
+        var drvCard = card('Media');
         if (!drives.length) {
           cardBody(drvCard).appendChild(el('div', 'text-sm text-slate-400 dark:text-slate-500', '—'));
         } else {
@@ -1579,7 +1579,7 @@
           at: h.uploaded_at, kind: 'report', type: 'diagnostics', src: h,
           label: 'Diagnostics report submitted',
           state: 'info',
-          detail: [h.cpu, h.ram, dr.length ? dr.length + ' drive' + (dr.length === 1 ? '' : 's') : ''].filter(Boolean).join(' · '),
+          detail: [h.cpu, h.ram, dr.length ? dr.length + ' media item' + (dr.length === 1 ? '' : 's') : ''].filter(Boolean).join(' · '),
           ref: h.grade ? 'grade ' + h.grade : '',
           cocid: h.cocid || ''
         };
@@ -1616,7 +1616,7 @@
           shutdown:    ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Power'],
           reboot:      ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Power'],
           mdm:         ['bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400', 'MDM'],
-          drive:       ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Drive'],
+          drive:       ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Media'],
           certificate: ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Cert'],
           boot:        ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Boot']
         };
@@ -1831,12 +1831,12 @@
 
       function openErasureReport(h) {
         document.getElementById('erasure-modal-title').textContent = 'Erasure report';
-        document.getElementById('erasure-modal-sub').textContent = 'CoC ' + (h.cocid || '—') + ' · ' + (h.drive_count || 0) + ' drive' + (h.drive_count === 1 ? '' : 's') + (h.first || h.uploaded_at ? ' · ' + fmtTsTime(h.first || h.uploaded_at) : '');
+        document.getElementById('erasure-modal-sub').textContent = 'CoC ' + (h.cocid || '—') + ' · ' + (h.drive_count || 0) + ' media item' + (h.drive_count === 1 ? '' : 's') + (h.first || h.uploaded_at ? ' · ' + fmtTsTime(h.first || h.uploaded_at) : '');
         var body = document.getElementById('erasure-modal-body');
         body.innerHTML = '';
         var drives = Array.isArray(h.drives) ? h.drives : [];
         if (!drives.length) {
-          body.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No drives recorded in this report.'));
+          body.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No media recorded in this report.'));
         } else {
           var tbl = el('table', 'w-full border-collapse text-sm');
           var thead = el('thead');
@@ -2325,13 +2325,13 @@
         var st = el('p', 'mt-1.5 text-xs text-slate-500 dark:text-slate-400');
 
         var scopeRow = el('div', 'mt-3 text-sm text-slate-700 dark:text-slate-300');
-        scopeRow.appendChild(el('div', 'mb-1.5 font-medium', 'Drives'));
+        scopeRow.appendChild(el('div', 'mb-1.5 font-medium', 'Media'));
 
         var allLbl = el('label', 'flex items-center gap-2');
         var allRad = el('input', 'h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500');
         allRad.type = 'radio'; allRad.name = 'erase-scope'; allRad.checked = true;
         allLbl.appendChild(allRad);
-        allLbl.appendChild(document.createTextNode('All drives'));
+        allLbl.appendChild(document.createTextNode('All media'));
         scopeRow.appendChild(allLbl);
 
         var drives = Array.isArray(dev.drives) ? dev.drives.filter(function (dv) { return dv && dv.serial; }) : [];
@@ -2342,7 +2342,7 @@
           var someRad = el('input', 'h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500');
           someRad.type = 'radio'; someRad.name = 'erase-scope';
           someLbl.appendChild(someRad);
-          someLbl.appendChild(document.createTextNode('Selected drives'));
+          someLbl.appendChild(document.createTextNode('Selected media'));
           scopeRow.appendChild(someLbl);
 
           listBox = el('div', 'mt-2 ml-6 hidden space-y-1');
@@ -2376,7 +2376,7 @@
           st.textContent = 'Requires appliance v1.10.14 or newer.';
           start.disabled = true;
         } else if (!drives.length) {
-          st.textContent = 'No drives reported by this machine.';
+          st.textContent = 'No media reported by this machine.';
           start.disabled = true;
         } else if (!online) {
           // Wipe jobs are durable (the fleet queue) — staging for an offline
@@ -2391,7 +2391,7 @@
           var options = {};
           if (drives.length && someRad && someRad.checked) {
             var chosen = driveChecks.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
-            if (!chosen.length) { st.textContent = 'Choose at least one drive.'; return; }
+            if (!chosen.length) { st.textContent = 'Choose at least one medium.'; return; }
             options.drives = chosen;
           } else {
             options.drives = 'all';

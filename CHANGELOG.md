@@ -8,6 +8,30 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- **The dashboard's "Drives" tab is now "Media".** The tab was already a superset of
+  drives — its total includes operator-attested media, which can be an iPhone's soldered
+  eMMC or a flash chip, and its own code said so (`// Attested media are included in
+  \`total\`…`). It also counts the same unit the certificate certifies: page 1 reads
+  `14 MEDIA SANITISED IN PLACE (VERIFIED)` while the tab called them drives. NIST
+  SP 800-88 Rev.1 — the standard the certificate cites — splits **media** (the storage)
+  from the **device** containing it, which is exactly how the attested vocabulary already
+  reads (`3 MEDIA DESTROYED (ATTESTED, 1 DEVICE)`), and "drive" was the one label out of
+  step. The page heading, subtitle, search placeholder, Export modal, Add tooltip, empty
+  state and row tooltips follow, as do the attestation modal's media labels and the
+  Devices page's per-machine media card, count column and remote-erase scope.
+
+  **Kept deliberately:** the word "drive" where it names a physical object or a
+  drive-specific artefact — the SMART health PDF and its `Drive-Health-*.pdf` filename,
+  `docs.html`'s drive-type content, and the resource pages (`drive-types`, `nvme-erase`,
+  `sas-erase`, `psid-revert`), which target search intent and are not the inventory.
+  Nothing internal was renamed: `/dashboard/drives`, `/api/drives`, `certificate_drives`
+  and `drive_count` are all unchanged, so bookmarks and the API are unaffected.
+
+  A blind find-and-replace would have broken this: `media_source`/`media_destination`
+  already mean *where the media came from and is going*, which is unrelated.
+
 ### Fixed
 
 - **The certificate credited the attested records to one person who did not make

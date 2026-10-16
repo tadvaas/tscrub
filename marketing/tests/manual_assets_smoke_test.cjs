@@ -356,7 +356,7 @@ setTimeout(() => {
               setTimeout(() => {
                 check('remove — declining the confirm sends no request', global.__reqs.length === 0,
                   JSON.stringify(global.__reqs));
-                check('remove — the confirm names what will go', /this drive/.test(global.__lastConfirm),
+                check('remove — the confirm names what will go', /this media item/.test(global.__lastConfirm),
                   global.__lastConfirm);
 
                 // Accepting must DELETE the right record, with the job it belongs to.

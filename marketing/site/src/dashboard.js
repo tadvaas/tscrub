@@ -9,7 +9,12 @@ const NAV_RIGHT = { el: null };
 
   const links = [
     { href: '/dashboard/devices', label: 'Devices', side: 'left' },
-    { href: '/dashboard/drives', label: 'Drives', side: 'left' },
+    // 'Media', not 'Drives': the tab is already a superset of drives — its total includes
+    // operator-attested media, which can be an iPhone's soldered eMMC or a flash chip, and
+    // it counts the same unit the certificate certifies ('14 MEDIA SANITISED IN PLACE').
+    // NIST SP 800-88 splits media (the storage) from the device containing it, which is
+    // exactly how the attested vocabulary already reads. The URL stays /dashboard/drives.
+    { href: '/dashboard/drives', label: 'Media', side: 'left' },
     { href: '/dashboard/certificates', label: 'Certificates', side: 'left' },
     { href: '/dashboard/licences', label: 'Licences', side: 'left' },
     { href: '/dashboard/billing', label: 'Billing', side: 'right' },
