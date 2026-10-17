@@ -6,6 +6,23 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.62] - 2026-10-17
+
+### Fixed
+
+- **Block-SID drives were withheld from the report.** A race in the wipe UI's
+  IPC reader could lose a worker's final terminal status when a SIGCHLD
+  interrupted the read right after the FLR suspend/resume; the report gate then
+  saw a non-terminal drive, marked it `UNKNOWN` ("Sanitisation did not
+  complete"), and withheld the report — so a Block-SID-locked bench showed a
+  reason-less failure and no dashboard record. The reader now drains any
+  buffered worker outcome lines before closing, so `BLOCKED` (and any other
+  terminal outcome) is always recorded and reported.
+
+### Changed
+
+- The docs kernel-parameters table gained a "Default" column.
+
 ## [v1.11.61] - 2026-10-17
 
 ### Added

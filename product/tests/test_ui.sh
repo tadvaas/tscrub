@@ -241,4 +241,38 @@ t::assert_eq "Report: USB ✓ · Verify 2 passed · 1 failed · Format 1 exFAT �
 devrow[d3.selected]=0
 t::assert_eq "Report: USB ✓ · Verify 2 passed · Format 1 exFAT · 1 FAT32 · HPA/DCO 2" "$(report::footer_status)" "footer_status ignores unselected"
 
+# --- ui::apply_outcome: core IPC outcome recording + LOG forward ----------
+devices=(nvme0n1)
+devrow=()
+ui::apply_outcome nvme0n1 STATUS BLOCKED
+t::assert_eq "BLOCKED" "${devrow[nvme0n1.status]}" "apply_outcome records STATUS"
+ui::apply_outcome nvme0n1 METHOD "nwipe Quick"
+t::assert_eq "nwipe Quick" "${devrow[nvme0n1.method]}" "apply_outcome records METHOD"
+ui::apply_outcome nvme0n1 CLASS CLEAR
+t::assert_eq "CLEAR" "${devrow[nvme0n1.class]}" "apply_outcome records CLASS"
+ui::apply_outcome nvme0n1 CERT SANITISATION
+t::assert_eq "SANITISATION" "${devrow[nvme0n1.cert]}" "apply_outcome records CERT"
+LOG_FD5="$(mktemp /tmp/tscrub-ui-fd5.XXXXXX)"
+exec 5>"$LOG_FD5"
+ui::apply_outcome nvme0n1 LOG "drive denied"
+exec 5>&-
+exec 5>/dev/null
+t::assert_contains "$(cat "$LOG_FD5")" "drive denied" "apply_outcome forwards LOG to fd5"
+rm -f "$LOG_FD5"
+
+# --- ui::drain_worker_fd: records buffered lines after the coproc dies ----
+# A worker's final terminal status can sit buffered on fd 4 when a SIGCHLD cut
+# ui::loop's read short. The drain must record it (this is what stops a BLOCKED
+# drive from being reported as "incomplete" and having its report withheld).
+devrow=()
+UI_FD4="$(mktemp /tmp/tscrub-ui-fd4.XXXXXX)"
+printf 'nvme0n1 STATUS BLOCKED\nnvme0n1 METHOD nwipe Quick\nnvme0n1 CLASS CLEAR\n' > "$UI_FD4"
+exec 4< "$UI_FD4"
+ui::drain_worker_fd
+exec 4<&-
+t::assert_eq "BLOCKED" "${devrow[nvme0n1.status]}" "drain records buffered STATUS"
+t::assert_eq "nwipe Quick" "${devrow[nvme0n1.method]}" "drain records buffered METHOD"
+t::assert_eq "CLEAR" "${devrow[nvme0n1.class]}" "drain records buffered CLASS"
+rm -f "$UI_FD4"
+
 t::summary

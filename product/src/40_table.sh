@@ -844,6 +844,36 @@ table::render() {
 
 }
 
+# Apply one worker IPC line's core outcome to devrow (STATUS/METHOD/CLASS/CERT)
+# and forward LOG lines to the audit log. Shared by the live ui::loop branches
+# and the end-of-wipe drain so the outcome keys can never drift between them.
+ui::apply_outcome() {
+    local _dev="$1" _key="$2" _value="$3"
+    case "$_key" in
+        STATUS) devrow["$_dev.status"]="$_value" ;;
+        METHOD) devrow["$_dev.method"]="$_value" ;;
+        CLASS)  devrow["$_dev.class"]="$_value" ;;
+        CERT)   devrow["$_dev.cert"]="$_value" ;;
+        *)      printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5 ;;
+    esac
+}
+
+# Drain any worker lines still buffered on fd 4 (non-blocking). Called from
+# ui::loop's dead-coproc path: a worker's final STATUS can be buffered when a
+# SIGCHLD cut the read short, and it must be recorded before the report gate
+# runs — otherwise the terminal outcome is lost and the report is withheld.
+ui::drain_worker_fd() {
+    local _dev _key _value
+    # cat has exited, so fd 4 is at EOF after any buffered lines; the short
+    # timeout bounds the wait if the "coproc dead" signal was spurious. NOTE:
+    # `read -t 0` does NOT consume data (bash returns success without reading),
+    # so a tiny positive timeout is required.
+    while IFS=' ' read -r -t 0.1 -u4 _dev _key _value; do
+        [[ -z "${_dev:-}" ]] && continue
+        ui::apply_outcome "$_dev" "$_key" "$_value"
+    done
+}
+
 ui::loop() {
     local _rc _dev _key _value
     while true; do
@@ -866,7 +896,7 @@ ui::loop() {
                         ;;
                 esac
             elif [[ "$_key" == "STATUS" ]]; then
-                devrow["$_dev.status"]="$_value"
+                ui::apply_outcome "$_dev" "$_key" "$_value"
                 # Live progress: workers emit "STATUS NN%" (NVMe SPROG, nwipe
                 # parse). Store it for the aggregate heartbeat progress.
                 if [[ "$_value" =~ ^([0-9]+)%$ ]]; then
@@ -903,18 +933,12 @@ ui::loop() {
                 # aggregate picks the slowest running drive's estimate.
                 [[ "$_value" =~ ^[0-9]+$ ]] && devrow["$_dev.progress_eta_sec"]="$_value"
                 status::recompute_progress
-            elif [[ "$_key" == "METHOD" ]]; then
-                # Workers run in a subshell, so their direct devrow writes are
-                # lost; outcome corrections (e.g. the NVMe/SCSI software-
-                # overwrite fallback) arrive over the fd-3 IPC pipe instead.
-                devrow["$_dev.method"]="$_value"
-            elif [[ "$_key" == "CLASS" ]]; then
-                devrow["$_dev.class"]="$_value"
-            elif [[ "$_key" == "CERT" ]]; then
-                devrow["$_dev.cert"]="$_value"
             else
-                # Forward non-STATUS worker messages (LOG) to the log file.
-                printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5
+                # METHOD/CLASS/CERT outcome corrections (workers run in a
+                # subshell, so their direct devrow writes are lost and arrive
+                # over the fd-3 IPC pipe instead) and LOG lines (forwarded to
+                # the audit log) share the same core recording.
+                ui::apply_outcome "$_dev" "$_key" "$_value"
             fi
         elif (( _rc > 128 )); then
             # read timed out — refresh the MDM cell from the worker's result
@@ -953,6 +977,14 @@ ui::loop() {
                 break
             fi
             if [[ -z "${UI_PID:-}" ]] || ! kill -0 "$UI_PID" 2>/dev/null; then
+                # The coprocess has exited: every worker has closed fd 3. A
+                # worker's final STATUS/METHOD/CLASS/CERT line can still be
+                # buffered on fd 4 (the read above was cut short by a SIGCHLD
+                # before it consumed the line). Drain it so a terminal outcome
+                # (e.g. BLOCKED after the FLR suspend/resume) is recorded
+                # before the report gate runs — otherwise it is lost and the
+                # report is wrongly withheld.
+                ui::drain_worker_fd
                 break
             fi
         fi
