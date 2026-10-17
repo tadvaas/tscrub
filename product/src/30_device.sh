@@ -745,7 +745,7 @@ device::execute() {
             device::exec_nvme "$dev" "$cap"
             ;;
         CAP_SCSI_NWIPE)
-            device::exec_scsi_nwipe "$dev"
+            device::exec_nwipe "$dev"
             ;;
         CAP_SCSI_SANITIZE)
             device::exec_scsi_sanitize "$dev"

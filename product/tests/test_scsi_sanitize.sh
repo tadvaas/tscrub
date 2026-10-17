@@ -59,9 +59,9 @@ exec 3>&-
 captured="$(cat "$OUT")"; rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "unsupported sanitize -> nwipe COMPLETED"
 t::assert_contains "$captured" "falling back to nwipe" "fallback logged"
-t::assert_eq "CLEAR" "${devrow[sda.class]}" "fallback corrects class -> CLEAR"
-t::assert_eq "SANITISATION" "${devrow[sda.cert]}" "fallback corrects cert -> SANITISATION"
-t::assert_eq "nwipe Quick" "${devrow[sda.method]}" "fallback corrects method -> nwipe Quick"
+t::assert_contains "$captured" "sda METHOD nwipe Quick" "fallback emits METHOD over IPC"
+t::assert_contains "$captured" "sda CLASS CLEAR" "fallback emits CLASS over IPC"
+t::assert_contains "$captured" "sda CERT SANITISATION" "fallback emits CERT over IPC"
 unset FAKE_SG_SANITIZE_RC FAKE_SG_SANITIZE_OUT FAKE_NWIPE_RC
 
 t::summary

@@ -8,7 +8,7 @@ if [[ "$1" == "--help" ]]; then
 fi
 
 # Real nwipe writes progress lines (on SIGUSR1) to --logfile FILE; mirror that
-# so the progress parser in exec_scsi_nwipe can be exercised by tests.
+# so the progress parser in exec_nwipe can be exercised by tests.
 logfile=""
 prev=""
 for a in "$@"; do

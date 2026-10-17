@@ -49,7 +49,7 @@ devrow[sda.class]="CLEAR"
 devrow[sda.capability]="CAP_SCSI_NWIPE"
 export FAKE_NWIPE_RC=0 FAKE_NWIPE_PROGRESS=45 FAKE_NWIPE_ETA="00:12:34"
 exec 3>"$OUT"
-device::exec_scsi_nwipe sda
+device::exec_nwipe sda
 exec 3>&-
 exec 5>&-
 captured="$(cat "$OUT")"

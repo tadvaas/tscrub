@@ -186,6 +186,29 @@ device::exec_nvme() {
         fi
     fi
 
+    # Firmware erase failed for a NON-lockdown reason: the controller rejected
+    # sanitize/format even though (or because) it has no usable erase path —
+    # e.g. a Samsung PM981a that advertises Format NVM but answers every
+    # sanitize/format with 0x2001, has no Sanitize, and no Opal SED. The drive
+    # is still writable, so fall back to a single-pass software overwrite
+    # (nwipe), recorded honestly as Clear, instead of failing the drive.
+    # Block SID (0x4286/0x4015) is deliberately EXCLUDED: that is a recoverable
+    # firmware lockdown with its own PSID/BIOS path, and falling back here would
+    # mask it. Gated on TS_NVME_SOFTWARE_FALLBACK (auto=on, off=disabled).
+    if [[ "${TS_NVME_SOFTWARE_FALLBACK:-auto}" != "off" ]] \
+        && ! grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$NVME_CMD_OUT"; then
+        echo "$dev LOG ${NVME_CMD_OP:-sanitize} rejected — no firmware erase path; falling back to software overwrite (nwipe)" >&3
+        # Outcome travels over the fd-3 IPC pipe: this runs in the wipe worker's
+        # subshell, where direct devrow writes would be lost. Emitted before the
+        # wipe — a failed nwipe ends FAILED, which normalize_outcome overwrites
+        # back to "Sanitisation failed", so the labels are never falsely Clear.
+        echo "$dev METHOD nwipe Quick" >&3
+        echo "$dev CLASS CLEAR" >&3
+        echo "$dev CERT SANITISATION" >&3
+        device::exec_nwipe "$dev"
+        return
+    fi
+
     device::nvme_fail "$dev" "${NVME_CMD_OP:-sanitize}" "$NVME_CMD_OUT"
 }
 

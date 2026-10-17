@@ -903,6 +903,15 @@ ui::loop() {
                 # aggregate picks the slowest running drive's estimate.
                 [[ "$_value" =~ ^[0-9]+$ ]] && devrow["$_dev.progress_eta_sec"]="$_value"
                 status::recompute_progress
+            elif [[ "$_key" == "METHOD" ]]; then
+                # Workers run in a subshell, so their direct devrow writes are
+                # lost; outcome corrections (e.g. the NVMe/SCSI software-
+                # overwrite fallback) arrive over the fd-3 IPC pipe instead.
+                devrow["$_dev.method"]="$_value"
+            elif [[ "$_key" == "CLASS" ]]; then
+                devrow["$_dev.class"]="$_value"
+            elif [[ "$_key" == "CERT" ]]; then
+                devrow["$_dev.cert"]="$_value"
             else
                 # Forward non-STATUS worker messages (LOG) to the log file.
                 printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5

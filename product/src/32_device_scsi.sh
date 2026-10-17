@@ -3,7 +3,7 @@
 # =============================================================================
 
 
-device::exec_scsi_nwipe() {
+device::exec_nwipe() {
     local dev="$1"
     local nwipe_help logfile rc line pct eta_sec
     local -a nwipe_cmd
@@ -116,11 +116,13 @@ device::exec_scsi_sanitize() {
     local tmp_out rc out
 
     if ! command -v sg_sanitize >/dev/null 2>&1; then
-        # Tool vanished since detection — degrade to nwipe honestly.
-        devrow["$dev.class"]="CLEAR"
-        devrow["$dev.cert"]="SANITISATION"
-        devrow["$dev.method"]="nwipe Quick"
-        device::exec_scsi_nwipe "$dev"
+        # Tool vanished since detection — degrade to nwipe honestly. The
+        # outcome travels over the fd-3 IPC pipe (this runs in the wipe
+        # worker's subshell, where direct devrow writes would be lost).
+        echo "$dev METHOD nwipe Quick" >&3
+        echo "$dev CLASS CLEAR" >&3
+        echo "$dev CERT SANITISATION" >&3
+        device::exec_nwipe "$dev"
         return
     fi
 
@@ -153,10 +155,12 @@ device::exec_scsi_sanitize() {
     if grep -qiE 'invalid (command operation code|field in cdb)|not supported' <<<"$out"; then
         echo "$dev LOG sanitize unsupported; falling back to nwipe" >&3
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE unsupported -> nwipe" >> "$LOG_FILE"
-        devrow["$dev.class"]="CLEAR"
-        devrow["$dev.cert"]="SANITISATION"
-        devrow["$dev.method"]="nwipe Quick"
-        device::exec_scsi_nwipe "$dev"
+        # Correct the outcome over the fd-3 IPC pipe (same reason as the
+        # tool-vanished branch above — direct devrow writes are lost here).
+        echo "$dev METHOD nwipe Quick" >&3
+        echo "$dev CLASS CLEAR" >&3
+        echo "$dev CERT SANITISATION" >&3
+        device::exec_nwipe "$dev"
         return
     fi
 

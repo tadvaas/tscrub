@@ -6,6 +6,37 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.61] - 2026-10-17
+
+### Added
+
+- **NVMe software-overwrite fallback.** Drives that advertise an NVMe
+  sanitize/format but reject every firmware erase command (e.g. a Samsung
+  PM981a answering `0x2001 Invalid Command Opcode` to both Format NVM and
+  Sanitize, with no Opal SED) used to end `FAILED` even though they are
+  perfectly writable. tScrub now falls back to a single-pass `nwipe`
+  overwrite for any non-lockdown firmware rejection, recorded honestly as
+  `Clear` / `nwipe Quick`, and — because it ends `COMPLETED` — it is scored by
+  the existing post-erasure verification (sentinel written before, read back
+  after). Block-SID refusals (`0x4286`/`0x4015`) are excluded so the PSID/PPI
+  path is never masked. Tunable via `--nvme-software-fallback=auto|off`
+  (cmdline `tscrub_nvme_software_fallback=`); default `auto`. Also fixes the
+  SCSI sanitize→nwipe fallback, whose Clear/Sanitisation outcome was written
+  directly to the wipe worker's subshell `devrow` and silently lost in
+  production — outcome corrections now travel over the worker IPC pipe. Plan:
+  `research/nvme-software-fallback/README.md`. Tests: `test_execute.sh`,
+  `test_scsi_sanitize.sh`.
+
+- **PSID map from URL or local path.** The `--disable-block-sid=psid` policy
+  previously read `psids.conf` only from the boot USB. It now loads the
+  serial→PSID map from three sources in priority order — a URL
+  (`--psids-url` / `tscrub_psids_url=`, fetched with the same network-retry
+  logic as the licence URL), a local path (`--psids` / `tscrub_psids=`), then
+  the boot USB — so a PXE fleet can pull PSIDs from an isolated LAN endpoint
+  without baking them into the image. The parse logic is factored into a
+  shared `config::psids_parse_file`. Also adds `tscrub_ppi_probe=1`, the PXE
+  equivalent of `--ppi-probe`. Tests: `test_psid.sh`.
+
 ## [v1.11.60] - 2026-10-17
 
 ### Added

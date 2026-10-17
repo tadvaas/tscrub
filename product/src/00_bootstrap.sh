@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.60"
+SCRIPT_VERSION="v1.11.61"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -28,9 +28,15 @@ TS_FLR_MAX_ATTEMPTS=5
 TS_FLR_SUSPEND_SECS=5
 TS_RETRY_PURGE=1
 TS_BLOCK_SID_POLICY=ask
+# Software-overwrite fallback for NVMe drives with no usable firmware erase.
+#   TS_NVME_SOFTWARE_FALLBACK auto | off   (auto = nwipe fallback when sanitize/
+#   format is rejected for a non-Block-SID reason; off = fail the drive as before)
+TS_NVME_SOFTWARE_FALLBACK=auto
 TS_PPI=0
 TS_PPI_EFIVAR=""
 PPI_PROBE=0
+TS_PSIDS_URL=""
+TS_PSIDS_PATH=""
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -880,7 +886,9 @@ parse_args() {
     # Kernel-cmdline defaults first, so explicit CLI flags below win.
     cmdline::flr || true
     cmdline::block_sid || true
+    cmdline::nvme_software_fallback || true
     cmdline::ppi || true
+    cmdline::psids || true
 
     while (($# > 0)); do
         arg="$1"
@@ -1079,6 +1087,20 @@ parse_args() {
                     *) echo "Invalid --disable-block-sid value: '$1' (ask|psid|off)"; exit 1 ;;
                 esac
                 ;;
+            --nvme-software-fallback=*)
+                case "${arg#*=}" in
+                    auto|off) TS_NVME_SOFTWARE_FALLBACK="${arg#*=}" ;;
+                    *) echo "Invalid --nvme-software-fallback value: '${arg#*=}' (auto|off)"; exit 1 ;;
+                esac
+                ;;
+            --nvme-software-fallback)
+                shift
+                [[ $# -gt 0 ]] || { echo "--nvme-software-fallback requires auto|off"; exit 1; }
+                case "$1" in
+                    auto|off) TS_NVME_SOFTWARE_FALLBACK="$1" ;;
+                    *) echo "Invalid --nvme-software-fallback value: '$1' (auto|off)"; exit 1 ;;
+                esac
+                ;;
             --ppi)
                 TS_PPI=1
                 ;;
@@ -1093,6 +1115,12 @@ parse_args() {
                 ;;
             --ppi-probe)
                 PPI_PROBE=1
+                ;;
+            --psids-url=*)
+                TS_PSIDS_URL="${arg#*=}"
+                ;;
+            --psids=*)
+                TS_PSIDS_PATH="${arg#*=}"
                 ;;
             --help|-h)
                 echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
@@ -1119,9 +1147,12 @@ parse_args() {
                 echo "  --label LABEL      Volume label for formatted drives (default TSCRUB)."
                 echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
                 echo "  --disable-block-sid P  Block SID handling: ask|psid|off (default ask)."
+                echo "  --nvme-software-fallback M  NVMe software overwrite when firmware erase is rejected: auto|off (default auto)."
                 echo "  --ppi               Request PPI 'disable block SID' + reboot for a Block-SID-locked drive (off by default)."
                 echo "  --ppi-efivar NAME   The TCG Storage PPI UEFI variable to write (required for --ppi)."
                 echo "  --ppi-probe         List candidate PPI/Block-SID efivars (read-only) and exit."
+                echo "  --psids-url URL     Fetch psids.conf (SERIAL=PSID map) from URL for --disable-block-sid=psid."
+                echo "  --psids PATH        Read psids.conf (SERIAL=PSID map) from a local path."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -1203,8 +1234,23 @@ cmdline::block_sid() {
     return 0
 }
 
-# PPI "disable block SID" opt-in + variable from the kernel command line
-# (tscrub_ppi=1, tscrub_ppi_efivar=<name>) — the PXE-fleet way to enable it.
+# NVMe software-overwrite fallback from the kernel command line
+# (tscrub_nvme_software_fallback=auto|off).
+cmdline::nvme_software_fallback() {
+    local param
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_nvme_software_fallback=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    case "$param" in
+        auto|off) TS_NVME_SOFTWARE_FALLBACK="$param" ;;
+        *) TS_NVME_SOFTWARE_FALLBACK="auto" ;;
+    esac
+    return 0
+}
+
+# PPI "disable block SID" opt-in + variable + probe from the kernel command
+# line (tscrub_ppi=1, tscrub_ppi_efivar=<name>, tscrub_ppi_probe=1) — the
+# PXE-fleet way to enable it.
 cmdline::ppi() {
     [[ -r /proc/cmdline ]] || return 1
     local cmdline param found=0
@@ -1221,6 +1267,32 @@ cmdline::ppi() {
     if [[ -n "$param" ]]; then
         found=1
         TS_PPI_EFIVAR="${param//\"/}"
+    fi
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_probe=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        case "${param//\"/}" in
+            true|1|yes|on) PPI_PROBE=1 ;;
+        esac
+    fi
+    [[ "$found" -eq 1 ]] || return 1
+    return 0
+}
+
+# PSID-map sources from the kernel command line (tscrub_psids_url= / tscrub_psids=).
+cmdline::psids() {
+    [[ -r /proc/cmdline ]] || return 1
+    local cmdline param found=0
+    cmdline="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null)"
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_psids_url=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        TS_PSIDS_URL="${param//\"/}"
+    fi
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_psids=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        TS_PSIDS_PATH="${param//\"/}"
     fi
     [[ "$found" -eq 1 ]] || return 1
     return 0

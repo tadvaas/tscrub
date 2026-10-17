@@ -623,15 +623,85 @@ config::load_usb() {
     return 1
 }
 
-# Load a per-serial PSID map from the boot USB (psids.conf, one
-# "SERIAL=PSID" line per locked SED). PSIDs are only ever held in memory —
-# never logged, never in the report, never on the kernel command line. Serial
-# keys are normalised (trim + upper) so a space/case mismatch in the map never
-# misses a drive. A malformed line (PSID not 32 chars) is skipped with a
-# warning, never a hard error.
-config::load_psids() {
-    local name type rm fstype dev mnt mounted pass line serial psid
+# Parse one psids.conf file (one "SERIAL=PSID" line per locked SED) into
+# PSID_MAP. PSIDs are only ever held in memory — never logged, never in the
+# report, never on the kernel command line. Serial keys are normalised (trim +
+# upper) so a space/case mismatch in the map never misses a drive. A malformed
+# line (PSID not 32 chars) is skipped with a warning, never a hard error.
+config::psids_parse_file() {
+    local file="$1" line serial psid
+    [[ -r "$file" ]] || return 1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line#$'\357\273\277'}"   # strip a UTF-8 BOM
+        [[ "$line" =~ ^[[:space:]]*(#.*)?$ ]] && continue
+        serial="${line%%=*}"
+        psid="${line#*=}"
+        serial="$(printf '%s' "$serial" | xargs | tr '[:lower:]' '[:upper:]')"
+        psid="$(printf '%s' "$psid" | xargs | tr '[:lower:]' '[:upper:]')"
+        if [[ ${#psid} -ne 32 ]]; then
+            printf "%s[!] psids.conf: entry for '%s' ignored (PSID must be 32 chars)\n" "$TABLE_INDENT" "$serial" >&5
+            continue
+        fi
+        PSID_MAP["$serial"]="$psid"
+    done < "$file"
+    return 0
+}
 
+# Fetch a psids.conf from a URL (tscrub_psids_url=) into a temp file and parse
+# it. Same transport as the licence fetch (curl -> wget). A psids.conf holds
+# drive PSIDs — credentials that can purge a drive — so host it on an isolated
+# or authenticated LAN endpoint, not a public URL.
+config::psids_fetch() {
+    local url="$1" out rc
+    [[ -n "$url" ]] || return 1
+    out="$(mktemp /tmp/tscrub-psids.XXXXXX)"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout 10 --max-time 30 "$url" -o "$out" 2>/dev/null || { rm -f "$out"; return 1; }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "$out" --timeout=30 "$url" 2>/dev/null || { rm -f "$out"; return 1; }
+    else
+        rm -f "$out"
+        return 1
+    fi
+    [[ -s "$out" ]] || { rm -f "$out"; return 1; }
+    config::psids_parse_file "$out"
+    rc=$?
+    rm -f "$out"
+    return "$rc"
+}
+
+# Load a per-serial PSID map for automatic PSID revert of locked SEDs under
+# --disable-block-sid=psid. Sources, in priority order:
+#   1. URL  (tscrub_psids_url= / --psids-url) — fetched with a network retry,
+#      as the licence URL is (the kernel's own DHCP may not be up yet on PXE).
+#   2. Path (tscrub_psids= / --psids) — a local file.
+#   3. The boot USB (any vfat/fat16/fat32/iso9660 volume, mounted ro).
+config::load_psids() {
+    local name type rm fstype dev mnt mounted pass attempt
+
+    # 1. URL source.
+    if [[ -n "${TS_PSIDS_URL:-}" ]]; then
+        for attempt in 1 2 3; do
+            command -v ip >/dev/null 2>&1 && network::ensure
+            if config::psids_fetch "$TS_PSIDS_URL"; then
+                printf "%sPSID map fetched from %s.\n" "$TABLE_INDENT" "$TS_PSIDS_URL" >&5
+                return 0
+            fi
+            [[ "$attempt" -lt 3 ]] && sleep 6
+        done
+        printf "%s[!] PSID map fetch failed: %s — falling back to USB scan\n" "$TABLE_INDENT" "$TS_PSIDS_URL" >&5
+    fi
+
+    # 2. Local path source.
+    if [[ -n "${TS_PSIDS_PATH:-}" ]]; then
+        if config::psids_parse_file "$TS_PSIDS_PATH"; then
+            printf "%sPSID map loaded from %s.\n" "$TABLE_INDENT" "$TS_PSIDS_PATH" >&5
+            return 0
+        fi
+        printf "%s[!] PSID map unreadable: %s — falling back to USB scan\n" "$TABLE_INDENT" "$TS_PSIDS_PATH" >&5
+    fi
+
+    # 3. USB scan.
     command -v lsblk >/dev/null 2>&1 || return 1
 
     for pass in 1 2; do
@@ -653,19 +723,7 @@ config::load_psids() {
             fi
 
             if [[ -f "$mnt/psids.conf" ]]; then
-                while IFS= read -r line || [[ -n "$line" ]]; do
-                    line="${line#$'\357\273\277'}"   # strip a UTF-8 BOM
-                    [[ "$line" =~ ^[[:space:]]*(#.*)?$ ]] && continue
-                    serial="${line%%=*}"
-                    psid="${line#*=}"
-                    serial="$(printf '%s' "$serial" | xargs | tr '[:lower:]' '[:upper:]')"
-                    psid="$(printf '%s' "$psid" | xargs | tr '[:lower:]' '[:upper:]')"
-                    if [[ ${#psid} -ne 32 ]]; then
-                        printf "%s[!] psids.conf: entry for '%s' ignored (PSID must be 32 chars)\n" "$TABLE_INDENT" "$serial" >&5
-                        continue
-                    fi
-                    PSID_MAP["$serial"]="$psid"
-                done < "$mnt/psids.conf"
+                config::psids_parse_file "$mnt/psids.conf"
             fi
 
             if [[ "$mounted" -eq 1 ]]; then umount "$mnt" 2>/dev/null; rmdir "$mnt" 2>/dev/null; fi

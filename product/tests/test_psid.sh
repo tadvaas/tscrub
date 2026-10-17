@@ -156,4 +156,38 @@ devrow[sda.lock_kind]="locked"
 device::normalize_outcome
 t::assert_eq "TCG locked — physical destruction required" "${devrow[sda.method]}" "locked drive -> honest method"
 
+# --- config::psids_parse_file: direct file parse (URL/path source) ---------
+PSID_FILE="$(mktemp /tmp/tscrub-psids-file.XXXXXX)"
+printf 'S3WX1234AB = abcdefghijklmnopqrstuvwxyz123456\nGOOD2=ABCDEFGHIJKLMNOPQRSTUVWXYZ789012\nBADONE = TOOSHORT\n' > "$PSID_FILE"
+PSID_MAP=()
+config::psids_parse_file "$PSID_FILE"
+t::assert_eq "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456" "${PSID_MAP[S3WX1234AB]:-}" \
+    "parse_file: lowercased PSID uppercased"
+t::assert_eq "ABCDEFGHIJKLMNOPQRSTUVWXYZ789012" "${PSID_MAP[GOOD2]:-}" \
+    "parse_file: compact SERIAL=PSID accepted"
+t::assert_eq "" "${PSID_MAP[BADONE]:-}" "parse_file: short PSID skipped"
+
+# --- config::load_psids: tscrub_psids= path source wins (no USB scan) ------
+PSID_MAP=()
+export TS_PSIDS_PATH="$PSID_FILE"
+config::load_psids
+t::assert_eq "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456" "${PSID_MAP[S3WX1234AB]:-}" \
+    "path source loads the map"
+unset TS_PSIDS_PATH
+
+# --- config::load_psids: URL fetch failure falls back to the path source ---
+PSID_MAP=()
+export TS_PSIDS_URL="http://192.0.2.1/psids.conf"
+export TS_PSIDS_PATH="$PSID_FILE"
+sleep() { :; }              # no-op the fetch retry backoff
+network::ensure() { return 0; }
+curl() { return 1; }
+wget() { return 1; }
+ip() { return 0; }
+config::load_psids
+t::assert_eq "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456" "${PSID_MAP[S3WX1234AB]:-}" \
+    "URL fetch failure falls back to path source"
+unset TS_PSIDS_URL TS_PSIDS_PATH
+rm -f "$PSID_FILE"
+
 t::summary

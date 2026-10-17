@@ -102,6 +102,40 @@ captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "Block SID + psid policy, no PSID -> BLOCKED"
 unset TS_BLOCK_SID_POLICY FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT
 
+# NVMe sanitize rejected with a generic opcode error (no firmware erase path)
+# -> software-overwrite (nwipe) fallback, labelled honestly over IPC
+: > "$OUT"
+devices=(nvme0n1)
+capability[nvme0n1]="CAP_NVME_PURGE_CRYPTO"
+devrow[nvme0n1.class]="PURGE"
+devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
+export FAKE_NVME_SANITIZE_RC=1
+export FAKE_NVME_SANITIZE_OUT="NVMe status 0x2001: Invalid Command Opcode"
+export FAKE_NWIPE_RC=0
+exec 3>"$OUT"
+device::execute nvme0n1
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "generic 0x2001 rejection -> nwipe COMPLETED"
+t::assert_contains "$captured" "falling back to software overwrite" "fallback logged"
+t::assert_contains "$captured" "nvme0n1 METHOD nwipe Quick" "fallback emits METHOD over IPC"
+t::assert_contains "$captured" "nvme0n1 CLASS CLEAR" "fallback emits CLASS over IPC"
+t::assert_contains "$captured" "nvme0n1 CERT SANITISATION" "fallback emits CERT over IPC"
+unset FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_NWIPE_RC
+
+# NVMe generic rejection + TS_NVME_SOFTWARE_FALLBACK=off -> FAILED (as before)
+: > "$OUT"
+export TS_NVME_SOFTWARE_FALLBACK=off
+export FAKE_NVME_SANITIZE_RC=1
+export FAKE_NVME_SANITIZE_OUT="NVMe status 0x2001: Invalid Command Opcode"
+exec 3>"$OUT"
+device::execute nvme0n1
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "nvme0n1 STATUS FAILED" "fallback off -> FAILED"
+t::check "fallback off does NOT emit nwipe" '[[ "$captured" != *"nvme0n1 METHOD nwipe Quick"* ]]'
+unset TS_NVME_SOFTWARE_FALLBACK FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT
+
 # NVMe crypto sanitize success (monitor sees SSTAT=0x1)
 : > "$OUT"
 export FAKE_NVME_SANITIZE_RC=0
