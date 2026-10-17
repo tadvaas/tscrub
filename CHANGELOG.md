@@ -6,6 +6,33 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.60] - 2026-10-17
+
+### Added
+
+- **PPI "disable block SID authentication" (request + reboot-to-confirm).** A
+  Block-SID-locked drive that the PSID-revert path cannot reach still needs
+  the platform to lift the gate — the BIOS refuses SID/PSID commands until a
+  physically-present operator confirms at a POST prompt. New opt-in `--ppi`
+  (kernel cmdline `tscrub_ppi=1`) stages a TCG Storage PPI request to the UEFI
+  variable named by `--ppi-efivar` (cmdline `tscrub_ppi_efivar=`), sets
+  `PPIRequested` on every `BLOCKED` drive in the report, and reboots to the
+  firmware confirmation. The write is triple-gated so it can never touch NVRAM
+  blind: opt-in + an operator-identified variable + that variable present in
+  efivarfs. `--ppi-probe` lists candidate PPI/Block-SID efivars read-only (the
+  pre-enablement hardware probe). Without a configured variable the flow falls
+  back to the existing BIOS guidance (`device::lock_hint`). The new
+  `PPIRequested` CSV column flows through the server, Media tab, certificate
+  Annex A and JSON-LD. Plan: `research/ppi-block-sid/plan.md`. Tests:
+  `test_ppi.sh` (13).
+
+### Fixed
+
+- **Drive export dropped lock/format columns.** `/api/drives/export` has a
+  field whitelist that silently discarded `PSIDRevert`/`LockKind` (v1.11.58)
+  and the `Format*` columns (v1.11.56) even though the Media tab advertised
+  them. Added them (and `PPIRequested`) to the export whitelist.
+
 ## [v1.11.59] - 2026-10-16
 
 ### Changed

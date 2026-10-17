@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.59"
+SCRIPT_VERSION="v1.11.60"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -28,6 +28,9 @@ TS_FLR_MAX_ATTEMPTS=5
 TS_FLR_SUSPEND_SECS=5
 TS_RETRY_PURGE=1
 TS_BLOCK_SID_POLICY=ask
+TS_PPI=0
+TS_PPI_EFIVAR=""
+PPI_PROBE=0
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -877,6 +880,7 @@ parse_args() {
     # Kernel-cmdline defaults first, so explicit CLI flags below win.
     cmdline::flr || true
     cmdline::block_sid || true
+    cmdline::ppi || true
 
     while (($# > 0)); do
         arg="$1"
@@ -1075,6 +1079,21 @@ parse_args() {
                     *) echo "Invalid --disable-block-sid value: '$1' (ask|psid|off)"; exit 1 ;;
                 esac
                 ;;
+            --ppi)
+                TS_PPI=1
+                ;;
+            --ppi=*)
+                case "${arg#*=}" in
+                    true|1|yes|on) TS_PPI=1 ;;
+                    *)             TS_PPI=0 ;;
+                esac
+                ;;
+            --ppi-efivar=*)
+                TS_PPI_EFIVAR="${arg#*=}"
+                ;;
+            --ppi-probe)
+                PPI_PROBE=1
+                ;;
             --help|-h)
                 echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
@@ -1100,6 +1119,9 @@ parse_args() {
                 echo "  --label LABEL      Volume label for formatted drives (default TSCRUB)."
                 echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
                 echo "  --disable-block-sid P  Block SID handling: ask|psid|off (default ask)."
+                echo "  --ppi               Request PPI 'disable block SID' + reboot for a Block-SID-locked drive (off by default)."
+                echo "  --ppi-efivar NAME   The TCG Storage PPI UEFI variable to write (required for --ppi)."
+                echo "  --ppi-probe         List candidate PPI/Block-SID efivars (read-only) and exit."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -1178,6 +1200,29 @@ cmdline::block_sid() {
         ask|psid|off) TS_BLOCK_SID_POLICY="$param" ;;
         *) TS_BLOCK_SID_POLICY="ask" ;;
     esac
+    return 0
+}
+
+# PPI "disable block SID" opt-in + variable from the kernel command line
+# (tscrub_ppi=1, tscrub_ppi_efivar=<name>) — the PXE-fleet way to enable it.
+cmdline::ppi() {
+    [[ -r /proc/cmdline ]] || return 1
+    local cmdline param found=0
+    cmdline="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null)"
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        case "${param//\"/}" in
+            true|1|yes|on) TS_PPI=1 ;;
+            *) TS_PPI=0 ;;
+        esac
+    fi
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_efivar=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        TS_PPI_EFIVAR="${param//\"/}"
+    fi
+    [[ "$found" -eq 1 ]] || return 1
     return 0
 }
 

@@ -430,6 +430,60 @@ device::lock_hint() {
     esac
 }
 
+# TCG Storage PPI — "disable block SID authentication" (Blancco's Lenovo fix).
+# A Block-SID-locked drive cannot be cleared from Linux: the BIOS refuses the
+# sanitize command, so the OS stages a request and a physically-present operator
+# confirms at the next POST. The request is a UEFI-variable write (NVRAM), so it
+# is gated three ways: (1) --ppi opt-in (off by default), (2) TS_PPI_EFIVAR set
+# to a variable the operator has POSITIVELY identified (the GUID/name is
+# firmware-specific — never guessed), (3) that variable present in efivarfs.
+# device::ppi_probe / device::ppi_probe_list are read-only; device::ppi_request
+# is the only write.
+PPI_EFIVARS_DIR="${PPI_EFIVARS_DIR:-/sys/firmware/efi/efivars}"
+
+device::ppi_probe() {
+    local name="${TS_PPI_EFIVAR:-}" path
+    [[ -n "$name" ]] || return 1
+    path="${PPI_EFIVARS_DIR}/${name}"
+    [[ -e "$path" ]] || return 1
+    printf '%s' "$path"
+    return 0
+}
+
+# Read-only candidate scan (--ppi-probe): list efivars whose name hints at a
+# storage/PPI/SID variable, so the operator can identify the right one on real
+# hardware. Never writes.
+device::ppi_probe_list() {
+    if [[ ! -d "${PPI_EFIVARS_DIR}" ]]; then
+        echo "efivarfs not mounted at ${PPI_EFIVARS_DIR}" >&5
+        return 0
+    fi
+    ls "${PPI_EFIVARS_DIR}" 2>/dev/null | grep -iE 'ppi|sid|opal|storage' || true
+}
+
+# Stage the PPI request. Returns 0 when the request was written (a reboot is
+# expected); non-zero falls back to BIOS guidance (device::lock_hint).
+device::ppi_request() {
+    local kind="$1" path
+    [[ "${TS_PPI:-0}" == "1" ]] || return 1
+    path="$(device::ppi_probe)" || {
+        echo "PPI unavailable: no PPI variable identified (set --ppi-efivar) — ${kind} falls back to BIOS guidance" >&5
+        return 1
+    }
+    # Scoped NVRAM write: remount efivarfs rw for this one variable, write the
+    # request (the variable's presence, empty payload), remount ro.
+    mount -o remount,rw "${PPI_EFIVARS_DIR}" 2>/dev/null \
+        || { echo "PPI request failed: cannot remount efivarfs rw" >&5; return 1; }
+    if ! : > "$path" 2>/dev/null; then
+        mount -o remount,ro "${PPI_EFIVARS_DIR}" 2>/dev/null
+        echo "PPI request failed: cannot write ${TS_PPI_EFIVAR}" >&5
+        return 1
+    fi
+    mount -o remount,ro "${PPI_EFIVARS_DIR}" 2>/dev/null
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ACTION: PPI_REQUEST ${kind} (${TS_PPI_EFIVAR})" >> "$LOG_FILE"
+    return 0
+}
+
 # Remove freeze locks so firmware-erasure commands can run. ATA drives expose
 # the lock directly in IDENTIFY (hdparm); NVMe has no equivalent up-front
 # probe, so NVMe is handled at execution time (device::exec_nvme retries a

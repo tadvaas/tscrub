@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested"
         for dev in "${devices[@]}"; do
             local st en dur sed_status
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -104,7 +104,8 @@ report::csv() {
                 "${FORMAT_MODE:-auto}" "${devrow[$dev.format_fs]:-}" "${devrow[$dev.format_scheme]:-}" \
                 "${devrow[$dev.format_label]:-}" "${devrow[$dev.format_result]:-n/a}" "${devrow[$dev.format_confirm]:-}" \
                 "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}" \
-                "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}"
+                "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}" \
+                "${devrow[$dev.ppi_requested]:-no}"
         done
     } > "$report_file"
 

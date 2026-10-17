@@ -177,6 +177,14 @@ fn_main() {
         network::ensure || true
     fi
 
+    # Read-only PPI probe (--ppi-probe): list candidate TCG Storage PPI /
+    # Block-SID efivars and exit. This is the pre-implementation hardware probe
+    # — it identifies the firmware-specific variable without any NVRAM write.
+    if [[ "${PPI_PROBE:-0}" -eq 1 ]]; then
+        device::ppi_probe_list
+        exit 0
+    fi
+
     # Autonuke is opt-in only: --autonuke / tscrub_autonuke=1. Supplying a COCID
     # (CLI flag, kernel cmdline or tscrub.conf) no longer implies autonuke — a
     # COCID'd boot lands on the triage screen like any other boot.
@@ -319,6 +327,7 @@ erasure::run() {
     done
     ui_eta_row=()
     pids=()
+    PPI_REBOOT=0
 
     # Report-delivery state is per-cycle, not per-session.
     REPORT_USB_STATUS=""
@@ -451,6 +460,24 @@ erasure::run() {
     # optimistic class/cert/method they were classified for.
     device::normalize_outcome
 
+    # PPI "disable block SID authentication" (opt-in: --ppi). A drive that ended
+    # BLOCKED cannot be cleared from Linux — the BIOS refuses the sanitize, so
+    # the fix is a platform PPI request + reboot. Only fire when the operator
+    # opted in AND a PPI variable has been positively identified (TS_PPI_EFIVAR);
+    # otherwise this is a no-op and BIOS guidance (device::lock_hint) applies.
+    if [[ "${TS_PPI:-0}" -eq 1 ]]; then
+        local ppi_blocked=0
+        for dev in "${devices[@]}"; do
+            [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && ppi_blocked=1
+        done
+        if [[ "$ppi_blocked" -eq 1 ]] && device::ppi_request block_sid; then
+            for dev in "${devices[@]}"; do
+                [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
+            done
+            PPI_REBOOT=1
+        fi
+    fi
+
     # Publish the final erasure state (a worker that died without reporting is
     # UNKNOWN above; ui::loop may already have published done/failed on the
     # last terminal line — this call is idempotent).
@@ -495,6 +522,15 @@ erasure::run() {
     fi
     debug::save
     report::sync_out
+
+    # PPI reboot-to-confirm: if a request was staged this cycle, reboot now so
+    # the firmware can show "Disable block SID authentication?" at POST.
+    # Best-effort — a failed reboot leaves the finish screen up (the request is
+    # still staged and is re-detected on the next boot).
+    if [[ "${PPI_REBOOT:-0}" -eq 1 ]]; then
+        printf "%sBlock SID disable requested — rebooting. Confirm 'Disable block SID authentication?' at the POST prompt, then re-run.\n" "$TABLE_INDENT" >&5
+        reboot 2>/dev/null || reboot -f 2>/dev/null || true
+    fi
 
     # Track report-delivery outcome for the finish colour (red > amber > green).
     # A run counts as delivered if AT LEAST ONE destination succeeded; amber is

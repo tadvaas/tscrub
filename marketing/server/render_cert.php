@@ -265,6 +265,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'C'],
         'format'   => ['label' => 'Formatted',    'w' => 18, 'align' => 'C'],
         'psid'     => ['label' => 'PSID',         'w' => 14, 'align' => 'C'],
+        'ppi'      => ['label' => 'PPI',          'w' => 14, 'align' => 'C'],
         'ts'       => ['label' => 'Erased',       'w' => 22, 'align' => 'C'],
     ];
 
@@ -297,6 +298,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 if ($p === 'na') return 'N/A';
                 return '';
             }
+            case 'ppi': {
+                $p = strtolower(trim((string)($d['ppi_requested'] ?? '')));
+                return $p === 'yes' ? 'Yes' : '';
+            }
             case 'status': return (string)($d['status'] ?? '');
             case 'ts':     return (strtoupper(trim((string)($d['status'] ?? ''))) === 'COMPLETED') ? fmt_ts((string)($d['ts'] ?? '')) : '';
         }
@@ -322,6 +327,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'psid': {
                 $p = strtolower(trim((string)($d['psid_revert'] ?? '')));
                 return $p !== 'yes' && $p !== 'failed' && $p !== 'na';
+            }
+            case 'ppi': {
+                $p = strtolower(trim((string)($d['ppi_requested'] ?? '')));
+                return $p !== 'yes';
             }
             case 'status': return trim((string)($d['status'] ?? '')) === '';
             case 'ts':     return trim((string)($d['ts'] ?? '')) === '';

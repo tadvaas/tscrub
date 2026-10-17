@@ -242,7 +242,7 @@ with the release that carried them (per `CHANGELOG.md`).
       in-place route for a Block-SID-locked NVMe). Deferred — the efivar/ACPI
       interface is firmware-specific and needs a hardware probe before writing
       to NVRAM. (§11.1)
-      → **Plan**: `research/psid-revert/phase-2-competitor-parity.md` §3.1
+      → **Plan**: `research/ppi-block-sid/plan.md`
 - [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
       power or was aborted without re-consuming a licence (Blancco). Today a
       worker death normalises to `UNKNOWN`, no resume. (§11.1)
