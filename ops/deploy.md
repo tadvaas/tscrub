@@ -134,14 +134,15 @@ make -C product build-slim
 # 2. Push the slim build into the overlay and commit on the build host.
 #    `git checkout --` restores the bootloaders the ISO build clobbers
 #    (bootx64.efi shrinks 1,060,864 -> 966,664 bytes). `git add -A` commits the
-#    overlay plus the WinPE payload (board/shredos/winpe/); unstage the transient
-#    build log so it never lands in git.
+#    overlay plus the WinPE payload (board/shredos/winpe/). The transient build
+#    log is `build_tscrub.log` (and `build_tscrub_v*.log`) — it is already
+#    gitignored, so no `git reset` is needed.
 scp -o BatchMode=yes product/build/tscrub.sh \
   oxwet@192.168.0.6:~/shredos.x86_64/board/shredos/fsoverlay/usr/bin/tscrub.sh
 ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
   chmod 755 board/shredos/fsoverlay/usr/bin/tscrub.sh && \
   git checkout -- board/shredos/bootx64.efi board/shredos/shimx64.efi board/shredos/mmx64.efi board/shredos/grubx64.efi && \
-  git add -A && git reset -q build_winpe.log && \
+  git add -A && \
   git commit -m "tscrub vX.Y.Z"'
 
 # 3. Rebuild under tmux (survives SSH drop); ISO + bzImage land in output/images/
