@@ -238,11 +238,14 @@ with the release that carried them (per `CHANGELOG.md`).
       purge-gated drive reports `LockKind=password` (Blancco's "TCG password"
       shape) instead of one BLOCKED bucket. (§11.1)
       → **Plan**: `research/psid-revert/phase-2-competitor-parity.md`
-- [ ] PPI "disable block SID authentication" (Blancco's Lenovo fix, the only
-      in-place route for a Block-SID-locked NVMe). Deferred — the efivar/ACPI
-      interface is firmware-specific and needs a hardware probe before writing
-      to NVRAM. (§11.1)
-      → **Plan**: `research/ppi-block-sid/plan.md`
+- [~] PPI "disable block SID authentication" (Blancco's Lenovo fix, the only
+      in-place route for a Block-SID-locked NVMe). Core implemented (unreleased):
+      spec-conformant submission via the TPM PPI sysfs (op 97 = Disable_BlockSIDFunc,
+      TCG PPI v1.30 ACPI _DSM) with the vendor UEFI-variable fallback, `--ppi-op`,
+      `--ppi-resume` + a USB resume marker, and `PPICleared`/`PPIResumed` CSV
+      fields. Remaining: real-Lenovo UAT (confirm the POST prompt and that the
+      sanitize then succeeds). (§11.1)
+      → **Plan**: `research/block-sid-ppi/plan.md`; tests `product/tests/test_ppi.sh`.
 - [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
       power or was aborted without re-consuming a licence (Blancco). Today a
       worker death normalises to `UNKNOWN`, no resume. (§11.1)

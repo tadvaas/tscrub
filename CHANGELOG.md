@@ -6,6 +6,21 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.64] - 2026-10-18
+
+### Added
+
+- **Block SID via TCG Physical Presence Interface (PPI).** `--ppi` now submits the
+  spec-conformant ACPI `_DSM` request (TPM PPI sysfs, operation 97
+  "Disable_BlockSIDFunc") instead of an empty UEFI-variable write, with the vendor
+  UEFI-variable write kept as a scoped fallback. `--ppi-op=` selects
+  `disable_block_sid` (default), `block_sid`, or `enable_block_sid`, and
+  `--ppi-resume` re-applies the pending operation to the marked drives after the
+  reboot, so a Block-SID-locked NVMe drive can be re-erased once the operator
+  accepts the firmware prompt at POST.
+- The report CSV now carries `PPICleared` and `PPIResumed` columns (derived, not
+  stored) so a Block-SID clear is visible in the chain-of-custody report.
+
 ## [v1.11.63] - 2026-10-18
 
 ### Added

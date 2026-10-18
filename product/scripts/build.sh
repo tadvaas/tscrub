@@ -39,6 +39,7 @@ for part in \
   "$SRC_DIR/41_selftest.sh" \
   "$SRC_DIR/42_remote.sh" \
   "$SRC_DIR/43_verify.sh" \
+  "$SRC_DIR/44_device_ppi.sh" \
   "$SRC_DIR/44_device_sed.sh" \
   "$SRC_DIR/45_device_raid.sh" \
   "$SRC_DIR/46_hardware.sh" \

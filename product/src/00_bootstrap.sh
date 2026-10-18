@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.63"
+SCRIPT_VERSION="v1.11.64"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -34,6 +34,8 @@ TS_BLOCK_SID_POLICY=ask
 TS_NVME_SOFTWARE_FALLBACK=auto
 TS_PPI=0
 TS_PPI_EFIVAR=""
+TS_PPI_OP="disable_block_sid"
+TS_PPI_RESUME=0
 PPI_PROBE=0
 TS_PSIDS_URL=""
 TS_PSIDS_PATH=""
@@ -1116,6 +1118,12 @@ parse_args() {
             --ppi-probe)
                 PPI_PROBE=1
                 ;;
+            --ppi-op=*)
+                TS_PPI_OP="${arg#*=}"
+                ;;
+            --ppi-resume)
+                TS_PPI_RESUME=1
+                ;;
             --psids-url=*)
                 TS_PSIDS_URL="${arg#*=}"
                 ;;
@@ -1149,8 +1157,10 @@ parse_args() {
                 echo "  --disable-block-sid P  Block SID handling: ask|psid|off (default ask)."
                 echo "  --nvme-software-fallback M  NVMe software overwrite when firmware erase is rejected: auto|off (default auto)."
                 echo "  --ppi               Request PPI 'disable block SID' + reboot for a Block-SID-locked drive (off by default)."
-                echo "  --ppi-efivar NAME   The TCG Storage PPI UEFI variable to write (required for --ppi)."
-                echo "  --ppi-probe         List candidate PPI/Block-SID efivars (read-only) and exit."
+                echo "  --ppi-op OP         PPI operation: disable_block_sid|enable_block_sid (default disable_block_sid)."
+                echo "  --ppi-efivar NAME   Vendor UEFI-variable fallback (only when no TPM PPI sysfs; positively identified)."
+                echo "  --ppi-probe         List the TPM PPI sysfs + candidate efivars (read-only)."
+                echo "  --ppi-resume        Auto-resume the wipe of Block-SID drives after the PPI reboot."
                 echo "  --psids-url URL     Fetch psids.conf (SERIAL=PSID map) from URL for --disable-block-sid=psid."
                 echo "  --psids PATH        Read psids.conf (SERIAL=PSID map) from a local path."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
@@ -1273,6 +1283,18 @@ cmdline::ppi() {
         found=1
         case "${param//\"/}" in
             true|1|yes|on) PPI_PROBE=1 ;;
+        esac
+    fi
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_op=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        TS_PPI_OP="${param//\"/}"
+    fi
+    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_resume=//p' | head -n 1)"
+    if [[ -n "$param" ]]; then
+        found=1
+        case "${param//\"/}" in
+            true|1|yes|on) TS_PPI_RESUME=1 ;;
         esac
     fi
     [[ "$found" -eq 1 ]] || return 1

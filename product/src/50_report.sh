@@ -64,10 +64,14 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed"
         for dev in "${devices[@]}"; do
-            local st en dur sed_status
+            local st en dur sed_status ppi_cleared
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
+            # PPICleared is DERIVED, never stored: only a resumed drive whose
+            # re-erase completed can claim the Block SID gate was really off.
+            ppi_cleared="no"
+            [[ "${devrow[$dev.ppi_resumed]:-no}" == "yes" && "${devrow[$dev.status]:-}" == "COMPLETED" ]] && ppi_cleared="yes"
             dur=""
             [[ "$st" =~ ^[0-9]+$ && "$en" =~ ^[0-9]+$ ]] && dur=$(( en - st ))
             case "${opal_locked[$dev]:-}" in
@@ -105,7 +109,7 @@ report::csv() {
                 "${devrow[$dev.format_label]:-}" "${devrow[$dev.format_result]:-n/a}" "${devrow[$dev.format_confirm]:-}" \
                 "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}" \
                 "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}" \
-                "${devrow[$dev.ppi_requested]:-no}"
+                "${devrow[$dev.ppi_requested]:-no}" "$ppi_cleared" "${devrow[$dev.ppi_resumed]:-no}"
         done
     } > "$report_file"
 

@@ -280,6 +280,15 @@ fn_main() {
     # state back before the first screen renders.
     mdm::sync_state
 
+    # PPI resume (opt-in: --ppi-resume / tscrub_ppi_resume=1): a "disable Block
+    # SID" request was staged last cycle and accepted at POST — resume wiping
+    # exactly the marked serials instead of landing on the triage screen. Runs
+    # AFTER registration forks, so the boot-time snapshot still carries the FULL
+    # machine inventory (the background copy keeps its own devices[]).
+    if [[ "${TS_PPI_RESUME:-0}" -eq 1 ]] && device::ppi_resume_apply; then
+        AUTONUKE=1
+    fi
+
     if [[ "$AUTONUKE" -eq 1 ]]; then
         # PXE fleet / --autonuke: wipe every drive immediately, report, then
         # exit (no triage screen, no post-run prompt).
@@ -483,11 +492,15 @@ erasure::run() {
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && ppi_blocked=1
         done
-        if [[ "$ppi_blocked" -eq 1 ]] && device::ppi_request block_sid; then
+        if [[ "$ppi_blocked" -eq 1 ]] && device::ppi_request "${TS_PPI_OP:-disable_block_sid}"; then
             for dev in "${devices[@]}"; do
                 [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
             done
             PPI_REBOOT=1
+            # Persist the target serial list for --ppi-resume (best-effort: the
+            # request itself is already staged in NVRAM; only auto-resume is
+            # lost if the marker can't be written).
+            device::ppi_resume_marker_write
         fi
     fi
 
