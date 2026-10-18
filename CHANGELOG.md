@@ -13,24 +13,26 @@ and this project uses date-based versioning (`v1.x`).
 - **Sortable headers and a Submitted date on the Media tab.** The Media table could not be
   sorted at all — clicking a heading did nothing — and `/api/drives` did not accept `sort`
   or `dir`, unlike `/api/devices`. Every heading except Actions now sorts, in both
-  directions, with the Devices tab's ▲/▼/↕ indicator: Model, Serial, Size, Type, Status,
-  Method, Grade and **Submitted**.
+  directions, with the Devices tab's ▲/▼/↕ indicator: **Submitted** (first, and the default
+  sort), Model, Serial, Status, Method and Grade.
 
-  - **Size sorts as a number.** Capacities arrive from the reports as text — `4GB`,
-    `1000 GB`, `500 GB`, sometimes blank — so a string compare ordered 1000 GB before 4GB.
-    It is parsed to GB, and a drive whose report never recorded a capacity sorts below a
-    real one rather than claiming to be the smallest.
+  - **Submitted is the time the most recent report for that medium arrived** — the only
+    date a scanned row can honestly state. It leads the table and the page opens sorted by
+    it descending, because that is the freshest fact about a row. An operator-attested
+    medium has no report at all, so it shows an em dash with a tooltip rather than
+    borrowing its destruction date, and those rows group at the end of that order.
+  - **Size and Type moved off the table** into the Detail drawer, which is where the full
+    record lives anyway; the width went to **Status and Method**, the two columns that were
+    being truncated. Both still appear in the drawer, the export and the search.
   - **Status sorts by severity, not alphabetically**, reusing `drive_status_rank()`, so
     COMPLETED sits above DESTROYED/RETAINED and FAILED above BLOCKED.
-  - **Submitted is the time the most recent report for that medium arrived** — the only
-    date a scanned row can honestly state. An operator-attested medium has no report at
-    all, so it shows an em dash with a tooltip rather than borrowing its destruction date,
-    and in a date sort those rows group at the end.
   - Sorting is server-side, before the slice, so page boundaries follow the chosen order
     rather than the order rows happened to arrive in. The tie-break is identity (the
     serial), never a volatile field — the same rule as the Devices sort fix.
-  - Leaving the table unsorted keeps its existing order exactly (attested rows first, then
-    newest report), so nothing moves until a heading is clicked.
+  - The API still accepts `sort=size` and `sort=type` even though the table no longer
+    offers them: sizes arrive as text (`4GB`, `1000 GB`, blank), so they are parsed to GB,
+    and an unrecorded capacity sorts below a real one rather than claiming to be the
+    smallest.
 
 - **The Media pager now behaves like the Devices one.** A page request disables both
   buttons and shows a spinner, so a slow response no longer looks like a dead control, and

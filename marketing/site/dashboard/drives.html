@@ -361,9 +361,10 @@
       var expanded = {};
       // Sorting is entirely server-side (see /api/drives), exactly as on the Devices tab:
       // the page holds one page of rows, so the order has to be decided before the slice.
-      // Empty `sortKey` means the default order — attested rows first, then newest report —
-      // which is the order this table has always had, so loading it does not reshuffle it.
-      var sortKey = '';
+      // Default is Submitted descending — newest report first — because the freshest fact
+      // about a row is when it was last reported. Note that an operator-attested medium has
+      // no submission time at all, so it groups at the end of that order.
+      var sortKey = 'date';
       var sortDir = -1;
       var lastDrivesJson = '';
       var drivesFetchSeq = 0;   // guards against out-of-order /api/drives responses
@@ -558,18 +559,17 @@
         modelWrap.appendChild(badge);
         modelCell.appendChild(modelWrap);
         modelCell.title = d.model || '';
+        // No report was ever submitted for an attested item, so the leading column is empty
+        // for it: the column means "report submitted", and a destroyed phone never had one.
+        var subCell = el('td', 'whitespace-nowrap px-3 py-2 text-xs text-slate-400 dark:text-slate-500', '—');
+        subCell.title = 'No report — recorded by operator attestation';
+        tr.appendChild(subCell);
+
         tr.appendChild(modelCell);
 
         var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
         serCell.title = d.serial || '';
         tr.appendChild(serCell);
-        tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300', d.size || '—'));
-        // truncate keeps the type on one line if the label ever outgrows the column,
-        // rather than letting it wrap and set the row height (the full value is in the
-        // title). At 11% the current vocabulary all fits without ellipsis.
-        var typeCell = el('td', 'truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.type || '—');
-        typeCell.title = d.type || '';
-        tr.appendChild(typeCell);
 
         var stCell = el('td', 'whitespace-nowrap px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400',
           d.status || (retained ? 'RETAINED' : 'DESTROYED'));
@@ -577,7 +577,7 @@
           + (d.system ? ' · from ' + d.system : ' · no host recorded');
         tr.appendChild(stCell);
 
-        var methCell = el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', attestedMethod(d));
+        var methCell = el('td', 'max-w-[22rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', attestedMethod(d));
         methCell.title = attestedMethod(d);
         tr.appendChild(methCell);
 
@@ -588,12 +588,6 @@
           : 'No SMART was ever read from this medium, so no resale grade exists — it was destroyed, not graded';
         gradeTd.appendChild(gradeCell);
         tr.appendChild(gradeTd);
-
-        // No report was ever submitted for an attested item, so this column is empty for
-        // it — the column means "report submitted", and a destroyed phone never had one.
-        var subCell = el('td', 'whitespace-nowrap px-3 py-2 text-xs text-slate-400 dark:text-slate-500', '—');
-        subCell.title = 'No report — recorded by operator attestation';
-        tr.appendChild(subCell);
 
         // Built by the shared module (see devices.html): the same two controls, so they
         // cannot drift between the two tables, and icon-only means the cell can no longer
@@ -640,15 +634,14 @@
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var head = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-        // Nine columns in ~990px, so something has to give: Type and Method are the two that
-        // can ellipsise (their full value is on hover and in Detail), and every header is
-        // sized to fit its whole word. Submitted is the date the most recent report for this
-        // medium arrived — the only date a scanned row can honestly state, and deliberately
-        // blank on an attested one, which never had a report.
-        [['Model', 'w-[15%]', 'model'], ['Serial', 'w-[13%]', 'serial'], ['Size', 'w-[7%]', 'size'],
-         ['Type', 'w-[10%]', 'type'], ['Status', 'w-[9%]', 'status'], ['Method', 'w-[17%]', 'method'],
+        // Seven columns in ~990px. Submitted leads and describes the freshest fact about a
+        // row; Size and Type moved off the table into the Detail drawer, which frees the
+        // width Status and Method needed — Method was the most-truncated column on the page.
+        // Submitted stays full-width-ish because "2026-10-18 14:44" is sixteen characters.
+        [['Submitted', 'w-[12%]', 'date', 'When the most recent report for this medium was uploaded. Blank for an operator attestation — there is no report.'],
+         ['Model', 'w-[19%]', 'model'], ['Serial', 'w-[14%]', 'serial'],
+         ['Status', 'w-[14%]', 'status'], ['Method', 'w-[24%]', 'method'],
          ['Grade', 'w-[7%]', 'grade'],
-         ['Submitted', 'w-[12%]', 'date', 'When the most recent report for this medium was uploaded. Blank for an operator attestation — there is no report.'],
          ['', 'w-[10%]', null]].forEach(function (c) {
           var th = el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
           if (c[2]) {
@@ -685,20 +678,20 @@
           if (d.attested) { body.appendChild(attestedRow(d)); return; }
           var serial = String(d.serial || '');
           var tr = el('tr', 'border-b border-slate-100 dark:border-ink-800 hover:bg-slate-50 dark:hover:bg-ink-800');
-          var modelCell = el('td', 'max-w-[12rem] truncate px-3 py-2 font-medium text-ink-900 dark:text-white', d.model || '—');
+          // When the most recent report for this medium was submitted — the leading column,
+          // and the default sort, because it is the freshest fact about the row.
+          var submitted = fmtTsTime(d.last_report_datetime_submitted || d.uploaded_at);
+          var subTd = el('td', 'whitespace-nowrap px-3 py-2 text-xs text-slate-600 dark:text-slate-400', submitted || '—');
+          if (submitted) { subTd.title = 'Last report submitted ' + submitted; }
+          tr.appendChild(subTd);
+          var modelCell = el('td', 'max-w-[14rem] truncate px-3 py-2 font-medium text-ink-900 dark:text-white', d.model || '—');
           modelCell.title = d.model || '';
           tr.appendChild(modelCell);
           var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
           serCell.title = d.serial || '';
           tr.appendChild(serCell);
-          tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 text-slate-700 dark:text-slate-300', d.size || '—'));
-          // truncate, so a long type cannot wrap and set the row height (the bug reported on
-          // the attested rows); the full value stays in the title.
-          var typeCell = el('td', 'truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.type || '—');
-          typeCell.title = d.type || '';
-          tr.appendChild(typeCell);
           tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 ' + statusClass(d.status), d.status || '—'));
-          var methCell = el('td', 'max-w-[14rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—');
+          var methCell = el('td', 'max-w-[22rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—');
           methCell.title = d.method || '';
           tr.appendChild(methCell);
           var gradeTd = el('td', 'px-3 py-2');
@@ -706,12 +699,6 @@
           if (d.grade_reason) { gradeCell.title = d.grade_reason; }
           gradeTd.appendChild(gradeCell);
           tr.appendChild(gradeTd);
-
-          // When the most recent report for this medium was submitted.
-          var submitted = fmtTsTime(d.last_report_datetime_submitted || d.uploaded_at);
-          var subTd = el('td', 'whitespace-nowrap px-3 py-2 text-xs text-slate-600 dark:text-slate-400', submitted || '—');
-          if (submitted) { subTd.title = 'Last report submitted ' + submitted; }
-          tr.appendChild(subTd);
 
           var tdv = el('td', 'px-3 py-2 text-right');
           // Same visual language as the Devices tab: sky means information, and
@@ -738,7 +725,7 @@
             if (animRow) delete expandAnim[serial];
             var sub = el('tr', 'bg-slate-50 dark:bg-ink-800');
             var subtd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
-            subtd.colSpan = 9;
+            subtd.colSpan = 7;
             var st = el('table', 'w-full border-collapse text-xs');
             var shr = el('tr', 'bg-slate-100 dark:bg-ink-800');
             ['CoC', 'Erased', 'Status', 'Method', 'Class', 'SMART (post)', 'Verify', 'Format', ''].forEach(function (h) {
