@@ -263,6 +263,39 @@ try {
         query_dir('') === -1 && query_dir(0) === -1);
     t_check('the direction is read case-insensitively', query_dir('ASC') === 1);
 
+    // --- the sort key must not contain anything a heartbeat rewrites ----------
+    // The tie-break used to be last_seen_at, which every appliance heartbeat rewrites — so
+    // a group tied on the chosen column reshuffled itself as heartbeats arrived. Status is
+    // the worst case: a working fleet is all online or all offline, so every row ties and the
+    // order inside the group WAS the heartbeat order. Reproduced live before the fix —
+    // PC1Q4QWH moved from position 4 to position 1 between two loads six seconds apart, with
+    // nothing touching the page.
+    $keyA = device_sort_keys(['sysserial' => 'ABC123', 'last_seen_at' => '2026-10-18 09:00:00'], 1);
+    $keyB = device_sort_keys(['sysserial' => 'ABC123', 'last_seen_at' => '2026-10-18 10:30:00'], 1);
+    t_check('the sort key is the column value and identity, and nothing else', count($keyA) === 2);
+    t_check('a heartbeat cannot change a row\'s sort key', $keyA === $keyB);
+    t_check('identity is the machine serial, lower-cased', $keyA[1] === 'abc123');
+    t_check('an attested unit falls back to its internal key, never to an empty string',
+        device_sort_keys(['_key' => 'attested:device:123'], 1)[1] === 'attested:device:123');
+
+    // And the same thing through the real query: a group tied on Status must come back in
+    // identity order, which is the only order a heartbeat cannot disturb.
+    $tiedGroup = static function (array $query) use ($userId): array {
+        $out = [];
+        foreach (load_devices($userId, $query)['devices'] ?? [] as $d) {
+            if (empty($d['online'])) { $out[] = strtolower((string)($d['sysserial'] ?? $d['_key'] ?? '')); }
+        }
+        return $out;
+    };
+    $offDes = $tiedGroup(['page' => 1, 'per' => 100, 'sort' => 'status', 'dir' => 'desc']);
+    $offAsc = $tiedGroup(['page' => 1, 'per' => 100, 'sort' => 'status', 'dir' => 'asc']);
+    $wantOff = $offDes;
+    rsort($wantOff);
+    $wantOffAsc = $offAsc;
+    sort($wantOffAsc);
+    t_check('rows tied on Status come back in identity order (descending)', count($offDes) > 0 && $offDes === $wantOff);
+    t_check('rows tied on Status come back in identity order (ascending)', count($offAsc) > 0 && $offAsc === $wantOffAsc);
+
     // The comparison unit has done its job — remove it, so the assertions below (which
     // count attested rows) describe the original fixture alone.
     t_check('the comparison unit deletes', manual_attested_delete($certId, (int)$r1b['id'], true) === 1);

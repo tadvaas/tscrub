@@ -6,6 +6,30 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Fixed
+
+- **The Devices table re-ordered itself every time an appliance heartbeat arrived.**
+  Sorting by Status puts the online machines first, but within that group the order came
+  from `last_seen_at` — which the heartbeat rewrites. The group silently reshuffled as the
+  heartbeats landed: reproduced live, `PC1Q4QWH` moved from position 4 to position 1
+  between two loads six seconds apart with nobody touching the page. The dashboard polls
+  every 10 s and re-renders whenever the payload differs, so the movement was on screen
+  within seconds. The same defect applied to any column a fleet ties on, which is most of
+  them.
+
+  The sort key is now the chosen column plus **identity** (the machine serial) and nothing
+  else — no field a heartbeat can rewrite. The tie-break is still compared with the
+  direction applied, so ascending and descending remain genuinely different (the earlier
+  bug where clicking Status twice did nothing). Three loads 20 seconds apart now return an
+  identical order across 187 devices while four machines heartbeat throughout.
+
+  What changed for the reader: inside a tied group the order is machine serial rather than
+  most-recently-seen. That is the trade, because "most recently seen" is precisely the
+  order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
+  column, so choosing it is deliberate and the movement is expected.
+
 ## [v1.11.65] - 2026-10-18
 
 ### Added

@@ -2397,6 +2397,34 @@ function query_dir($value): int
 }
 
 /**
+ * The sort keys for one device row, most significant first: the chosen column's value, then
+ * IDENTITY — and nothing else.
+ *
+ * Identity is the machine serial, falling back to the internal key. `_key` alone is not
+ * enough: an attested unit's key is 'attested:device:123', a row id, which would order those
+ * rows by insertion rather than by what they are.
+ *
+ * 🔴 NO `last_seen_at` HERE. It was the tie-break, and it is rewritten by every appliance
+ * heartbeat — so a whole group tied on the chosen column silently reshuffled itself as the
+ * heartbeats arrived. Status is the worst case, because a working fleet is normally all
+ * online or all offline (four machines online on this account, all tied), and the order
+ * inside that group WAS the heartbeat order: reproduced live, `PC1Q4QWH` moved from position
+ * 4 to position 1 between two loads six seconds apart, with nobody touching the page.
+ *
+ * The tie-break must therefore be stable, and it must still be compared with the direction
+ * applied (see the caller) so that ascending and descending remain genuinely different — the
+ * bug that made clicking Status twice do nothing at all.
+ */
+function device_sort_keys(array $d, $columnValue): array
+{
+    $serial = strtolower((string)($d['sysserial'] ?? ''));
+    return [
+        $columnValue,
+        $serial !== '' ? $serial : strtolower((string)($d['_key'] ?? '')),
+    ];
+}
+
+/**
  * Attested (operator-recorded) item counts per certificate id: units and media.
  *
  * Kept deliberately OUT of the stored verified figures — `certificates.devices`/`runs` count
@@ -2507,26 +2535,16 @@ function load_devices(int $userId, ?array $query = null): array {
             return '';
         };
 
-        // Two more keys, compared only when the column value ties — and multiplied by the
-        // direction like the first, which is the point.
+        // The chosen column decides the order on its own; the tie-break is identity, which
+        // no heartbeat can change. See device_sort_keys() for why last_seen_at is not in it.
         //
-        // Status has TWO distinct values and MDM a handful, and a fleet is normally all
-        // offline (only a booted machine is online — 100 of 100 on this account when this
-        // was written). Comparing the column alone therefore gave every row the same key,
-        // usort left the order as it found it, and ascending and descending came back
-        // byte-identical: clicking Status (or MDM) twice did nothing at all, which reads as
-        // a broken header. Within a group the useful order is most-recently-seen first, and
-        // reversing that with the direction is what makes the toggle do something.
+        // The tie-break is still multiplied by the direction, which is what keeps ascending
+        // and descending genuinely different: Status has TWO distinct values and MDM a
+        // handful, so on a fleet that is all-offline every row ties on the column, and if the
+        // tie-break were direction-blind both directions would come back byte-identical —
+        // clicking Status twice did nothing at all, which reads as a broken header.
         $keysOf = function (array $d) use ($sortVal): array {
-            // Identity last, so the tie-break is stable and human-meaningful. Not `_key`
-            // alone: an attested unit's key is 'attested:device:123', an internal row id,
-            // which would order those rows by insertion rather than by what they are.
-            $serial = strtolower((string)($d['sysserial'] ?? ''));
-            return [
-                $sortVal($d),
-                strtolower((string)($d['last_seen_at'] ?? $d['last'] ?? '')),
-                $serial !== '' ? $serial : strtolower((string)($d['_key'] ?? '')),
-            ];
+            return device_sort_keys($d, $sortVal($d));
         };
         usort($list, function ($a, $b) use ($keysOf, $dir) {
             $ka = $keysOf($a);
