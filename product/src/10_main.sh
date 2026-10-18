@@ -40,12 +40,25 @@ session::teardown() {
     report::sync_out
 }
 
+# Record the exact signal that aborted a run before exiting, so a mid-wipe
+# abort (e.g. nwipe "aborted by the user") can be traced to its source:
+# SIGINT (Ctrl-C), SIGTERM (kill / shutdown), or SIGHUP (terminal hangup).
+# The exit code follows the 128+signum convention.
+signal_abort() {  # <name> <code>
+    ui::spinner_stop
+    ui::cursor_show
+    printf '[%s] SIGNAL: %s received — aborting\n' \
+        "$(date -u '+%Y/%m/%d %H:%M:%S')" "$1" >> "$LOG_FILE" 2>/dev/null || true
+    exit "$2"
+}
+
 fn_main() {
     # Restore the cursor on exit; make Ctrl+C / SIGTERM actually abort (after
     # showing the cursor) instead of being silently swallowed. The EXIT trap
     # also tears down the long-lived session workers.
-    trap 'ui::spinner_stop; ui::cursor_show; exit 130' INT
-    trap 'ui::spinner_stop; ui::cursor_show; exit 143' TERM
+    trap 'signal_abort SIGINT 130' INT
+    trap 'signal_abort SIGTERM 143' TERM
+    trap 'signal_abort SIGHUP 129' HUP
     trap 'ui::sigwinch' WINCH
     trap 'ui::spinner_stop; ui::cursor_show; session::teardown' EXIT
 

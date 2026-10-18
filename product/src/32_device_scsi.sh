@@ -30,7 +30,12 @@ device::exec_nwipe() {
     nwipe_cmd+=(--logfile "$logfile")
     nwipe_cmd+=("/dev/$dev")
 
-    "${nwipe_cmd[@]}" 2>>"$logfile" &
+    # nwipe paints its startup banner (device table + PRNG benchmarks +
+    # "Selected PRNG") to stdout, which clobbers the tScrub TUI. Everything
+    # meaningful (device found, PRNG chosen, progress) is already written to
+    # --logfile and forwarded below, so discard stdout and keep stderr in the
+    # logfile.
+    "${nwipe_cmd[@]}" >/dev/null 2>>"$logfile" &
     nwipe_pid=$!
 
     # Progress pump: nwipe blocks SIGUSR1 in main before wiping and logs a
