@@ -166,23 +166,33 @@ device::exec_nvme() {
     # Block SID (0x4286/0x4015) is a firmware lockdown, not a hardware fault.
     # The TCG tables are typically unlocked here (Locked = N), so the
     # pre-execution PSID prompt in handle_locks never saw this drive. Under the
-    # automatic `psid` policy the PSID is already on hand (psids.conf) and the
-    # revert itself is the purge: it crypto-erases the media key and factory
-    # resets the drive without needing the BIOS-blocked sanitize command. The
-    # interactive `ask` policy is deliberately NOT attempted here — this runs
-    # inside a wipe worker, where reading /dev/tty would race the UI loop — so
-    # under `ask` the drive falls through to BLOCKED with the clear-Block-SID
-    # hint.
+    # automatic `psid` policy the PSID is already on hand (psids.conf). The
+    # revert is the UNLOCK, not the purge: on an unprovisioned drive (Locked =
+    # N) sedutil's revertTPer can report success without re-keying the media, so
+    # the sentinel verify would (correctly) FAIL if we stopped here. After the
+    # unlock, re-issue the now-permitted sanitize so the media is actually
+    # purged, and let the normal monitor/verify path run. The interactive `ask`
+    # policy is deliberately NOT attempted here — this runs inside a wipe
+    # worker, where reading /dev/tty would race the UI loop — so under `ask`
+    # the drive falls through to BLOCKED with the clear-Block-SID hint.
     if [[ "${TS_BLOCK_SID_POLICY:-ask}" == "psid" ]] \
         && grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$NVME_CMD_OUT"; then
         if device::psid_unlock_auto "$dev"; then
-            devrow["$dev.method"]="PSID Revert (Purge)"
-            devrow["$dev.class"]="PURGE"
-            devrow["$dev.cert"]="DESTRUCTION"
-            devrow["$dev.lock_kind"]="password"
-            echo "$dev LOG Block SID lockdown — PSID revert crypto-erased and factory-reset the drive" >&3
-            device::emit_status "$dev" COMPLETED
-            return
+            echo "$dev PSID yes" >&3
+            echo "$dev LOG Block SID lockdown — PSID revert unlocked the drive; re-running sanitize" >&3
+            if device::nvme_issue "$dev" "$cap"; then
+                echo "$NVME_CMD_OUT" >&5
+                echo "$dev LOG PSID unlock succeeded; sanitize re-issued and running" >&3
+                if [[ "$cap" == "CAP_NVME_CLEAR_ONLY" ]]; then
+                    device::emit_status "$dev" COMPLETED
+                else
+                    device::monitor_nvme "$dev"
+                fi
+                return
+            fi
+            echo "$NVME_CMD_OUT" >&5
+            # Unlock succeeded but the sanitize is still refused — fall through
+            # to nvme_fail with the NEW error.
         fi
     fi
 

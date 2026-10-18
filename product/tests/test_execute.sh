@@ -60,7 +60,10 @@ t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "0x4015 -> BLOCKED"
 t::check "0x4015 does NOT emit FAILED" '[[ "$captured" != *"nvme0n1 STATUS FAILED"* ]]'
 unset FAKE_NVME_SANITIZE_OUT
 
-# Block SID (0x4286) with automatic PSID policy -> PSID revert is the purge
+# Block SID (0x4286) with automatic PSID policy -> the revert is the UNLOCK,
+# not the purge: the sanitize is re-issued afterwards and actually erases.
+# (The old code stopped at the revert and left customer data intact on an
+# unprovisioned drive — caught live by the sentinel verify.)
 : > "$OUT"
 devices=(nvme0n1)
 declare -A serial
@@ -71,18 +74,25 @@ serial[nvme0n1]="SED-SERIAL-1"
 PSID_MAP=()
 PSID_MAP[SED-SERIAL-1]="ABCDEF1234567890ABCDEF1234567890"
 export TS_BLOCK_SID_POLICY=psid
-export FAKE_NVME_SANITIZE_RC=1
+printf '1\n1\n0\n' > "$tmp/rcseq"   # first purge blocked, FLR retry blocked, post-unlock succeeds
+export FAKE_NVME_SANITIZE_RC_SEQ="$tmp/rcseq"
 export FAKE_NVME_SANITIZE_OUT="NVMe status 0x4286: Access Denied"
 export FAKE_PSID_RC=0
+export FAKE_NVME_SSTAT=0x1
 exec 3>"$OUT"
 device::execute nvme0n1
 exec 3>&-
 captured="$(cat "$OUT")"
-t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "Block SID + psid policy -> PSID revert COMPLETED"
-t::assert_eq "PSID Revert (Purge)" "${devrow[nvme0n1.method]}" "Block SID + psid -> method recorded"
-t::assert_eq "PURGE" "${devrow[nvme0n1.class]}" "Block SID + psid -> class PURGE"
-t::assert_eq "yes" "${devrow[nvme0n1.psid_revert]}" "Block SID + psid -> psid_revert=yes"
-unset TS_BLOCK_SID_POLICY FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC
+t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "Block SID + psid policy -> unlock + re-sanitize COMPLETED"
+t::assert_contains "$captured" "nvme0n1 PSID yes" "PSID revert reported over the IPC pipe"
+t::assert_contains "$captured" "re-running sanitize" "announces the re-issued sanitize"
+t::assert_eq "yes" "${devrow[nvme0n1.psid_revert]}" "psid_revert=yes"
+unset TS_BLOCK_SID_POLICY FAKE_NVME_SANITIZE_RC_SEQ FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC FAKE_NVME_SSTAT
+
+# ui::apply_outcome maps the PSID IPC key onto the report field
+devrow=()
+ui::apply_outcome nvme0n1 PSID yes
+t::assert_eq "yes" "${devrow[nvme0n1.psid_revert]}" "PSID IPC key -> psid_revert"
 
 # Block SID with psid policy but no PSID in the map -> BLOCKED (unchanged)
 : > "$OUT"

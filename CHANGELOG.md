@@ -30,6 +30,20 @@ and this project uses date-based versioning (`v1.x`).
   order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
   column, so choosing it is deliberate and the movement is expected.
 
+## [v1.11.67] - 2026-10-18
+
+### Fixed
+
+- **PSID revert on a Block-SID-locked NVMe drive now actually purges the media.**
+  The revert is an UNLOCK (it clears the BIOS-asserted Block SID gate and resets
+  the TCG config), not a purge: on an unprovisioned drive (`Locked = N`)
+  sedutil's `revertTPer` can report success without re-keying the media. tScrub
+  used to stop at the revert and mark the drive `COMPLETED`, leaving customer
+  data intact — caught live by the sentinel verify on a Lenovo + Micron
+  MTFDHBA512TDV. It now re-issues the sanitize after the unlock, and reports
+  `PSIDRevert` over the IPC pipe so the report shows it instead of the stale
+  classification.
+
 ## [v1.11.66] - 2026-10-18
 
 ### Fixed

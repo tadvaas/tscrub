@@ -854,6 +854,7 @@ ui::apply_outcome() {
         METHOD) devrow["$_dev.method"]="$_value" ;;
         CLASS)  devrow["$_dev.class"]="$_value" ;;
         CERT)   devrow["$_dev.cert"]="$_value" ;;
+        PSID)   devrow["$_dev.psid_revert"]="$_value" ;;
         *)      printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5 ;;
     esac
 }
