@@ -18,7 +18,7 @@ dryrun::simulate_running_eta() {
 
     for dev in "${devices[@]}"; do
         [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
-        echo "$dev STATUS DRY-RUN" >&3
+        device::emit_status "$dev" DRY-RUN
     done
 }
 
@@ -416,6 +416,11 @@ erasure::run() {
         [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || devrow["$dev.status"]="SKIPPED"
     done
 
+    # Clear the per-drive terminal-status files (written by device::emit_status)
+    # so a stale value from a previous run can never be mistaken for this run's
+    # outcome by device::recover_terminal.
+    rm -rf /tmp/tscrub-device-status
+
     if [[ "$DRY_RUN" -eq 1 ]]; then
         if [[ "$DRY_RUN_SIM_ETA_MINS" -gt 0 ]]; then
             for dev in "${devices[@]}"; do
@@ -462,6 +467,13 @@ erasure::run() {
     # latest label).
     mdm::sync_state
 
+    # Recover any worker whose terminal STATUS was lost over the IPC: the
+    # SIGCHLD fired when a worker exits can interrupt the ui::loop read
+    # mid-line, and the EOF-drain cannot recover a partially-consumed line.
+    # Each worker also persisted its terminal status to a per-drive file, so
+    # fold that back in before deciding whether to withhold the report.
+    device::recover_terminal
+
     # The erasure report must only be produced/uploaded once every drive has
     # reached a terminal state — never while an erase is still in progress. A
     # worker that died without reporting (OOM/killed) leaves a drive
@@ -482,12 +494,12 @@ erasure::run() {
     # optimistic class/cert/method they were classified for.
     device::normalize_outcome
 
-    # PPI "disable block SID authentication" (opt-in: --ppi). A drive that ended
-    # BLOCKED cannot be cleared from Linux — the BIOS refuses the sanitize, so
-    # the fix is a platform PPI request + reboot. Only fire when the operator
-    # opted in AND a PPI variable has been positively identified (TS_PPI_EFIVAR);
-    # otherwise this is a no-op and BIOS guidance (device::lock_hint) applies.
-    if [[ "${TS_PPI:-0}" -eq 1 ]]; then
+    # PPI "disable block SID authentication" (opt-in: --ppi[=on|auto]). A drive
+    # that ended BLOCKED cannot be cleared from Linux — the BIOS refuses the
+    # sanitize, so the fix is a platform PPI request + reboot. on = sysfs with
+    # --ppi-efivar fallback; auto = TPM PPI sysfs only; off = no-op and BIOS
+    # guidance (device::lock_hint) applies.
+    if [[ "$(device::ppi_mode)" != "off" ]]; then
         local ppi_blocked=0
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && ppi_blocked=1

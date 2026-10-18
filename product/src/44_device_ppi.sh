@@ -85,12 +85,25 @@ device::ppi_probe_list() {
     ls "${PPI_EFIVARS_DIR}" 2>/dev/null | grep -iE 'ppi|sid|opal|storage' || true
 }
 
+# Effective PPI mode: off (default) | on | auto. Numeric 1/0 are accepted as
+# on/off aliases for backwards compatibility (tests, older cmdline values).
+device::ppi_mode() {
+    case "${TS_PPI:-off}" in
+        auto)          printf 'auto' ;;
+        1|on|yes|true) printf 'on' ;;
+        *)             printf 'off' ;;
+    esac
+}
+
 # Stage the PPI request. Returns 0 when a request was written (a reboot is
 # expected); non-zero falls back to BIOS guidance (device::lock_hint).
 # Primary = TPM PPI sysfs (ACPI _DSM); fallback = vendor UEFI variable.
+# on   = sysfs first, vendor efivar (--ppi-efivar) as fallback.
+# auto = sysfs only — never guesses a vendor efivar.
 device::ppi_request() {
-    local kind="${1:-disable_block_sid}" op path
-    [[ "${TS_PPI:-0}" == "1" ]] || return 1
+    local kind="${1:-disable_block_sid}" op path mode
+    mode="$(device::ppi_mode)"
+    [[ "$mode" != "off" ]] || return 1
     op="$(device::ppi_op_value "$kind")" || {
         echo "PPI unavailable: unknown operation '$kind'" >&5
         return 1
@@ -107,6 +120,11 @@ device::ppi_request() {
     fi
 
     # 2) Vendor UEFI-variable fallback (--ppi-efivar, positively identified).
+    #    auto mode is sysfs-only: it must never guess a vendor efivar.
+    if [[ "$mode" == "auto" ]]; then
+        echo "PPI unavailable: no TPM PPI sysfs and --ppi=auto never writes a vendor efivar — $kind falls back to BIOS guidance" >&5
+        return 1
+    fi
     path="${PPI_EFIVARS_DIR}/${TS_PPI_EFIVAR:-}"
     if [[ -z "${TS_PPI_EFIVAR:-}" || ! -e "$path" ]]; then
         echo "PPI unavailable: no TPM PPI sysfs and no PPI variable identified (set --ppi-efivar) — $kind falls back to BIOS guidance" >&5

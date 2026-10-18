@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.64"
+SCRIPT_VERSION="v1.11.65"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -32,7 +32,7 @@ TS_BLOCK_SID_POLICY=ask
 #   TS_NVME_SOFTWARE_FALLBACK auto | off   (auto = nwipe fallback when sanitize/
 #   format is rejected for a non-Block-SID reason; off = fail the drive as before)
 TS_NVME_SOFTWARE_FALLBACK=auto
-TS_PPI=0
+TS_PPI=off
 TS_PPI_EFIVAR=""
 TS_PPI_OP="disable_block_sid"
 TS_PPI_RESUME=0
@@ -1104,12 +1104,13 @@ parse_args() {
                 esac
                 ;;
             --ppi)
-                TS_PPI=1
+                TS_PPI=on
                 ;;
             --ppi=*)
                 case "${arg#*=}" in
-                    true|1|yes|on) TS_PPI=1 ;;
-                    *)             TS_PPI=0 ;;
+                    auto)          TS_PPI=auto ;;
+                    true|1|yes|on) TS_PPI=on ;;
+                    *)             TS_PPI=off ;;
                 esac
                 ;;
             --ppi-efivar=*)
@@ -1156,7 +1157,8 @@ parse_args() {
                 echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
                 echo "  --disable-block-sid P  Block SID handling: ask|psid|off (default ask)."
                 echo "  --nvme-software-fallback M  NVMe software overwrite when firmware erase is rejected: auto|off (default auto)."
-                echo "  --ppi               Request PPI 'disable block SID' + reboot for a Block-SID-locked drive (off by default)."
+                echo "  --ppi[=on|auto]     Request PPI 'disable block SID' + reboot for a Block-SID-locked drive (off by default)."
+                echo "  --ppi=auto          Same as --ppi, but TPM PPI sysfs only — never writes a vendor efivar."
                 echo "  --ppi-op OP         PPI operation: disable_block_sid|enable_block_sid (default disable_block_sid)."
                 echo "  --ppi-efivar NAME   Vendor UEFI-variable fallback (only when no TPM PPI sysfs; positively identified)."
                 echo "  --ppi-probe         List the TPM PPI sysfs + candidate efivars (read-only)."
@@ -1259,8 +1261,8 @@ cmdline::nvme_software_fallback() {
 }
 
 # PPI "disable block SID" opt-in + variable + probe from the kernel command
-# line (tscrub_ppi=1, tscrub_ppi_efivar=<name>, tscrub_ppi_probe=1) — the
-# PXE-fleet way to enable it.
+# line (tscrub_ppi=on|auto|1, tscrub_ppi_efivar=<name>, tscrub_ppi_probe=1) —
+# the PXE-fleet way to enable it.
 cmdline::ppi() {
     [[ -r /proc/cmdline ]] || return 1
     local cmdline param found=0
@@ -1269,8 +1271,9 @@ cmdline::ppi() {
     if [[ -n "$param" ]]; then
         found=1
         case "${param//\"/}" in
-            true|1|yes|on) TS_PPI=1 ;;
-            *) TS_PPI=0 ;;
+            auto)          TS_PPI=auto ;;
+            true|1|yes|on) TS_PPI=on ;;
+            *)             TS_PPI=off ;;
         esac
     fi
     param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_efivar=//p' | head -n 1)"

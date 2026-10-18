@@ -10,7 +10,7 @@ device::exec_nwipe() {
     local nwipe_pid pump_pid tail_pid
 
     if ! command -v nwipe > /dev/null 2>&1; then
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         echo "$dev LOG nwipe not found; cannot sanitize non-ATA device" >&3
         return
     fi
@@ -92,9 +92,9 @@ device::exec_nwipe() {
     rm -f "$logfile"
 
     if [ $rc -eq 0 ]; then
-        echo "$dev STATUS COMPLETED" >&3
+        device::emit_status "$dev" COMPLETED
     else
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         echo "$dev LOG nwipe quick operation failed; manual physical destruction required" >&3
     fi
 }
@@ -136,7 +136,7 @@ device::exec_scsi_sanitize() {
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE (overwrite, zero)" >> "$LOG_FILE"
 
     tmp_out="$(mktemp /tmp/tscrub-sg.XXXXXX)" || {
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         return
     }
 
@@ -150,7 +150,7 @@ device::exec_scsi_sanitize() {
     rm -f "$tmp_out"
 
     if (( rc == 0 )); then
-        echo "$dev STATUS COMPLETED" >&3
+        device::emit_status "$dev" COMPLETED
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE COMPLETED" >> "$LOG_FILE"
         return
     fi
@@ -169,7 +169,7 @@ device::exec_scsi_sanitize() {
         return
     fi
 
-    echo "$dev STATUS FAILED" >&3
+    device::emit_status "$dev" FAILED
     echo "$dev LOG sanitize failed; manual physical destruction required" >&3
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE FAILED" >> "$LOG_FILE"
 }

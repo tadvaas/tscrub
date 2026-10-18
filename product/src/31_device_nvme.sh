@@ -48,10 +48,10 @@ device::nvme_fail() {
     } >> "$LOG_FILE"
 
     if grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$out"; then
-        echo "$dev STATUS BLOCKED" >&3
+        device::emit_status "$dev" BLOCKED
         echo "$dev LOG ${op} denied — firmware access-rights lockdown (Block SID); clear Block SID / hard-disk security in BIOS, or move the drive to another machine, then re-run" >&3
     else
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         echo "$dev LOG Controller rejected ${op} command" >&3
     fi
 }
@@ -106,7 +106,7 @@ device::exec_nvme() {
     state="${pre%% *}"
 
     if [[ "$state" == "2" ]]; then
-        echo "$dev STATUS STALLED" >&3
+        device::emit_status "$dev" STALLED
         echo "$dev LOG a sanitize was already in progress on this drive (from an earlier run or an interrupted wipe); a new one cannot advance — power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
         {
             echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: NVMe sanitize PRE-FLIGHT STALLED (sanitize already in progress)"
@@ -134,7 +134,7 @@ device::exec_nvme() {
     if device::nvme_issue "$dev" "$cap"; then
         echo "$NVME_CMD_OUT" >&5
         if [[ "$cap" == "CAP_NVME_CLEAR_ONLY" ]]; then
-            echo "$dev STATUS COMPLETED" >&3
+            device::emit_status "$dev" COMPLETED
         else
             device::monitor_nvme "$dev"
         fi
@@ -154,7 +154,7 @@ device::exec_nvme() {
             echo "$NVME_CMD_OUT" >&5
             echo "$dev LOG retry after freeze-lock removal succeeded" >&3
             if [[ "$cap" == "CAP_NVME_CLEAR_ONLY" ]]; then
-                echo "$dev STATUS COMPLETED" >&3
+                device::emit_status "$dev" COMPLETED
             else
                 device::monitor_nvme "$dev"
             fi
@@ -181,7 +181,7 @@ device::exec_nvme() {
             devrow["$dev.cert"]="DESTRUCTION"
             devrow["$dev.lock_kind"]="password"
             echo "$dev LOG Block SID lockdown — PSID revert crypto-erased and factory-reset the drive" >&3
-            echo "$dev STATUS COMPLETED" >&3
+            device::emit_status "$dev" COMPLETED
             return
         fi
     fi
@@ -241,11 +241,11 @@ device::monitor_nvme() {
 
         case "$state" in
             1|4)
-                echo "$dev STATUS COMPLETED" >&3
+                device::emit_status "$dev" COMPLETED
                 return 0
                 ;;
             3)
-                echo "$dev STATUS FAILED" >&3
+                device::emit_status "$dev" FAILED
                 echo "$dev LOG Controller reported sanitize failure (SSTAT=$sstat)" >&3
                 return 1
                 ;;
@@ -263,7 +263,7 @@ device::monitor_nvme() {
                 # grace period instead of burning the full 6-hour timeout.
                 no_progress=$((no_progress + 1))
                 if (( no_progress >= 15 )); then
-                    echo "$dev STATUS FAILED" >&3
+                    device::emit_status "$dev" FAILED
                     echo "$dev LOG No sanitize progress reported (SSTAT=$sstat)" >&3
                     return 1
                 fi
@@ -279,13 +279,13 @@ device::monitor_nvme() {
             last_key="$key"
             last_change=$(ts::now)
         elif (( $(ts::now) - last_change >= window )); then
-            echo "$dev STATUS STALLED" >&3
+            device::emit_status "$dev" STALLED
             echo "$dev LOG sanitize stalled — no progress for $window_txt (SSTAT=$sstat, SPROG=$sprog); power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
             return 1
         fi
 
         if (( $(ts::now) - start > timeout )); then
-            echo "$dev STATUS STALLED" >&3
+            device::emit_status "$dev" STALLED
             echo "$dev LOG sanitize did not complete within $(( timeout / 3600 )) h (SSTAT=$sstat, SPROG=$sprog); power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
             return 1
         fi

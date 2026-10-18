@@ -681,12 +681,47 @@ device::classify() {
     esac
 }
 
+# Emit a terminal drive outcome over the worker->UI IPC pipe AND persist it to
+# a per-drive file. The file is the loss-proof source of truth for the report
+# gate: the parent's ui::loop read can be interrupted by a SIGCHLD (the worker
+# exiting) and drop the final STATUS line, which the EOF-drain in ui::loop
+# cannot recover when the line was partially consumed. The file lives in /tmp,
+# so it survives the worker subshell, and device::recover_terminal folds the
+# real terminal status back in even when the IPC line was lost.
+device::emit_status() {  # <dev> <value>
+    local dev="$1" val="$2"
+    echo "$dev STATUS $val" >&3
+    mkdir -p /tmp/tscrub-device-status 2>/dev/null
+    printf '%s\n' "$val" > "/tmp/tscrub-device-status/$dev" 2>/dev/null || true
+}
+
+# Fold the persisted per-drive terminal statuses back into devrow for any drive
+# whose IPC STATUS line never arrived. Called by the report gate before it
+# decides whether to withhold the report. Idempotent: drives that already carry
+# a terminal status (or whose file holds a non-terminal/stale value) are left
+# alone.
+device::recover_terminal() {
+    local dev st
+    for dev in "${devices[@]}"; do
+        case "${devrow[$dev.status]:-}" in
+            COMPLETED|FAILED|BLOCKED|FROZEN|STALLED|DRY-RUN|SKIPPED) ;;
+            *)
+                st="$(cat "/tmp/tscrub-device-status/$dev" 2>/dev/null || true)"
+                case "$st" in
+                    COMPLETED|FAILED|BLOCKED|FROZEN|STALLED|DRY-RUN|SKIPPED)
+                        devrow["$dev.status"]="$st" ;;
+                esac
+                ;;
+        esac
+    done
+}
+
 device::execute() {
     local dev="$1"
     local cap="${devrow[$dev.capability]}"
 
     if [[ "${devrow[$dev.class]}" == "FAILED" ]]; then
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         return
     fi
 
@@ -709,7 +744,7 @@ device::execute() {
             device::exec_ata "$dev" "$cap"
             ;;
         *)
-            echo "$dev STATUS FAILED" >&3
+            device::emit_status "$dev" FAILED
             ;;
     esac
 }

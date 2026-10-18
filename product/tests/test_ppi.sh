@@ -36,6 +36,8 @@ t::check "ppi: unknown op fails" '! device::ppi_op_value bogus'
 # --- gated off by default ---------------------------------------------------
 TS_PPI=0
 t::check "ppi: gated off when TS_PPI=0" '! device::ppi_request disable_block_sid'
+TS_PPI=off
+t::check "ppi: gated off when TS_PPI=off" '! device::ppi_request disable_block_sid'
 
 # --- primary path: TPM PPI sysfs --------------------------------------------
 PPI_TPM_SYSFS="$tmp/ppisys"
@@ -50,6 +52,12 @@ t::assert_eq "97" "$(cat "$req" 2>/dev/null)" "ppi: sysfs request wrote op 97"
 t::check "ppi: sysfs submit does not touch efivarfs" '[[ ! -s "$MOUNT_LOG" ]]'
 t::assert_eq "1.3" "$(device::ppi_version)" "ppi: version read"
 
+# --- auto mode: sysfs-only ---------------------------------------------------
+: > "$req"
+TS_PPI=auto
+t::check "ppi: auto mode submits via sysfs" 'device::ppi_request disable_block_sid'
+t::assert_eq "97" "$(cat "$req" 2>/dev/null)" "ppi: auto mode wrote op 97"
+
 # --- no sysfs, no efivar -> rc 1 --------------------------------------------
 PPI_TPM_SYSFS="$tmp/empty"
 mkdir -p "$tmp/empty"
@@ -61,11 +69,21 @@ PPI_EFIVARS_DIR="$tmp/efivars"
 mkdir -p "$tmp/efivars"
 printf 'x' > "$tmp/efivars/StoragePPI"
 TS_PPI_EFIVAR="StoragePPI"
+TS_PPI=on
 : > "$MOUNT_LOG"
 t::check "ppi: efivar fallback succeeds" 'device::ppi_request disable_block_sid'
 t::assert_eq "97" "$(cat "$tmp/efivars/StoragePPI")" "ppi: efivar wrote op 97"
 t::assert_contains "$(cat "$MOUNT_LOG")" "remount,rw" "ppi: efivarfs remounted rw"
 t::assert_contains "$(cat "$MOUNT_LOG")" "remount,ro" "ppi: efivarfs remounted ro"
+
+# --- auto mode never touches the vendor efivar -------------------------------
+PPI_TPM_SYSFS="$tmp/empty"      # no sysfs -> auto has no channel
+printf 'x' > "$tmp/efivars/StoragePPI"
+: > "$MOUNT_LOG"
+TS_PPI=auto
+t::check "ppi: auto mode does not write the efivar" '! device::ppi_request disable_block_sid'
+t::assert_eq "x" "$(cat "$tmp/efivars/StoragePPI")" "ppi: auto left the efivar untouched"
+t::check "ppi: auto mode did not remount efivarfs" '[[ ! -s "$MOUNT_LOG" ]]'
 
 # --- probe (read-only) ------------------------------------------------------
 printf '1.3\n' > "$tmp/ppisys/tpm0/ppi/version"

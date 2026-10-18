@@ -6,6 +6,16 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.65] - 2026-10-18
+
+### Added
+
+- **`--ppi=auto`** (and `tscrub_ppi=auto`): when a drive ends `BLOCKED`, stage the
+  PPI "disable block SID" request and reboot automatically using only the
+  spec-conformant TPM PPI sysfs (ACPI `_DSM`, op 97) — it never guesses or
+  writes a vendor UEFI variable. Bare `--ppi` is now `--ppi=on` and keeps the
+  `--ppi-efivar` fallback for firmware without a TPM PPI sysfs.
+
 ## [v1.11.64] - 2026-10-18
 
 ### Added

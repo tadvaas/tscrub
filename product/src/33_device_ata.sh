@@ -110,14 +110,14 @@ device::exec_ata() {
     local cap="$2"
 
     if [[ "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ]]; then
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         echo "$dev LOG Unsupported transport '${bus[$dev]}' for ATA operation" >&3
         return
     fi
 
     case "$cap" in
         CAP_ATA_FROZEN)
-            echo "$dev STATUS FROZEN" >&3
+            device::emit_status "$dev" FROZEN
             echo "$dev LOG Drive is frozen – power cycle or suspend required" >&3
             return
             ;;
@@ -132,7 +132,7 @@ device::exec_ata() {
 
     # Set temporary password (required for security erase)
     if ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
-        echo "$dev STATUS FAILED" >&3
+        device::emit_status "$dev" FAILED
         echo "$dev LOG Failed to set ATA security password" >&3
         return
     fi
@@ -140,9 +140,9 @@ device::exec_ata() {
     case "$cap" in
         CAP_ATA_PURGE_ENHANCED)
             if hdparm --user-master u --security-erase-enhanced p /dev/$dev >&5 2>&5; then
-                echo "$dev STATUS COMPLETED" >&3
+                device::emit_status "$dev" COMPLETED
             else
-                echo "$dev STATUS FAILED" >&3
+                device::emit_status "$dev" FAILED
             fi
             device::ata_clear_password "$dev"
             return
@@ -150,16 +150,16 @@ device::exec_ata() {
 
         CAP_ATA_CLEAR)
             if hdparm --user-master u --security-erase p /dev/$dev >&5 2>&5; then
-                echo "$dev STATUS COMPLETED" >&3
+                device::emit_status "$dev" COMPLETED
             else
-                echo "$dev STATUS FAILED" >&3
+                device::emit_status "$dev" FAILED
             fi
             device::ata_clear_password "$dev"
             return
             ;;
 
         *)
-            echo "$dev STATUS FAILED" >&3
+            device::emit_status "$dev" FAILED
             echo "$dev LOG Unsupported ATA capability" >&3
             return
             ;;
