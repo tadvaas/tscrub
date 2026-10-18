@@ -30,6 +30,24 @@ and this project uses date-based versioning (`v1.x`).
   order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
   column, so choosing it is deliberate and the movement is expected.
 
+## [v1.11.66] - 2026-10-18
+
+### Fixed
+
+- **Per-drive terminal-status persistence now actually ships in the appliance.**
+  The `device::emit_status` / `device::recover_terminal` fix was committed in
+  v1.11.65 but never built into the image — so a worker's final `BLOCKED`/
+  `FAILED` status dropped by the SIGCHLD race still left the drive `UNKNOWN` on
+  the finish screen and withheld the report (nothing uploaded). This release
+  builds it, so a Block-SID-locked drive now reports `BLOCKED` honestly.
+
+### Known
+
+- UAT on a Lenovo ThinkPad X13 Gen 1 + Micron MTFDHBA512TDV: the TCG PPI
+  "Disable Block SID" request is accepted by firmware (`97 Success`) but does
+  **not** clear the Lenovo Block-SID gate (`0x4015` persists). Use PSID revert
+  (`--disable-block-sid=psid`), a manual BIOS toggle, or move the drive.
+
 ## [v1.11.65] - 2026-10-18
 
 ### Added
