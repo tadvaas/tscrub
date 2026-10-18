@@ -6,7 +6,202 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.63] - 2026-10-18
+
+### Added
+
+- **Abort signals are now recorded.** The console traps (INT/TERM, plus a new
+  HUP trap) now write `[timestamp] SIGNAL: <name> received — aborting` to the
+  detail log before exiting, so a mid-wipe abort (e.g. nwipe "aborted by the
+  user") can be traced to its source: SIGINT (Ctrl-C) vs SIGTERM
+  (kill/shutdown) vs SIGHUP (terminal hangup).
+
+### Fixed
+
+- **nwipe no longer clobbers the wipe screen.** The fallback's nwipe launch
+  redirected only stderr to the logfile, so nwipe's startup banner (device
+  table + PRNG benchmarks + "Selected PRNG") was painted over the TUI. stdout
+  is now discarded — everything meaningful already goes to nwipe's
+  `--logfile`, which tScrub follows for progress.
+
+## [v1.11.62] - 2026-10-17
+
+### Fixed
+
+- **Block-SID drives were withheld from the report.** A race in the wipe UI's
+  IPC reader could lose a worker's final terminal status when a SIGCHLD
+  interrupted the read right after the FLR suspend/resume; the report gate then
+  saw a non-terminal drive, marked it `UNKNOWN` ("Sanitisation did not
+  complete"), and withheld the report — so a Block-SID-locked bench showed a
+  reason-less failure and no dashboard record. The reader now drains any
+  buffered worker outcome lines before closing, so `BLOCKED` (and any other
+  terminal outcome) is always recorded and reported.
+
+### Changed
+
+- The docs kernel-parameters table gained a "Default" column.
+
+## [v1.11.61] - 2026-10-17
+
+### Added
+
+- **NVMe software-overwrite fallback.** Drives that advertise an NVMe
+  sanitize/format but reject every firmware erase command (e.g. a Samsung
+  PM981a answering `0x2001 Invalid Command Opcode` to both Format NVM and
+  Sanitize, with no Opal SED) used to end `FAILED` even though they are
+  perfectly writable. tScrub now falls back to a single-pass `nwipe`
+  overwrite for any non-lockdown firmware rejection, recorded honestly as
+  `Clear` / `nwipe Quick`, and — because it ends `COMPLETED` — it is scored by
+  the existing post-erasure verification (sentinel written before, read back
+  after). Block-SID refusals (`0x4286`/`0x4015`) are excluded so the PSID/PPI
+  path is never masked. Tunable via `--nvme-software-fallback=auto|off`
+  (cmdline `tscrub_nvme_software_fallback=`); default `auto`. Also fixes the
+  SCSI sanitize→nwipe fallback, whose Clear/Sanitisation outcome was written
+  directly to the wipe worker's subshell `devrow` and silently lost in
+  production — outcome corrections now travel over the worker IPC pipe. Plan:
+  `research/nvme-software-fallback/README.md`. Tests: `test_execute.sh`,
+  `test_scsi_sanitize.sh`.
+
+- **PSID map from URL or local path.** The `--disable-block-sid=psid` policy
+  previously read `psids.conf` only from the boot USB. It now loads the
+  serial→PSID map from three sources in priority order — a URL
+  (`--psids-url` / `tscrub_psids_url=`, fetched with the same network-retry
+  logic as the licence URL), a local path (`--psids` / `tscrub_psids=`), then
+  the boot USB — so a PXE fleet can pull PSIDs from an isolated LAN endpoint
+  without baking them into the image. The parse logic is factored into a
+  shared `config::psids_parse_file`. Also adds `tscrub_ppi_probe=1`, the PXE
+  equivalent of `--ppi-probe`. Tests: `test_psid.sh`.
+
+## [v1.11.60] - 2026-10-17
+
+### Added
+
+- **PPI "disable block SID authentication" (request + reboot-to-confirm).** A
+  Block-SID-locked drive that the PSID-revert path cannot reach still needs
+  the platform to lift the gate — the BIOS refuses SID/PSID commands until a
+  physically-present operator confirms at a POST prompt. New opt-in `--ppi`
+  (kernel cmdline `tscrub_ppi=1`) stages a TCG Storage PPI request to the UEFI
+  variable named by `--ppi-efivar` (cmdline `tscrub_ppi_efivar=`), sets
+  `PPIRequested` on every `BLOCKED` drive in the report, and reboots to the
+  firmware confirmation. The write is triple-gated so it can never touch NVRAM
+  blind: opt-in + an operator-identified variable + that variable present in
+  efivarfs. `--ppi-probe` lists candidate PPI/Block-SID efivars read-only (the
+  pre-enablement hardware probe). Without a configured variable the flow falls
+  back to the existing BIOS guidance (`device::lock_hint`). The new
+  `PPIRequested` CSV column flows through the server, Media tab, certificate
+  Annex A and JSON-LD. Plan: `research/ppi-block-sid/plan.md`. Tests:
+  `test_ppi.sh` (13).
+
+### Fixed
+
+- **Drive export dropped lock/format columns.** `/api/drives/export` has a
+  field whitelist that silently discarded `PSIDRevert`/`LockKind` (v1.11.58)
+  and the `Format*` columns (v1.11.56) even though the Media tab advertised
+  them. Added them (and `PPIRequested`) to the export whitelist.
+
+## [v1.11.59] - 2026-10-16
+
+### Changed
+
+- **Block-SID-locked NVMe drives can now be purged via PSID revert.** When a
+  sanitize/format is refused with a firmware access-rights lockdown
+  (`0x4286`/`0x4015`) and the automatic `--disable-block-sid=psid` policy is
+  active, tScrub now attempts a PSID revert from the on-stick `psids.conf` map
+  as the purge itself (crypto-erase + factory reset) instead of marking the
+  drive `BLOCKED`. PSID-revert success is now keyed on sedutil's own
+  `revertTper completed successfully` marker rather than the drive's
+  `Locked = N` state — a Block-SID drive is already `Locked = N`, so the old
+  check proved nothing about whether the revert actually ran.
+
+## [v1.11.58] - 2026-10-16
+
+### Added
+
+- **Automatic PSID revert for locked SEDs.** The `--disable-block-sid=psid`
+  policy value now does something: when a drive is discovered OPAL-locked,
+  tScrub looks its serial up in a `psids.conf` map on the boot USB (one
+  `SERIAL=PSID` line per drive) and PSID-reverts it non-interactively — the
+  previously-shipped `psid` value was parsed but inert. `ask` keeps the
+  interactive prompt; `off` disables it. The inline revert is promoted to a
+  shared `device::psid_revert` primitive (the interactive and automatic paths
+  can no longer drift), success is decided by the drive's own re-query, and
+  the PSID is never logged or reported — only the boolean `PSIDRevert`
+  outcome (CSV, dashboard, certificate Annex A, JSON-LD). A missing PSID
+  under `psid` degrades to physical destruction (no prompt, no hang); a
+  refused revert is reported as Block-SID guidance, not retried. Plan:
+  `research/psid-revert/plan.md`. Tests: `test_psid.sh` (22).
+
+- **PSID revert fallback cascade.** `device::psid_revert` now tries, least
+  destructive first, the plain PSID revert and then the Admin-SP revert
+  (`--PSIDrevertAdminSP`, BitRaser's method 2) for drives whose PSID
+  authority lives on the Admin SP rather than the SID authority. Success is
+  still decided by the drive's own re-query; the re-own-and-revert flow is
+  deliberately not used as an unlock step (its unlock is the same PSID
+  revert).
+
+- **"TCG locked" vs "TCG password" classification.** A locked SED is now
+  recorded as `LockKind=locked` (read/write protected) and a purge-gated
+  drive as `LockKind=password` (the `0x4286`/`0x4015` family), instead of one
+  `BLOCKED` bucket. A locked drive's report method now reads "TCG locked —
+  physical destruction required" instead of the misleading "Sanitisation
+  failed"; the column flows through the server and the Media tab.
+
+## [v1.11.57] - 2026-10-16
+
+### Added
+
+- **ATA/NVMe freeze-lock removal and Block-SID detection.** A frozen ATA drive
+  no longer fails the wipe: `device::unfreeze` (formerly `device::frozen`)
+  clears the ATA security freeze lock with suspend/resume, honouring
+  `--flr=auto|forced|disabled` (or `tscrub_flr=`), a max-attempt count and a
+  suspend duration; `forced` escalates the final attempt to a 10 s suspend.
+  NVMe has no reliable pre-command freeze signal, so a failed sanitize/format
+  now triggers one suspend/resume and one retry inside `device::exec_nvme`
+  (Blancco's "second purge often succeeds"), gated on `TS_RETRY_PURGE` and
+  `--flr=disabled`. A Block-SID lockdown (`0x4286`/`0x4015`) is still
+  detected as `BLOCKED`; it is now recorded per-drive (`block_sid`) and the
+  finish screen prints vendor-specific remediation hints (`device::lock_hint`:
+  Dell "Block Sleep (S3 State)", Lenovo "clear Block SID", Surface/X1 BIOS
+  S3). Three new report columns — `FreezeLock,BlockSID,FLRAttempts` — flow
+  into the server and the dashboard. A `--disable-block-sid=ask|psid|off`
+  policy flag is parsed and validated (default `ask`; automatic PSID revert
+  is future work). Plan: `research/freeze-lock-block-sid/plan.md`. Tests:
+  `test_frozen.sh` (12), `test_execute.sh` (27).
+
+### Changed
+
+- **The finish-screen report summary is now a single line in the sticky footer.**
+  The per-drive `Verification` / `Formatted` / `HPA/DCO` blocks scaled 3×N with
+  the drive count and pushed the result off the bottom of the screen on
+  multi-drive benches. They are aggregated into one status line pinned in the
+  footer beside the key legend — `Report: USB ✓ · Dash ✓ · Verify 24 passed ·
+  Format 23 exFAT · 1 FAT32 · HPA/DCO 3` — and the verbose blocks are gone from
+  the screen. The full per-drive detail is unchanged in the CSV report,
+  dashboard, certificate and JSON-LD: the console is a summary view, not the
+  audit record. The footer's row budget is recomputed dynamically so the extra
+  line can never push the footer off-screen. Tests: `product/tests/test_ui.sh`
+  (`report::footer_status`).
+
+## [v1.11.56] - 2026-10-16
+
+### Added
+
+- **Post-erasure drive formatting.** Every drive that completes a wipe is now
+  left ready to use: a single aligned partition and a cross-platform filesystem
+  (exFAT for drives > 32 GiB, FAT32 for ≤ 32 GiB; MBR where the capacity allows,
+  GPT beyond). It runs automatically after post-erasure verification and before
+  the report is written, so the sentinel read-back is never disturbed, and it is
+  a cosmetic convenience — orthogonal to the sanitisation claim, which is
+  unchanged. Formatting uses a tool-chain cascade (util-linux `sfdisk`→`sgdisk`,
+  dosfstools→busybox `mkfs.vfat`, exfatprogs→exfat-utils) and records an honest
+  `ok`/`unsupported`/`failed`/`skipped`/`n/a` verdict rather than faking a
+  format. The outcome is surfaced in six new CSV columns (`Format` … `FormatConfirm`),
+  the JSON manifest, the finish screen, the dashboard Media tab (modal, exports,
+  history), the certificate Annex A, and the JSON-LD twin. Opt out with
+  `--format off` / `tscrub_format=off`; force the filesystem/scheme with
+  `--fs`/`--scheme`. Requires the appliance image to ship `dosfstools`,
+  `exfatprogs` and a partitioner (`sfdisk` or `sgdisk`) — otherwise drives are
+  reported `unsupported`. Plan: `research/drive-formatting/README.md`.
 
 ### Changed
 
