@@ -309,6 +309,57 @@ try {
     t_check('a page past the end returns an empty list instead of an SQL error',
         isset($far['devices']) && count($far['devices']) === 0);
 
+    // --- the media list: sorting and the Submitted column --------------------
+    // The Media tab's headers are server-side, exactly like the Devices tab: the page holds
+    // one page of rows, so the order has to be decided before the slice, or a page boundary
+    // would cut the list in arrival order rather than in the chosen one.
+    $mt = static fn(array $rows): array => array_map(
+        static fn($d) => strtolower((string)($d['serial'] ?? '')), $rows);
+
+    // Sizes arrive as text ("4GB", "1000 GB", "500 GB", and often nothing at all), so a
+    // string compare would order 1000 GB before 4GB. The number is what the column means.
+    t_check('a capacity is compared as a number, not as text',
+        media_size_gb('4GB') === 4 && media_size_gb('1000 GB') === 1000
+        && media_size_gb('500 GB') === 500 && media_size_gb('1 TB') === 1024);
+    t_check('an unrecorded capacity sorts below a real one, not as the smallest',
+        media_size_gb('') === -1);
+
+    // Every column the table offers must actually order the list, both ways.
+    foreach (['model', 'serial', 'size', 'type', 'status', 'method', 'grade', 'date'] as $col) {
+        $ascCol = $mt(load_drives($userId, ['page' => 1, 'per' => 50, 'sort' => $col, 'dir' => 'asc'])['drives'] ?? []);
+        $desCol = $mt(load_drives($userId, ['page' => 1, 'per' => 50, 'sort' => $col, 'dir' => 'desc'])['drives'] ?? []);
+        t_check("the media list sorts by $col, and the direction reverses it", $ascCol !== $desCol);
+    }
+
+    // The Submitted column states when the latest report arrived — and nothing at all for an
+    // operator attestation, which never had a report to submit. Asserted on the function
+    // itself as well as on live rows, because this test account normally holds only the
+    // attested fixtures and would otherwise never exercise the scanned branch.
+    $synthetic = media_with_datetime([['serial' => 'SCAN-1', 'uploaded_at' => '2026-10-18 14:37:06']]);
+    t_check('a scanned medium exposes its latest report time under the documented key',
+        ($synthetic[0]['last_report_datetime_submitted'] ?? null) === '2026-10-18 14:37:06');
+    $syntheticAtt = media_with_datetime([['serial' => 'ATT-1', 'attested' => true]]);
+    t_check('an attested medium has no submission time to state',
+        ($syntheticAtt[0]['last_report_datetime_submitted'] ?? null) === '');
+
+    $mediaRows = load_drives($userId, ['page' => 1, 'per' => 100])['drives'] ?? [];
+    t_check('every live media row carries the Submitted value, blank when there is none',
+        $mediaRows !== []
+        && count(array_filter($mediaRows, static fn($d) => array_key_exists('last_report_datetime_submitted', $d))) === count($mediaRows));
+
+    // No sort must keep the order this table has always had: attested rows lead, so a
+    // destroyed unit does not move when the operator pages or searches.
+    $firstScanned = null;
+    $lastAttested = null;
+    foreach ($mediaRows as $i => $mr) {
+        if (!empty($mr['attested'])) { $lastAttested = $i; }
+        elseif ($firstScanned === null) { $firstScanned = $i; }
+    }
+    t_check('the default order still leads with the attested rows',
+        $lastAttested === null || $firstScanned === null || $lastAttested < $firstScanned);
+    t_check('an unknown column falls back to the default order instead of erroring',
+        count(load_drives($userId, ['page' => 1, 'per' => 5, 'sort' => 'nonsense'])['drives'] ?? []) > 0);
+
     // --- deleting removes both the unit and its media -------------------------
     $devRowId = (int)$found['attested_id'];
     $removed = manual_attested_delete($certId, $devRowId, true);

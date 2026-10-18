@@ -8,6 +8,37 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **Sortable headers and a Submitted date on the Media tab.** The Media table could not be
+  sorted at all — clicking a heading did nothing — and `/api/drives` did not accept `sort`
+  or `dir`, unlike `/api/devices`. Every heading except Actions now sorts, in both
+  directions, with the Devices tab's ▲/▼/↕ indicator: Model, Serial, Size, Type, Status,
+  Method, Grade and **Submitted**.
+
+  - **Size sorts as a number.** Capacities arrive from the reports as text — `4GB`,
+    `1000 GB`, `500 GB`, sometimes blank — so a string compare ordered 1000 GB before 4GB.
+    It is parsed to GB, and a drive whose report never recorded a capacity sorts below a
+    real one rather than claiming to be the smallest.
+  - **Status sorts by severity, not alphabetically**, reusing `drive_status_rank()`, so
+    COMPLETED sits above DESTROYED/RETAINED and FAILED above BLOCKED.
+  - **Submitted is the time the most recent report for that medium arrived** — the only
+    date a scanned row can honestly state. An operator-attested medium has no report at
+    all, so it shows an em dash with a tooltip rather than borrowing its destruction date,
+    and in a date sort those rows group at the end.
+  - Sorting is server-side, before the slice, so page boundaries follow the chosen order
+    rather than the order rows happened to arrive in. The tie-break is identity (the
+    serial), never a volatile field — the same rule as the Devices sort fix.
+  - Leaving the table unsorted keeps its existing order exactly (attested rows first, then
+    newest report), so nothing moves until a heading is clicked.
+
+- **The Media pager now behaves like the Devices one.** A page request disables both
+  buttons and shows a spinner, so a slow response no longer looks like a dead control, and
+  responses are sequence-guarded: two quick clicks can no longer resolve out of order and
+  land on the wrong page's rows. The row render is also skipped when the payload is
+  identical, while the sort arrows are still repainted so the header always follows the
+  click.
+
 ### Fixed
 
 - **The Devices table re-ordered itself every time an appliance heartbeat arrived.**

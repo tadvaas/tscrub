@@ -1903,8 +1903,14 @@ if ($method === 'GET' && $route === '/drives') {
     $q = trim((string)($_GET['q'] ?? ''));
     $page = max(1, (int)($_GET['page'] ?? 1));
     $per = min(100, max(1, (int)($_GET['per'] ?? 10)));
+    // Same contract as /devices: `sort` names a column, `dir` is asc/desc (or ±1), and an
+    // empty `sort` means the default order — attested rows first, then newest report — so a
+    // page that has never been sorted keeps the order it has always had.
+    $sort = trim((string)($_GET['sort'] ?? ''));
+    $dir = query_dir($_GET['dir'] ?? '');
 
-    $res = load_drives((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per]);
+    $res = load_drives((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per,
+        'sort' => $sort, 'dir' => $dir]);
 
     json_out([
         'ok'     => true,
@@ -1914,6 +1920,8 @@ if ($method === 'GET' && $route === '/drives') {
         'attested_total' => (int)($res['attested_total'] ?? 0),
         'page'   => $page,
         'per'    => $per,
+        'sort'   => $sort,
+        'dir'    => $dir > 0 ? 'asc' : 'desc',
     ]);
 }
 

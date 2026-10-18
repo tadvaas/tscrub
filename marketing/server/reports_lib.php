@@ -2469,6 +2469,97 @@ function device_sort_keys(array $d, $columnValue): array
 }
 
 /**
+ * The submission time of the most recent report for each medium: what the Media table's
+ * Submitted column shows, and what its date sort is keyed on.
+ *
+ * `uploaded_at` is already the NEWEST report's timestamp — both list paths read reports
+ * newest-first and keep the first entry per serial — so this only exposes it under the name
+ * the API and the table use.
+ *
+ * An attested row has no report at all, and says so with an empty string rather than
+ * borrowing its destruction date: the column means "report submitted", and a factory reset
+ * never had one. The table renders that as an em dash with a tooltip explaining why, and in
+ * a date sort those rows group at the end rather than pretending to a date.
+ */
+function media_with_datetime(array $rows): array
+{
+    foreach ($rows as &$r) {
+        $r['last_report_datetime_submitted'] = (string)($r['uploaded_at'] ?? '');
+        unset($r);
+    }
+    return $rows;
+}
+
+/**
+ * A capacity written as text ("4GB", "1000 GB", "500 GB", "") as a comparable number of
+ * GB. A plain string compare would order "1000 GB" before "4GB" before "500 GB", which is
+ * not a sort of anything. -1 for a size the report never recorded, so those group below the
+ * real ones on an ascending sort instead of claiming to be the smallest.
+ */
+function media_size_gb(string $size): int
+{
+    $size = trim($size);
+    if ($size === '') { return -1; }
+    if (!preg_match('/([0-9]+(?:\.[0-9]+)?)\s*([KMGTP]?)B?/i', $size, $m)) { return -1; }
+    $n = (float)$m[1];
+    switch (strtoupper($m[2])) {
+        case 'T': $n *= 1024; break;
+        case 'M': $n /= 1024; break;
+        case 'K': $n /= 1048576; break;
+    }
+    return (int)round($n);
+}
+
+/**
+ * The sort value for one media row. Status uses drive_status_rank() so that COMPLETED sorts
+ * above DESTROYED/RETAINED and FAILED above BLOCKED, rather than alphabetically; size is
+ * numeric; the three text columns are case-insensitive.
+ */
+function media_sort_value(array $d, string $sort)
+{
+    switch ($sort) {
+        case 'model':  return strtolower((string)($d['model'] ?? ''));
+        case 'serial': return strtolower((string)($d['serial'] ?? ''));
+        case 'size':   return media_size_gb((string)($d['size'] ?? ''));
+        case 'type':   return strtolower((string)($d['type'] ?? ''));
+        case 'status': return drive_status_rank((string)($d['status'] ?? ($d['final_status'] ?? '')));
+        case 'method': return strtolower((string)($d['method'] ?? ''));
+        case 'grade':  return strtolower((string)($d['grade'] ?? ''));
+        case 'date':   return (string)($d['last_report_datetime_submitted'] ?? ($d['uploaded_at'] ?? ''));
+    }
+    return '';
+}
+
+/**
+ * Sort media rows by a chosen column, then by identity — never by anything a heartbeat or
+ * another writer can change. Same rule and same reason as device_sort_keys(): a volatile
+ * tie-break reorders the table underneath the reader.
+ *
+ * Unlike the Devices table this also covers a date column, because for media the date IS a
+ * real fact about the row (when its latest report arrived) rather than liveness.
+ */
+function media_sort_rows(array $rows, string $sort, int $dir): array
+{
+    usort($rows, function ($a, $b) use ($sort, $dir) {
+        $ka = device_sort_keys(
+            ['sysserial' => (string)($a['serial'] ?? ''), '_key' => (string)($a['_key'] ?? '')],
+            media_sort_value($a, $sort)
+        );
+        $kb = device_sort_keys(
+            ['sysserial' => (string)($b['serial'] ?? ''), '_key' => (string)($b['_key'] ?? '')],
+            media_sort_value($b, $sort)
+        );
+        foreach ($ka as $i => $va) {
+            $vb = $kb[$i];
+            $cmp = (is_int($va) && is_int($vb)) ? ($va <=> $vb) : strcmp((string)$va, (string)$vb);
+            if ($cmp !== 0) { return $dir * $cmp; }
+        }
+        return 0;
+    });
+    return $rows;
+}
+
+/**
  * Attested (operator-recorded) item counts per certificate id: units and media.
  *
  * Kept deliberately OUT of the stored verified figures — `certificates.devices`/`runs` count
@@ -3042,10 +3133,15 @@ function load_drives(int $userId, ?array $query = null): array {
     $q = trim((string)($query['q'] ?? ''));
     $page = max(1, (int)($query['page'] ?? 1));
     $per = min(100, max(1, (int)($query['per'] ?? 10)));
+    $sort = (string)($query['sort'] ?? '');
+    $dir  = query_dir($query['dir'] ?? '');
 
-    // Fast path: no search → paginate over the small `drive_serials` cache
-    // without decoding every erasure payload.
-    if ($query !== null && $q === '') {
+    // Fast path: no search and no chosen column → paginate over the small
+    // `drive_serials` cache without decoding every erasure payload. A chosen sort cannot
+    // take it, because the column it sorts on (type, status, method, grade) lives in the
+    // payload that cache does not carry — so a sorted request uses the full path and sorts
+    // before it slices, which is what makes the page boundaries follow the sort.
+    if ($query !== null && $q === '' && $sort === '') {
         return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId));
     }
 
@@ -3115,6 +3211,9 @@ function load_drives(int $userId, ?array $query = null): array {
     $attested = manual_list_drives($userId);
     $out = array_merge($attested, $out);
 
+    // The Submitted column's value, for every row, before anything sorts on it.
+    $out = media_with_datetime($out);
+
     if ($query === null) {
         return $out;
     }
@@ -3132,6 +3231,11 @@ function load_drives(int $userId, ?array $query = null): array {
     $total = count($out);
     // Counted after the filter: the figure must describe the rows being shown.
     $attestedTotal = count(array_filter($out, static fn($d) => !empty($d['attested'])));
+
+    // Sorted AFTER the search filter and BEFORE the slice, so a page boundary follows the
+    // chosen order rather than whichever order the rows happened to arrive in.
+    if ($sort !== '') { $out = media_sort_rows($out, $sort, $dir); }
+
     return [
         'drives'         => array_slice($out, ($page - 1) * $per, $per),
         'total'          => $total,
@@ -3248,5 +3352,5 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
         elseif (isset($byKey[$s]))     { $ordered[] = $byKey[$s]; }
     }
 
-    return ['drives' => $ordered, 'total' => $total, 'attested_total' => count($attByKey)];
+    return ['drives' => media_with_datetime($ordered), 'total' => $total, 'attested_total' => count($attByKey)];
 }
