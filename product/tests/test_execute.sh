@@ -243,6 +243,42 @@ t::assert_eq "DRY-RUN" "${devrow[sda.class]}" "dry-run class -> DRY-RUN"
 t::assert_eq "NOT SANITISED" "${devrow[sda.cert]}" "dry-run cert -> NOT SANITISED"
 t::assert_eq "Dry run — no sanitisation performed" "${devrow[sda.method]}" "dry-run method honest"
 
+# --- device::emit_status + device::recover_terminal: loss-proof fallback -----
+# Regression (v1.11.63): a worker's final terminal STATUS can be lost when the
+# SIGCHLD fired on worker exit interrupts ui::loop's read mid-line — the
+# EOF-drain cannot recover a partially-consumed line, so a Block-SID drive that
+# emitted BLOCKED was misreported UNKNOWN and had its report withheld. The
+# worker now persists its terminal status to a per-drive file so the gate can
+# fold it back in even when the IPC line never reached the parent.
+rm -rf /tmp/tscrub-device-status
+devices=(nvme0n1 sda)
+devrow=()
+devrow[nvme0n1.status]=""       # IPC line "lost" — parent saw nothing terminal
+devrow[sda.status]="COMPLETED"  # arrived normally over IPC
+
+exec 3>/dev/null
+device::emit_status nvme0n1 BLOCKED
+exec 3>&-
+t::assert_eq "BLOCKED" "$(cat /tmp/tscrub-device-status/nvme0n1)" "emit_status persists terminal status to per-drive file"
+
+device::recover_terminal
+t::assert_eq "BLOCKED" "${devrow[nvme0n1.status]}" "recover_terminal folds the lost BLOCKED back in"
+t::assert_eq "COMPLETED" "${devrow[sda.status]}" "recover_terminal leaves an already-terminal drive alone"
+
+# A non-terminal (RUNNING) file value must NOT be mistaken for a terminal one.
+devices=(sda)
+devrow=()
+devrow[sda.status]=""
+printf 'RUNNING\n' > /tmp/tscrub-device-status/sda
+device::recover_terminal
+t::assert_eq "" "${devrow[sda.status]}" "recover_terminal ignores a non-terminal file value"
+
+# A missing file leaves the drive untouched (the gate then marks it UNKNOWN).
+rm -f /tmp/tscrub-device-status/sda
+device::recover_terminal
+t::assert_eq "" "${devrow[sda.status]}" "recover_terminal ignores a missing file"
+rm -rf /tmp/tscrub-device-status
+
 rm -f "$OUT"
 rm -rf "$tmp"
 t::summary
