@@ -92,6 +92,39 @@ PPI_TPM_SYSFS="$tmp/ppisys"
 probe_out="$(device::ppi_probe)"
 t::assert_contains "$probe_out" "PPI sysfs:" "ppi: probe reports the sysfs channel"
 
+# --- read-back: pending + response drive the one-shot loop guard -------------
+PPI_TPM_SYSFS="$tmp/ppisys"
+mkdir -p "$tmp/ppisys/tpm0/ppi"
+printf '1.3\n' > "$tmp/ppisys/tpm0/ppi/version"
+printf '0\n' > "$tmp/ppisys/tpm0/ppi/request"
+printf '97 0: Success\n' > "$tmp/ppisys/tpm0/ppi/response"
+
+t::assert_eq "0" "$(device::ppi_pending)" "ppi: pending reads 0 when nothing staged"
+t::assert_eq "97 0: Success" "$(device::ppi_response)" "ppi: response read-back"
+
+# response already carries the op -> already requested (the loop case: request
+# consumed, firmware answered, drive still blocked)
+t::check "ppi: already-requested true from response" 'device::ppi_already_requested disable_block_sid'
+
+# a different answered op -> not this op
+printf '96 0: Success\n' > "$tmp/ppisys/tpm0/ppi/response"
+t::check "ppi: already-requested false for a different answered op" '! device::ppi_already_requested disable_block_sid'
+
+# pending request carries the op -> already requested
+printf '97\n' > "$tmp/ppisys/tpm0/ppi/request"
+: > "$tmp/ppisys/tpm0/ppi/response"
+t::check "ppi: already-requested true from pending op" 'device::ppi_already_requested disable_block_sid'
+
+# nothing staged, no answer -> not already requested
+printf '0\n' > "$tmp/ppisys/tpm0/ppi/request"
+t::check "ppi: already-requested false when nothing staged or answered" '! device::ppi_already_requested disable_block_sid'
+
+# idempotent submit: a request already carrying the op is not rewritten
+printf '97\n' > "$tmp/ppisys/tpm0/ppi/request"
+TS_PPI=1
+t::check "ppi: submit is idempotent when op already pending" 'device::ppi_request disable_block_sid'
+t::assert_eq "97" "$(tr -d '\r\n' < "$tmp/ppisys/tpm0/ppi/request")" "ppi: pending op left intact"
+
 # --- block_sid_cleared is honest-unknown -------------------------------------
 device::block_sid_cleared
 t::assert_eq "2" "$?" "ppi: block_sid_cleared returns unknown (2)"

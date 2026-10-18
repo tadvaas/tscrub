@@ -177,7 +177,15 @@ device::exec_nvme() {
     # the drive falls through to BLOCKED with the clear-Block-SID hint.
     if [[ "${TS_BLOCK_SID_POLICY:-ask}" == "psid" ]] \
         && grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$NVME_CMD_OUT"; then
-        if device::psid_unlock_auto "$dev"; then
+        if device::sed_unprovisioned "$dev"; then
+            # No media-encryption key to destroy: the revert would be a
+            # metadata reset that erases nothing, and the refusal is a
+            # platform (BIOS) Block SID filter the revert cannot clear.
+            # Record na (not a fake "revert succeeded") and fall through to
+            # BLOCKED with the clear-Block-SID hint.
+            echo "$dev PSID na" >&3
+            echo "$dev LOG PSID revert skipped: drive is not OPAL-provisioned (Locked=N, LockingEnabled=N) — Block SID is a BIOS-level filter; clear it in BIOS" >&3
+        elif device::psid_unlock_auto "$dev"; then
             echo "$dev PSID yes" >&3
             echo "$dev LOG Block SID lockdown — PSID revert unlocked the drive; re-running sanitize" >&3
             if device::nvme_issue "$dev" "$cap"; then

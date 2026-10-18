@@ -504,15 +504,26 @@ erasure::run() {
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && ppi_blocked=1
         done
-        if [[ "$ppi_blocked" -eq 1 ]] && device::ppi_request "${TS_PPI_OP:-disable_block_sid}"; then
-            for dev in "${devices[@]}"; do
-                [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
-            done
-            PPI_REBOOT=1
-            # Persist the target serial list for --ppi-resume (best-effort: the
-            # request itself is already staged in NVRAM; only auto-resume is
-            # lost if the marker can't be written).
-            device::ppi_resume_marker_write
+        if [[ "$ppi_blocked" -eq 1 ]]; then
+            # One-shot loop guard: if the operation was already staged (or the
+            # firmware already answered it) but the drive is STILL blocked,
+            # re-requesting would reboot forever. Record the request as made
+            # and leave the drive BLOCKED with the BIOS-toggle hint.
+            if device::ppi_already_requested "${TS_PPI_OP:-disable_block_sid}"; then
+                for dev in "${devices[@]}"; do
+                    [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
+                done
+                echo "PPI ${TS_PPI_OP:-disable_block_sid}: already requested — firmware answered but Block SID persists; clear it in BIOS, then re-run" >&5
+            elif device::ppi_request "${TS_PPI_OP:-disable_block_sid}"; then
+                for dev in "${devices[@]}"; do
+                    [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
+                done
+                PPI_REBOOT=1
+                # Persist the target serial list for --ppi-resume (best-effort:
+                # the request itself is already staged in NVRAM; only
+                # auto-resume is lost if the marker can't be written).
+                device::ppi_resume_marker_write
+            fi
         fi
     fi
 

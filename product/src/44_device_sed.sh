@@ -123,6 +123,24 @@ device::psid_revert() {
     return 1
 }
 
+# True when the drive's TCG tables show it is NOT OPAL-provisioned: Locked = N
+# AND LockingEnabled = N. A PSID revert destroys the media encryption key
+# (MEK); on a drive that never enabled locking there is no active MEK, so
+# sedutil's "revertTper completed successfully" is a metadata reset that erases
+# NOTHING. Used by the automatic path so an unprovisioned drive whose sanitize
+# was refused by a PLATFORM (BIOS) Block SID reports BLOCKED with the BIOS hint
+# instead of a fake "revert succeeded". A provisioned-but-unlocked drive
+# (LockingEnabled = Y) is deliberately NOT unprovisioned: its revert IS a real
+# crypto-erase. Matches both sedutil's one-line "Locked = N, LockingEnabled = N"
+# and the test fake's separate lines.
+device::sed_unprovisioned() {
+    local dev="$1" ctrl out
+    ctrl="/dev/${dev%n*}"   # nvme0n1 -> /dev/nvme0 ; sda -> /dev/sda
+    command -v sedutil-cli >/dev/null 2>&1 || return 1
+    out="$(sedutil-cli --query "$ctrl" 2>/dev/null)" || return 1
+    [[ "$out" == *"Locked = N"* && "$out" == *"LockingEnabled = N"* ]]
+}
+
 # Non-interactive, map-driven PSID unlock. Worker-safe: it never reads a
 # terminal, so it is the only unlock path usable both by handle_locks' `psid`
 # policy (pre-execution) and by the NVMe Block-SID fallback inside the wipe

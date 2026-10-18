@@ -60,6 +60,58 @@ device::ppi_version() {
     return 1
 }
 
+# First readable TPM PPI response file (the last pre-OS operation's answer), or
+# empty + rc 1 when absent. Per the kernel ABI (sysfs-class-tpm) the content is
+# "<op> <status>: <text>", e.g. "97 0: Success". This is the loop-guard signal:
+# a firmware answer here does NOT mean the Block SID gate was actually cleared
+# (Lenovo firmware answers "Success" while the drive stays blocked), so it must
+# only ever be used to suppress a redundant re-request, never to claim success.
+device::ppi_response_file() {
+    local f
+    for f in "$PPI_TPM_SYSFS"/tpm*/ppi/response; do
+        [[ -r "$f" ]] || continue
+        printf '%s' "$f"
+        return 0
+    done
+    return 1
+}
+
+# Last pre-OS response, trimmed. Empty when the interface is absent.
+device::ppi_response() {
+    local f
+    f="$(device::ppi_response_file)" || return 1
+    tr -d '\r\n' < "$f" 2>/dev/null
+}
+
+# Pending PPI request value ("0"/empty = none), or empty + rc 1 when absent.
+device::ppi_pending() {
+    local f v
+    for f in "$PPI_TPM_SYSFS"/tpm*/ppi/request; do
+        [[ -r "$f" ]] || continue
+        v="$(tr -d '\r\n' < "$f" 2>/dev/null)"
+        printf '%s' "${v:-0}"
+        return 0
+    done
+    return 1
+}
+
+# Has this PPI operation already been handed to the firmware? True when the
+# pending request is still this op (staged, not yet answered) OR the last
+# response already carries this op (the pre-OS environment answered it). This
+# is the one-shot loop guard: a confirmed-but-still-blocked round-trip must NOT
+# stage the request again — the drive stays BLOCKED with the BIOS-toggle hint.
+device::ppi_already_requested() {
+    local kind="${1:-disable_block_sid}" op pending resp
+    op="$(device::ppi_op_value "$kind")" || return 1
+    pending="$(device::ppi_pending 2>/dev/null || true)"
+    if [[ -n "$pending" && "$pending" != "0" ]]; then
+        [[ "$pending" == "$op" ]] && return 0
+    fi
+    resp="$(device::ppi_response 2>/dev/null || true)"
+    [[ "$resp" =~ ^[[:space:]]*"$op"([[:space:]]|$) ]] && return 0
+    return 1
+}
+
 # Read-only candidate scan (--ppi-probe). Reports the two submission channels:
 #   (1) the TPM PPI sysfs interface (spec-conformant ACPI _DSM), if present,
 #   (2) efivars whose name hints at a storage/PPI/SID variable (vendor fallback).
@@ -111,6 +163,12 @@ device::ppi_request() {
 
     # 1) Spec-conformant ACPI _DSM via the TPM PPI sysfs.
     if path="$(device::ppi_sysfs_request)"; then
+        # Idempotent: a request already carrying this op is left as-is (the
+        # loop guard reads the pending value; a rewrite is harmless but noisy).
+        if [[ "$(tr -d '\r\n' < "$path" 2>/dev/null)" == "$op" ]]; then
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ACTION: PPI_REQUEST $kind already staged (op $op via $path)" >> "$LOG_FILE"
+            return 0
+        fi
         if printf '%s\n' "$op" > "$path" 2>/dev/null; then
             echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ACTION: PPI_REQUEST $kind (op $op via $path)" >> "$LOG_FILE"
             return 0

@@ -30,6 +30,26 @@ and this project uses date-based versioning (`v1.x`).
   order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
   column, so choosing it is deliberate and the movement is expected.
 
+## [v1.11.68] - 2026-10-18
+
+### Fixed
+
+- **Block-SID recovery no longer loops forever, and never fakes a successful revert.**
+  On Lenovo + Micron hardware the "Block SSD SID Authentication" gate is a *platform*
+  (BIOS) filter: the drive's TCG tables stay `Locked = N`, so a PSID revert destroys no
+  media-encryption key and cannot clear the gate, and the TPM PPI `Disable_BlockSIDFunc`
+  request (op 97) is acknowledged with `Success` while the drive stays blocked. tScrub
+  used to PSID-revert, re-issue the sanitize, then stage the PPI request and reboot — on
+  every boot, forever.
+
+  Two fixes: (1) the PPI block now reads the TPM PPI `request`/`response` sysfs back and,
+  if the operation was already staged or the firmware already answered it, records the
+  request and stops instead of rebooting again — the drive reports `BLOCKED` with the
+  clear-Block-SID BIOS hint. (2) a Block-SID drive that is provably not OPAL-provisioned
+  (`Locked = N` AND `LockingEnabled = N`) no longer claims `PSIDRevert=yes`: the no-op
+  revert is skipped (`na`) because it would destroy no key. The real fix for this hardware
+  remains the manual BIOS toggle (Security → Storage Device Block SID).
+
 ## [v1.11.67] - 2026-10-18
 
 ### Fixed

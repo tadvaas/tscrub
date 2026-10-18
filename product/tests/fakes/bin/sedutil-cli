@@ -12,7 +12,7 @@ case "$1" in
         else
             printf 'Locked = N\n'
         fi
-        printf 'LockingEnabled = N\n'
+        printf 'LockingEnabled = %s\n' "${FAKE_SEDUTIL_LOCKING_ENABLED:-N}"
         exit 0
         ;;
     --yesIreallywanttoERASEALLmydatausingthePSID)
