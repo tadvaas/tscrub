@@ -15,6 +15,13 @@ and this project uses date-based versioning (`v1.x`).
   spec-conformant TPM PPI sysfs (ACPI `_DSM`, op 97) — it never guesses or
   writes a vendor UEFI variable. Bare `--ppi` is now `--ppi=on` and keeps the
   `--ppi-efivar` fallback for firmware without a TPM PPI sysfs.
+- **Per-drive terminal-status persistence.** Every worker records its final
+  drive outcome (`COMPLETED`/`FAILED`/`BLOCKED`/`FROZEN`/`STALLED`/…) through
+  `device::emit_status`, which writes the status to
+  `/tmp/tscrub-device-status/<dev>` as well as the worker→UI pipe. The report
+  gate folds any missed status back in via `device::recover_terminal`, so a
+  worker's final STATUS line dropped by a SIGCHLD race can no longer withhold
+  the report or misstate a drive's outcome.
 
 ## [v1.11.64] - 2026-10-18
 
