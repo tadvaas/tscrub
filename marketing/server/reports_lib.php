@@ -460,6 +460,9 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'psid_revert' => clip_str($get($row, 'psidrevert'), 16),
                 'lock_kind' => clip_str($get($row, 'lockkind'), 16),
                 'ppi_requested' => clip_str($get($row, 'ppirequested'), 16),
+                // Derivable only across reports (prior BLOCKED -> now COMPLETED);
+                // computed in merge_group(). A single report is always 'no'.
+                'ppi_cleared' => 'no',
             ];
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
@@ -1036,6 +1039,7 @@ function db_drive_to_group(array $d): array {
         'psid_revert' => (string)($d['psid_revert'] ?? ''),
         'lock_kind' => (string)($d['lock_kind'] ?? ''),
         'ppi_requested' => (string)($d['ppi_requested'] ?? ''),
+        'ppi_cleared'   => (string)($d['ppi_cleared'] ?? ''),
     ];
 }
 
@@ -1069,6 +1073,27 @@ function drive_status_rank(?string $status): int {
 }
 
 /**
+ * Derive whether a drive's Block SID gate was cleared by the TCG PPI request.
+ * The appliance can no longer claim this itself (it has no cross-reboot
+ * memory), so the server infers it from the drive's report history: the drive
+ * was BLOCKED (status BLOCKED, or block_sid=yes) on an earlier pass and is
+ * COMPLETED now. Returns 'yes' | 'no'.
+ */
+function drive_ppi_cleared(array $dv): string {
+    if (strtoupper(trim((string)($dv['status'] ?? ''))) !== 'COMPLETED') {
+        return 'no';
+    }
+    foreach (($dv['history'] ?? []) as $h) {
+        if (!is_array($h)) continue;
+        if (strtoupper(trim((string)($h['status'] ?? ''))) === 'BLOCKED'
+            || strtolower(trim((string)($h['block_sid'] ?? ''))) === 'yes') {
+            return 'yes';
+        }
+    }
+    return 'no';
+}
+
+/**
  * Merge a freshly parsed report group into an existing certificate (same COCID),
  * deduping drives by serial and reports by SHA, and keeping the strongest
  * sha/sig states and the widest first/last window. When the same serial appears
@@ -1077,9 +1102,14 @@ function drive_status_rank(?string $status): int {
 function merge_group(array $g, array $dbDrives, array $dbReports, array $existingCert): array {
     $drives = [];
     $bySerial = [];
+    $everBlocked = [];
     foreach ($dbDrives as $d) {
         $gd = db_drive_to_group($d);
         $s = strtolower(trim((string)($gd['serial'] ?? '')));
+        if ($s !== '' && (strtoupper(trim((string)($gd['status'] ?? ''))) === 'BLOCKED'
+                || strtolower(trim((string)($gd['block_sid'] ?? ''))) === 'yes')) {
+            $everBlocked[$s] = true;
+        }
         if ($s !== '' && isset($bySerial[$s])) {
             if (drive_status_rank($gd['status'] ?? '') > drive_status_rank($drives[$bySerial[$s]]['status'] ?? '')) {
                 $drives[$bySerial[$s]] = $gd;
@@ -1091,6 +1121,10 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
     }
     foreach (($g['drives'] ?? []) as $nd) {
         $s = strtolower(trim((string)($nd['serial'] ?? '')));
+        if ($s !== '' && (strtoupper(trim((string)($nd['status'] ?? ''))) === 'BLOCKED'
+                || strtolower(trim((string)($nd['block_sid'] ?? ''))) === 'yes')) {
+            $everBlocked[$s] = true;
+        }
         if ($s !== '' && isset($bySerial[$s])) {
             if (drive_status_rank($nd['status'] ?? '') >= drive_status_rank($drives[$bySerial[$s]]['status'] ?? '')) {
                 $drives[$bySerial[$s]] = $nd;
@@ -1099,6 +1133,16 @@ function merge_group(array $g, array $dbDrives, array $dbReports, array $existin
         }
         if ($s !== '') $bySerial[$s] = count($drives);
         $drives[] = $nd;
+    }
+
+    // PPI cleared: a drive that was Block-SID-blocked on an earlier pass
+    // (status BLOCKED, or block_sid=yes) and is now COMPLETED was cleared by the
+    // PPI request + reboot. The appliance can no longer claim this itself (it
+    // has no cross-reboot memory), so the consolidation derives it here.
+    foreach ($drives as $i => $dv) {
+        $s = strtolower(trim((string)($dv['serial'] ?? '')));
+        $drives[$i]['ppi_cleared'] = (strtoupper(trim((string)($dv['status'] ?? ''))) === 'COMPLETED'
+            && $s !== '' && !empty($everBlocked[$s])) ? 'yes' : 'no';
     }
 
     $reports = $dbReports;
@@ -3043,6 +3087,7 @@ function load_drives(int $userId, ?array $query = null): array {
     foreach ($out as &$dv) {
         $dv['reports']  = count($dv['history']);
         $dv['multiple'] = $dv['reports'] > 1;
+        $dv['ppi_cleared'] = drive_ppi_cleared($dv);
 
         // Automatic per-drive resale grade from the captured SMART.
         $g = drive_grade($dv);
@@ -3187,6 +3232,7 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
     foreach ($out as &$dv) {
         $dv['reports']  = count($dv['history']);
         $dv['multiple'] = $dv['reports'] > 1;
+        $dv['ppi_cleared'] = drive_ppi_cleared($dv);
         $g = drive_grade($dv);
         $dv['grade'] = $g['grade'];
         $dv['grade_reason'] = implode('; ', $g['reasons']);

@@ -228,6 +228,7 @@ function jsonld_normalize_drive(array $d): array {
         'format_confirm' => jsonld_na((string)($d['format_confirm'] ?? '')),
         'psid_revert'   => jsonld_na((string)($d['psid_revert'] ?? '')),
         'ppi_requested' => jsonld_na((string)($d['ppi_requested'] ?? '')),
+        'ppi_cleared'   => jsonld_na((string)($d['ppi_cleared'] ?? '')),
     ];
 }
 
@@ -241,7 +242,7 @@ function jsonld_drive(array $norm): array {
         'sed_status', 'reallocsectorspost', 'selftest', 'tool_version', 'operator',
         'validator', 'media_source', 'media_destination',
         'format_fs', 'format_scheme', 'format_label', 'format_result', 'format_confirm',
-        'psid_revert', 'ppi_requested',
+        'psid_revert', 'ppi_requested', 'ppi_cleared',
     ] as $k) {
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }
     }

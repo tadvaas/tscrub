@@ -30,6 +30,14 @@ and this project uses date-based versioning (`v1.x`).
   order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
   column, so choosing it is deliberate and the movement is expected.
 
+### Added
+
+- **The dashboard now derives `PPI cleared` server-side.** The appliance can no longer
+  claim it (it has no cross-reboot memory), so the server infers it from a drive's report
+  history: the drive was `BLOCKED` (or `block_sid=yes`) on an earlier pass and is
+  `COMPLETED` now. Surfaced in the drives list/export (`PPI cleared` column), the
+  certificate PDF (`PPI Cleared` column) and the certificate JSON-LD.
+
 ## [v1.11.69] - 2026-10-18
 
 ### Changed
