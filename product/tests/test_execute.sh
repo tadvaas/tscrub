@@ -73,7 +73,6 @@ devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
 serial[nvme0n1]="SED-SERIAL-1"
 PSID_MAP=()
 PSID_MAP[SED-SERIAL-1]="ABCDEF1234567890ABCDEF1234567890"
-export TS_BLOCK_SID_POLICY=psid
 export FAKE_SEDUTIL_LOCKING_ENABLED=Y
 printf '1\n1\n0\n' > "$tmp/rcseq"   # first purge blocked, FLR retry blocked, post-unlock succeeds
 export FAKE_NVME_SANITIZE_RC_SEQ="$tmp/rcseq"
@@ -88,7 +87,7 @@ t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "Block SID + psid poli
 t::assert_contains "$captured" "nvme0n1 PSID yes" "PSID revert reported over the IPC pipe"
 t::assert_contains "$captured" "re-running sanitize" "announces the re-issued sanitize"
 t::assert_eq "yes" "${devrow[nvme0n1.psid_revert]}" "psid_revert=yes"
-unset TS_BLOCK_SID_POLICY FAKE_SEDUTIL_LOCKING_ENABLED FAKE_NVME_SANITIZE_RC_SEQ FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC FAKE_NVME_SSTAT
+unset FAKE_SEDUTIL_LOCKING_ENABLED FAKE_NVME_SANITIZE_RC_SEQ FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC FAKE_NVME_SSTAT
 
 # ui::apply_outcome maps the PSID IPC key onto the report field
 devrow=()
@@ -103,7 +102,6 @@ devrow[nvme0n1.class]="PURGE"
 devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
 serial[nvme0n1]="SED-SERIAL-1"
 PSID_MAP=()
-export TS_BLOCK_SID_POLICY=psid
 export FAKE_SEDUTIL_LOCKING_ENABLED=Y
 export FAKE_NVME_SANITIZE_RC=1
 export FAKE_NVME_SANITIZE_OUT="NVMe status 0x4286: Access Denied"
@@ -112,7 +110,7 @@ device::execute nvme0n1
 exec 3>&-
 captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "Block SID + psid policy, no PSID -> BLOCKED"
-unset TS_BLOCK_SID_POLICY FAKE_SEDUTIL_LOCKING_ENABLED FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT
+unset FAKE_SEDUTIL_LOCKING_ENABLED FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT
 
 # Block SID (0x4286) on an UNPROVISIONED drive (Locked=N, LockingEnabled=N) ->
 # the PSID revert would destroy no media-encryption key, so it is skipped and
@@ -125,7 +123,6 @@ devrow[nvme0n1.capability]="CAP_NVME_PURGE_CRYPTO"
 serial[nvme0n1]="SED-SERIAL-1"
 PSID_MAP=()
 PSID_MAP[SED-SERIAL-1]="ABCDEF1234567890ABCDEF1234567890"
-export TS_BLOCK_SID_POLICY=psid
 export FAKE_SEDUTIL_LOCKING_ENABLED=N
 export FAKE_NVME_SANITIZE_RC=1
 export FAKE_NVME_SANITIZE_OUT="NVMe status 0x4286: Access Denied"
@@ -137,7 +134,7 @@ captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS BLOCKED" "unprovisioned + Block SID -> BLOCKED"
 t::assert_contains "$captured" "nvme0n1 PSID na" "unprovisioned + Block SID -> psid_revert=na"
 t::assert_contains "$captured" "PSID revert skipped" "explains why the revert was skipped"
-unset TS_BLOCK_SID_POLICY FAKE_SEDUTIL_LOCKING_ENABLED FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC
+unset FAKE_SEDUTIL_LOCKING_ENABLED FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_PSID_RC
 
 # NVMe sanitize rejected with a generic opcode error (no firmware erase path)
 # -> software-overwrite (nwipe) fallback, labelled honestly over IPC

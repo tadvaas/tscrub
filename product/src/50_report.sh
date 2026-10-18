@@ -68,10 +68,13 @@ report::csv() {
         for dev in "${devices[@]}"; do
             local st en dur sed_status ppi_cleared
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
-            # PPICleared is DERIVED, never stored: only a resumed drive whose
-            # re-erase completed can claim the Block SID gate was really off.
+            # PPICleared is no longer derivable on the appliance: the resume
+            # marker (the only cross-reboot memory) is gone, so the appliance
+            # cannot prove the gate was cleared. The column stays for schema
+            # stability, always "no"; the dashboard can infer "cleared" by
+            # comparing this COMPLETED report against a prior BLOCKED report
+            # for the same serial.
             ppi_cleared="no"
-            [[ "${devrow[$dev.ppi_resumed]:-no}" == "yes" && "${devrow[$dev.status]:-}" == "COMPLETED" ]] && ppi_cleared="yes"
             dur=""
             [[ "$st" =~ ^[0-9]+$ && "$en" =~ ^[0-9]+$ ]] && dur=$(( en - st ))
             case "${opal_locked[$dev]:-}" in
@@ -468,7 +471,6 @@ license::detect_usb() {
 # Read a tscrub.conf (KEY=VALUE, one per line) from the root of the boot USB so
 # a customer can preconfigure the dashboard upload, the COCID, or a licence URL
 # without editing GRUB or the kernel command line. Keys mirror the kernel params:
-#   tscrub_upload=<url>          (optional — dashboard URL is built-in)
 #   tscrub_api_token=<64-hex>    (dashboard upload — only this is required)
 #   tscrub_cocid=12345
 #   tscrub_license_url=http://host/license.lic
@@ -478,6 +480,8 @@ license::detect_usb() {
 #   tscrub_asset_tag=<tag>         (overrides the firmware chassis asset tag)
 #   tscrub_media_source=<where>    (e.g. "IT decommissioning")
 #   tscrub_media_destination=<where> (e.g. "resale", "recycle")
+#   tscrub_psids_url=<url>         (fetch the serial→PSID map from a URL)
+#   tscrub_psids=<path>            (read the serial→PSID map from a local path)
 # CLI flags always win; the file fills in only what isn't already set.
 config::load_usb() {
     local name type rm fstype dev mnt conf mounted pass line key val
@@ -527,10 +531,16 @@ config::load_usb() {
                     key="$(printf '%s' "$key" | xargs)"
                     val="$(printf '%s' "$val" | xargs)"
                     case "$key" in
-                        tscrub_upload)
-                            if [[ -z "${TSCRUB_UPLOAD_URL:-}" ]]; then
-                                TSCRUB_UPLOAD_URL="$val"
-                                CONFIG_USB_DEBUG+="  tscrub_upload: set"$'\n'
+                        tscrub_psids_url)
+                            if [[ -z "${TS_PSIDS_URL:-}" ]]; then
+                                TS_PSIDS_URL="$val"
+                                CONFIG_USB_DEBUG+="  tscrub_psids_url: set"$'\n'
+                            fi
+                            ;;
+                        tscrub_psids)
+                            if [[ -z "${TS_PSIDS_PATH:-}" ]]; then
+                                TS_PSIDS_PATH="$val"
+                                CONFIG_USB_DEBUG+="  tscrub_psids: set"$'\n'
                             fi
                             ;;
                         tscrub_api_token)
@@ -674,11 +684,11 @@ config::psids_fetch() {
     return "$rc"
 }
 
-# Load a per-serial PSID map for automatic PSID revert of locked SEDs under
-# --disable-block-sid=psid. Sources, in priority order:
-#   1. URL  (tscrub_psids_url= / --psids-url) — fetched with a network retry,
+# Load a per-serial PSID map for automatic PSID revert of locked SEDs. Sources,
+# in priority order:
+#   1. URL  (tscrub_psids_url in tscrub.conf) — fetched with a network retry,
 #      as the licence URL is (the kernel's own DHCP may not be up yet on PXE).
-#   2. Path (tscrub_psids= / --psids) — a local file.
+#   2. Path (tscrub_psids in tscrub.conf) — a local file.
 #   3. The boot USB (any vfat/fat16/fat32/iso9660 volume, mounted ro).
 config::load_psids() {
     local name type rm fstype dev mnt mounted pass attempt
@@ -986,16 +996,9 @@ report::sync_out() {
 
 # --- Network upload ----------------------------------------------------------
 # Kernel command line: tscrub_api_token=<64-hex token> enables the dashboard
-# upload; tscrub_upload=<url> optionally overrides the built-in endpoint.
+# upload. The endpoint is baked in (https://tscrub.com/api/reports).
 report::parse_upload() {
     local param
-
-    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_upload=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        param="${param#\"}"
-        param="${param%\"}"
-        TSCRUB_UPLOAD_URL="$param"
-    fi
 
     param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_api_token=//p' | head -n 1)"
     if [[ -n "$param" ]]; then
@@ -1004,7 +1007,7 @@ report::parse_upload() {
         TSCRUB_API_TOKEN="$param"
     fi
 
-    export TSCRUB_UPLOAD_URL TSCRUB_API_TOKEN
+    export TSCRUB_API_TOKEN
 }
 
 # Kernel command line: operator identity + asset metadata for the report.

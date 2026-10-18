@@ -474,9 +474,9 @@ Report destination is resolved by `report::detect_output`:
 
 Upload is dispatched by `report::upload` (priority order):
 
-1. **Dashboard push** (preferred): `tscrub_upload=https://tscrub.com/api/reports`
-   + `tscrub_api_token=<64-hex>` → curl multipart `reports[]=@…` with
-   `X-Api-Token` header.
+1. **Dashboard push** (preferred): `tscrub_api_token=<64-hex>` → curl multipart
+   `reports[]=@…` with `X-Api-Token` header (the endpoint is built in,
+   `https://tscrub.com/api/reports`).
 2. **FTP / SFTP**: `tscrub_output=ftp:host:path:user:pass` or
    `tscrub_output=sftp:host:path:user:pass` → one `lftp` session uploads the CSV,
    manifest and `.sig`.

@@ -58,43 +58,27 @@ device::psid_revert sda "$PSID"
 t::check "PSID never written to the log" "! grep -q '$PSID' '$LOG_FILE'"
 unset FAKE_PSID_RC
 
-# --- handle_locks: off policy leaves the drive locked, no revert -----------
-devices=(sda)
-serial[sda]="S3WX1234AB"
-opal_locked[sda]="YES"
-devrow=()
-export TS_BLOCK_SID_POLICY=off
-export FAKE_SEDUTIL_LOG="$(mktemp /tmp/tscrub-psid-call.XXXXXX)"
-device::handle_locks
-t::assert_eq "YES" "${opal_locked[sda]}" "off: drive stays locked"
-t::check "off: PSID revert never attempted" \
-    "! grep -q -- '--yesIreallywanttoERASEALLmydatausingthePSID' '$FAKE_SEDUTIL_LOG'"
-unset TS_BLOCK_SID_POLICY FAKE_SEDUTIL_LOG
-
-# --- handle_locks: psid policy + map hit unlocks ---------------------------
+# --- handle_locks: locked drive + map hit -> automatic PSID revert ---------
 devices=(sda)
 serial[sda]="S3WX1234AB"
 opal_locked[sda]="YES"
 devrow=()
 LOCK="$(mktemp /tmp/tscrub-psid-lock.XXXXXX)"; printf '1' > "$LOCK"
-export TS_BLOCK_SID_POLICY=psid
 export FAKE_PSID_RC=0
 export FAKE_SEDUTIL_LOCK_STATE="$LOCK"
 device::handle_locks
-t::assert_eq "NO" "${opal_locked[sda]}" "psid+hit: drive unlocked"
-t::assert_eq "yes" "${devrow[sda.psid_revert]}" "psid+hit: psid_revert=yes"
-unset TS_BLOCK_SID_POLICY FAKE_PSID_RC FAKE_SEDUTIL_LOCK_STATE
+t::assert_eq "NO" "${opal_locked[sda]}" "auto: drive unlocked"
+t::assert_eq "yes" "${devrow[sda.psid_revert]}" "auto: psid_revert=yes"
+unset FAKE_PSID_RC FAKE_SEDUTIL_LOCK_STATE
 
-# --- handle_locks: psid policy + no map entry -> na, stays locked ----------
+# --- handle_locks: locked drive, no map entry -> na, stays locked ----------
 devices=(sda)
 serial[sda]="ZZZZ999999"
 opal_locked[sda]="YES"
 devrow=()
-export TS_BLOCK_SID_POLICY=psid
 device::handle_locks
-t::assert_eq "YES" "${opal_locked[sda]}" "psid+miss: drive stays locked"
-t::assert_eq "na" "${devrow[sda.psid_revert]}" "psid+miss: psid_revert=na"
-unset TS_BLOCK_SID_POLICY
+t::assert_eq "YES" "${opal_locked[sda]}" "auto: miss stays locked"
+t::assert_eq "na" "${devrow[sda.psid_revert]}" "auto: miss -> psid_revert=na"
 
 # --- config::load_psids: map-file parsing via mocked mount/lsblk -----------
 # Mock the USB scan so the line parser runs without a real stick: one volume
@@ -135,10 +119,10 @@ devices=(sda)
 serial[sda]="S3WX1234AB"
 opal_locked[sda]="YES"
 devrow=()
-export TS_BLOCK_SID_POLICY=off
+PSID_MAP=()
 device::handle_locks
 t::assert_eq "locked" "${devrow[sda.lock_kind]}" "locked drive -> lock_kind=locked"
-unset TS_BLOCK_SID_POLICY
+t::assert_eq "na" "${devrow[sda.psid_revert]}" "locked drive with no map -> psid_revert=na"
 
 # --- normalize_outcome: BLOCKED -> lock_kind=password ----------------------
 devices=(sda)

@@ -117,9 +117,9 @@ fn_main() {
     # locked SEDs under --disable-block-sid=psid.
     config::load_psids
     # Also parse the kernel command line NOW (rather than at report-upload time)
-    # so a PXE-supplied tscrub_api_token= / tscrub_upload= is available to the
-    # boot-time device registration and presence heartbeat, both of which run
-    # long before the final report upload. Cmdline wins over tscrub.conf.
+    # so a PXE-supplied tscrub_api_token= is available to the boot-time device
+    # registration and presence heartbeat, both of which run long before the
+    # final report upload. Cmdline wins over tscrub.conf.
     report::parse_upload
     # Same for operator/validator/asset-tag/media-source/destination: parse them
     # early so the report (and any boot-time snapshot) already carries them.
@@ -188,14 +188,6 @@ fn_main() {
     # no-network machine doesn't stall on a blank screen before the prompt.
     if command -v ip >/dev/null 2>&1; then
         network::ensure || true
-    fi
-
-    # Read-only PPI probe (--ppi-probe): list candidate TCG Storage PPI /
-    # Block-SID efivars and exit. This is the pre-implementation hardware probe
-    # — it identifies the firmware-specific variable without any NVRAM write.
-    if [[ "${PPI_PROBE:-0}" -eq 1 ]]; then
-        device::ppi_probe_list
-        exit 0
     fi
 
     # Autonuke is opt-in only: --autonuke / tscrub_autonuke=1. Supplying a COCID
@@ -280,14 +272,9 @@ fn_main() {
     # state back before the first screen renders.
     mdm::sync_state
 
-    # PPI resume (opt-in: --ppi-resume / tscrub_ppi_resume=1): a "disable Block
-    # SID" request was staged last cycle and accepted at POST — resume wiping
-    # exactly the marked serials instead of landing on the triage screen. Runs
-    # AFTER registration forks, so the boot-time snapshot still carries the FULL
-    # machine inventory (the background copy keeps its own devices[]).
-    if [[ "${TS_PPI_RESUME:-0}" -eq 1 ]] && device::ppi_resume_apply; then
-        AUTONUKE=1
-    fi
+    # PPI resume has been removed: after the PPI reboot the fleet re-boots via
+    # PXE with autonuke, which re-wipes the whole machine. The now-cleared
+    # Block-SID drive simply erases on that pass and reports COMPLETED.
 
     if [[ "$AUTONUKE" -eq 1 ]]; then
         # PXE fleet / --autonuke: wipe every drive immediately, report, then
@@ -494,36 +481,29 @@ erasure::run() {
     # optimistic class/cert/method they were classified for.
     device::normalize_outcome
 
-    # PPI "disable block SID authentication" (opt-in: --ppi[=on|auto]). A drive
-    # that ended BLOCKED cannot be cleared from Linux — the BIOS refuses the
-    # sanitize, so the fix is a platform PPI request + reboot. on = sysfs with
-    # --ppi-efivar fallback; auto = TPM PPI sysfs only; off = no-op and BIOS
-    # guidance (device::lock_hint) applies.
-    if [[ "$(device::ppi_mode)" != "off" ]]; then
-        local ppi_blocked=0
-        for dev in "${devices[@]}"; do
-            [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && ppi_blocked=1
-        done
-        if [[ "$ppi_blocked" -eq 1 ]]; then
-            # One-shot loop guard: if the operation was already staged (or the
-            # firmware already answered it) but the drive is STILL blocked,
-            # re-requesting would reboot forever. Record the request as made
-            # and leave the drive BLOCKED with the BIOS-toggle hint.
-            if device::ppi_already_requested "${TS_PPI_OP:-disable_block_sid}"; then
-                for dev in "${devices[@]}"; do
-                    [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
-                done
-                echo "PPI ${TS_PPI_OP:-disable_block_sid}: already requested — firmware answered but Block SID persists; clear it in BIOS, then re-run" >&5
-            elif device::ppi_request "${TS_PPI_OP:-disable_block_sid}"; then
-                for dev in "${devices[@]}"; do
-                    [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
-                done
-                PPI_REBOOT=1
-                # Persist the target serial list for --ppi-resume (best-effort:
-                # the request itself is already staged in NVRAM; only
-                # auto-resume is lost if the marker can't be written).
-                device::ppi_resume_marker_write
-            fi
+    # PPI "disable Block SID authentication" (always on). A drive that ended
+    # BLOCKED cannot be cleared from Linux — the BIOS refuses the sanitize, so
+    # the fix is a TCG PPI request (TPM PPI sysfs, op 97) + reboot + physical-
+    # presence confirmation at POST. No opt-in flags.
+    local ppi_blocked=0
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && ppi_blocked=1
+    done
+    if [[ "$ppi_blocked" -eq 1 ]]; then
+        # One-shot loop guard: if the operation was already staged (or the
+        # firmware already answered it) but the drive is STILL blocked,
+        # re-requesting would reboot forever. Record the request as made and
+        # leave the drive BLOCKED with the BIOS-toggle hint.
+        if device::ppi_already_requested disable_block_sid; then
+            for dev in "${devices[@]}"; do
+                [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
+            done
+            echo "PPI disable_block_sid: already requested — firmware answered but Block SID persists; clear it in BIOS, then re-run" >&5
+        elif device::ppi_request disable_block_sid; then
+            for dev in "${devices[@]}"; do
+                [[ "${devrow[$dev.block_sid]:-no}" == "yes" ]] && devrow["$dev.ppi_requested"]="yes"
+            done
+            PPI_REBOOT=1
         fi
     fi
 
@@ -577,7 +557,7 @@ erasure::run() {
     # Best-effort — a failed reboot leaves the finish screen up (the request is
     # still staged and is re-detected on the next boot).
     if [[ "${PPI_REBOOT:-0}" -eq 1 ]]; then
-        printf "%sBlock SID disable requested — rebooting. Confirm 'Disable block SID authentication?' at the POST prompt, then re-run.\n" "$TABLE_INDENT" >&5
+        printf "%sBlock SID disable requested — rebooting. Confirm 'Disable block SID authentication?' at the POST prompt; the machine re-boots and re-wipes automatically.\n" "$TABLE_INDENT" >&5
         reboot 2>/dev/null || reboot -f 2>/dev/null || true
     fi
 

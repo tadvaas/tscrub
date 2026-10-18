@@ -31,8 +31,7 @@ mdm::parse_cmdline() {
     report::parse_upload 2>/dev/null || true
 }
 
-# The dashboard's MDM endpoint, derived from the report upload URL so a custom
-# `tscrub_upload=` host is honoured automatically.
+# The dashboard's MDM endpoint, derived from the built-in report upload URL.
 mdm::endpoint() {
     local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
     url="${url%/}"

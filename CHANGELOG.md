@@ -30,6 +30,29 @@ and this project uses date-based versioning (`v1.x`).
   order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
   column, so choosing it is deliberate and the movement is expected.
 
+## [v1.11.69] - 2026-10-18
+
+### Changed
+
+- **Block SID handling is now fully automatic — no kernel params or CLI flags.**
+  The `tscrub_block_sid=` / `--disable-block-sid`, `tscrub_ppi=` / `--ppi*`,
+  `tscrub_ppi_resume=`, and `tscrub_psids_url=` / `tscrub_psids=` parameters are
+  deprecated no-ops (old PXE configs still boot). A locked SED is now always
+  PSID-reverted from the `psids.conf` map (no `ask` prompt — which read
+  `/dev/tty` and blocked a headless PXE fleet — and no `off`); a Block-SID-
+  blocked NVMe drive always stages the TCG PPI request (TPM PPI sysfs, op 97),
+  reboots, and, on a PXE `autonuke` fleet, re-wipes automatically. The only
+  automatic PPI channel is the spec-conformant TPM PPI sysfs — a vendor efivar
+  is never guessed. `--ppi-resume` is gone (no cross-reboot marker);
+  `PPICleared` is no longer claimed by the appliance, and the dashboard can
+  infer it from a prior `BLOCKED` + now `COMPLETED` report for the same serial.
+
+- **The dashboard upload endpoint is baked in** (`https://tscrub.com/api/reports`);
+  `tscrub_upload=` is removed. `tscrub_api_token` still enables the upload, and
+  `tscrub_output=` (FTP/SFTP) is unchanged. The `psids.conf` map can still be
+  sourced from a URL or path via `tscrub_psids_url` / `tscrub_psids` in
+  `tscrub.conf` (not the kernel command line).
+
 ## [v1.11.68] - 2026-10-18
 
 ### Fixed

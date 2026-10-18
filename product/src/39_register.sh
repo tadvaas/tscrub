@@ -6,9 +6,8 @@
 # mounted.
 # =============================================================================
 
-# The diagnostics-report endpoint, derived from the report upload URL the same
-# way as the MDM / presence / BIOS-unlock endpoints so a custom
-# `tscrub_upload=` host is honoured.
+# The diagnostics-report endpoint, derived from the built-in report upload URL
+# the same way as the MDM / presence / BIOS-unlock endpoints.
 register::endpoint() {
     local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
     url="${url%/}"

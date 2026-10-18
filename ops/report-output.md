@@ -69,7 +69,6 @@ and fills in only what isn't already set — CLI flags always win. Keys mirror t
 kernel parameters:
 
 ```
-tscrub_upload=https://tscrub.com/api/reports   # dashboard push
 tscrub_api_token=<64-hex token>
 tscrub_cocid=12345                             # unattended run (no prompt)
 tscrub_license_url=http://host/license.lic     # licence over the LAN
@@ -78,8 +77,8 @@ tscrub_output=/mnt/usb                         # local path
 # or: tscrub_output=sftp:host:path:user:pass   # colon-safe password
 ```
 
-- `tscrub_upload` + `tscrub_api_token` → `report::upload_http` pushes to the
-  dashboard.
+- `tscrub_api_token` → `report::upload_http` pushes to the built-in dashboard
+  endpoint.
 - `tscrub_output=ftp:/sftp:` → parsed into `TSCRUB_NET_*` exactly like
   `report::parse_output` (the last field absorbs extra colons, so passwords may
   contain `:`); `tscrub_output=/path` → `REPORT_OUTPUT`.

@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.68"
+SCRIPT_VERSION="v1.11.69"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -20,25 +20,19 @@ SELFTEST_CPU=""
 LOG_FILE="/$SCRIPT_NAME.log"
 DRY_RUN=0
 DRY_RUN_SIM_ETA_MINS=0
-# Freeze-lock removal (FLR) + TCG Block SID handling.
+# Freeze-lock removal (FLR). Block SID handling is fully automatic: a
+# locked SED is PSID-reverted from the psids.conf map, and a Block-SID-blocked
+# NVMe drive is cleared via the TCG PPI request (TPM PPI sysfs, op 97) +
+# reboot + POST confirmation — no kernel params or CLI flags.
 #   TS_FLR_MODE        auto | forced | disabled   (how hard to try clearing freeze locks)
-#   TS_BLOCK_SID_POLICY ask | psid | off         (what to do when Block SID blocks purge)
 TS_FLR_MODE=auto
 TS_FLR_MAX_ATTEMPTS=5
 TS_FLR_SUSPEND_SECS=5
 TS_RETRY_PURGE=1
-TS_BLOCK_SID_POLICY=ask
 # Software-overwrite fallback for NVMe drives with no usable firmware erase.
 #   TS_NVME_SOFTWARE_FALLBACK auto | off   (auto = nwipe fallback when sanitize/
 #   format is rejected for a non-Block-SID reason; off = fail the drive as before)
 TS_NVME_SOFTWARE_FALLBACK=auto
-TS_PPI=off
-TS_PPI_EFIVAR=""
-TS_PPI_OP="disable_block_sid"
-TS_PPI_RESUME=0
-PPI_PROBE=0
-TS_PSIDS_URL=""
-TS_PSIDS_PATH=""
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -887,10 +881,7 @@ parse_args() {
 
     # Kernel-cmdline defaults first, so explicit CLI flags below win.
     cmdline::flr || true
-    cmdline::block_sid || true
     cmdline::nvme_software_fallback || true
-    cmdline::ppi || true
-    cmdline::psids || true
 
     while (($# > 0)); do
         arg="$1"
@@ -1076,18 +1067,11 @@ parse_args() {
                 esac
                 ;;
             --disable-block-sid=*)
-                case "${arg#*=}" in
-                    ask|psid|off) TS_BLOCK_SID_POLICY="${arg#*=}" ;;
-                    *) echo "Invalid --disable-block-sid value: '${arg#*=}' (ask|psid|off)"; exit 1 ;;
-                esac
+                # Deprecated no-op: Block SID handling is fully automatic now.
                 ;;
             --disable-block-sid)
+                # Deprecated no-op: Block SID handling is fully automatic now.
                 shift
-                [[ $# -gt 0 ]] || { echo "--disable-block-sid requires ask|psid|off"; exit 1; }
-                case "$1" in
-                    ask|psid|off) TS_BLOCK_SID_POLICY="$1" ;;
-                    *) echo "Invalid --disable-block-sid value: '$1' (ask|psid|off)"; exit 1 ;;
-                esac
                 ;;
             --nvme-software-fallback=*)
                 case "${arg#*=}" in
@@ -1103,33 +1087,19 @@ parse_args() {
                     *) echo "Invalid --nvme-software-fallback value: '$1' (auto|off)"; exit 1 ;;
                 esac
                 ;;
-            --ppi)
-                TS_PPI=on
-                ;;
-            --ppi=*)
-                case "${arg#*=}" in
-                    auto)          TS_PPI=auto ;;
-                    true|1|yes|on) TS_PPI=on ;;
-                    *)             TS_PPI=off ;;
+            --ppi|--ppi=*|--ppi-efivar|--ppi-efivar=*|--ppi-probe|--ppi-op|--ppi-op=*|--ppi-resume)
+                # Deprecated no-op: Block SID PPI is fully automatic (TPM PPI
+                # sysfs, op 97). Accept and ignore so old PXE configs still boot.
+                case "$arg" in
+                    --ppi-efivar|--ppi-op|--ppi-op=*) shift ;;
                 esac
                 ;;
-            --ppi-efivar=*)
-                TS_PPI_EFIVAR="${arg#*=}"
-                ;;
-            --ppi-probe)
-                PPI_PROBE=1
-                ;;
-            --ppi-op=*)
-                TS_PPI_OP="${arg#*=}"
-                ;;
-            --ppi-resume)
-                TS_PPI_RESUME=1
-                ;;
-            --psids-url=*)
-                TS_PSIDS_URL="${arg#*=}"
-                ;;
-            --psids=*)
-                TS_PSIDS_PATH="${arg#*=}"
+            --psids-url|--psids-url=*|--psids|--psids=*)
+                # Deprecated no-op: the psids.conf map is loaded automatically
+                # from the boot USB (and, optionally, tscrub.conf).
+                case "$arg" in
+                    --psids-url|--psids) shift ;;
+                esac
                 ;;
             --help|-h)
                 echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
@@ -1155,16 +1125,7 @@ parse_args() {
                 echo "  --scheme SCHEME    Partition table: auto|mbr|gpt (default auto)."
                 echo "  --label LABEL      Volume label for formatted drives (default TSCRUB)."
                 echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
-                echo "  --disable-block-sid P  Block SID handling: ask|psid|off (default ask)."
                 echo "  --nvme-software-fallback M  NVMe software overwrite when firmware erase is rejected: auto|off (default auto)."
-                echo "  --ppi[=on|auto]     Request PPI 'disable block SID' + reboot for a Block-SID-locked drive (off by default)."
-                echo "  --ppi=auto          Same as --ppi, but TPM PPI sysfs only — never writes a vendor efivar."
-                echo "  --ppi-op OP         PPI operation: disable_block_sid|enable_block_sid (default disable_block_sid)."
-                echo "  --ppi-efivar NAME   Vendor UEFI-variable fallback (only when no TPM PPI sysfs; positively identified)."
-                echo "  --ppi-probe         List the TPM PPI sysfs + candidate efivars (read-only)."
-                echo "  --ppi-resume        Auto-resume the wipe of Block-SID drives after the PPI reboot."
-                echo "  --psids-url URL     Fetch psids.conf (SERIAL=PSID map) from URL for --disable-block-sid=psid."
-                echo "  --psids PATH        Read psids.conf (SERIAL=PSID map) from a local path."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -1233,18 +1194,9 @@ cmdline::flr() {
     return 0
 }
 
-# Block SID policy from the kernel command line (tscrub_block_sid=ask|psid|off).
-cmdline::block_sid() {
-    local param
-    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_block_sid=//p' | head -n 1)"
-    [[ -n "$param" ]] || return 1
-    param="${param//\"/}"
-    case "$param" in
-        ask|psid|off) TS_BLOCK_SID_POLICY="$param" ;;
-        *) TS_BLOCK_SID_POLICY="ask" ;;
-    esac
-    return 0
-}
+# Block SID handling is fully automatic: a locked SED is PSID-reverted from the
+# psids.conf map, and a Block-SID-blocked NVMe drive is cleared via the TCG PPI
+# request + reboot + POST confirmation. No kernel params.
 
 # NVMe software-overwrite fallback from the kernel command line
 # (tscrub_nvme_software_fallback=auto|off).
@@ -1260,66 +1212,9 @@ cmdline::nvme_software_fallback() {
     return 0
 }
 
-# PPI "disable block SID" opt-in + variable + probe from the kernel command
-# line (tscrub_ppi=on|auto|1, tscrub_ppi_efivar=<name>, tscrub_ppi_probe=1) —
-# the PXE-fleet way to enable it.
-cmdline::ppi() {
-    [[ -r /proc/cmdline ]] || return 1
-    local cmdline param found=0
-    cmdline="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null)"
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        case "${param//\"/}" in
-            auto)          TS_PPI=auto ;;
-            true|1|yes|on) TS_PPI=on ;;
-            *)             TS_PPI=off ;;
-        esac
-    fi
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_efivar=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        TS_PPI_EFIVAR="${param//\"/}"
-    fi
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_probe=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        case "${param//\"/}" in
-            true|1|yes|on) PPI_PROBE=1 ;;
-        esac
-    fi
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_op=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        TS_PPI_OP="${param//\"/}"
-    fi
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_ppi_resume=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        case "${param//\"/}" in
-            true|1|yes|on) TS_PPI_RESUME=1 ;;
-        esac
-    fi
-    [[ "$found" -eq 1 ]] || return 1
-    return 0
-}
-
-# PSID-map sources from the kernel command line (tscrub_psids_url= / tscrub_psids=).
-cmdline::psids() {
-    [[ -r /proc/cmdline ]] || return 1
-    local cmdline param found=0
-    cmdline="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null)"
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_psids_url=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        TS_PSIDS_URL="${param//\"/}"
-    fi
-    param="$(printf '%s\n' "$cmdline" | sed -nE 's/^tscrub_psids=//p' | head -n 1)"
-    if [[ -n "$param" ]]; then
-        found=1
-        TS_PSIDS_PATH="${param//\"/}"
-    fi
-    [[ "$found" -eq 1 ]] || return 1
-    return 0
-}
+# The following are the old opt-in hooks for Block SID / PPI / PSID handling.
+# They have been removed: the flows are fully automatic, and the matching
+# kernel params (tscrub_block_sid=, tscrub_ppi=, tscrub_ppi_efivar=,
+# tscrub_ppi_probe=, tscrub_ppi_op=, tscrub_ppi_resume=, tscrub_psids_url=,
+# tscrub_psids=) are deprecated no-ops so old PXE configs still boot.
 

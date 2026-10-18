@@ -175,8 +175,7 @@ device::exec_nvme() {
     # policy is deliberately NOT attempted here — this runs inside a wipe
     # worker, where reading /dev/tty would race the UI loop — so under `ask`
     # the drive falls through to BLOCKED with the clear-Block-SID hint.
-    if [[ "${TS_BLOCK_SID_POLICY:-ask}" == "psid" ]] \
-        && grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$NVME_CMD_OUT"; then
+    if grep -qiE '0x4286|0x4015|Access Denied|Operation Denied|lack of access rights' <<<"$NVME_CMD_OUT"; then
         if device::sed_unprovisioned "$dev"; then
             # No media-encryption key to destroy: the revert would be a
             # metadata reset that erases nothing, and the refusal is a

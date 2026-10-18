@@ -7,8 +7,8 @@
 # roughly 3× this interval (90s).
 PRESENCE_PING_SECONDS=30
 
-# The heartbeat endpoint, derived from the report upload URL the same way as
-# the MDM endpoints so a custom `tscrub_upload=` host is honoured.
+# The heartbeat endpoint, derived from the built-in report upload URL the same
+# way as the MDM endpoints.
 presence::endpoint() {
     local url="${TSCRUB_UPLOAD_URL:-https://tscrub.com/api/reports}"
     url="${url%/}"

@@ -306,17 +306,14 @@ device::psid_lookup() {
     [[ -n "$key" ]] && printf '%s' "${PSID_MAP[$key]:-}"
 }
 
-# Handle hardware locks on SED (OPAL) drives per TS_BLOCK_SID_POLICY:
-#   ask  — interactive PSID prompt (operator types the 32-char PSID).
-#   psid — automatic: one PSID revert per locked drive whose serial is in the
-#          on-stick PSID map (psids.conf). No terminal is read, so an
-#          unattended bench never blocks; a missing/refused PSID degrades to
-#          physical destruction, not a retry loop.
-#   off  — no PSID attempt; locked drives go straight to physical destruction.
+# Handle hardware locks on SED (OPAL) drives. Fully automatic: one PSID revert
+# per locked drive whose serial is in the on-stick PSID map (psids.conf). No
+# terminal is read, so an unattended PXE bench never blocks; a missing/refused
+# PSID degrades to physical destruction, not a retry loop or a prompt.
 # A successful revert sets opal_locked=NO so device::detect (later) classifies
 # the now-unlocked drive for a normal erase instead of PHYS_DESTR.
 device::handle_locks() {
-    local dev psid attempt max_attempts
+    local dev
 
     for dev in "${devices[@]}"; do
         # Only process if discovery flagged it as YES
@@ -326,70 +323,7 @@ device::handle_locks() {
             # read/write fine) is set later in device::normalize_outcome when a
             # purge returns 0x4286/0x4015.
             devrow["$dev.lock_kind"]="locked"
-
-            case "${TS_BLOCK_SID_POLICY:-ask}" in
-                off)
-                    echo "$dev: PSID handling disabled (--disable-block-sid=off) — physical destruction required" >&5
-                    continue
-                    ;;
-                psid)
-                    device::psid_unlock_auto "$dev"
-                    continue
-                    ;;
-            esac
-
-            # --- ask (default): interactive, one bounded retry loop ---
-            attempt=1
-            max_attempts=20
-
-            while [ $attempt -le $max_attempts ]; do
-                clear
-                printf "\n%s[!] HARDWARE LOCK DETECTED: /dev/%s (Attempt %d/%d)\n" \
-                    "$TABLE_INDENT" "$dev" "$attempt" "$max_attempts"
-                printf "%sModel:  %s\n" "$TABLE_INDENT" "${model[$dev]}"
-                printf "%sSerial: %s\n" "$TABLE_INDENT" "${serial[$dev]}"
-                printf "%s%s\n" "$TABLE_INDENT" "$(printf "%*s" 60 "" | tr ' ' '-')"
-
-                ui::cursor_show
-                printf "%sEnter 32-char PSID (blank to skip): " "$TABLE_INDENT"
-                if ! read -r psid < /dev/tty 2>/dev/null; then
-                    ui::cursor_hide
-                    echo "$dev: no terminal — PSID prompt aborted" >&5
-                    break
-                fi
-                ui::cursor_hide
-
-                # Trim whitespace and force uppercase.
-                psid="$(printf "%s" "$psid" | xargs | tr '[:lower:]' '[:upper:]')"
-
-                # Exit loop if user skips.
-                [[ -z "$psid" ]] && break
-
-                # Length Guard (PSIDs are strictly 32 chars).
-                if [[ ${#psid} -ne 32 ]]; then
-                    printf "\n%s[!] Error: Input is %d chars. PSID must be 32.\n" "$TABLE_INDENT" "${#psid}"
-                    sleep 2
-                    ((attempt++))
-                    continue
-                fi
-
-                printf "\n%s[i] Sending PSID Revert command... " "$TABLE_INDENT"
-                if device::psid_revert "$dev" "$psid"; then
-                    printf "SUCCESS!\n"
-                    printf "%sHardware lock removed. Drive is ready for sanitization.\n" "$TABLE_INDENT"
-                    sleep 2
-                    break
-                fi
-                printf "FAILED.\n"
-                printf "%sThe drive is still locked. Check %s for errors.\n" "$TABLE_INDENT" "$LOG_FILE"
-                ((attempt++))
-                sleep 2
-            done
-
-            if [[ "${opal_locked[$dev]}" == "YES" ]]; then
-                printf "%s[!] Warning: /dev/%s remains LOCKED and will be marked PHYS_DESTR.\n" "$TABLE_INDENT" "$dev"
-                sleep 2
-            fi
+            device::psid_unlock_auto "$dev"
         fi
     done
 }
@@ -432,9 +366,8 @@ device::lock_hint() {
 
 # TCG Storage PPI — moved to product/src/44_device_ppi.sh. The request is now
 # submitted per TCG PPI v1.30 (ACPI _DSM via the TPM PPI sysfs, operation value
-# 97 = Disable_BlockSIDFunc) with the vendor UEFI-variable write as a fallback.
-# device::ppi_probe / device::ppi_probe_list / device::ppi_request /
-# device::block_sid_cleared and the resume marker all live there.
+# 97 = Disable_BlockSIDFunc). device::ppi_probe / device::ppi_probe_list /
+# device::ppi_request / device::block_sid_cleared all live there.
 
 # Remove freeze locks so firmware-erasure commands can run. ATA drives expose
 # the lock directly in IDENTIFY (hdparm); NVMe has no equivalent up-front

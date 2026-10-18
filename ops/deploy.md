@@ -429,7 +429,7 @@ order:
 Find every mention of the new token, then update + deploy:
 
 ```bash
-cd marketing/site && grep -rn -- '--flr\|--disable-block-sid\|FreezeLock\|BlockSID\|FLRAttempts\|tscrub_flr\|tscrub_block_sid' .
+cd marketing/site && grep -rn -- '--flr\|FreezeLock\|BlockSID\|FLRAttempts\|tscrub_flr' .
 cd marketing && npm run build && npm run deploy
 ```
 
