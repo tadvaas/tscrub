@@ -3,8 +3,7 @@
 Former `ROADMAP.md` §5/§6/§8/§9/§11 folded in below (master retired
 2026-10-07 — see git history). Order = highest impact first. Tick items off as
 they ship and note the release that carries each. **Last reconciled with
-`CHANGELOG.md` (through v1.11.69 + `[Unreleased]`) and the source tree on
-2026-10-20.**
+`CHANGELOG.md` (through v1.11.70) and the source tree on 2026-10-20.**
 
 ## 1. Erasure depth & verification (biggest competitor gaps)
 
@@ -202,23 +201,39 @@ with the release that carried them (per `CHANGELOG.md`).
 
 ### 4.1 Erasure depth (§9.2, §11.1)
 
-- [~] Multi-pass software overwrite — `--method <standard>` mapped to nwipe
-      patterns (DoD 5220.22-M, Gutmann, HMG IS5, PRNG), exposed on the triage
-      screen with a `Standard` column in `report::csv`. (§9.2, §11.1)
-      → **Implemented 2026-10-20 (unreleased, pending an appliance release):**
-      `--method zero|random|dod|dodshort|gutmann|is5enh` (`tscrub_method=` /
-      `tscrub.conf`), `Standard`/`Passes`/`EraseEngine` in the CSV, manifest,
-      Media drawer, certificate Annex A and JSON-LD, and the nwipe engine
-      version recorded. Selection is CLI/cmdline/`tscrub.conf`; there is no
-      interactive triage picker yet. Plan:
+- [x] Multi-pass software overwrite — `--method <standard>` mapped to nwipe
+      patterns (DoD 5220.22-M, Gutmann, HMG IS5, PRNG), with a `Standard` column
+      in `report::csv`. (§9.2, §11.1)
+      → **Shipped v1.11.70** (2026-10-20): `--method zero|random|dod|dodshort|
+      gutmann|is5enh` (`tscrub_method=` / `tscrub.conf`), `--passes 1..64`,
+      `Standard`/`Passes`/`EraseEngine` in the CSV, manifest, Media drawer,
+      certificate Annex A and JSON-LD, and the nwipe engine version recorded.
+      Selection is CLI/cmdline/`tscrub.conf` only — the interactive triage
+      picker below is still open. Plan:
       `research/multi-pass-overwrite/README.md` (records the keep-nwipe
       decision and the replacement effort estimate).
-- [~] Configurable write passes + custom algorithms — `--passes N` +
+- [ ] Interactive triage-screen standard picker (outstanding from v1.11.70) —
+      the six standards are reachable only from the CLI, kernel cmdline or
+      `tscrub.conf`; a bench operator booting the stock ISO cannot choose one.
+      Needs a pre-run key/selection row in `table::render` that sets
+      `TS_NWIPE_METHOD`/`TS_NWIPE_PASSES`, showing the pattern count and an
+      estimated duration per drive so nobody selects Gutmann on a 2 TB disk by
+      accident.
+- [ ] Overwrite-standard automated coverage (outstanding from v1.11.70) —
+      (a) a Proxmox scenario `tests/proxmox/scenarios/14_overwrite_method.sh`
+      on a `virtio-scsi` disk (the only cheap path that reaches
+      `CAP_SCSI_NWIPE`) asserting the nwipe argv, the `"dodshort","2","nwipe
+      0.41"` CSV row and the manifest keys, plus a no-flag control run proving
+      the default argv is unchanged; (b) a committed PHP test for the server
+      side of `standard`/`passes`/`erase_engine` (parser → Annex A → JSON-LD)
+      built from a synthetic CSV — today only the appliance half is covered and
+      the server half was verified with throwaway probe scripts.
+- [x] Configurable write passes + custom algorithms — `--passes N` +
       `--pattern <zero|one|random|hex>` mapped to nwipe custom patterns; record
       a `Custom` method in the report. (§11.1)
-      → **Partial 2026-10-20 (unreleased):** `--passes N` (1..64) maps to
-      nwipe `--rounds` and the report records the resulting pass count. Custom
-      hex patterns are not implemented (the six named standards only).
+      → **Partly shipped v1.11.70** (2026-10-20): `--passes N` (1..64) maps to
+      nwipe `--rounds` and the report records the resulting pass count.
+      Custom hex patterns remain open (the six named standards only).
 - [ ] IEEE 2883-2022 Purge incl. TPM clearing — `tpm::clear` (`tpm2_clear -c
       platform` / PPI request at next boot) plus an explicit "IEEE 2883 Purge"
       method = disk erase + TPM clear, recorded on the certificate. (§11.1)
