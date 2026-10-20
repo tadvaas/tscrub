@@ -9,6 +9,9 @@ gap-driven content engine, measurement, authority, lifecycle, partnerships and
 paid. Tick items off as they ship; deploy after each batch with
 `npm run build && npm run deploy`.
 
+**Reconciled with the codebase on 2026-10-20** — ticks and `[~]` marks below
+reflect what is actually built (verified against `marketing/site/`), not intent.
+
 ## 1. Technical SEO (do first — make everything crawlable, indexable & fast)
 
 - [x] Verify `tscrub.com` in Google Search Console (Domain property).
@@ -18,14 +21,18 @@ paid. Tick items off as they ship; deploy after each batch with
       and the SA added as a *Restricted* user. Gap engine + reporting live via
       `research/marketing/gsc_gaps.py`
       (`→ Research: research/marketing/README.md`).
-- [ ] `robots.txt` hygiene — keep `Allow: /` + disallow `/login`, `/register`,
+- [x] `robots.txt` hygiene — keep `Allow: /` + disallow `/login`, `/register`,
       `/dashboard`, `/admin`; keep the `Sitemap:` line. (The AI-crawler
-      allowlist lives in §3.)
-- [ ] `sitemap.xml` — every indexable page present with a current `lastmod`
+      allowlist lives in §3.) **Verified 2026-10-20:** `public/robots.txt`
+      contains exactly this list.
+- [~] `sitemap.xml` — every indexable page present with a current `lastmod`
       (pages are still stamped `2026-09-19`; refresh on each deploy, and add
-      new pages).
-- [ ] `<link rel="canonical">` on every public page (self-referencing, absolute,
-      the `https://tscrub.com/<slug>` extensionless form).
+      new pages). **Verified 2026-10-20:** 38 URLs, 37 of them still carry a
+      September stamp — only `/docs` was refreshed (`2026-10-07`).
+- [x] `<link rel="canonical">` on every public page (self-referencing, absolute,
+      the `https://tscrub.com/<slug>` extensionless form). **Verified
+      2026-10-20:** 40 of 44 pages have one; the four without are the noindex
+      auth pages `admin`, `dashboard`, `login` and `register`.
 - [ ] Consistent host + trailing-slash policy (`www` → apex 301; extensionless
       URLs via nginx `try_files`, already the case) — verify no `/x` vs
       `/x.html` duplicate indexing.
@@ -65,9 +72,12 @@ paid. Tick items off as they ship; deploy after each batch with
 - [ ] **"Wipe an SSD from BIOS" coverage page** — high-volume money query with
       no page; port the vendor menu table + frozen-drive fix into
       `resources/wipe-ssd-from-bios.html`. (§4.6)
-- [ ] **Comparison & alternative pages** — "tScrub vs Blancco", "tScrub vs
+- [~] **Comparison & alternative pages** — "tScrub vs Blancco", "tScrub vs
       BitRaser", "Blancco alternatives", "DBAN alternatives" (expand), "best
       disk erasure software". High-intent and heavily surfaced by assistants.
+      **Partial:** `resources/dban-alternatives.html` and
+      `resources/open-source-vs-commercial.html` exist; there is no
+      vs-Blancco, vs-BitRaser or "best erasure software" page.
 - [ ] **Information gain on every page** — each page must add something the
       competing results don't (our own field data, a unique table, a decision
       rule). Copycat/lookalike content is what AI summarisers skip.
@@ -75,9 +85,11 @@ paid. Tick items off as they ship; deploy after each batch with
       `2026-09-22`; update decaying pages (content-refresh pass) before adding
       new ones — it usually out-earns new pages for both SEO and AI search.
 - [ ] Fix stale dashboard reference in `llms-full.txt` — "Reports page" →
-      "Drives page" (uploads moved when the Reports tab was folded into Drives);
-      re-scan `llms.txt` + `llms-full.txt` for any other dead "Reports page"
-      refs.
+      "Media page" (**note:** the tab was renamed from Drives to Media in
+      v1.11.56, so "Drives page" would itself now be stale); re-scan `llms.txt`
+      + `llms-full.txt` for any other dead "Reports page" refs. **Verified
+      2026-10-20:** `llms-full.txt` still says "dashboard Reports page" (line 81),
+      while `docs.html` and `llms.txt` already say "Media page".
 
 ## 3. GEO — AI / answer-engine optimisation
 
@@ -89,6 +101,8 @@ Buyers increasingly ask an assistant, not Google. Own the answer.
       `Google-Extended`, `Applebot-Extended`, `Bingbot`, `CCBot`,
       `meta-externalagent`, `cohere-ai`, `DuckAssistBot`, `MistralAI-User`.
       (§4.1)
+      → **Verified absent 2026-10-20:** `public/robots.txt` has only
+      `User-agent: *` — no AI-crawler list at all.
 - [ ] **Upgrade `llms.txt` to the v2 shape** — keep it short and expert-level
       (detail behind links) and publish a `/docs/llms.txt` for the docs. Mark it
       up with `rel="describedby"` → `llms.txt` and
@@ -97,11 +111,14 @@ Buyers increasingly ask an assistant, not Google. Own the answer.
 - [ ] **Ship markdown twins** of the money pages and guides (`page.html.md` at
       the same URL) — clean text agents can fetch without navbar/JS. Keep the
       large `llms-full.txt` for one-shot context. (Pairs with the §1 serving
-      item.)
+      item.) **Verified 2026-10-20:** no `.md` twin exists under
+      `marketing/site/`.
 - [ ] **Structured data for machines** — add `FAQPage` (mirrors the visible
       FAQ), `BreadcrumbList`, `Organization` (+ `sameAs` to GitHub/G2/etc.),
       `SoftwareApplication`/`Product` with `Offer`, and `HowTo` for the wipe
-      guides. Schema must match visible content.
+      guides. Schema must match visible content. **Verified 2026-10-20:** only
+      `Organization` (54 uses) and `Article` (27) are present; none of the
+      others exist.
 - [ ] **Entity consistency** — one canonical description + NAP across
       `llms.txt`, schema, GitHub, LinkedIn, Crunchbase/Wikidata and the review
       profiles, so models resolve "tScrub" to the same entity.
@@ -187,7 +204,8 @@ the always-on baseline and load GA4 only after consent).
 ## 5. Measurement (enables reporting — trivial bits can run in parallel with §1–3)
 
 - [ ] Add privacy-friendly analytics (Plausible preferred — no cookie banner) to
-      every public page. (§4.1)
+      every public page. (§4.1) **Verified 2026-10-20:** no analytics script
+      (Plausible or otherwise) is loaded on any page.
 - [ ] Wire conversion events: `signup` (register), `purchase` (Stripe
       `checkout.session.completed` / `payment_intent.succeeded`), `activation`
       (first report upload → first certificate). The last two already fire
@@ -226,9 +244,11 @@ the always-on baseline and load GA4 only after consent).
       check is a genuine entry point for Windows admins: publish walkthroughs to
       the Microsoft Tech Community, Microsoft Q&A, r/Intune and the Intune blog
       ecosystem, targeting "check if device is Autopilot enrolled".
-- [ ] **GitHub & awesome-lists** — repo hygiene (clear README, topics, releases,
+- [~] **GitHub & awesome-lists** — repo hygiene (clear README, topics, releases,
       `good first issue`), then PRs to the relevant `awesome-*` /
-      `awesome-sysadmin` ITAM sections. (§4.3)
+      `awesome-sysadmin` ITAM sections. (§4.3) **Partial:** the repo is public
+      with `README.md`, `LICENSE` (GPL-3.0), `CHANGELOG.md` and tags; no
+      awesome-list PRs yet.
 - [ ] **Video SEO** — short "how to wipe an NVMe SSD / check Autopilot lock"
       screen-captures on YouTube; the transcript is crawlable and the video
       embeds on the matching guide pages.

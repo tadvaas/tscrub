@@ -2,7 +2,7 @@
 
 Detail folded in below (former `ROADMAP.md` §5 and §9.3, retired 2026-10-07);
 Stripe specifics in `ops/stripe-integration.md`. Order = highest impact first.
-Tick items off as they ship.
+Tick items off as they ship. **Reconciled with the codebase on 2026-10-20.**
 
 ## 1. Security prerequisite
 
@@ -18,17 +18,23 @@ Tick items off as they ship.
       - Enterprise £399/mo → 500 erasures/month
       The webhook credits the monthly allowance and sets the `team`/`enterprise`
       tier automatically. Today these plans are "contact us" only. (§5)
+      → **Verified 2026-10-20:** `stripe.php` has no recurring-price/subscription
+      code; the three configured Prices are one-time PAYG packs.
 - [ ] **Billing page** — surface a subscription card (current plan, balance,
       renew/upgrade/downgrade) alongside the existing PAYG credit packs in
-      `dashboard/billing.html`.
+      `dashboard/billing.html`. **Current state (2026-10-20):** balance, PAYG
+      packs and credit history ship; the volume-plan card is a "Contact us" link
+      with no subscription state or renewal control.
 
 ## 3. Licence & credit model
 
 - [ ] **Pooled licence allocation** — an org admin (see `roadmap/product.md`
       "Organisations & seats") issues sub-tokens against a pooled
       `team`/`enterprise` licence with a per-pool usage counter. (§9.3)
-- [ ] **Non-expiring PAYG credits** — credits stop expiring (drop any expiry on
-      the wallet). (§9.3)
+- [x] **Non-expiring PAYG credits** — credits stop expiring (drop any expiry on
+      the wallet). (§9.3) **Verified 2026-10-20:** the wallet is the
+      `credit_events` ledger and `credit_balance()` sums it; `stripe.php` has no
+      expiry column or code, so credits already never expire.
 - [ ] **Perpetual-until-activated licences** — a paid licence flag where expiry
       starts at first report upload, alongside the current dated expiry. (§9.3)
 

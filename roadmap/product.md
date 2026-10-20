@@ -2,7 +2,9 @@
 
 Former `ROADMAP.md` §5/§6/§8/§9/§11 folded in below (master retired
 2026-10-07 — see git history). Order = highest impact first. Tick items off as
-they ship and note the release that carries each.
+they ship and note the release that carries each. **Last reconciled with
+`CHANGELOG.md` (through v1.11.69 + `[Unreleased]`) and the source tree on
+2026-10-20.**
 
 ## 1. Erasure depth & verification (biggest competitor gaps)
 
@@ -178,7 +180,7 @@ with the release that carried them (per `CHANGELOG.md`).
       → **Shipped 2026-10-10** (server + site only; no appliance change). Shared
       vocabulary in `marketing/server/cert_terms.php` so the PDF and JSON-LD can
       never disagree. Plan: `research/cert-destruction-evidence/README.md`.
-- [ ] **Attested destruction for assets tScrub can't reach** — phones, tablets,
+- [x] **Attested destruction for assets tScrub can't reach** — phones, tablets,
       kit that won't POST, and anything with soldered or unsupported media can
       never produce a report, so today they cannot appear on the certificate at
       all (the destroyed-decision is report-driven) and the operator keeps a
@@ -187,7 +189,16 @@ with the release that carried them (per `CHANGELOG.md`).
       reference) that make intended destruction documentable — as NIST 800-88
       **Destroy**, kept unmistakably distinct from instrument-verified
       sanitisation on the same certificate. Server + site only. (§9.3)
-      → **Plan**: `research/manual-destruction/README.md`
+      → **Shipped v1.11.54** (2026-10-13; hardened v1.11.55): **Add** on the
+      Media and Devices pages records a unit with one media row per medium, or a
+      standalone destroyed drive; the attester comes from the session, identities
+      are unique per job (normalised serial + make + model), date/vendor/witness
+      are captured, and removal is the correction path. Every line is marked
+      *operator-attested — not instrument-verified*; attested media stay out of
+      the verified list, NIST level and Annex A; and a pure-attestation job
+      generates its own certificate. **Factory reset** (retained, never summed
+      with destroyed) followed in v1.11.56 — see §4.2. Plan:
+      `research/manual-destruction/README.md`.
 
 ### 4.1 Erasure depth (§9.2, §11.1)
 
@@ -216,6 +227,16 @@ with the release that carried them (per `CHANGELOG.md`).
       cascade (sfdisk/sgdisk, dosfstools/busybox, exfatprogs/exfat-utils),
       recorded across CSV/manifest/finish-screen/dashboard/cert/JSON-LD. Plan:
       `research/drive-formatting/README.md`; tests `product/tests/test_format.sh`.
+- [x] NVMe software-overwrite fallback — a drive that advertises sanitize/format
+      but rejects every firmware erase command (a Samsung PM981a answers
+      `0x2001 Invalid Command Opcode` to both Format NVM and Sanitize, with no
+      Opal SED) used to end `FAILED` even though it is perfectly writable. A
+      single-pass nwipe overwrite is now recorded honestly as `Clear` /
+      `nwipe Quick` and scored by the normal post-erasure verification;
+      Block-SID refusals (`0x4286`/`0x4015`) are excluded so the PSID/PPI path is
+      never masked. `--nvme-software-fallback=auto|off`. (§11.1)
+      → **Shipped v1.11.61** (2026-10-17). Plan:
+      `research/nvme-software-fallback/README.md`.
 - [x] ATA/NVMe freeze-lock removal + Block-SID detection — clear the ATA
       security freeze lock by suspend/resume instead of failing the wipe,
       retry a failed NVMe sanitize after one suspend, and detect/record
@@ -227,41 +248,61 @@ with the release that carried them (per `CHANGELOG.md`).
       `--disable-block-sid` policy flag. Plan:
       `research/freeze-lock-block-sid/plan.md`; tests `product/tests/test_frozen.sh`
       (12) + `test_execute.sh` (27).
-      → **Automatic PSID revert (follow-on, unreleased):** `--disable-block-sid=psid`
-      now PSID-reverts a locked SED from a `psids.conf` serial→PSID map on the boot
-      USB (the flag was previously parsed but inert). Plan `research/psid-revert/plan.md`;
-      tests `product/tests/test_psid.sh` (16).
-- [x] Block SID / SED lock parity — sedutil fallback + TCG lock classification
-      (unreleased). `device::psid_revert` now cascades to `--PSIDrevertAdminSP`
-      (BitRaser method 2), and a locked SED reports `LockKind=locked` with the
-      honest "TCG locked — physical destruction required" method while a
-      purge-gated drive reports `LockKind=password` (Blancco's "TCG password"
-      shape) instead of one BLOCKED bucket. (§11.1)
-      → **Plan**: `research/psid-revert/phase-2-competitor-parity.md`
-- [~] PPI "disable block SID authentication" (Blancco's Lenovo fix, the only
-      in-place route for a Block-SID-locked NVMe). Core implemented (unreleased):
-      spec-conformant submission via the TPM PPI sysfs (op 97 = Disable_BlockSIDFunc,
-      TCG PPI v1.30 ACPI _DSM) with the vendor UEFI-variable fallback, `--ppi-op`,
-      `--ppi-resume` + a USB resume marker, and `PPICleared`/`PPIResumed` CSV
-      fields. Remaining: real-Lenovo UAT (confirm the POST prompt and that the
-      sanitize then succeeds). (§11.1)
-      → **Plan**: `research/block-sid-ppi/plan.md`; tests `product/tests/test_ppi.sh`.
+      → **Automatic PSID revert — shipped v1.11.58** (2026-10-16): a locked SED
+      is PSID-reverted from a `psids.conf` serial→PSID map (v1.11.59 keys success
+      on sedutil's own marker; v1.11.61 loads the map from a URL or path as well
+      as the boot USB; v1.11.67 re-issues the sanitize after the unlock, because
+      a revert on an unprovisioned drive destroys no media key; v1.11.68 stops
+      claiming `PSIDRevert=yes` when `Locked=N` + `LockingEnabled=N` proves there
+      is no key to destroy; v1.11.69 always uses the map, with no prompt).
+- [x] Block SID / SED lock parity — sedutil fallback + TCG lock classification.
+      `device::psid_revert` cascades to `--PSIDrevertAdminSP` (BitRaser method 2),
+      and a locked SED reports `LockKind=locked` with the honest "TCG locked —
+      physical destruction required" method while a purge-gated drive reports
+      `LockKind=password` (Blancco's "TCG password" shape) instead of one BLOCKED
+      bucket. (§11.1)
+      → **Shipped v1.11.58** (2026-10-16), including `PSIDRevert`/`LockKind` on
+      the CSV, dashboard, certificate Annex A and JSON-LD; **v1.11.60** fixed the
+      Media export whitelist that had been silently dropping them. Plan:
+      `research/psid-revert/phase-2-competitor-parity.md`.
+- [x] PPI "disable block SID authentication" (the only in-place route for a
+      Block-SID-locked NVMe). The request is submitted through the spec-conformant
+      TPM PPI sysfs (op 97 = Disable_BlockSIDFunc, TCG PPI v1.30 ACPI `_DSM`), with
+      a vendor UEFI-variable fallback, one reboot, and `PPIRequested`/`PPICleared`
+      on the report. **v1.11.60** request + reboot; **v1.11.64** op-97 `_DSM`,
+      `--ppi-op`, resume marker; **v1.11.65** `--ppi=auto` + per-drive terminal
+      status; **v1.11.66** shipped in the image; **v1.11.68** reads `request` /
+      `response` back so it cannot reboot forever, and stops faking a PSID revert;
+      **v1.11.69** made the path automatic and deprecated every `--ppi*` /
+      `tscrub_block_sid*` parameter (old PXE configs still boot).
+      ⚠️ Hardware UAT (ThinkPad X13 + Micron MTFDHBA512TDV): firmware acknowledges
+      op 97 with `Success` but the **Lenovo platform gate persists** (`0x4015`), so
+      the honest routes remain PSID revert (where provisioned) or the BIOS toggle.
+      Plan: `research/block-sid-ppi/plan.md`; tests `product/tests/test_ppi.sh`.
 - [ ] Resume an interrupted erasure — re-enter and continue a wipe that lost
       power or was aborted without re-consuming a licence (Blancco). Today a
       worker death normalises to `UNKNOWN`, no resume. (§11.1)
-- [ ] NVMe sanitize stall detection + pre-flight — a drive whose sanitize state
-      machine wedges (`SSTAT=0x2` with a frozen `SPROG`) currently reads as
-      "in progress" and burns the full 6 h cap, then fails with no reason; and
-      a run started on a drive that is *already* sanitizing issues a doomed
-      command. Detect inactivity, fail fast with a power-cycle instruction, and
-      surface it as a distinct `STALLED` outcome. (§11.1)
-      → **Plan**: `research/nvme-stall-detect/README.md`
+- [x] NVMe sanitize stall detection + pre-flight — a drive whose sanitize state
+      machine wedges (`SSTAT=0x2` with a frozen `SPROG`) used to read as
+      "in progress", burn the full 6 h cap, then fail with no reason; and a run
+      started on a drive that was *already* sanitizing issued a doomed command.
+      Both are fixed: the state is sanity-checked **before** the wipe is issued
+      (fails in seconds with a power-cycle instruction), and during the wipe a
+      frozen `(SSTAT, SPROG)` pair for 15 minutes reports `STALLED`. This is an
+      *inactivity* detector, not a duration limit, so a slow but progressing wipe
+      is never killed; `STALLED` is terminal everywhere it matters (report sweep,
+      drive table, presence counters, run completion) and the certificate says
+      "Not sanitised — sanitize stalled mid-operation (power-cycle required)".
+      (§11.1)
+      → **Shipped v1.11.54** (2026-10-13). Plan:
+      `research/nvme-stall-detect/README.md`.
 
 ### 4.2 Media & platform coverage (§9.1, §6)
 
 - [ ] Mac (Intel + Apple Silicon) erase — pull-the-drive workflow + docs, not a
       Mac boot; declare Apple Silicon's Recovery-only erase on `compare.html`.
-      (§9.1)
+      (§9.1) → **Plan**: `research/macos-boot/plan.md` (status: awaiting review;
+      no product changes made).
 - [ ] Chromebook erase — dev mode / SeaBIOS boot → wipe eMMC/NVMe; capture
       ChromeOS GBB/VPD enrolment flags. (§9.1)
 - [ ] Broader media coverage — USB/SD targets and RAID/FC/iSCSI volumes (the
@@ -273,8 +314,9 @@ with the release that carried them (per `CHANGELOG.md`).
       claim class: the outcome is *derived* from the method, so a retained device can
       never be certified as destroyed, and destroyed and retained figures are never
       summed. No declared sanitisation level — a reset is not a verified Purge. (§9.1)
-      → As built: `research/attested-sanitisation/README.md`
-      (superseded design: `research/attested-sanitisation/README-superseded-plan.md`)
+      → **Shipped v1.11.56** (2026-10-16). As built:
+      `research/attested-sanitisation/README.md` (superseded design:
+      `research/attested-sanitisation/README-superseded-plan.md`)
 - [ ] Legacy IDE/PATA — declared gap: state "SATA and newer" explicitly on
       `compare.html` (not planned). (§9.4)
 
@@ -304,17 +346,21 @@ with the release that carried them (per `CHANGELOG.md`).
 
 - [ ] Fleet Management Console — multi-site dashboard, role-based access,
       remote licence/job control, full admin audit trail. (§6)
-- [ ] Integration API + webhooks — documented public API + events
+- [~] Integration API + webhooks — documented public API + events
       (`certificate.ready`, `report.uploaded`). (§6)
+      → **Partial:** the `/api/*` surface exists (session + `X-Api-Token`), but
+      `docs.html` documents no API and no webhooks are emitted.
 - [ ] ITSM/ERP integrations — OpenAPI doc + webhooks, then one reference
       ServiceNow inbound-webhook script. (§9.3)
 - [ ] Customized erasure report — account-level report template (logo, extra
       header fields, column visibility) applied in `render_cert.php`. (§9.3)
 - [ ] Customer-customized ISO — `make branded-iso CUSTOMER=…` target in the
       build fork + a one-page how-to. (§9.3)
-- [ ] Report search & export API + embed reports on the drive — public
+- [~] Report search & export API + embed reports on the drive — public
       search/export over stored reports, and the ability to write the report
       onto the wiped drive for fast offline audit (Blancco). (§9.3)
+      → **Partial:** the dashboard Media export (`GET /api/drives/export`) ships;
+      there is no public/API-token search+export and no on-drive report.
 - [ ] Out-of-band deployment — boot/erase via iLO / iDRAC / Cisco UCS / Intel
       AMT (Blancco deploys this way); today only ISO + PXE bzImage. (§9.3)
 - [ ] USB Creator tool — mass-produce configured boot sticks (Blancco's creator
@@ -461,10 +507,16 @@ with the release that carried them (per `CHANGELOG.md`).
 
 ### 4.8 Autopilot robustness (§11.3)
 
-- [ ] Per-device hash cache — persist the hardware hash by serial/uuid; recompute
+- [~] Per-device hash cache — persist the hardware hash by serial/uuid; recompute
       only when identity fields change. (§11.3)
+      → **Partial:** the hash is persisted unassigned in `mdm_staged_hash`
+      (claimed by the first report for that serial+uuid and never consumed), and
+      `mdm_cached_verdict` reuses a real verdict for 24 h. There is no
+      identity-change invalidation.
 - [ ] Rotating / cloud-issued Azure creds — rotate secret on abuse signal +
       optional short-TTL app credential (documented in `ops/`). (§11.3)
+      → Note: the multi-tenant probe pool (`autopilot_tenants` + Autopilot health
+      gate) shipped 2026-09-30; no rotation runbook or short-TTL credential yet.
 
 ### 4.9 Reporting polish (§11.4)
 
@@ -531,6 +583,17 @@ with the release that carried them (per `CHANGELOG.md`).
       is stamped with the CoC of the session that *executed* it — so a remote
       erase or BIOS clear is attributable next to the report sharing its CoC.
       → **Shipped v1.11.48** (2026-10-10; server + dashboard + appliance).
-- [ ] **Drives pager loading indicator** — the Drives tab clears its rows before
-      the next page arrives, so a page change flashes empty instead of showing a
-      spinner the way the Devices tab does.
+- [x] **Media pager loading indicator** — a page change flashed empty instead of
+      showing a spinner. The Media pager now behaves like the Devices one: both
+      buttons disable, a spinner shows, responses are sequence-guarded so two
+      quick clicks cannot resolve out of order, and an unchanged payload skips
+      the row render while still repainting the sort arrows.
+      → Shipped in `[Unreleased]` (2026-10-18) — not yet in a tagged release.
+- [x] **Sortable Media headers + Submitted date** — the Media table had no
+      sortable headers and `/api/drives` accepted no `sort`/`dir`. Every heading
+      except Actions now sorts both ways, server-side and before the slice, with
+      **Submitted** first and the default order. Status sorts by
+      `drive_status_rank()`, size parses text to GB (`-1` when unrecorded), and
+      the tie-break is the serial. Size/Type moved to the Detail drawer but are
+      still exported and searchable.
+      → Shipped in `[Unreleased]` (2026-10-18) — not yet in a tagged release.
