@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.71] - 2026-10-20
 
 ### Added
 
@@ -56,6 +56,12 @@ and this project uses date-based versioning (`v1.x`).
   identical, while the sort arrows are still repainted so the header always follows the
   click.
 
+- **The dashboard now derives `PPI cleared` server-side.** The appliance can no longer
+  claim it (it has no cross-reboot memory), so the server infers it from a drive's report
+  history: the drive was `BLOCKED` (or `block_sid=yes`) on an earlier pass and is
+  `COMPLETED` now. Surfaced in the drives list/export (`PPI cleared` column), the
+  certificate PDF (`PPI Cleared` column) and the certificate JSON-LD.
+
 ### Fixed
 
 - **The Devices table re-ordered itself every time an appliance heartbeat arrived.**
@@ -77,14 +83,6 @@ and this project uses date-based versioning (`v1.x`).
   most-recently-seen. That is the trade, because "most recently seen" is precisely the
   order a heartbeat moves. If it is wanted back, the honest way is a sortable **Last seen**
   column, so choosing it is deliberate and the movement is expected.
-
-### Added
-
-- **The dashboard now derives `PPI cleared` server-side.** The appliance can no longer
-  claim it (it has no cross-reboot memory), so the server infers it from a drive's report
-  history: the drive was `BLOCKED` (or `block_sid=yes`) on an earlier pass and is
-  `COMPLETED` now. Surfaced in the drives list/export (`PPI cleared` column), the
-  certificate PDF (`PPI Cleared` column) and the certificate JSON-LD.
 
 ## [v1.11.70] - 2026-10-20
 
