@@ -855,6 +855,10 @@ ui::apply_outcome() {
         CLASS)  devrow["$_dev.class"]="$_value" ;;
         CERT)   devrow["$_dev.cert"]="$_value" ;;
         PSID)   devrow["$_dev.psid_revert"]="$_value" ;;
+        # Software-overwrite provenance (fallback paths only).
+        STANDARD) devrow["$_dev.standard"]="$_value" ;;
+        PASSES)   devrow["$_dev.passes"]="$_value" ;;
+        ERASER)   devrow["$_dev.eraser"]="$_value" ;;
         *)      printf '%s %s %s\n' "$_dev" "$_key" "$_value" >&5 ;;
     esac
 }

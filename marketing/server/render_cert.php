@@ -259,6 +259,8 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'bus'      => ['label' => 'Bus',          'w' => 12, 'align' => 'C'],
         'cls'      => ['label' => 'Class',        'w' => 24, 'align' => 'C'],
         'method'   => ['label' => 'Method',       'w' => 42, 'align' => 'L'],
+        'passes'   => ['label' => 'Passes',       'w' => 14, 'align' => 'C'],
+        'eraser'   => ['label' => 'Eraser',       'w' => 26, 'align' => 'C'],
         'tool'     => ['label' => 'Tool',         'w' => 24, 'align' => 'C'],
         'system'   => ['label' => 'Machine',      'w' => 32, 'align' => 'L'],
         'sysserial'=> ['label' => 'Machine SN',   'w' => 23, 'align' => 'C'],
@@ -280,6 +282,8 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'bus':    return (string)($d['bus'] ?? '');
             case 'cls':    return strtoupper((string)($d['cls'] ?? ''));
             case 'method': return cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
+            case 'passes': return trim((string)($d['passes'] ?? ''));
+            case 'eraser': return (string)($d['erase_engine'] ?? '');
             case 'tool': {
                 $tv = trim((string)($d['tool_version'] ?? ''));
                 return $tv !== '' ? 'tScrub ' . $tv : 'tScrub';
@@ -322,6 +326,8 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'bus':    return trim((string)($d['bus'] ?? '')) === '';
             case 'cls':    return trim((string)($d['cls'] ?? '')) === '';
             case 'method': return trim((string)($d['method'] ?? '')) === '' && trim((string)($d['cls'] ?? '')) === '';
+            case 'passes': return trim((string)($d['passes'] ?? '')) === '';
+            case 'eraser': return trim((string)($d['erase_engine'] ?? '')) === '';
             case 'tool':   return trim((string)($d['tool_version'] ?? '')) === '';
             case 'system':    return trim((string)($d['system'] ?? '')) === '';
             case 'sysserial': return trim((string)($d['sysserial'] ?? '')) === '';

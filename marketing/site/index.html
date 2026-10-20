@@ -37,6 +37,8 @@
     </div>
   </nav>
 
+  <main id="main-content" tabindex="-1">
+
   <!-- ============ HERO ============ -->
   <section class="relative overflow-hidden border-b border-slate-200 dark:border-ink-700 bg-grad-brand">
     <div class="pointer-events-none absolute inset-0 bg-grid-slate"></div>
@@ -278,7 +280,11 @@
         </ol>
       </div>
 
-      <div class="mt-16 grid gap-8 lg:grid-cols-2">
+      <!-- `[&>*]:min-w-0`: the column track is sized by the widest table, and
+           a 362px track in a 328px container pushed the whole page 18px wide at
+           360px. Letting the items shrink lets each table's own overflow-x-auto
+           scroll instead. -->
+      <div class="mt-16 grid gap-8 lg:grid-cols-2 [&>*]:min-w-0">
         <div>
           <h3 class="text-lg font-bold text-ink-900 dark:text-white">What the report captures</h3>
           <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-ink-700 shadow-sm">
@@ -334,7 +340,7 @@
         <a href="compliance" class="mt-5 inline-flex items-center text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">Explore compliance →</a>
       </div>
       <div class="rounded-xl bg-ink-900 p-6 font-mono text-sm shadow-lg">
-        <p class="text-slate-500 dark:text-slate-400"># method → NIST 800-88</p>
+        <p class="text-slate-400"># method → NIST 800-88</p>
         <p class="mt-2 text-slate-300">NVMe Crypto Purge <span class="text-brand-500">→ Purge</span></p>
         <p class="text-slate-300">ATA Enhanced Erase <span class="text-brand-500">→ Purge</span></p>
         <p class="text-slate-300">ATA Secure Erase <span class="text-brand-500">→ Clear</span></p>
@@ -372,6 +378,8 @@
       </div>
     </div>
   </section>
+
+  </main>
 
   <!-- ============ FOOTER ============ -->
   <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">

@@ -35,6 +35,7 @@ declare(strict_types=1);
  *   GET  /api/admin/certificates
  *   GET  /api/admin/licences
  *   GET  /api/admin/audit
+ *   GET  /api/admin/mdm-tenant      (probe tenant subscription / trial expiry)
  */
 
 require_once __DIR__ . '/http.php';
@@ -1749,6 +1750,9 @@ if ($method === 'GET' && $route === '/devices') {
         // units are included in `total`, so without this the page cannot say how
         // many of them are attestations.
         'attested_total' => (int)($res['attested_total'] ?? 0),
+        // Fleet counts for the Devices summary strip. Forwarded explicitly for
+        // the same reason as attested_total: this array is rebuilt here.
+        'summary' => is_array($res['summary'] ?? null) ? $res['summary'] : null,
         'page'    => $page,
         'per'     => $per,
         'version' => devices_list_version((int)$u['id']),
@@ -1947,6 +1951,7 @@ if ($method === 'GET' && $route === '/drives/export') {
         'hpa' => 'HPA', 'dco' => 'DCO', 'hpa_result' => 'HPA result', 'dco_result' => 'DCO result',
         'sed_status' => 'SED status', 'selftest' => 'Self-test', 'reallocsectorspost' => 'Reallocated (post)',
         'verify_result' => 'Verification', 'verify_sectors' => 'Verified sectors',
+        'standard' => 'Overwrite standard', 'passes' => 'Overwrite passes', 'erase_engine' => 'Erase engine',
         'format_result' => 'Format result', 'format_fs' => 'Formatted', 'format_scheme' => 'Partition scheme', 'format_label' => 'Volume label',
         'psid_revert' => 'PSID revert', 'lock_kind' => 'TCG lock', 'ppi_requested' => 'PPI requested', 'ppi_cleared' => 'PPI cleared',
         'start_time' => 'Start time', 'end_time' => 'End time', 'duration_secs' => 'Duration (s)',
@@ -2762,6 +2767,14 @@ if ($method === 'GET' && $route === '/admin/audit') {
         'created_at'  => (string)$a['created_at'],
     ], $stmt->fetchAll());
     json_out(['ok' => true, 'audit' => $rows, 'total' => $total, 'page' => $page, 'per' => $per]);
+}
+
+// GET /api/admin/mdm-tenant — the Microsoft probe tenant's subscription state.
+// Read-only; answers "is this trial, and when does it end" for the dashboard
+// banner. Called once per admin session (the client caches it for an hour).
+if ($method === 'GET' && $route === '/admin/mdm-tenant') {
+    auth_require_admin();
+    json_out(['ok' => true, 'tenant' => mdm_tenant_status()]);
 }
 
 // GET /api/admin/mdm-log — Autopilot MDM probe log (all accounts)

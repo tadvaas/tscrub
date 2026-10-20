@@ -10,38 +10,34 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+<body class="ts-dash bg-slate-50 dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-    <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
-      <a href="/" class="flex items-center gap-2">
+  <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-ink-700 dark:bg-ink-900/90">
+    <div class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5">
+      <a href="/" class="flex shrink-0 items-center gap-2">
         <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
-        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+        <span class="hidden text-lg font-extrabold tracking-tight text-ink-900 dark:text-white sm:block">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
-        <span class="sr-only">Open menu</span>
-        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-      </button>
-      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
-        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
-        </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
-        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      <span class="mx-1 hidden h-6 w-px bg-slate-200 dark:bg-ink-700 md:block"></span>
+      <nav id="app-tabs" class="hidden min-w-0 items-center gap-0.5 md:flex" aria-label="Dashboard sections"></nav>
+      <div class="ml-auto flex items-center gap-1">
+        <span id="app-user" class="hidden max-w-[18rem] items-center gap-2 truncate text-xs text-slate-500 dark:text-slate-400 lg:flex"></span>
+        <div id="app-account" class="flex items-center gap-0.5"></div>
+        <button id="app-menu-btn" type="button" class="inline-flex items-center rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800 md:hidden" aria-controls="app-tabs-mobile" aria-expanded="false">
+          <span class="sr-only">Open dashboard menu</span>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+        </button>
       </div>
     </div>
-  </nav>
+    <nav id="app-tabs-mobile" class="hidden border-t border-slate-200 px-3 py-2 dark:border-ink-700 md:hidden" aria-label="Dashboard sections"></nav>
+  </header>
 
-  <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
-    <div id="dashboard-nav" class="mt-4"></div>
+  <div id="dashboard-alerts" class="mx-auto w-full max-w-6xl px-4"></div>
 
-    <div class="mt-10">
-      <h2 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Licences</h2>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Issue appliance licences and manage upload tokens.</p>
+  <section id="main-content" role="main" tabindex="-1" class="mx-auto w-full max-w-6xl px-4 pb-10 pt-7">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Licences</h1>
+      <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">Issue appliance licences and manage upload tokens.</p>
     </div>
 
     <!-- Licences -->
@@ -71,7 +67,7 @@
           <p id="licence-note" class="hidden w-full text-xs text-slate-500 dark:text-slate-400">Paid licences are issued by tScrub — <a href="/contact" class="font-semibold text-brand-700 dark:text-brand-400 hover:underline">contact us</a>.</p>
         </form>
         <div id="licence-list" class="mt-5 space-y-2">
-          <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-3">
+          <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-900 px-4 py-3">
             <div class="space-y-1.5">
               <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
               <div class="h-2.5 w-32 rounded bg-slate-200 dark:bg-ink-700"></div>
@@ -101,7 +97,7 @@
           <a href="/api/tscrub-conf" class="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition hover:bg-slate-50 dark:hover:bg-ink-800">Download tscrub.conf</a>
         </div>
         <div id="token-list" class="mt-5 space-y-2">
-          <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-2.5">
+          <div class="flex animate-pulse items-center justify-between rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-900 px-4 py-2.5">
             <div class="h-3 w-28 rounded bg-slate-200 dark:bg-ink-700"></div>
             <div class="h-3 w-12 rounded bg-slate-200 dark:bg-ink-700"></div>
           </div>
@@ -111,21 +107,18 @@
     </div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
-    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
-      <div class="flex items-center gap-2">
-        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
-        <span class="font-semibold text-white">tScrub</span>
-      </div>
-      <ul class="flex flex-wrap justify-center gap-6">
-        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
-        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
-        <li><a href="/docs" class="hover:text-white">Docs</a></li>
-        <li><a href="/resources" class="hover:text-white">Resources</a></li>
-        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
-        <li><a href="/terms" class="hover:text-white">Terms</a></li>
-      </ul>
-      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+  <footer class="mt-auto border-t border-slate-200 bg-white dark:border-ink-800 dark:bg-ink-900">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 dark:text-slate-400 sm:flex-row">
+      <span class="inline-flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-brand-600 font-mono text-[10px] font-bold text-white">t</span>
+        tScrub
+      </span>
+      <nav class="flex flex-wrap items-center justify-center gap-5">
+        <a href="/docs" class="transition-colors hover:text-ink-900 dark:hover:text-white">Docs</a>
+        <a href="/privacy" class="transition-colors hover:text-ink-900 dark:hover:text-white">Privacy</a>
+        <a href="/terms" class="transition-colors hover:text-ink-900 dark:hover:text-white">Terms</a>
+      </nav>
+      <p>© 2026 tScrub. Made in England.</p>
     </div>
   </footer>
 
@@ -174,7 +167,7 @@
             return;
           }
           rows.forEach(function (l) {
-            var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-3');
+            var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-900 px-4 py-3 transition-colors hover:bg-slate-100 dark:hover:bg-ink-800');
             var left = el('div');
             left.appendChild(el('span', 'text-sm font-semibold text-ink-900 dark:text-white', tierLabel(l.tier)));
             left.appendChild(el('span', 'ml-2 text-xs text-slate-500 dark:text-slate-400', 'expires ' + l.expiry));
@@ -184,6 +177,10 @@
             row.appendChild(dl);
             list.appendChild(row);
           });
+        }).catch(function () {
+          var list = document.getElementById('licence-list');
+          list.innerHTML = '';
+          list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'Could not load licences. Reload the page to try again.'));
         });
       }
 
@@ -225,7 +222,7 @@
             return;
           }
           rows.forEach(function (t) {
-            var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-4 py-2.5');
+            var row = el('div', 'flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-900 px-4 py-2.5 transition-colors hover:bg-slate-100 dark:hover:bg-ink-800');
             var left = el('div');
             left.appendChild(el('span', 'text-sm font-semibold text-ink-900 dark:text-white', t.label || 'Token'));
             left.appendChild(el('span', 'ml-2 font-mono text-xs text-slate-500 dark:text-slate-400', '…' + t.token));
@@ -240,6 +237,10 @@
             row.appendChild(revoke);
             list.appendChild(row);
           });
+        }).catch(function () {
+          var list = document.getElementById('token-list');
+          list.innerHTML = '';
+          list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'Could not load tokens. Reload the page to try again.'));
         });
       }
 

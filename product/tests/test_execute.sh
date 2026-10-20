@@ -152,7 +152,10 @@ exec 3>&-
 captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" "generic 0x2001 rejection -> nwipe COMPLETED"
 t::assert_contains "$captured" "falling back to software overwrite" "fallback logged"
-t::assert_contains "$captured" "nvme0n1 METHOD nwipe Quick" "fallback emits METHOD over IPC"
+t::assert_contains "$captured" "nvme0n1 METHOD Zero fill" "fallback emits the standard label over IPC"
+t::assert_contains "$captured" "nvme0n1 STANDARD zero" "fallback emits STANDARD over IPC"
+t::assert_contains "$captured" "nvme0n1 PASSES 1" "fallback emits PASSES over IPC"
+t::assert_contains "$captured" "nvme0n1 ERASER nwipe 0.41" "fallback emits the engine+version"
 t::assert_contains "$captured" "nvme0n1 CLASS CLEAR" "fallback emits CLASS over IPC"
 t::assert_contains "$captured" "nvme0n1 CERT SANITISATION" "fallback emits CERT over IPC"
 unset FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT FAKE_NWIPE_RC
@@ -167,7 +170,7 @@ device::execute nvme0n1
 exec 3>&-
 captured="$(cat "$OUT")"
 t::assert_contains "$captured" "nvme0n1 STATUS FAILED" "fallback off -> FAILED"
-t::check "fallback off does NOT emit nwipe" '[[ "$captured" != *"nvme0n1 METHOD nwipe Quick"* ]]'
+t::check "fallback off does NOT emit nwipe" '[[ "$captured" != *"nvme0n1 STANDARD"* ]]'
 unset TS_NVME_SOFTWARE_FALLBACK FAKE_NVME_SANITIZE_RC FAKE_NVME_SANITIZE_OUT
 
 # NVMe crypto sanitize success (monitor sees SSTAT=0x1)

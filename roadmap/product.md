@@ -202,12 +202,23 @@ with the release that carried them (per `CHANGELOG.md`).
 
 ### 4.1 Erasure depth (§9.2, §11.1)
 
-- [ ] Multi-pass software overwrite — `--method <standard>` mapped to nwipe
+- [~] Multi-pass software overwrite — `--method <standard>` mapped to nwipe
       patterns (DoD 5220.22-M, Gutmann, HMG IS5, PRNG), exposed on the triage
       screen with a `Standard` column in `report::csv`. (§9.2, §11.1)
-- [ ] Configurable write passes + custom algorithms — `--passes N` +
+      → **Implemented 2026-10-20 (unreleased, pending an appliance release):**
+      `--method zero|random|dod|dodshort|gutmann|is5enh` (`tscrub_method=` /
+      `tscrub.conf`), `Standard`/`Passes`/`EraseEngine` in the CSV, manifest,
+      Media drawer, certificate Annex A and JSON-LD, and the nwipe engine
+      version recorded. Selection is CLI/cmdline/`tscrub.conf`; there is no
+      interactive triage picker yet. Plan:
+      `research/multi-pass-overwrite/README.md` (records the keep-nwipe
+      decision and the replacement effort estimate).
+- [~] Configurable write passes + custom algorithms — `--passes N` +
       `--pattern <zero|one|random|hex>` mapped to nwipe custom patterns; record
       a `Custom` method in the report. (§11.1)
+      → **Partial 2026-10-20 (unreleased):** `--passes N` (1..64) maps to
+      nwipe `--rounds` and the report records the resulting pass count. Custom
+      hex patterns are not implemented (the six named standards only).
 - [ ] IEEE 2883-2022 Purge incl. TPM clearing — `tpm::clear` (`tpm2_clear -c
       platform` / PPI request at next boot) plus an explicit "IEEE 2883 Purge"
       method = disk erase + TPM clear, recorded on the certificate. (§11.1)

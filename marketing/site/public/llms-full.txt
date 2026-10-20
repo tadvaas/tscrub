@@ -57,7 +57,7 @@ The key differences: tScrub is open and inspectable — every line of the erasur
 
 ### vs free wipe tools (nwipe / DBAN)
 
-nwipe and DBAN are a different class: free, ad-hoc overwrite tools with no signed reports, no certificates, and no NIST 800-88 outcome mapping. nwipe is actually bundled inside tScrub as the SCSI/SAS software-overwrite fallback (mapped to Clear) — it is a component of tScrub, not a competitor. DBAN is effectively unmaintained and only overwrites hard drives. tScrub is the upgrade path from both: firmware-level purge for NVMe/SSD plus a signed, verifiable chain of custody.
+nwipe and DBAN are a different class: free, ad-hoc overwrite tools with no signed reports, no certificates, and no NIST 800-88 outcome mapping. nwipe is actually bundled inside tScrub as the SCSI/SAS software-overwrite fallback (mapped to Clear) — it is a component of tScrub, not a competitor. The fallback can run a named standard — `zero`, `random` (PRNG stream), `dod` (DoD 5220.22-M), `dodshort` (DoD Short), `gutmann` (Gutmann), `is5enh` (HMG IS5 Enhanced) — with `--passes N`, and the report records the standard, the pass count and the engine version. DBAN is effectively unmaintained and only overwrites hard drives. tScrub is the upgrade path from both: firmware-level purge for NVMe/SSD plus a signed, verifiable chain of custody.
 
 ## Pricing & download
 

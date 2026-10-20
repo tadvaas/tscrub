@@ -1,5 +1,15 @@
 import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
+
+// Inlined into <head> on every page by the plugin below. Kept as a real source
+// file so it is editable and reviewable; inlined so it is defined before any
+// page script, without adding a bundler entry or a hashed <script src> whose
+// name is only known after the build.
+const dialogSource = readFileSync(
+  fileURLToPath(new URL('./site/src/dialog.js', import.meta.url)),
+  'utf8'
+)
 
 const pages = {
   main: 'index.html',
@@ -59,6 +69,44 @@ const pages = {
 
 export default defineConfig({
   root: 'site',
+  plugins: [
+    {
+      // Injected first in <head>, before the stylesheet, so a saved or OS dark
+      // preference never flashes light. dashboard.js owns the toggle and writes
+      // the same localStorage key.
+      name: 'tscrub-theme-init',
+      transformIndexHtml() {
+        return [{
+          tag: 'script',
+          injectTo: 'head-prepend',
+          children: "(function(){try{var t=localStorage.getItem('tscrub_theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();"
+        }]
+      }
+    },
+    {
+      // Keyboard shell: the dialog helper is inlined into <head> so it exists
+      // before any inline page script, and the skip link is prepended to <body>
+      // — but only on pages that actually have a #main-content target, so it can
+      // never be a link to nowhere.
+      name: 'tscrub-a11y-shell',
+      transformIndexHtml(html) {
+        const tags = [{
+          tag: 'script',
+          injectTo: 'head',
+          children: dialogSource
+        }]
+        if (html.includes('id="main-content"')) {
+          tags.push({
+            tag: 'a',
+            attrs: { href: '#main-content', class: 'ts-skip-link' },
+            children: 'Skip to content',
+            injectTo: 'body-prepend'
+          })
+        }
+        return tags
+      }
+    }
+  ],
   build: {
     outDir: '../dist',
     emptyOutDir: true,

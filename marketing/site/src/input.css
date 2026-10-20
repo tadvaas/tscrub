@@ -52,11 +52,10 @@ code {
   justify-content: center;
 }
 
-/* The dashboard sub-nav is injected by dashboard.js (a deferred module) after
-   first paint — reserve its single-row height so the content below doesn't
-   jump down when the pill appears. */
-#dashboard-nav {
-  min-height: 46px;
+/* The dashboard app bar is rendered by dashboard.js after first paint. Reserve
+   the tab row's height so the tabs appearing does not shift the page. */
+#app-tabs {
+  min-height: 34px;
 }
 
 /* Product flyout chevron rotates when the dropdown is open. */
@@ -99,21 +98,173 @@ code {
   box-shadow: 0 16px 32px -18px rgb(11 18 32 / 0.28);
 }
 
-/* ---- Dark theme (follows the device's prefers-color-scheme) ---- */
-@media (prefers-color-scheme: dark) {
-  .bg-grid-slate {
-    background-image:
-      linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+/* ---- Accessibility ---- */
+
+/* White text on brand-600 is 3.77:1 at any size, so every brand fill that
+   carries a label steps to brand-700 (5.5:1) and brand-800 on hover. This
+   covers primary buttons, the numbered step markers and the "Most popular"
+   pill — not just <a>/<button>, which is what the first pass missed.
+   `html` in the selector is needed because the unlayered rules here are
+   emitted before the utilities: (0,1,1) beats a plain utility's (0,1,0),
+   while the `dark:` variants (0,2,0) still win in dark mode as intended. */
+html .bg-brand-600 {
+  @apply bg-brand-700;
+}
+html .hover\:bg-brand-700:hover {
+  @apply bg-brand-800;
+}
+
+/* brand-600 as TEXT on a light surface is the same 3.77:1 (docs links, "See
+   compliance mapping"). Nothing renders brand-600 text on a dark surface in
+   light mode, so this is safe; in dark mode the `dark:text-brand-400` variants
+   apply instead. Article prose sets its link colour via `prose-a:*`, which is
+   why the <a> needs covering too. */
+html:not(.dark) .text-brand-600,
+html:not(.dark) .prose a {
+  @apply text-brand-700;
+}
+
+/* Same treatment for the admin-only amber button. */
+html .bg-amber-600 {
+  @apply bg-amber-700;
+}
+html .hover\:bg-amber-700:hover {
+  @apply bg-amber-800;
+}
+
+/* The dashboard sets `.ts-dash` on <body>. Every surface there is light, and
+   the operator reads these greys all day, so lift the muted ones to clear AA:
+   slate-400 on white is 2.56:1, slate-500 is 4.76:1. Deliberately scoped — the
+   marketing pages keep permanently dark panels (footer, terminal demo, dark
+   table heads) where slate-400 is the correct value on ink-900. */
+html:not(.dark) .ts-dash .text-slate-400,
+html:not(.dark) .ts-dash .text-slate-300 {
+  color: #64748b;
+}
+
+/* Visible keyboard focus for links, buttons and clickable chips. Inputs keep
+   their Tailwind focus ring, so they are deliberately excluded. */
+:where(a, button, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+  border-radius: 0.35rem;
+}
+.dark :where(a, button, [role="button"], [tabindex]):focus-visible {
+  outline-color: #34d399;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse { animation: none; }
+}
+
+/* ---- Shared dashboard primitives ---------------------------------------
+   The same two things are hand-written on every list page (Devices, Media,
+   Certificates): a sticky header cell and a status chip. They must not drift —
+   a status that is emerald on one tab and a different green on another reads as
+   two different states, and a contrast fix has to land everywhere at once. Both
+   live here rather than in a shared JS module, because the dashboard's renderers
+   are inline scripts on each page: component classes have no load-order problem.
+
+   These sit in the components layer, so a page can still override padding,
+   width or truncation with utilities. */
+@layer components {
+  /* Sticky contract only: position/z-index and an OPAQUE background (a <tr>
+     background scrolls away from sticky cells, and a translucent one lets rows
+     show through) plus the column-label typography and colour. */
+  .ts-th {
+    @apply sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-left
+      text-[11px] font-semibold uppercase tracking-wider text-slate-500
+      dark:border-ink-700 dark:bg-ink-800 dark:text-slate-400;
   }
 
-  .bg-grad-brand {
-    background-image: linear-gradient(180deg, #052e21 0%, #0b1220 70%);
+  .ts-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5
+      text-xs font-semibold;
   }
+  .ts-chip--emerald {
+    @apply bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/15
+      dark:bg-emerald-900/25 dark:text-emerald-400 dark:ring-emerald-500/20;
+  }
+  .ts-chip--amber {
+    @apply bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20
+      dark:bg-amber-900/25 dark:text-amber-400 dark:ring-amber-500/20;
+  }
+  .ts-chip--red {
+    @apply bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/15
+      dark:bg-red-900/25 dark:text-red-400 dark:ring-red-500/20;
+  }
+  .ts-chip--sky {
+    @apply bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-600/15
+      dark:bg-sky-900/25 dark:text-sky-400 dark:ring-sky-500/20;
+  }
+  /* slate-600, not 500: the chip sits on slate-100, where 500 is 4.34:1. */
+  .ts-chip--slate {
+    @apply bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/10
+      dark:bg-ink-800 dark:text-slate-400 dark:ring-slate-600/20;
+  }
+}
 
-  .lift:hover {
-    box-shadow: 0 16px 32px -18px rgb(0 0 0 / 0.6);
-  }
+/* Skip link, injected as the first element in <body> by vite.config.js wherever
+   the page has a #main-content target. Hidden until focused so a mouse user
+   never sees it, and visible on the first Tab, which is the only thing that
+   makes it worth having.
+
+   Deliberately NOT in @layer components: Tailwind only emits a component class
+   if it finds the name in the content globs, and this class name exists solely
+   in vite.config.js (which is not scanned) — the built CSS had no rule at all
+   and the link would have appeared as plain body text on focus. Unlayered rules
+   are emitted verbatim. */
+.ts-skip-link {
+  @apply sr-only;
+}
+.ts-skip-link:focus {
+  @apply not-sr-only fixed left-4 top-4 z-[100] rounded-lg bg-brand-700
+    px-4 py-2 text-sm font-semibold text-white shadow-lg;
+}
+
+/* ---- Dark theme (class-based; the theme bootstrap sets .dark) ---- */
+.dark .bg-grid-slate {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+}
+
+.dark .bg-grad-brand {
+  background-image: linear-gradient(180deg, #052e21 0%, #0b1220 70%);
+}
+
+.dark .lift:hover {
+  box-shadow: 0 16px 32px -18px rgb(0 0 0 / 0.6);
+}
+
+/* On a dark canvas, a white card should sit one step above the page instead of
+   merging into it. This covers the dashboard cards/tiles and the marketing
+   cards in one place, without touching every component's class list. */
+.dark .rounded-2xl.bg-white,
+.dark .rounded-xl.bg-white {
+  @apply bg-ink-800;
+}
+
+/* Code blocks are intentionally ink-900 in light mode. On a dark page that is
+   the same colour as the canvas, so lift them and add a hairline edge. */
+.dark pre.bg-ink-900 {
+  @apply bg-ink-800;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
+}
+
+/* slate-500 on a ink-800 card is ~3.7:1, and it is used for the 11px meta text
+   (serials, timestamps, column hints). Lift it one step in dark mode so that
+   small text clears 4.5:1 wherever it appears, without touching every class
+   list. Both spellings matter: some elements carry `text-slate-500`, others
+   switch only in dark via `dark:text-slate-500`.
+
+   The `html.dark` prefix is deliberate: the dark variant compiles to
+   `.dark\:text-slate-500:is(.dark *)`, which is (0,2,0) and is emitted with the
+   utilities — a plain `.dark .dark\:text-slate-500` ties on specificity and
+   loses on order. (0,2,1) wins without `!important`. */
+html.dark .text-slate-500,
+html.dark .dark\:text-slate-500 {
+  color: #94a3b8;
 }
 
 /* Terminal hero text colors */
@@ -122,5 +273,5 @@ code {
 .t-ok    { color: #34d399; }
 .t-warn  { color: #fbbf24; }
 .t-err   { color: #f87171; }
-.t-muted { color: #64748b; }
+.t-muted { color: #94a3b8; }
 .t-lock  { color: #fff; background: #b91c1c; border-radius: 2px; }

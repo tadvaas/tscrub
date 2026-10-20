@@ -54,6 +54,12 @@ function cert_technique_label(string $method, string $cls, string $status = ''):
         }
         if (strpos($m, 'FORMAT') !== false)        return 'NVMe controller-level format (Clear)';
         if (strpos($m, 'NWIPE') !== false)         return 'SCSI software overwrite (Clear)';
+        // Named software-overwrite standards (multi-pass / selectable method).
+        if (strpos($m, 'DOD') !== false
+            || strpos($m, 'GUTMANN') !== false
+            || strpos($m, 'HMG') !== false
+            || strpos($m, 'ZERO FILL') !== false
+            || strpos($m, 'PRNG') !== false)       return 'Software overwrite (Clear)';
         if (strpos($m, 'FACTORY RESET') !== false) return 'Manufacturer factory reset (Clear)';
         if (strpos($m, 'SANITIZE') !== false)      return 'SCSI sanitise overwrite (Purge)';
         if (strpos($m, 'PHYSICAL DESTR') !== false) return 'Operator-confirmed physical destruction';

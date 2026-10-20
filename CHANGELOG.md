@@ -71,6 +71,30 @@ and this project uses date-based versioning (`v1.x`).
   `COMPLETED` now. Surfaced in the drives list/export (`PPI cleared` column), the
   certificate PDF (`PPI Cleared` column) and the certificate JSON-LD.
 
+## [v1.11.70] - 2026-10-20
+
+### Added
+
+- **Selectable software-overwrite standards.** The software-overwrite fallback
+  (SCSI drives without SANITIZE, NVMe drives whose firmware rejects
+  sanitize/format) now takes a named standard and a repeat count instead of
+  always running one zero pass. `--method zero|random|dod|dodshort|gutmann|is5enh`
+  (`tscrub_method=`, or `tscrub_method=` in `tscrub.conf`) maps to nwipe's own
+  methods — DoD 5220.22-M, DoD Short, Gutmann, HMG IS5 Enhanced, PRNG stream,
+  zero fill — and `--passes N` (1..64, `tscrub_passes=`) maps to nwipe
+  `--rounds`. Each drive records `Standard`, `Passes` and `EraseEngine` (for
+  example `nwipe 0.41`) in the CSV and manifest, and those flow to the Media
+  drawer and export, the certificate Annex A and the JSON-LD twin.
+
+  Firmware erase is untouched and remains the default. An overwrite is still
+  recorded as **Clear**, never Purge. The default argv is unchanged
+  (`--method=zero`, one round), so an unconfigured fleet behaves and reports
+  exactly as before, and an invalid method or pass count is refused at startup
+  rather than silently weakening the overwrite. The existing post-erasure
+  sentinel read-back still verifies every COMPLETED drive. Plan:
+  `research/multi-pass-overwrite/README.md` (decision: keep nwipe as the
+  pattern engine, with the replacement effort recorded).
+
 ## [v1.11.69] - 2026-10-18
 
 ### Changed

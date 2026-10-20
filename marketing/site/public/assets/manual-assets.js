@@ -220,15 +220,22 @@
     var pre = document.querySelector('[data-cocid]');
     if (pre) { body.querySelector('input[name=cocid]').value = pre.getAttribute('data-cocid'); }
 
-    // Same open strategy as the Operations and Export modals.
-    modal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    // Same open strategy as the Operations and Export modals. Focus
+    // containment (Tab cycle, focus return) comes from the shared dialog helper
+    // that the build inlines into <head>; the fallback keeps this file runnable
+    // in the DOM-only smoke test, which has no helper.
+    if (window.TSDialog) { window.TSDialog.open(modal); } else {
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
     var focus = body.querySelector('input[name=cocid]');
     if (focus) { focus.focus(); }
   }
 
   function close() {
-    document.getElementById('manual-modal').classList.add('hidden');
+    var modal = document.getElementById('manual-modal');
+    if (window.TSDialog) { window.TSDialog.close(modal); return; }
+    modal.classList.add('hidden');
     document.body.style.overflow = '';
   }
 
@@ -646,15 +653,19 @@
       body.appendChild(mediaTable(media, row));
     }
 
-    modal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    if (window.TSDialog) { window.TSDialog.open(modal); } else {
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
     var closeBtn = document.getElementById('manual-detail-close');
     if (closeBtn) { closeBtn.focus(); }
   }
 
   function closeDetail() {
     var m = document.getElementById('manual-detail-modal');
-    if (m) { m.classList.add('hidden'); }
+    if (!m) { return; }
+    if (window.TSDialog) { window.TSDialog.close(m); return; }
+    m.classList.add('hidden');
     // Only release the scroll lock if the Add modal is not also open — they are never
     // both open today, but unlocking here would break page scroll if that changed.
     var add = document.getElementById('manual-modal');

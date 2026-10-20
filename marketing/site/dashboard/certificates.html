@@ -10,35 +10,36 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
-    <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
-      <a href="/" class="flex items-center gap-2">
+<body class="ts-dash bg-slate-50 dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+  <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-ink-700 dark:bg-ink-900/90">
+    <div class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5">
+      <a href="/" class="flex shrink-0 items-center gap-2">
         <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
-        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+        <span class="hidden text-lg font-extrabold tracking-tight text-ink-900 dark:text-white sm:block">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
-        <span class="sr-only">Open menu</span>
-        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-      </button>
-      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
-        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
-        </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
-        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      <span class="mx-1 hidden h-6 w-px bg-slate-200 dark:bg-ink-700 md:block"></span>
+      <nav id="app-tabs" class="hidden min-w-0 items-center gap-0.5 md:flex" aria-label="Dashboard sections"></nav>
+      <div class="ml-auto flex items-center gap-1">
+        <span id="app-user" class="hidden max-w-[18rem] items-center gap-2 truncate text-xs text-slate-500 dark:text-slate-400 lg:flex"></span>
+        <div id="app-account" class="flex items-center gap-0.5"></div>
+        <button id="app-menu-btn" type="button" class="inline-flex items-center rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800 md:hidden" aria-controls="app-tabs-mobile" aria-expanded="false">
+          <span class="sr-only">Open dashboard menu</span>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+        </button>
       </div>
     </div>
-  </nav>
+    <nav id="app-tabs-mobile" class="hidden border-t border-slate-200 px-3 py-2 dark:border-ink-700 md:hidden" aria-label="Dashboard sections"></nav>
+  </header>
 
-  <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
-    <div id="dashboard-nav" class="mt-4"></div>
+  <div id="dashboard-alerts" class="mx-auto w-full max-w-6xl px-4"></div>
 
-    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-8 shadow-sm">
+  <section id="main-content" role="main" tabindex="-1" class="mx-auto w-full max-w-6xl px-4 pb-10 pt-7">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Certificates</h1>
+      <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">Generate consolidated certificates of destruction, and review every certificate issued on your account.</p>
+    </div>
+
+    <div class="mt-8 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm sm:p-8">
       <h2 class="text-xl font-bold text-ink-900 dark:text-white">Generate a Certificate of Destruction</h2>
       <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Certificates are generated from reports you've already uploaded. Search or select a Chain of Custody ID, then generate one consolidated certificate for every drive in that job.</p>
 
@@ -66,8 +67,31 @@
                class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
         <button type="button" id="cert-search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
       </div>
-      <div class="mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
-        <div id="cert-list"></div>
+      <div class="mt-4 max-h-[70vh] overflow-auto rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm">
+        <div id="cert-list">
+          <div class="hidden animate-pulse space-y-3 sm:block">
+            <div class="h-8 rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-8 rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-8 rounded bg-slate-200 dark:bg-ink-700"></div>
+          </div>
+          <div class="space-y-3 sm:hidden">
+            <div class="animate-pulse rounded-lg border border-slate-200 p-4 dark:border-ink-700">
+              <div class="h-4 w-40 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="mt-2 h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="mt-3 h-3 w-32 rounded bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="animate-pulse rounded-lg border border-slate-200 p-4 dark:border-ink-700">
+              <div class="h-4 w-44 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="mt-2 h-3 w-28 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="mt-3 h-3 w-32 rounded bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="animate-pulse rounded-lg border border-slate-200 p-4 dark:border-ink-700">
+              <div class="h-4 w-36 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="mt-2 h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="mt-3 h-3 w-32 rounded bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+          </div>
+        </div>
         <div id="cert-pager" class="mt-3"></div>
       </div>
     </div>
@@ -75,21 +99,18 @@
     <div id="signing-key" class="mt-8"></div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
-    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
-      <div class="flex items-center gap-2">
-        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
-        <span class="font-semibold text-white">tScrub</span>
-      </div>
-      <ul class="flex flex-wrap justify-center gap-6">
-        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
-        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
-        <li><a href="/docs" class="hover:text-white">Docs</a></li>
-        <li><a href="/resources" class="hover:text-white">Resources</a></li>
-        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
-        <li><a href="/terms" class="hover:text-white">Terms</a></li>
-      </ul>
-      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+  <footer class="mt-auto border-t border-slate-200 bg-white dark:border-ink-800 dark:bg-ink-900">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 dark:text-slate-400 sm:flex-row">
+      <span class="inline-flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-brand-600 font-mono text-[10px] font-bold text-white">t</span>
+        tScrub
+      </span>
+      <nav class="flex flex-wrap items-center justify-center gap-5">
+        <a href="/docs" class="transition-colors hover:text-ink-900 dark:hover:text-white">Docs</a>
+        <a href="/privacy" class="transition-colors hover:text-ink-900 dark:hover:text-white">Privacy</a>
+        <a href="/terms" class="transition-colors hover:text-ink-900 dark:hover:text-white">Terms</a>
+      </nav>
+      <p>© 2026 tScrub. Made in England.</p>
     </div>
   </footer>
 
@@ -240,14 +261,12 @@
           box.appendChild(row);
         });
         document.getElementById('destroy-confirm').checked = false;
-        document.getElementById('destroy-modal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
+        window.TSDialog.open(document.getElementById('destroy-modal'));
         syncDestroyModal();
       }
 
       function closeDestroyModal() {
-        document.getElementById('destroy-modal').classList.add('hidden');
-        document.body.style.overflow = '';
+        window.TSDialog.close(document.getElementById('destroy-modal'));
       }
 
       document.getElementById('destroy-confirm').addEventListener('change', syncDestroyModal);
@@ -319,6 +338,59 @@
         box.appendChild(wrap);
       }
 
+      function isCompactCerts() {
+        return !!(window.matchMedia && window.matchMedia('(max-width: 639px)').matches);
+      }
+
+      // Phone presentation: a certificate has six facts, which scroll badly in a
+      // seven-column table. Cards keep the ID, CoC, counts and files readable.
+      function renderCertCards(rows) {
+        var list = document.getElementById('cert-list');
+        list.innerHTML = '';
+        var wrap = el('div', 'divide-y divide-slate-100 dark:divide-ink-800');
+        rows.forEach(function (c) {
+          var card = el('div', 'p-4');
+          var top = el('div', 'flex items-start justify-between gap-3');
+          var id = el('div', 'min-w-0');
+          id.appendChild(el('p', 'truncate font-mono text-sm font-semibold text-ink-900 dark:text-white', c.cert));
+          id.appendChild(el('p', 'mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400', 'CoC ' + (c.cocid || '—')));
+          top.appendChild(id);
+          top.appendChild(el('span', 'shrink-0 text-xs text-slate-500 dark:text-slate-400', (c.issued || '').slice(0, 10) || '—'));
+          card.appendChild(top);
+
+          var meta = el('div', 'mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400');
+          meta.appendChild(el('span', '', String(c.devices || 0) + ' verified'));
+          var att = Number(c.attested_items || 0);
+          if (att) {
+            var a = el('span', 'font-semibold text-amber-700 dark:text-amber-400', att + ' attested');
+            a.title = att + ' operator-attested item(s): ' + Number(c.attested_devices || 0)
+              + ' device(s) and ' + Number(c.attested_media || 0)
+              + ' medium/media, recorded by the operator and not instrument-verified';
+            meta.appendChild(a);
+          }
+          meta.appendChild(el('span', '', String(c.runs || 0) + ' runs'));
+          card.appendChild(meta);
+
+          var files = el('div', 'mt-3 flex justify-end gap-3');
+          if (c.has_pdf) {
+            var dl = el('a', 'text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline', 'Download PDF');
+            dl.href = '/api/certs/' + encodeURIComponent(c.cert) + '/download';
+            files.appendChild(dl);
+          }
+          if (c.has_json) {
+            var jl = el('a', 'text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline', 'JSON');
+            jl.href = c.json_url;
+            jl.target = '_blank';
+            jl.rel = 'noopener';
+            files.appendChild(jl);
+          }
+          if (!c.has_pdf && !c.has_json) files.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'No files'));
+          card.appendChild(files);
+          wrap.appendChild(card);
+        });
+        list.appendChild(wrap);
+      }
+
       function loadCerts(page) {
         page = page || 1;
         var list = document.getElementById('cert-list');
@@ -337,8 +409,13 @@
             renderPager(d, loadCerts);
             return;
           }
-          var table = el('table', 'w-full border-collapse text-sm');
-          var hr = el('tr');
+          if (isCompactCerts()) {
+            renderCertCards(rows);
+            renderPager(d, loadCerts);
+            return;
+          }
+          var table = el('table', 'w-full min-w-[720px] border-collapse text-sm');
+          var hr = el('tr', 'bg-slate-50 dark:bg-ink-800/80');
           // 'Attested' sits BESIDE the verified figures and is never folded into them: an
           // operator attestation is not instrument-verified evidence, and the certificate,
           // /verify and the JSON-LD twin all state the two separately. Without the column a
@@ -348,13 +425,13 @@
            ['Devices', 'Instrument-verified devices, recorded by the appliance'],
            ['Attested', 'Devices and media recorded by an operator attestation — not instrument-verified, and never counted with the verified figures'],
            ['Runs', ''], ['Issued', ''], ['Files', '']].forEach(function (h) {
-            var th = el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h[0]);
+            var th = el('th', 'ts-th px-3 py-2.5', h[0]);
             if (h[1]) { th.title = h[1]; }
             hr.appendChild(th);
           });
           table.appendChild(hr);
           rows.forEach(function (c) {
-            var tr = el('tr');
+            var tr = el('tr', 'transition-colors hover:bg-slate-50 dark:hover:bg-ink-800');
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 font-mono text-xs font-semibold text-ink-900 dark:text-white', c.cert));
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', c.cocid));
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.devices)));
@@ -390,7 +467,19 @@
           });
           list.appendChild(table);
           renderPager(d, loadCerts);
+        }).catch(function () {
+          list.classList.remove('opacity-50');
+          list.innerHTML = '';
+          list.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', 'Could not load certificates. Reload the page to try again.'));
         });
+      }
+
+      // Switch between the table and cards when the phone breakpoint is crossed.
+      if (window.matchMedia) {
+        var compactMq = window.matchMedia('(max-width: 639px)');
+        var onCompactChange = function () { loadCerts(1); };
+        if (compactMq.addEventListener) compactMq.addEventListener('change', onCompactChange);
+        else if (compactMq.addListener) compactMq.addListener(onCompactChange);
       }
     })();
   </script>

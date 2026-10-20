@@ -10,49 +10,51 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+<body class="ts-dash bg-slate-50 dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-    <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
-      <a href="/" class="flex items-center gap-2">
+  <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-ink-700 dark:bg-ink-900/90">
+    <div class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5">
+      <a href="/" class="flex shrink-0 items-center gap-2">
         <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
-        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+        <span class="hidden text-lg font-extrabold tracking-tight text-ink-900 dark:text-white sm:block">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
-        <span class="sr-only">Open menu</span>
-        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-      </button>
-      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
-        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
-        </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
-        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      <span class="mx-1 hidden h-6 w-px bg-slate-200 dark:bg-ink-700 md:block"></span>
+      <nav id="app-tabs" class="hidden min-w-0 items-center gap-0.5 md:flex" aria-label="Dashboard sections"></nav>
+      <div class="ml-auto flex items-center gap-1">
+        <span id="app-user" class="hidden max-w-[18rem] items-center gap-2 truncate text-xs text-slate-500 dark:text-slate-400 lg:flex"></span>
+        <div id="app-account" class="flex items-center gap-0.5"></div>
+        <button id="app-menu-btn" type="button" class="inline-flex items-center rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800 md:hidden" aria-controls="app-tabs-mobile" aria-expanded="false">
+          <span class="sr-only">Open dashboard menu</span>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+        </button>
       </div>
     </div>
-  </nav>
+    <nav id="app-tabs-mobile" class="hidden border-t border-slate-200 px-3 py-2 dark:border-ink-700 md:hidden" aria-label="Dashboard sections"></nav>
+  </header>
 
-  <section class="mx-auto w-full max-w-6xl px-4 py-10">
+  <div id="dashboard-alerts" class="mx-auto w-full max-w-6xl px-4"></div>
+
+  <section id="main-content" role="main" tabindex="-1" class="mx-auto w-full max-w-6xl px-4 pb-10 pt-7">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Admin</h1>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Operate users, certificates, licences and audits across every account.</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Administration</h1>
+          <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Admin only</span>
+        </div>
+        <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">Operate users, certificates, licences and audits across every account.</p>
       </div>
       <div class="flex items-center gap-3">
         <span id="admin-who" class="text-xs font-semibold text-slate-500 dark:text-slate-400"></span>
-        <a href="/dashboard" class="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">← Dashboard</a>
+        <a href="/dashboard" class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800">← Dashboard</a>
       </div>
     </div>
 
     <div id="stats" class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5"></div>
 
-    <div id="admin-tabs" role="tablist" class="mt-8 flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-1 shadow-sm"></div>
+    <div id="admin-tabs" role="tablist" class="mt-6 flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-1 shadow-sm"></div>
 
     <div data-panel="users" class="mt-6 grid gap-6 lg:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6">
+      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm">
         <h2 class="text-lg font-bold text-ink-900 dark:text-white">Users</h2>
         <div class="mt-3 flex flex-wrap items-center gap-2">
           <input id="user-q" type="search" autocomplete="off" placeholder="Search email, name or ID…" class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
@@ -70,52 +72,52 @@
         <div id="user-list" class="mt-3"></div>
         <div id="user-pager" class="mt-3"></div>
       </div>
-      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
+      <div class="rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
         <h2 class="text-lg font-bold text-ink-900 dark:text-white">User details</h2>
-        <div id="user-detail" class="mt-3 text-sm text-slate-500 dark:text-slate-400">Select a user to see their certificates, licences and sessions.</div>
+        <div id="user-detail" class="mt-3 text-sm text-slate-500 dark:text-slate-400" aria-live="polite" aria-busy="false">Select a user to see their certificates, licences and sessions.</div>
       </div>
     </div>
 
-    <div data-panel="certs" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
+    <div data-panel="certs" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm" style="display:none">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Certificates</h2>
-      <div id="cert-list" class="mt-3"></div>
+      <div id="cert-list" class="mt-3 max-h-[70vh] overflow-auto"></div>
       <div id="cert-pager" class="mt-3"></div>
     </div>
 
-    <div data-panel="licences" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
+    <div data-panel="licences" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm" style="display:none">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">Licences</h2>
-      <div id="licence-list" class="mt-3"></div>
+      <div id="licence-list" class="mt-3 max-h-[70vh] overflow-auto"></div>
       <div id="licence-pager" class="mt-3"></div>
     </div>
 
-    <div data-panel="audit" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
+    <div data-panel="audit" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm" style="display:none">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-lg font-bold text-ink-900 dark:text-white">Audit log</h2>
         <input id="audit-q" type="search" autocomplete="off" placeholder="Search action, target, admin or IP…" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500 sm:w-72" />
       </div>
-      <div id="audit-list" class="mt-3"></div>
+      <div id="audit-list" class="mt-3 max-h-[70vh] overflow-auto"></div>
       <div id="audit-pager" class="mt-3"></div>
     </div>
 
-    <div data-panel="mdm" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 p-6" style="display:none">
+    <div data-panel="mdm" class="mt-6 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm" style="display:none">
       <h2 class="text-lg font-bold text-ink-900 dark:text-white">MDM checks (Autopilot)</h2>
-      <div id="mdm-list" class="mt-3"></div>
+      <div id="mdm-list" class="mt-3 max-h-[70vh] overflow-auto"></div>
       <div id="mdm-pager" class="mt-3"></div>
     </div>
   </section>
 
-  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
-    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
-      <div class="flex items-center gap-2">
-        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
-        <span class="font-semibold text-white">tScrub</span>
-      </div>
-      <ul class="flex flex-wrap justify-center gap-6">
-        <li><a href="privacy" class="hover:text-white">Privacy</a></li>
-        <li><a href="terms" class="hover:text-white">Terms</a></li>
-        <li><a href="contact" class="hover:text-white">Contact</a></li>
-      </ul>
-      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+  <footer class="mt-auto border-t border-slate-200 bg-white dark:border-ink-800 dark:bg-ink-900">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 dark:text-slate-400 sm:flex-row">
+      <span class="inline-flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-brand-600 font-mono text-[10px] font-bold text-white">t</span>
+        tScrub
+      </span>
+      <nav class="flex flex-wrap items-center justify-center gap-5">
+        <a href="/docs" class="transition-colors hover:text-ink-900 dark:hover:text-white">Docs</a>
+        <a href="/privacy" class="transition-colors hover:text-ink-900 dark:hover:text-white">Privacy</a>
+        <a href="/terms" class="transition-colors hover:text-ink-900 dark:hover:text-white">Terms</a>
+      </nav>
+      <p>© 2026 tScrub. Made in England.</p>
     </div>
   </footer>
 
@@ -130,6 +132,16 @@
       }
       function pill(cls, text) {
         return el('span', 'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls, text);
+      }
+      // Shared table header, matching the Devices table (sticky, small caps,
+      // opaque tinted row). The sticky contract lives in .ts-th so all list
+      // pages keep it the same way.
+      function tableHead(labels) {
+        var hr = el('tr', 'bg-slate-50 dark:bg-ink-800');
+        labels.forEach(function (h) {
+          hr.appendChild(el('th', 'ts-th px-3 py-2.5', h));
+        });
+        return hr;
       }
       async function getCsrf() {
         var r = await fetch('/api/csrf');
@@ -165,9 +177,9 @@
           var tab = document.querySelector('[data-tab="' + p.id + '"]');
           if (tab) {
             var on = p.id === active;
-            tab.className = 'rounded-lg px-3.5 py-2 text-sm font-semibold ' + (on
-              ? 'bg-brand-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800');
+            tab.className = 'rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ' + (on
+              ? 'bg-ink-900 text-white shadow-sm dark:bg-white dark:text-ink-900'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-ink-900 dark:text-slate-400 dark:hover:bg-ink-800 dark:hover:text-white');
             tab.setAttribute('aria-selected', on ? 'true' : 'false');
           }
         });
@@ -183,7 +195,7 @@
         if (!bar) return;
         bar.innerHTML = '';
         PANELS.forEach(function (p) {
-          var b = el('button', 'rounded-lg px-3.5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800', p.label);
+          var b = el('button', 'rounded-lg px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink-900 dark:text-slate-400 dark:hover:bg-ink-800 dark:hover:text-white', p.label);
           b.type = 'button';
           b.setAttribute('role', 'tab');
           b.setAttribute('data-tab', p.id);
@@ -241,21 +253,54 @@
         box.appendChild(wrap);
       }
 
+      var STAT_TILES = [
+        ['Users', 'bg-emerald-500'],
+        ['Organisations', 'bg-sky-500'],
+        ['Certificates', 'bg-brand-500'],
+        ['Licences', 'bg-amber-500'],
+        ['Unassigned', 'bg-slate-400']
+      ];
+
+      function statTile(label, dot) {
+        var c = el('div', 'rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-ink-700 dark:bg-ink-900');
+        var top = el('div', 'flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400');
+        top.appendChild(el('span', 'h-1.5 w-1.5 rounded-full ' + dot));
+        top.appendChild(document.createTextNode(label));
+        c.appendChild(top);
+        return c;
+      }
+
       function loadStats() {
+        var box = document.getElementById('stats');
+        if (!box) return;
+        // Paint the tiles immediately with spinners, matching the Devices
+        // summary strip, so the row has shape while the stats load.
+        box.innerHTML = '';
+        STAT_TILES.forEach(function (t) {
+          var c = statTile(t[0], t[1]);
+          var row = el('div', 'mt-1.5 flex h-8 items-center');
+          row.appendChild(el('span', 'inline-block h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600 dark:border-ink-700 dark:border-t-brand-400'));
+          c.appendChild(row);
+          box.appendChild(c);
+        });
+
         fetch('/api/admin/stats').then(function (r) { return r.json(); }).then(function (d) {
-          var box = document.getElementById('stats');
           box.innerHTML = '';
-          var items = [
-            ['Users', d.stats.users], ['Organisations', d.stats.organisations],
-            ['Certificates', d.stats.certificates], ['Licences', d.stats.licences],
-            ['Unassigned', d.stats.unassigned]
-          ];
-          items.forEach(function (it) {
-            var c = el('div', 'rounded-xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-4');
-            c.appendChild(el('div', 'text-2xl font-extrabold text-ink-900 dark:text-white', String(it[1])));
-            c.appendChild(el('div', 'text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', it[0]));
+          var values = {
+            Users: d.stats.users,
+            Organisations: d.stats.organisations,
+            Certificates: d.stats.certificates,
+            Licences: d.stats.licences,
+            Unassigned: d.stats.unassigned
+          };
+          STAT_TILES.forEach(function (t) {
+            var c = statTile(t[0], t[1]);
+            c.appendChild(el('p', 'mt-1.5 text-2xl font-extrabold tabular-nums text-ink-900 dark:text-white', String(values[t[0]] == null ? 0 : values[t[0]])));
             box.appendChild(c);
           });
+        }).catch(function () {
+          box.innerHTML = '';
+          box.appendChild(el('p', 'col-span-full text-sm text-slate-500 dark:text-slate-400', 'Could not load stats.'));
         });
       }
 
@@ -288,7 +333,7 @@
             list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No users match.'));
           }
           (d.users || []).forEach(function (u) {
-            var row = el('button', 'flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-ink-800');
+            var row = el('button', 'flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left transition-colors hover:bg-slate-50 dark:border-ink-700 dark:bg-ink-900 dark:hover:bg-ink-800');
             var left = el('span', 'min-w-0');
             left.appendChild(el('span', 'block truncate text-sm font-semibold text-ink-900 dark:text-white', u.name || u.email));
             left.appendChild(el('span', 'block truncate text-xs text-slate-500 dark:text-slate-400', u.email + (u.account_type === 'company' && u.company_name ? ' · ' + u.company_name : '')));
@@ -304,8 +349,14 @@
 
       function loadUserDetail(id) {
         var box = document.getElementById('user-detail');
-        box.innerHTML = 'Loading…';
+        box.setAttribute('aria-busy', 'true');
+        box.innerHTML = '';
+        var loading = el('div', 'flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400');
+        loading.appendChild(el('span', 'inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600 dark:border-ink-700 dark:border-t-brand-400'));
+        loading.appendChild(document.createTextNode('Loading…'));
+        box.appendChild(loading);
         fetch('/api/admin/users/' + id).then(function (r) { return r.json(); }).then(function (d) {
+          box.setAttribute('aria-busy', 'false');
           var u = d.user;
           box.innerHTML = '';
           var head = el('div', 'flex flex-wrap items-center justify-between gap-2');
@@ -411,6 +462,10 @@
           });
           sess.appendChild(sessList);
           box.appendChild(sess);
+        }).catch(function () {
+          box.setAttribute('aria-busy', 'false');
+          box.innerHTML = '';
+          box.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'Could not load this user. Try again.'));
         });
       }
 
@@ -421,12 +476,8 @@
         fetch('/api/admin/certificates?page=' + page).then(function (r) { return r.json(); }).then(function (d) {
           list.classList.remove('opacity-50');
           list.innerHTML = '';
-          var table = el('table', 'w-full border-collapse text-sm');
-          var hr = el('tr');
-          ['Certificate ID', 'Owner', 'CoC', 'Devices', 'Issued'].forEach(function (h) {
-            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
-          });
-          table.appendChild(hr);
+          var table = el('table', 'w-full min-w-[640px] border-collapse text-sm');
+          table.appendChild(tableHead(['Certificate ID', 'Owner', 'CoC', 'Devices', 'Issued']));
           (d.certs || []).forEach(function (c) {
             var tr = el('tr');
             var td1 = el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2');
@@ -453,12 +504,8 @@
           list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.licences || []).length) { list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No licences issued yet.')); return; }
-          var table = el('table', 'w-full border-collapse text-sm');
-          var hr = el('tr');
-          ['Tier', 'Customer', 'Owner', 'Expiry', 'Issued'].forEach(function (h) {
-            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
-          });
-          table.appendChild(hr);
+          var table = el('table', 'w-full min-w-[560px] border-collapse text-sm');
+          table.appendChild(tableHead(['Tier', 'Customer', 'Owner', 'Expiry', 'Issued']));
           (d.licences || []).forEach(function (l) {
             var tr = el('tr');
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 text-xs font-semibold text-ink-900 dark:text-white', l.tier));
@@ -483,12 +530,8 @@
           list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.audit || []).length) { list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No admin actions recorded yet.')); return; }
-          var table = el('table', 'w-full border-collapse text-sm');
-          var hr = el('tr');
-          ['Time', 'Admin', 'Action', 'Target', 'IP'].forEach(function (h) {
-            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
-          });
-          table.appendChild(hr);
+          var table = el('table', 'w-full min-w-[560px] border-collapse text-sm');
+          table.appendChild(tableHead(['Time', 'Admin', 'Action', 'Target', 'IP']));
           (d.audit || []).forEach(function (a) {
             var tr = el('tr');
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 text-xs whitespace-nowrap', (a.created_at || '').replace('T', ' ').slice(0, 19)));
@@ -511,12 +554,8 @@
           list.classList.remove('opacity-50');
           list.innerHTML = '';
           if (!(d.log || []).length) { list.appendChild(el('p', 'text-sm text-slate-500 dark:text-slate-400', 'No MDM checks recorded yet.')); return; }
-          var table = el('table', 'w-full border-collapse text-sm');
-          var hr = el('tr');
-          ['Time', 'Account', 'Serial', 'UUID', 'Verdict', 'Source', 'IP'].forEach(function (h) {
-            hr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-slate-400', h));
-          });
-          table.appendChild(hr);
+          var table = el('table', 'w-full min-w-[720px] border-collapse text-sm');
+          table.appendChild(tableHead(['Time', 'Account', 'Serial', 'UUID', 'Verdict', 'Source', 'IP']));
           (d.log || []).forEach(function (m) {
             var tr = el('tr');
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2 text-xs whitespace-nowrap', (m.created_at || '').replace('T', ' ').slice(0, 19)));

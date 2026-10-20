@@ -219,7 +219,8 @@ device::exec_nvme() {
         # subshell, where direct devrow writes would be lost. Emitted before the
         # wipe — a failed nwipe ends FAILED, which normalize_outcome overwrites
         # back to "Sanitisation failed", so the labels are never falsely Clear.
-        echo "$dev METHOD nwipe Quick" >&3
+        # METHOD/STANDARD/PASSES/ERASER are emitted by device::exec_nwipe itself
+        # (it owns the configured standard).
         echo "$dev CLASS CLEAR" >&3
         echo "$dev CERT SANITISATION" >&3
         device::exec_nwipe "$dev"

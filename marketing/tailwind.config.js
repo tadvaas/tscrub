@@ -3,7 +3,10 @@ import typography from '@tailwindcss/typography'
 
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'media',
+  // Class-based so the dashboard can offer a persisted toggle. The bootstrap
+  // script injected by vite.config.js sets `.dark` before first paint, using
+  // the saved choice or the OS preference.
+  darkMode: 'class',
   content: [
     './site/*.html',
     './site/dashboard/**/*.html',
@@ -32,6 +35,7 @@ export default {
           500: '#10b981',
           600: '#059669',
           700: '#047857',
+          800: '#065f46',
           900: '#064e3b'
         },
         ink: {

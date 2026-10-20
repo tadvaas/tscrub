@@ -10,38 +10,34 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+<body class="ts-dash bg-slate-50 dark:bg-ink-900 text-slate-800 dark:text-slate-200">
 
-    <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
-      <a href="/" class="flex items-center gap-2">
+  <header class="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-ink-700 dark:bg-ink-900/90">
+    <div class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5">
+      <a href="/" class="flex shrink-0 items-center gap-2">
         <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
-        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+        <span class="hidden text-lg font-extrabold tracking-tight text-ink-900 dark:text-white sm:block">tScrub</span>
       </a>
-      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
-        <span class="sr-only">Open menu</span>
-        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-      </button>
-      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
-        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
-          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
-          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
-          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
-          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
-        </ul>
-        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
-        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      <span class="mx-1 hidden h-6 w-px bg-slate-200 dark:bg-ink-700 md:block"></span>
+      <nav id="app-tabs" class="hidden min-w-0 items-center gap-0.5 md:flex" aria-label="Dashboard sections"></nav>
+      <div class="ml-auto flex items-center gap-1">
+        <span id="app-user" class="hidden max-w-[18rem] items-center gap-2 truncate text-xs text-slate-500 dark:text-slate-400 lg:flex"></span>
+        <div id="app-account" class="flex items-center gap-0.5"></div>
+        <button id="app-menu-btn" type="button" class="inline-flex items-center rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-ink-800 md:hidden" aria-controls="app-tabs-mobile" aria-expanded="false">
+          <span class="sr-only">Open dashboard menu</span>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+        </button>
       </div>
     </div>
-  </nav>
+    <nav id="app-tabs-mobile" class="hidden border-t border-slate-200 px-3 py-2 dark:border-ink-700 md:hidden" aria-label="Dashboard sections"></nav>
+  </header>
 
-  <section class="mx-auto w-full max-w-5xl px-4 py-10">
-    <h1 class="text-3xl font-extrabold tracking-tight text-ink-900 dark:text-white">Dashboard</h1>
-    <div id="dashboard-nav" class="mt-4"></div>
+  <div id="dashboard-alerts" class="mx-auto w-full max-w-6xl px-4"></div>
 
-    <div class="mt-10">
-      <h2 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Media</h2>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Every storage medium tScrub has processed — hard drives, SSDs and flash — with erasure outcomes and SMART data from your reports, plus items recorded by operator attestation.</p>
+  <section id="main-content" role="main" tabindex="-1" class="mx-auto w-full max-w-6xl px-4 pb-10 pt-7">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Media</h1>
+      <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">Every storage medium tScrub has processed — hard drives, SSDs and flash — with erasure outcomes and SMART data from your reports, plus items recorded by operator attestation.</p>
     </div>
 
     <form id="upload-form" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-3 py-2">
@@ -53,20 +49,115 @@
       <p id="upload-status" class="hidden w-full text-xs font-semibold" aria-live="polite"></p>
     </form>
 
-    <div class="mt-3 flex items-center gap-2">
-      <input id="search-input" type="text" placeholder="Search media — serial, model, CoC ID…" autocomplete="off"
-             class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
-      <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
-      <button type="button" id="export-btn" class="rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30" title="Export the media inventory">Export</button>
-      <button type="button" id="add-btn" onclick="ManualAssets.openFor('drive')" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700" title="Record a media item that was destroyed, or factory reset with its device (an operator attestation)">Add</button>
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <div class="relative w-full min-w-0 sm:w-auto sm:flex-1">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search media — serial, model, CoC ID…" autocomplete="off"
+               class="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-200" />
+      </div>
+      <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800">Clear</button>
+      <button type="button" id="export-btn" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800" title="Export the media inventory">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        Export
+      </button>
+      <button type="button" id="add-btn" onclick="ManualAssets.openFor('drive')" class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700" title="Record a media item that was destroyed, or factory reset with its device (an operator attestation)">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        Add
+      </button>
     </div>
     <script src="/assets/manual-assets.js?v=17" defer></script>
 
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 shadow-sm">
+    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
       <div id="drive-list" class="min-h-[200px]">
-        <div class="flex animate-pulse flex-col gap-2 p-6">
-          <div class="h-4 w-64 rounded bg-slate-200 dark:bg-ink-700"></div>
-          <div class="h-3 w-96 rounded bg-slate-200 dark:bg-ink-700"></div>
+        <!-- Loading placeholders: table rows on desktop, cards on phones. -->
+        <div class="hidden sm:block">
+          <div class="flex items-center gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-ink-700 dark:bg-ink-800/80">
+            <div class="h-2.5 w-16 animate-pulse rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-2.5 w-24 animate-pulse rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-2.5 w-20 animate-pulse rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-2.5 w-16 animate-pulse rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-2.5 w-24 animate-pulse rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="h-2.5 w-10 animate-pulse rounded bg-slate-200 dark:bg-ink-700"></div>
+          </div>
+          <div class="animate-pulse divide-y divide-slate-100 dark:divide-ink-800">
+            <div class="flex items-center gap-4 px-4 py-3">
+              <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-4 w-44 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-5 w-20 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-36 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="ml-auto h-5 w-14 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="flex items-center gap-4 px-4 py-3">
+              <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-4 w-52 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-5 w-16 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-40 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="ml-auto h-5 w-14 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="flex items-center gap-4 px-4 py-3">
+              <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-4 w-36 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-5 w-20 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-32 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="ml-auto h-5 w-14 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="flex items-center gap-4 px-4 py-3">
+              <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-4 w-48 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-5 w-16 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-3 w-36 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="ml-auto h-5 w-14 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="divide-y divide-slate-100 dark:divide-ink-800 sm:hidden">
+          <div class="animate-pulse p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="h-4 w-44 rounded bg-slate-200 dark:bg-ink-700"></div>
+                <div class="mt-2 h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              </div>
+              <div class="h-5 w-20 shrink-0 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="mt-3 h-3 w-52 rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="mt-3 flex items-center justify-between">
+              <div class="h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-7 w-24 rounded-lg bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+          </div>
+          <div class="animate-pulse p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="h-4 w-52 rounded bg-slate-200 dark:bg-ink-700"></div>
+                <div class="mt-2 h-3 w-20 rounded bg-slate-200 dark:bg-ink-700"></div>
+              </div>
+              <div class="h-5 w-16 shrink-0 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="mt-3 h-3 w-44 rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="mt-3 flex items-center justify-between">
+              <div class="h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-7 w-24 rounded-lg bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+          </div>
+          <div class="animate-pulse p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="h-4 w-40 rounded bg-slate-200 dark:bg-ink-700"></div>
+                <div class="mt-2 h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              </div>
+              <div class="h-5 w-20 shrink-0 rounded-full bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+            <div class="mt-3 h-3 w-48 rounded bg-slate-200 dark:bg-ink-700"></div>
+            <div class="mt-3 flex items-center justify-between">
+              <div class="h-3 w-24 rounded bg-slate-200 dark:bg-ink-700"></div>
+              <div class="h-7 w-24 rounded-lg bg-slate-200 dark:bg-ink-700"></div>
+            </div>
+          </div>
         </div>
       </div>
       <div id="drive-pager" class="border-t border-slate-100 dark:border-ink-800 px-4 py-3"></div>
@@ -133,21 +224,18 @@
     </div>
   </div>
 
-  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
-    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
-      <div class="flex items-center gap-2">
-        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
-        <span class="font-semibold text-white">tScrub</span>
-      </div>
-      <ul class="flex flex-wrap justify-center gap-6">
-        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
-        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
-        <li><a href="/docs" class="hover:text-white">Docs</a></li>
-        <li><a href="/resources" class="hover:text-white">Resources</a></li>
-        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
-        <li><a href="/terms" class="hover:text-white">Terms</a></li>
-      </ul>
-      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+  <footer class="mt-auto border-t border-slate-200 bg-white dark:border-ink-800 dark:bg-ink-900">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 dark:text-slate-400 sm:flex-row">
+      <span class="inline-flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-brand-600 font-mono text-[10px] font-bold text-white">t</span>
+        tScrub
+      </span>
+      <nav class="flex flex-wrap items-center justify-center gap-5">
+        <a href="/docs" class="transition-colors hover:text-ink-900 dark:hover:text-white">Docs</a>
+        <a href="/privacy" class="transition-colors hover:text-ink-900 dark:hover:text-white">Privacy</a>
+        <a href="/terms" class="transition-colors hover:text-ink-900 dark:hover:text-white">Terms</a>
+      </nav>
+      <p>© 2026 tScrub. Made in England.</p>
     </div>
   </footer>
 
@@ -289,6 +377,7 @@
           ['HPA result', d.hpa_result], ['DCO result', d.dco_result],
           ['SED status', d.sed_status], ['Self-test', d.selftest], ['Reallocated (post)', d.reallocsectorspost],
           ['Verification', d.verify_result], ['Verified sectors', d.verify_sectors],
+          ['Overwrite standard', d.standard], ['Overwrite passes', d.passes], ['Erase engine', d.erase_engine],
           ['Formatted', d.format_fs], ['Partition scheme', d.format_scheme],
           ['Volume label', d.format_label], ['Format result', d.format_result],
           ['PSID revert', d.psid_revert],
@@ -421,6 +510,7 @@
         ['hpa','HPA'], ['dco','DCO'], ['hpa_result','HPA result'], ['dco_result','DCO result'],
         ['sed_status','SED status'], ['selftest','Self-test'], ['reallocsectorspost','Reallocated (post)'],
         ['verify_result','Verification'], ['verify_sectors','Verified sectors'],
+        ['standard','Overwrite standard'], ['passes','Overwrite passes'], ['erase_engine','Erase engine'],
         ['format_result','Format result'], ['format_fs','Formatted'], ['format_scheme','Partition scheme'], ['format_label','Volume label'],
         ['psid_revert','PSID revert'],
         ['lock_kind','TCG lock'],
@@ -459,8 +549,8 @@
         document.body.removeChild(a);
       }
       var exportModal = document.getElementById('export-modal');
-      function openExportModal() { buildExportFields(); exportModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
-      function closeExportModal() { exportModal.classList.add('hidden'); document.body.style.overflow = ''; }
+      function openExportModal() { buildExportFields(); window.TSDialog.open(exportModal); }
+      function closeExportModal() { window.TSDialog.close(exportModal); }
       document.getElementById('export-btn').addEventListener('click', openExportModal);
       document.getElementById('export-json').addEventListener('click', function () { doExport('json', 'json'); });
       document.getElementById('export-csv').addEventListener('click', function () { doExport('csv', 'csv'); });
@@ -619,6 +709,162 @@
         });
       }
 
+      // ---- Compact (phone) presentation -----------------------------------
+      // The seven-column table is unreadable below 640px. The same media rows
+      // render as stacked cards, sharing the status/grade helpers and the
+      // expanded-reports state with the table.
+      function isCompactDrives() {
+        return !!(window.matchMedia && window.matchMedia('(max-width: 639px)').matches);
+      }
+
+      function statusChipClass(v) {
+        var s = String(v || '').toUpperCase();
+        if (s === 'COMPLETED') return 'ts-chip ts-chip--emerald';
+        if (s === 'FAILED' || s === 'STALLED') return 'ts-chip ts-chip--red';
+        if (s === 'BLOCKED') return 'ts-chip ts-chip--amber';
+        if (s === 'FROZEN') return 'ts-chip ts-chip--sky';
+        return 'ts-chip ts-chip--slate';
+      }
+
+      function statusDotClass(v) {
+        var s = String(v || '').toUpperCase();
+        if (s === 'COMPLETED') return 'bg-emerald-500';
+        if (s === 'FAILED' || s === 'STALLED') return 'bg-red-500';
+        if (s === 'BLOCKED') return 'bg-amber-500';
+        if (s === 'FROZEN') return 'bg-sky-500';
+        return 'bg-slate-400';
+      }
+
+      function historyList(d) {
+        var wrap = el('div', 'mt-3 space-y-2');
+        if (!(d.history || []).length) {
+          wrap.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'No reports recorded for this medium yet.'));
+          return wrap;
+        }
+        (d.history || []).forEach(function (h) {
+          var row = el('div', 'rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-ink-700 dark:bg-ink-800');
+          var top = el('div', 'flex items-center justify-between gap-2');
+          top.appendChild(el('span', 'truncate font-mono font-semibold text-brand-700 dark:text-brand-400', h.cocid || '—'));
+          top.appendChild(el('span', 'shrink-0 ' + statusChipClass(h.status), h.status || '—'));
+          row.appendChild(top);
+          row.appendChild(el('p', 'mt-1 text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
+          var detail = [h.method, h.cls].filter(Boolean).join(' · ');
+          if (detail) row.appendChild(el('p', 'mt-0.5 truncate text-slate-500 dark:text-slate-400', detail));
+          row.appendChild(el('p', 'mt-1 text-[11px] text-slate-400 dark:text-slate-500',
+            'SMART ' + (h.smartpost || '—') + ' · Verify ' + (capVerify(h.verify_result) || '—') + ' · Format ' + (capFormat(h) || '—')));
+
+          var acts = el('div', 'mt-2 flex justify-end gap-1');
+          var view = el('button', 'rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800', 'View');
+          view.addEventListener('click', function () { openDrive(h); });
+          var pdf = el('button', 'rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
+          pdf.title = 'Download a drive health report';
+          pdf.addEventListener('click', function () {
+            downloadPdf('/api/drives/' + h.report_id + '/pdf?serial=' + encodeURIComponent(h.serial || ''), 'Drive-Health-' + (h.serial || 'drive') + '.pdf');
+          });
+          acts.appendChild(view);
+          acts.appendChild(pdf);
+          row.appendChild(acts);
+          wrap.appendChild(row);
+        });
+        return wrap;
+      }
+
+      function driveCard(d) {
+        var serial = String(d.serial || '');
+        var card = el('div', 'p-4');
+        card.title = d.model || '';
+
+        var top = el('div', 'flex items-start justify-between gap-3');
+        var id = el('div', 'min-w-0');
+        var model = el('div', 'flex min-w-0 items-center gap-2');
+        model.appendChild(el('span', 'truncate text-sm font-semibold text-ink-900 dark:text-white', d.model || '—'));
+        var grade = el('span', 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ' + gradeBadgeClass(d.grade), d.grade || '—');
+        if (d.grade_reason) grade.title = d.grade_reason;
+        model.appendChild(grade);
+        id.appendChild(model);
+        id.appendChild(el('p', 'mt-0.5 truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400', d.serial || '—'));
+        top.appendChild(id);
+
+        var chip = el('span', 'shrink-0 ' + statusChipClass(d.status));
+        chip.appendChild(el('span', 'inline-block h-1.5 w-1.5 shrink-0 rounded-full ' + statusDotClass(d.status)));
+        chip.appendChild(el('span', 'text-xs font-semibold', d.status || '—'));
+        top.appendChild(chip);
+        card.appendChild(top);
+
+        var meth = el('p', 'mt-3 truncate text-xs text-slate-600 dark:text-slate-400', d.method || '—');
+        meth.title = d.method || '';
+        card.appendChild(meth);
+
+        var submitted = fmtTsTime(d.last_report_datetime_submitted || d.uploaded_at);
+        card.appendChild(el('p', 'mt-1 text-[11px] text-slate-400 dark:text-slate-500', submitted ? 'Submitted ' + submitted : 'No report submitted'));
+
+        var actions = el('div', 'mt-3 flex items-center justify-end gap-1');
+        var vbtn = el('button', 'inline-flex h-7 items-center whitespace-nowrap rounded-lg border px-3 text-xs font-semibold ' + (expanded[serial]
+          ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
+          : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
+        vbtn.title = 'Show every report for this medium';
+        vbtn.addEventListener('click', function () {
+          expanded[serial] = !expanded[serial];
+          if (expanded[serial]) expandAnim[serial] = true;
+          render();
+        });
+        actions.appendChild(vbtn);
+        card.appendChild(actions);
+
+        if (expanded[serial]) {
+          var anim = expandAnim[serial];
+          if (anim) delete expandAnim[serial];
+          var hist = historyList(d);
+          if (anim) hist.classList.add('row-expand');
+          card.appendChild(hist);
+        }
+        return card;
+      }
+
+      function attestedCard(d) {
+        var retained = attestedRetained(d);
+        var card = el('div', 'bg-amber-50/50 p-4 dark:bg-amber-900/10');
+        card.title = 'Recorded by an operator as ' + (retained ? 'factory reset' : 'physically destroyed')
+          + ' — ' + (d.attested_qualifier || 'attested');
+
+        var top = el('div', 'flex items-start justify-between gap-3');
+        var id = el('div', 'min-w-0');
+        var model = el('div', 'flex min-w-0 items-center gap-2');
+        model.appendChild(el('span', 'truncate text-sm font-semibold text-ink-900 dark:text-white', d.model || '—'));
+        var badge = el('span', 'shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', 'Attested');
+        badge.title = retained
+          ? 'Operator-attested factory reset — the device was retained, not destroyed, and this is not instrument-verified'
+          : 'Operator-attested physical destruction — not instrument-verified';
+        model.appendChild(badge);
+        id.appendChild(model);
+        id.appendChild(el('p', 'mt-0.5 truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400', d.serial || '—'));
+        top.appendChild(id);
+        top.appendChild(el('span', 'text-xs font-semibold text-amber-700 dark:text-amber-400', d.status || (retained ? 'RETAINED' : 'DESTROYED')));
+        card.appendChild(top);
+
+        var meta = el('p', 'mt-2 text-xs text-slate-500 dark:text-slate-400');
+        meta.textContent = attestedMethod(d) + ' · attested by ' + (d.attested_by || '—') + (d.system ? ' · from ' + d.system : '');
+        meta.title = (retained ? 'Factory reset — device retained — ' : 'Destroyed — ') + attestedMethod(d) + ' · attested by ' + (d.attested_by || '—');
+        card.appendChild(meta);
+
+        var acts = el('div', 'mt-3 flex justify-end');
+        if (window.ManualAssets) acts.appendChild(ManualAssets.actions(d));
+        else acts.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'record tools did not load'));
+        card.appendChild(acts);
+        return card;
+      }
+
+      function renderCards(slice) {
+        var box = document.getElementById('drive-list');
+        var wrap = el('div', 'divide-y divide-slate-100 dark:divide-ink-800');
+        slice.forEach(function (d) {
+          if (d.attested) { wrap.appendChild(attestedCard(d)); return; }
+          wrap.appendChild(driveCard(d));
+        });
+        box.appendChild(wrap);
+        renderPager();
+      }
+
       function render() {
         var box = document.getElementById('drive-list');
         box.innerHTML = '';
@@ -630,7 +876,18 @@
 
         var slice = drives;
 
-        var wrap = el('div', '');
+        // Below 640px the seven-column table cannot stay readable. Render the
+        // same media as stacked cards inside the panel instead.
+        if (isCompactDrives()) {
+          renderCards(slice);
+          return;
+        }
+
+        // The list scrolls inside the card so the header can stay pinned while
+        // the operator reads a long page. A plain window scroll cannot do that:
+        // the card is `overflow-hidden`, which would make the header stick to an
+        // element that never scrolls.
+        var wrap = el('div', 'max-h-[70vh] overflow-y-auto');
         var table = el('table', 'w-full table-fixed border-collapse text-sm');
         var head = el('thead');
         var hr = el('tr', 'bg-slate-100 dark:bg-ink-800');
@@ -643,7 +900,9 @@
          ['Status', 'w-[14%]', 'status'], ['Method', 'w-[24%]', 'method'],
          ['Grade', 'w-[7%]', 'grade'],
          ['', 'w-[10%]', null]].forEach(function (c) {
-          var th = el('th', c[1] + ' truncate border-b border-slate-200 dark:border-ink-700 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
+          // Sticky cells need their own background: the <tr> background scrolls
+          // away with the body, and a translucent one lets rows show through.
+          var th = el('th', c[1] + ' truncate ts-th px-3 py-2');
           if (c[2]) {
             th.classList.add('cursor-pointer', 'select-none', 'hover:bg-slate-200', 'dark:hover:bg-ink-700');
             th._sortKey = c[2];
@@ -828,8 +1087,7 @@
       var modalBody = document.getElementById('drive-modal-body');
 
       function closeDrive() {
-        modal.classList.add('hidden');
-        document.body.style.overflow = '';
+        window.TSDialog.close(modal);
       }
       function openDrive(d) {
         modalTitle.textContent = d.model || d.serial || 'Media';
@@ -958,8 +1216,7 @@
         });
         foot.appendChild(dpdf);
 
-        modal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
+        window.TSDialog.open(modal);
         document.getElementById('drive-modal-close').focus();
       }
 
@@ -968,6 +1225,15 @@
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeDrive();
       });
+
+      // Re-render when the phone/desktop breakpoint is crossed. The data is
+      // already in memory; only the presentation changes.
+      if (window.matchMedia) {
+        var compactMq = window.matchMedia('(max-width: 639px)');
+        var onCompactChange = function () { if (total) render(); };
+        if (compactMq.addEventListener) compactMq.addEventListener('change', onCompactChange);
+        else if (compactMq.addListener) compactMq.addListener(onCompactChange);
+      }
     })();
   </script>
   <div id="manual-detail-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="manual-detail-title">

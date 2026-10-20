@@ -460,6 +460,10 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'psid_revert' => clip_str($get($row, 'psidrevert'), 16),
                 'lock_kind' => clip_str($get($row, 'lockkind'), 16),
                 'ppi_requested' => clip_str($get($row, 'ppirequested'), 16),
+                // Software-overwrite provenance (fallback paths only).
+                'standard' => clip_str($get($row, 'standard'), 32),
+                'passes' => clip_str($get($row, 'passes'), 16),
+                'erase_engine' => clip_str($get($row, 'eraseengine'), 32),
                 // Derivable only across reports (prior BLOCKED -> now COMPLETED);
                 // computed in merge_group(). A single report is always 'no'.
                 'ppi_cleared' => 'no',
@@ -878,17 +882,83 @@ function manual_attested_delete(int $certId, int $id, bool $isDevice): int
  * claim into the appliance's evidence, permanently. Lives here rather than in api.php
  * so the storage test can guard it.
  */
+/**
+ * Lazily add the software-overwrite provenance columns to an existing
+ * certificate_drives table (idempotent — mirrors schema.sql). The report
+ * payload carries these per drive; the certificate must persist them or a
+ * JSON-LD rebuild / re-issue loses them.
+ */
+function certificate_drives_ensure_schema(): void {
+    static $ensured = false;
+    if ($ensured) return;
+    $ensured = true;
+    try {
+        $wanted = [
+            'standard'     => "VARCHAR(32) NOT NULL DEFAULT '' AFTER media_destination",
+            'passes'       => "VARCHAR(16) NOT NULL DEFAULT '' AFTER standard",
+            'erase_engine' => "VARCHAR(64) NOT NULL DEFAULT '' AFTER passes",
+        ];
+        foreach ($wanted as $col => $ddl) {
+            $stmt = db()->prepare(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'certificate_drives' AND COLUMN_NAME = ?"
+            );
+            $stmt->execute([$col]);
+            if ((int)$stmt->fetchColumn() > 0) continue;
+            db()->exec("ALTER TABLE certificate_drives ADD COLUMN $col $ddl");
+        }
+    } catch (Throwable $e) {
+        error_log('certificate_drives_ensure_schema: ' . $e->getMessage());
+    }
+}
+
 function load_cert_drives(int $certId): array {
+    certificate_drives_ensure_schema();
     $stmt = db()->prepare(
         'SELECT id, certificate_id, ts, device, type, model, serial, size, bus, class, method, certification, final_status,
                 system_name AS `system`, system_serial, baseboard_serial,
                 smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
                 firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
-                tool_version, operator, validator, media_source, media_destination
+                tool_version, operator, validator, media_source, media_destination,
+                standard, passes, erase_engine
          FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
     );
     $stmt->execute([$certId]);
     return $stmt->fetchAll();
+}
+
+/**
+ * Column -> group-drive key for the certificate_drives insert. The placeholder
+ * list is generated from this map so a new column can never drift out of step
+ * with the values (the failure mode is an unbound placeholder / wrong order).
+ */
+function certificate_drives_column_map(): array {
+    return [
+        'ts' => 'ts', 'device' => 'device', 'type' => 'type', 'model' => 'model',
+        'serial' => 'serial', 'size' => 'size', 'bus' => 'bus',
+        'class' => 'cls', 'method' => 'method', 'certification' => 'cert',
+        'final_status' => 'status', 'system_name' => 'system',
+        'system_serial' => 'sysserial', 'baseboard_serial' => 'bbserial',
+        'smart' => 'smart', 'tempc' => 'tempc', 'poweronhours' => 'poweronhours',
+        'powercycles' => 'powercycles', 'reallocsectors' => 'reallocsectors',
+        'pctused' => 'pctused', 'availspare' => 'availspare', 'tbw_tb' => 'tbw_tb',
+        'smartpost' => 'smartpost', 'tempcpost' => 'tempcpost',
+        'poweronhourspost' => 'poweronhourspost', 'firmware' => 'firmware',
+        'sector_size' => 'sector_size', 'sectors' => 'sectors', 'hpa' => 'hpa',
+        'dco' => 'dco', 'sed_status' => 'sed_status',
+        'reallocsectorspost' => 'reallocsectorspost', 'selftest' => 'selftest',
+        'start_time' => 'start_time', 'end_time' => 'end_time',
+        'duration_secs' => 'duration_secs', 'tool_version' => 'tool_version',
+        'operator' => 'operator', 'validator' => 'validator',
+        'media_source' => 'media_source', 'media_destination' => 'media_destination',
+        'standard' => 'standard', 'passes' => 'passes', 'erase_engine' => 'erase_engine',
+    ];
+}
+
+function certificate_drives_insert_sql(): string {
+    $cols = array_keys(certificate_drives_column_map());
+    return 'INSERT INTO certificate_drives (certificate_id, ' . implode(', ', $cols) . ')'
+        . ' VALUES (' . rtrim(str_repeat('?,', count($cols) + 1), ',') . ')';
 }
 
 function rewrite_certificate_details(int $dbCertId, array $reports, array $drives): void {
@@ -898,65 +968,21 @@ function rewrite_certificate_details(int $dbCertId, array $reports, array $drive
     // re-issue must leave them exactly as entered. certificate_devices is untouched
     // here for the same reason.
     db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND source <> 'manual'")->execute([$dbCertId]);
+    certificate_drives_ensure_schema();
 
     $rq = db()->prepare('INSERT INTO certificate_reports (certificate_id, report_name, sha256, state) VALUES (?, ?, ?, ?)');
     foreach ($reports as $r) {
         $rq->execute([$dbCertId, (string)$r['name'], (string)$r['sha'], (string)$r['state']]);
     }
 
-    $dq = db()->prepare(
-        'INSERT INTO certificate_drives
-         (certificate_id, ts, device, type, model, serial, size, bus, class, method, certification, final_status, system_name, system_serial, baseboard_serial,
-          smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
-          firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
-          tool_version, operator, validator, media_source, media_destination)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    );
+    $map = certificate_drives_column_map();
+    $dq = db()->prepare(certificate_drives_insert_sql());
     foreach ($drives as $d) {
-        $dq->execute([
-            $dbCertId,
-            (string)($d['ts'] ?? ''),
-            (string)($d['device'] ?? ''),
-            (string)($d['type'] ?? ''),
-            (string)($d['model'] ?? ''),
-            (string)($d['serial'] ?? ''),
-            (string)($d['size'] ?? ''),
-            (string)($d['bus'] ?? ''),
-            (string)($d['cls'] ?? ''),
-            (string)($d['method'] ?? ''),
-            (string)($d['cert'] ?? ''),
-            (string)($d['status'] ?? ''),
-            (string)($d['system'] ?? ''),
-            (string)($d['sysserial'] ?? ''),
-            (string)($d['bbserial'] ?? ''),
-            (string)($d['smart'] ?? ''),
-            (string)($d['tempc'] ?? ''),
-            (string)($d['poweronhours'] ?? ''),
-            (string)($d['powercycles'] ?? ''),
-            (string)($d['reallocsectors'] ?? ''),
-            (string)($d['pctused'] ?? ''),
-            (string)($d['availspare'] ?? ''),
-            (string)($d['tbw_tb'] ?? ''),
-            (string)($d['smartpost'] ?? ''),
-            (string)($d['tempcpost'] ?? ''),
-            (string)($d['poweronhourspost'] ?? ''),
-            (string)($d['firmware'] ?? ''),
-            (string)($d['sector_size'] ?? ''),
-            (string)($d['sectors'] ?? ''),
-            (string)($d['hpa'] ?? ''),
-            (string)($d['dco'] ?? ''),
-            (string)($d['sed_status'] ?? ''),
-            (string)($d['reallocsectorspost'] ?? ''),
-            (string)($d['selftest'] ?? ''),
-            (string)($d['start_time'] ?? ''),
-            (string)($d['end_time'] ?? ''),
-            (string)($d['duration_secs'] ?? ''),
-            (string)($d['tool_version'] ?? ''),
-            (string)($d['operator'] ?? ''),
-            (string)($d['validator'] ?? ''),
-            (string)($d['media_source'] ?? ''),
-            (string)($d['media_destination'] ?? ''),
-        ]);
+        $vals = [$dbCertId];
+        foreach ($map as $groupKey) {
+            $vals[] = (string)($d[$groupKey] ?? '');
+        }
+        $dq->execute($vals);
     }
 }
 
@@ -1040,6 +1066,9 @@ function db_drive_to_group(array $d): array {
         'lock_kind' => (string)($d['lock_kind'] ?? ''),
         'ppi_requested' => (string)($d['ppi_requested'] ?? ''),
         'ppi_cleared'   => (string)($d['ppi_cleared'] ?? ''),
+        'standard'      => (string)($d['standard'] ?? ''),
+        'passes'        => (string)($d['passes'] ?? ''),
+        'erase_engine'  => (string)($d['erase_engine'] ?? ''),
     ];
 }
 
@@ -2596,6 +2625,34 @@ function attested_counts(array $certIds): array
     return $out;
 }
 
+/**
+ * Fleet counters for the Devices tiles, over the CURRENT filtered list.
+ *
+ * Pure so it can be unit tested: the tiles are the first thing an operator
+ * reads, and a wrong "erasing" or "attested" count is invisible in the rows
+ * below it. An attested record never carries live telemetry, so it is counted
+ * only as attested — never also as offline/online — otherwise a job of 24
+ * attested units reads as 24 offline machines.
+ *
+ * @param array<int,array<string,mixed>> $list
+ * @return array{total:int,online:int,offline:int,erasing:int,failed:int,attested:int}
+ */
+function devices_summary(array $list): array {
+    $summary = ['total' => count($list), 'online' => 0, 'offline' => 0, 'erasing' => 0, 'failed' => 0, 'attested' => 0];
+    foreach ($list as $d) {
+        if (!empty($d['attested'])) { $summary['attested']++; continue; }
+        if (!empty($d['online'])) {
+            $summary['online']++;
+            $phase = is_array($d['erasure'] ?? null) ? (string)($d['erasure']['phase'] ?? '') : '';
+            if ($phase === 'wiping') { $summary['erasing']++; }
+            if ($phase === 'failed') { $summary['failed']++; }
+        } else {
+            $summary['offline']++;
+        }
+    }
+    return $summary;
+}
+
 function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
@@ -2606,6 +2663,10 @@ function load_devices(int $userId, ?array $query = null): array {
     $onlyKeys = null;
     $total = 0;
     $attestedTotal = 0;
+    // Fleet-wide counts for the dashboard's summary strip. Computed from the
+    // (optionally search-filtered) candidate list, because only that list has
+    // presence folded in; the page slice below is far too small to count from.
+    $summary = null;
     if ($query !== null) {
         $q = trim((string)($query['q'] ?? ''));
         $page = max(1, (int)($query['page'] ?? 1));
@@ -2696,6 +2757,7 @@ function load_devices(int $userId, ?array $query = null): array {
         // Attested rows in the *filtered* result, so the figure describes what the
         // search box is showing rather than the account-wide total.
         $attestedTotal = count(array_filter($list, static fn($d) => !empty($d['attested'])));
+        $summary = devices_summary($list);
         $onlyKeys = [];
         foreach (array_slice($list, ($page - 1) * $per, $per) as $d) {
             $onlyKeys[] = $d['_key'];
@@ -3115,7 +3177,7 @@ function load_devices(int $userId, ?array $query = null): array {
     // `total` already counts attested units (they are candidates). The separate
     // figure lets the page say how many of the rows are attestations rather than
     // letting a destroyed phone quietly inflate the scanned-fleet count.
-    return ['devices' => $ordered, 'total' => $total, 'attested_total' => $attestedTotal];
+    return ['devices' => $ordered, 'total' => $total, 'attested_total' => $attestedTotal, 'summary' => $summary];
 }
 
 /**

@@ -36,6 +36,8 @@
     </div>
   </nav>
 
+  <main id="main-content" tabindex="-1">
+
   <section class="mx-auto max-w-7xl px-4 py-16">
     <div class="mx-auto max-w-3xl text-center">
       <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">Documentation</h1>
@@ -47,21 +49,21 @@
       <aside class="hidden lg:block">
         <nav class="sticky top-24 space-y-7 text-sm" aria-label="Documentation table of contents">
           <div>
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Get started</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Get started</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
               <li><a href="#quickstart" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">1. Quick start</a></li>
               <li><a href="#requirements" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">2. System requirements</a></li>
             </ul>
           </div>
           <div>
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Download &amp; run</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Download &amp; run</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
               <li><a href="#download" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">3. Download the appliance</a></li>
               <li><a href="#run" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">4. Run a sanitisation job</a></li>
             </ul>
           </div>
           <div>
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Deploy</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Deploy</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
               <li><a href="#boot-usb" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">5. Boot from USB</a></li>
               <li><a href="#boot-pxe" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">6. Boot over the network (PXE)</a></li>
@@ -69,7 +71,7 @@
             </ul>
           </div>
           <div>
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Reports</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Reports</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
               <li><a href="#report" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">8. The report</a></li>
               <li><a href="#verify" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">9. Verify a report</a></li>
@@ -77,7 +79,7 @@
             </ul>
           </div>
           <div>
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Reference</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Reference</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
               <li><a href="#licensing" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">11. Licensing</a></li>
               <li><a href="#media" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">12. Supported media</a></li>
@@ -85,7 +87,7 @@
             </ul>
           </div>
           <div>
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Dashboard</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Dashboard</p>
             <ul class="mt-3 space-y-2 border-l border-slate-200 dark:border-ink-700 pl-4">
               <li><a href="#dashboard" class="block text-slate-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-white">14. Devices, remote commands &amp; organisations</a></li>
             </ul>
@@ -175,7 +177,7 @@
             <div id="boot-usb">
               <h2 class="text-xl font-bold text-ink-900 dark:text-white">5. Boot the appliance from USB</h2>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~166 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
-              <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:text-emerald-300"><span class="font-semibold">Secure Boot supported:</span> the appliance boots with UEFI Secure Boot on, via a signed shim + MOK chain. On the <strong>first</strong> boot on a machine, shim opens <strong>MokManager</strong> — choose <em>Enroll MOK → Continue → Yes</em>, then reboot. After that it boots normally. (You can also simply disable Secure Boot or enable CSM/Legacy boot.)</p>
+              <p class="mt-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 p-3 text-sm text-emerald-900 dark:text-emerald-300"><span class="font-semibold">Secure Boot supported:</span> the appliance boots with UEFI Secure Boot on, via a signed shim + MOK chain. On the <strong>first</strong> boot on a machine, shim opens <strong>MokManager</strong> — choose <em>Enroll MOK → Continue → Yes</em>, then reboot. After that it boots normally. (You can also simply disable Secure Boot or enable CSM/Legacy boot.)</p>
 
               <div class="mt-5" data-ostabs>
                 <div class="border-b border-slate-200 dark:border-ink-700">
@@ -185,7 +187,11 @@
                     <li role="presentation"><button type="button" data-ostab data-ostab-target="#boot-usb-linux" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500 dark:text-slate-400" role="tab" aria-selected="false" aria-controls="boot-usb-linux">Linux / Unix</button></li>
                   </ul>
                 </div>
-                <div class="grid pt-4">
+                <!-- One cell, panels stacked: the visible one must be able to shrink
+                     below its content (`[&>*]:min-w-0`), otherwise the widest
+                     <pre> in a HIDDEN panel sets the column width and the whole
+                     page overflows on a phone. -->
+                <div class="grid pt-4 [&>*]:min-w-0">
                   <div id="boot-usb-win" data-ostab-panel role="tabpanel" aria-labelledby="boot-usb-win" class="col-start-1 row-start-1 visible">
                     <ol class="list-decimal space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
                       <li>Insert a USB stick (4 GB or larger — its contents will be erased).</li>
@@ -238,7 +244,7 @@ boot</pre>
                     <li role="presentation"><button type="button" data-ostab data-ostab-target="#get-img-linux" class="inline-block border-b-2 border-transparent px-4 py-2 text-slate-500 dark:text-slate-400" role="tab" aria-selected="false" aria-controls="get-img-linux">Linux / Unix</button></li>
                   </ul>
                 </div>
-                <div class="grid pt-4">
+                <div class="grid pt-4 [&>*]:min-w-0">
                   <div id="get-img-win" data-ostab-panel role="tabpanel" aria-labelledby="get-img-win" class="col-start-1 row-start-1 visible">
                     <p class="text-sm text-slate-600 dark:text-slate-400">Open the ISO with <a href="https://www.7-zip.org" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">7-Zip</a> (7-Zip opens ISO files as archives): right-click the downloaded ISO → <span class="font-semibold">7-Zip → Open archive</span>, then drag <code class="font-mono">boot\bzImage</code> out to a folder. Copy it to your HTTP server (e.g. via WinSCP/scp) as <code class="font-mono">bzImage</code>.</p>
                   </div>
@@ -287,6 +293,8 @@ umount /mnt/iso</pre>
               <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">On the <a href="/dashboard/licences" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">Licences</a> page you can download a ready-made <code class="font-mono">tscrub.conf</code> preconfigured with your appliance upload token — just drop it on the stick.</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tscrub_api_token=YOUR-64-HEX-TOKEN
 tscrub_verify=sampled
+tscrub_method=zero
+tscrub_passes=1
 tscrub_hpa=on
 tscrub_cocid=12345
 tscrub_license_url=http://192.168.1.10/Acme-ITAD-Ltd-2027-09-12.lic
@@ -312,7 +320,7 @@ tscrub_media_destination=resale</pre>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-ink-900 p-4 font-mono text-xs text-slate-200">tScrub_48213_20260912T103000Z.csv    # human-readable report (one row per drive)
 tScrub_48213_20260912T103000Z.json   # manifest (SHA-256, public key, drive summary)
 tScrub_48213_20260912T103000Z.csv.sig  # base64 Ed25519 signature (vendor key on paid, appliance key on free)</pre>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The CSV records one row per drive: identity (<code class="font-mono">Model, Serial, Size, Bus, Type, Device</code>), the outcome (<code class="font-mono">Class, Certification, Method, FinalStatus</code>), SMART before and after (<code class="font-mono">SMART … PowerOnHoursPost</code>), hidden-area state (<code class="font-mono">HPA, DCO, HPAResult, DCOResult</code>), the verification outcome (<code class="font-mono">Verify, VerifySectors, VerifyResult</code>), the reuse formatting (<code class="font-mono">Format, FormatFS, FormatScheme, FormatLabel, FormatResult</code>), the lock handling (<code class="font-mono">FreezeLock, BlockSID, FLRAttempts, PSIDRevert, LockKind, PPIRequested, PPICleared, PPIResumed</code>), and the machine profile (<code class="font-mono">System, SystemSerial, BaseboardSerial, CPU, GPU, RAM</code>) repeated on every row.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The CSV records one row per drive: identity (<code class="font-mono">Model, Serial, Size, Bus, Type, Device</code>), the outcome (<code class="font-mono">Class, Certification, Method, FinalStatus</code>), SMART before and after (<code class="font-mono">SMART … PowerOnHoursPost</code>), hidden-area state (<code class="font-mono">HPA, DCO, HPAResult, DCOResult</code>), the verification outcome (<code class="font-mono">Verify, VerifySectors, VerifyResult</code>), the software-overwrite provenance (<code class="font-mono">Standard, Passes, EraseEngine</code>), the reuse formatting (<code class="font-mono">Format, FormatFS, FormatScheme, FormatLabel, FormatResult</code>), the lock handling (<code class="font-mono">FreezeLock, BlockSID, FLRAttempts, PSIDRevert, LockKind, PPIRequested, PPICleared, PPIResumed</code>), and the machine profile (<code class="font-mono">System, SystemSerial, BaseboardSerial, CPU, GPU, RAM</code>) repeated on every row.</p>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The erasure report is only one of two reports tScrub writes. At <strong>boot</strong>, before any wipe, tScrub captures a <strong>hardware diagnostics report</strong> — the full machine profile (system and board serials, SKU/asset tag, BIOS, motherboard, TPM, Secure Boot, CPU spec, per-DIMM memory, display panel, Wi-Fi adapter, battery) plus a per-drive inventory (firmware, sector size, SMART health, self-test result, reallocated sectors). It is delivered to the same destinations as the erasure report (USB, dashboard, or LAN) and renders as a printable two-page ITAD triage PDF on the dashboard's <a href="/dashboard/devices" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">Devices tab</a>.</p>
 
               <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Drive final status</h3>
@@ -467,6 +475,8 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_hpa=on|off</td><td class="px-6 py-3">Remove HPA/DCO hidden areas before erasure (on by default). Set <code class="font-mono">off</code> to skip.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">on</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_flr=auto|forced|disabled</td><td class="px-6 py-3">Freeze-lock removal before erasure. <code class="font-mono">auto</code> (default) suspends/resumes to clear ATA/NVMe freeze locks; <code class="font-mono">forced</code> escalates the final attempt to a longer suspend; <code class="font-mono">disabled</code> skips FLR entirely.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">auto</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_nvme_software_fallback=auto|off</td><td class="px-6 py-3">When an NVMe sanitize/format is rejected for a non-lockdown reason, fall back to a single-pass software overwrite (<code class="font-mono">nwipe</code>) recorded as Clear (default <code class="font-mono">auto</code>; <code class="font-mono">off</code> fails the drive as before).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">auto</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_method=zero|random|dod|dodshort|gutmann|is5enh</td><td class="px-6 py-3">Standard used by the software-overwrite fallback only (firmware erase is unaffected). An overwrite is recorded as Clear, never Purge.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">zero</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">tscrub_passes=1..64</td><td class="px-6 py-3">Repetitions of the selected standard (nwipe <code class="font-mono">--rounds</code>). The report records the resulting pass count.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">1</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_operator=NAME</td><td class="px-6 py-3">Optional — erasure technician recorded on the report (single token — use <code class="font-mono">tscrub.conf</code> for names with spaces). When omitted, the certificate's "Generated by" line falls back to the account holder who generated it.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">account holder</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_validator=NAME</td><td class="px-6 py-3">Validation official recorded on the report (single token — use <code class="font-mono">tscrub.conf</code> for names with spaces).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">—</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">tscrub_asset_tag=TAG</td><td class="px-6 py-3">Asset tag recorded on the report (overrides the firmware chassis asset tag).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">firmware asset tag</td></tr>
@@ -508,6 +518,8 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><td class="px-6 py-3 font-mono text-xs">--hpa on|off</td><td class="px-6 py-3">Remove HPA/DCO hidden areas before erasure (default on).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">on</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--flr auto|forced|disabled</td><td class="px-6 py-3">Freeze-lock removal before erasure (default auto).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">auto</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--nvme-software-fallback auto|off</td><td class="px-6 py-3">When an NVMe sanitize/format is rejected for a non-lockdown reason, fall back to a single-pass software overwrite (<code class="font-mono">nwipe</code>) recorded as Clear (default <code class="font-mono">auto</code>; <code class="font-mono">off</code> fails the drive as before).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">auto</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--method zero|random|dod|dodshort|gutmann|is5enh</td><td class="px-6 py-3">Standard for the software-overwrite fallback (DoD 5220.22-M, DoD Short, Gutmann, HMG IS5 Enhanced, PRNG or zero fill). Default <code class="font-mono">zero</code>.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">zero</td></tr>
+                    <tr><td class="px-6 py-3 font-mono text-xs">--passes N</td><td class="px-6 py-3">Repetitions of that standard, 1..64 (maps to nwipe <code class="font-mono">--rounds</code>).</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">1</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--dry-run, -n</td><td class="px-6 py-3">Discover and classify drives without wiping anything.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">off</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--simulate-running-eta=MINUTES</td><td class="px-6 py-3">With <code class="font-mono">--dry-run</code>, simulate a running job's live progress.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">off</td></tr>
                     <tr><td class="px-6 py-3 font-mono text-xs">--help, -h</td><td class="px-6 py-3">Print usage.</td><td class="px-6 py-3 font-mono text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">—</td></tr>
@@ -562,6 +574,8 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
       </div>
     </div>
   </section>
+
+  </main>
 
   <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
     <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">

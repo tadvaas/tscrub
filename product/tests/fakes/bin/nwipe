@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
+# Real nwipe installs a SIGUSR1 handler for progress; the fake must survive the
+# pump too, otherwise a fast no-op-sleep test kills it before it can log.
+trap '' USR1
 # Optional invocation log — tests assert nwipe was/wasn't called with an arg.
 [[ -n "${FAKE_NWIPE_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_NWIPE_LOG"
 
+if [[ "$1" == "--version" ]]; then
+    printf 'nwipe version 0.41\n'
+    exit 0
+fi
+
 if [[ "$1" == "--help" ]]; then
-    printf 'nwipe usage... --nogui --logfile=FILE ...\n'
+    printf 'nwipe usage... --nogui --logfile=FILE --method=METHOD --rounds=N ...\n'
     exit 0
 fi
 
@@ -20,7 +28,9 @@ done
 dev="${FAKE_NWIPE_DEV:-sda}"
 pct="${FAKE_NWIPE_PROGRESS:-0}"
 eta="${FAKE_NWIPE_ETA:-00:00:01}"
-line="/dev/${dev}: ${pct}.00%, round 1 of 1, pass 1 of 1, eta ${eta}, [writing]"
+rounds="${FAKE_NWIPE_ROUNDS:-1}"
+pass_total="${FAKE_NWIPE_PASS_TOTAL:-1}"
+line="/dev/${dev}: ${pct}.00%, round 1 of ${rounds}, pass 1 of ${pass_total}, eta ${eta}, [writing]"
 if [[ -n "$logfile" ]]; then
     printf '%s\n' "$line" >> "$logfile"
 else

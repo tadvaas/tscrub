@@ -573,7 +573,7 @@ device::classify() {
         CAP_SCSI_NWIPE)
             devrow["$dev.class"]="CLEAR"
             devrow["$dev.cert"]="SANITISATION"
-            devrow["$dev.method"]="nwipe Quick"
+            devrow["$dev.method"]="$(nwipe::method_label "${TS_NWIPE_METHOD:-zero}")"
             ;;
 
         CAP_SCSI_SANITIZE)

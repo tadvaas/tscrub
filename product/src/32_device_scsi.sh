@@ -2,10 +2,83 @@
 # DEVICE SCSI
 # =============================================================================
 
+# --- nwipe software-overwrite standards -------------------------------------
+# nwipe v0.41 is the bundled engine (pinned in the image; src/version.c).
+# These standards apply ONLY to the software-overwrite fallback. Firmware erase
+# (ATA secure erase / NVMe sanitize / SCSI SANITIZE) is the default path and
+# is unaffected.
+nwipe::method_valid() {
+    case "${1:-}" in
+        zero|random|dod|dodshort|gutmann|is5enh) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# tScrub name -> nwipe --method= value (nwipe v0.41's accepted spellings).
+nwipe::method_arg() {
+    case "${1:-zero}" in
+        zero)     printf '%s' "zero" ;;
+        random)   printf '%s' "random" ;;
+        dod)      printf '%s' "dod522022m" ;;
+        dodshort) printf '%s' "dodshort" ;;
+        gutmann)  printf '%s' "gutmann" ;;
+        is5enh)   printf '%s' "is5enh" ;;
+        *)        printf '%s' "zero" ;;
+    esac
+}
+
+# Human label. Keep <= 20 chars: the TUI METHOD column is 20 wide.
+nwipe::method_label() {
+    case "${1:-zero}" in
+        zero)     printf '%s' "Zero fill" ;;
+        random)   printf '%s' "PRNG stream" ;;
+        dod)      printf '%s' "DoD 5220.22-M" ;;
+        dodshort) printf '%s' "DoD Short" ;;
+        gutmann)  printf '%s' "Gutmann" ;;
+        is5enh)   printf '%s' "HMG IS5 Enhanced" ;;
+        *)        printf '%s' "Zero fill" ;;
+    esac
+}
+
+# Patterns (writes) per round, from nwipe v0.41's method table. The run's own
+# log line ("pass P of Q, round R of N") overrides this when it appears.
+nwipe::method_patterns() {
+    case "${1:-zero}" in
+        dod)             printf '%s' 7 ;;
+        dodshort|is5enh) printf '%s' 3 ;;
+        gutmann)         printf '%s' 35 ;;
+        *)               printf '%s' 1 ;;
+    esac
+}
+
+# Engine version, e.g. "0.41". Empty when it cannot be read; never invented.
+# `--version` is a supported long option in nwipe 0.41 (prints "nwipe version
+# 0.41"), so this cannot start a wipe.
+nwipe::version() {
+    local out=""
+    command -v nwipe >/dev/null 2>&1 || return 0
+    out="$(nwipe --version 2>/dev/null | head -n 1 || true)"
+    if [[ "$out" =~ ([0-9]+\.[0-9]+(\.[0-9]+)?) ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
+    fi
+}
+
+# Engine name + version for reports: "nwipe 0.41", or just "nwipe".
+nwipe::eraser() {
+    local v
+    v="$(nwipe::version)"
+    if [[ -n "$v" ]]; then
+        printf 'nwipe %s' "$v"
+    else
+        printf 'nwipe'
+    fi
+}
 
 device::exec_nwipe() {
     local dev="$1"
     local nwipe_help logfile rc line pct eta_sec
+    local method label patterns passes eraser version
+    local rounds_total=0 pass_total=0
     local -a nwipe_cmd
     local nwipe_pid pump_pid tail_pid
 
@@ -15,13 +88,40 @@ device::exec_nwipe() {
         return
     fi
 
-    echo "$dev STATUS RUNNING" >&3
-    echo "$dev LOG Nwipe quick operation started" >&3
+    method="${TS_NWIPE_METHOD:-zero}"
+    passes="${TS_NWIPE_PASSES:-1}"
+    if ! nwipe::method_valid "$method"; then
+        echo "$dev LOG unknown software-overwrite method '$method'; using zero" >&3
+        method="zero"
+    fi
+    if ! [[ "$passes" =~ ^[0-9]+$ ]] || (( passes < 1 || passes > 64 )); then
+        passes=1
+    fi
+    label="$(nwipe::method_label "$method")"
+    patterns="$(nwipe::method_patterns "$method")"
+    version="$(nwipe::version)"
+    eraser="nwipe"
+    [[ -n "$version" ]] && eraser="nwipe $version"
 
-    nwipe_cmd=(nwipe --autonuke --method=zero)
+    echo "$dev STATUS RUNNING" >&3
+    # The attempt is recorded before the wipe so the report still names the
+    # standard if the worker dies mid-pass. A failed run keeps these fields and
+    # ends FAILED, which normalize_outcome labels honestly.
+    echo "$dev METHOD $label" >&3
+    echo "$dev STANDARD $method" >&3
+    echo "$dev PASSES $(( passes * patterns ))" >&3
+    echo "$dev ERASER $eraser" >&3
+    echo "$dev LOG software overwrite started ($label, $passes round(s), $eraser)" >&3
+
+    nwipe_cmd=(nwipe --autonuke "--method=$(nwipe::method_arg "$method")")
     nwipe_help="$(nwipe --help 2>&1 || true)"
     if grep -q -- '--nogui' <<<"$nwipe_help"; then
         nwipe_cmd+=(--nogui)
+    fi
+    # Only pass --rounds when asked: the default argv stays exactly as before
+    # (nwipe's own default is one round), so unconfigured fleets are unchanged.
+    if (( passes > 1 )); then
+        nwipe_cmd+=("--rounds=$passes")
     fi
     # nwipe --nogui only logs progress when signalled (SIGUSR1). A --logfile is
     # flushed per line, so we can follow it live: run nwipe in the background,
@@ -58,8 +158,14 @@ device::exec_nwipe() {
     while kill -0 "$nwipe_pid" 2>/dev/null; do
         size=$(wc -c < "$logfile" 2>/dev/null || echo 0)
         if (( size > offset )); then
-            tail -c +$((offset + 1)) "$logfile" 2>/dev/null | while IFS= read -r line; do
+            # Process substitution (not a pipe) so the pass/round counters below
+            # survive the loop: a pipeline runs the body in a subshell.
+            while IFS= read -r line; do
                 echo "$line" >&5
+                if [[ "$line" =~ round[[:space:]]+([0-9]+)[[:space:]]+of[[:space:]]+([0-9]+),[[:space:]]+pass[[:space:]]+([0-9]+)[[:space:]]+of[[:space:]]+([0-9]+) ]]; then
+                    rounds_total="${BASH_REMATCH[2]}"
+                    pass_total="${BASH_REMATCH[4]}"
+                fi
                 if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
                     pct="${BASH_REMATCH[1]}"
                     if [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]]; then
@@ -68,7 +174,7 @@ device::exec_nwipe() {
                     fi
                     echo "$dev STATUS ${pct}%" >&3
                 fi
-            done
+            done < <(tail -c +$((offset + 1)) "$logfile" 2>/dev/null)
             offset=$size
         fi
         sleep 1
@@ -76,8 +182,12 @@ device::exec_nwipe() {
 
     wait "$nwipe_pid"; rc=$?
     # Drain any lines written between the last poll and nwipe's exit.
-    tail -c +$((offset + 1)) "$logfile" 2>/dev/null | while IFS= read -r line; do
+    while IFS= read -r line; do
         echo "$line" >&5
+        if [[ "$line" =~ round[[:space:]]+([0-9]+)[[:space:]]+of[[:space:]]+([0-9]+),[[:space:]]+pass[[:space:]]+([0-9]+)[[:space:]]+of[[:space:]]+([0-9]+) ]]; then
+            rounds_total="${BASH_REMATCH[2]}"
+            pass_total="${BASH_REMATCH[4]}"
+        fi
         if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
             pct="${BASH_REMATCH[1]}"
             if [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]]; then
@@ -86,7 +196,16 @@ device::exec_nwipe() {
             fi
             echo "$dev STATUS ${pct}%" >&3
         fi
-    done
+    done < <(tail -c +$((offset + 1)) "$logfile" 2>/dev/null)
+    # nwipe's own log is authoritative for the physical pass count: prefer it
+    # over the static table when it reports a sane round/pass pair.
+    if [[ "$rounds_total" =~ ^[0-9]+$ && "$pass_total" =~ ^[0-9]+$ ]] \
+        && (( rounds_total > 0 && pass_total > 0 )); then
+        local seen_total=$(( rounds_total * pass_total ))
+        if (( seen_total != passes * patterns )); then
+            echo "$dev PASSES $seen_total" >&3
+        fi
+    fi
     kill "$pump_pid" 2>/dev/null || true
     wait "$pump_pid" 2>/dev/null || true
     rm -f "$logfile"
@@ -95,7 +214,7 @@ device::exec_nwipe() {
         device::emit_status "$dev" COMPLETED
     else
         device::emit_status "$dev" FAILED
-        echo "$dev LOG nwipe quick operation failed; manual physical destruction required" >&3
+        echo "$dev LOG software overwrite failed; manual physical destruction required" >&3
     fi
 }
 
@@ -124,7 +243,6 @@ device::exec_scsi_sanitize() {
         # Tool vanished since detection — degrade to nwipe honestly. The
         # outcome travels over the fd-3 IPC pipe (this runs in the wipe
         # worker's subshell, where direct devrow writes would be lost).
-        echo "$dev METHOD nwipe Quick" >&3
         echo "$dev CLASS CLEAR" >&3
         echo "$dev CERT SANITISATION" >&3
         device::exec_nwipe "$dev"
@@ -162,7 +280,6 @@ device::exec_scsi_sanitize() {
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE unsupported -> nwipe" >> "$LOG_FILE"
         # Correct the outcome over the fd-3 IPC pipe (same reason as the
         # tool-vanished branch above — direct devrow writes are lost here).
-        echo "$dev METHOD nwipe Quick" >&3
         echo "$dev CLASS CLEAR" >&3
         echo "$dev CERT SANITISATION" >&3
         device::exec_nwipe "$dev"

@@ -226,6 +226,9 @@ function jsonld_normalize_drive(array $d): array {
         'format_label'   => jsonld_na((string)($d['format_label'] ?? '')),
         'format_result'  => jsonld_na((string)($d['format_result'] ?? '')),
         'format_confirm' => jsonld_na((string)($d['format_confirm'] ?? '')),
+        'standard'       => jsonld_na((string)($d['standard'] ?? '')),
+        'passes'         => jsonld_na((string)($d['passes'] ?? '')),
+        'erase_engine'   => jsonld_na((string)($d['erase_engine'] ?? '')),
         'psid_revert'   => jsonld_na((string)($d['psid_revert'] ?? '')),
         'ppi_requested' => jsonld_na((string)($d['ppi_requested'] ?? '')),
         'ppi_cleared'   => jsonld_na((string)($d['ppi_cleared'] ?? '')),
@@ -242,6 +245,7 @@ function jsonld_drive(array $norm): array {
         'sed_status', 'reallocsectorspost', 'selftest', 'tool_version', 'operator',
         'validator', 'media_source', 'media_destination',
         'format_fs', 'format_scheme', 'format_label', 'format_result', 'format_confirm',
+        'standard', 'passes', 'erase_engine',
         'psid_revert', 'ppi_requested', 'ppi_cleared',
     ] as $k) {
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }
@@ -471,14 +475,12 @@ function jsonld_write(string $json, string $certId): string {
 }
 
 function jsonld_load_drives(int $certId): array {
+    // SELECT * deliberately: this function may run on an install whose
+    // certificate_drives table predates a column added by the reports
+    // migration. Naming a missing column would break /verify; the normaliser
+    // already fills absent keys with N/A.
     $stmt = db()->prepare(
-        'SELECT ts, device, type, model, serial, size, bus, class, method, certification, final_status,
-                system_name, system_serial, baseboard_serial,
-                smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb,
-                smartpost, tempcpost, poweronhourspost,
-                firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest,
-                start_time, end_time, duration_secs, tool_version, operator, validator, media_source, media_destination
-         FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
+        'SELECT * FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
     );
     $stmt->execute([$certId]);
     return $stmt->fetchAll();

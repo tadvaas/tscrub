@@ -125,6 +125,10 @@ CREATE TABLE IF NOT EXISTS certificate_drives (
   validator        VARCHAR(128)    NOT NULL DEFAULT '',
   media_source     VARCHAR(128)    NOT NULL DEFAULT '',
   media_destination VARCHAR(128)   NOT NULL DEFAULT '',
+  -- Software-overwrite provenance (fallback paths only; blank otherwise).
+  standard         VARCHAR(32)     NOT NULL DEFAULT '',
+  passes           VARCHAR(16)     NOT NULL DEFAULT '',
+  erase_engine     VARCHAR(64)     NOT NULL DEFAULT '',
   -- Manual (attested) destruction: see research/manual-destruction/README.md.
   -- 'report' rows are appliance evidence; 'manual' rows are operator attestations.
   source              VARCHAR(16)   NOT NULL DEFAULT 'report',

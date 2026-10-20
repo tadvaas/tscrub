@@ -59,7 +59,10 @@ exec 3>&-
 captured="$(cat "$OUT")"; rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "unsupported sanitize -> nwipe COMPLETED"
 t::assert_contains "$captured" "falling back to nwipe" "fallback logged"
-t::assert_contains "$captured" "sda METHOD nwipe Quick" "fallback emits METHOD over IPC"
+t::assert_contains "$captured" "sda METHOD Zero fill" "fallback emits the standard label over IPC"
+t::assert_contains "$captured" "sda STANDARD zero" "fallback emits STANDARD over IPC"
+t::assert_contains "$captured" "sda PASSES 1" "fallback emits PASSES over IPC"
+t::assert_contains "$captured" "sda ERASER nwipe 0.41" "fallback emits the engine+version"
 t::assert_contains "$captured" "sda CLASS CLEAR" "fallback emits CLASS over IPC"
 t::assert_contains "$captured" "sda CERT SANITISATION" "fallback emits CERT over IPC"
 unset FAKE_SG_SANITIZE_RC FAKE_SG_SANITIZE_OUT FAKE_NWIPE_RC

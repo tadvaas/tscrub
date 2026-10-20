@@ -40,6 +40,7 @@ for d in "${devices[@]}"; do
     devrow[$d.device]="$d"
 done
 devrow[nvme0n1.status]="COMPLETED"; devrow[nvme0n1.method]="NVMe Crypto Purge"; devrow[nvme0n1.cert]="DESTRUCTION"
+devrow[nvme0n1.standard]="dodshort"; devrow[nvme0n1.passes]="3"; devrow[nvme0n1.eraser]="nwipe 0.41"
 devrow[sda.status]="FROZEN"; devrow[sda.method]=""; devrow[sda.cert]="PHYS_DESTR"
 
 csv="$(report::csv)"
@@ -56,6 +57,9 @@ t::check "CSV header includes asset columns" 'head -n1 "$csv" | grep -q "SKU,Ass
 t::check "CSV header includes personnel columns" 'head -n1 "$csv" | grep -q "Operator,Validator,MediaSource,MediaDestination"'
 t::check "CSV header includes verify columns" 'head -n1 "$csv" | grep -q "Verify,VerifySectors,VerifyResult"'
 t::check "CSV header includes RAID column" 'head -n1 "$csv" | grep -q ",RAID"'
+t::check "CSV header includes software-overwrite columns" 'head -n1 "$csv" | grep -q "Standard,Passes,EraseEngine"'
+t::check "CSV row carries software-overwrite provenance" 'grep -q "\"dodshort\",\"3\",\"nwipe 0.41\"" "$csv"'
+t::check "manifest carries software-overwrite provenance" 'grep -q "\"standard\": \"dodshort\"" "$manifest" && grep -q "\"passes\": \"3\"" "$manifest" && grep -q "\"erase_engine\": \"nwipe 0.41\"" "$manifest"'
 hdr_cols="$(head -n1 "$csv" | awk -F, '{print NF}')"
 row_cols="$(sed -n '2p' "$csv" | awk -F, '{print NF}')"
 t::check "CSV data row column count matches header ($hdr_cols)" '[ "$hdr_cols" = "$row_cols" ]'

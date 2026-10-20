@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,Standard,Passes,EraseEngine"
         for dev in "${devices[@]}"; do
             local st en dur sed_status ppi_cleared
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -112,7 +112,8 @@ report::csv() {
                 "${devrow[$dev.format_label]:-}" "${devrow[$dev.format_result]:-n/a}" "${devrow[$dev.format_confirm]:-}" \
                 "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}" \
                 "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}" \
-                "${devrow[$dev.ppi_requested]:-no}" "$ppi_cleared" "${devrow[$dev.ppi_resumed]:-no}"
+                "${devrow[$dev.ppi_requested]:-no}" "$ppi_cleared" "${devrow[$dev.ppi_resumed]:-no}" \
+                "${devrow[$dev.standard]:-}" "${devrow[$dev.passes]:-}" "${devrow[$dev.eraser]:-}"
         done
     } > "$report_file"
 
@@ -282,6 +283,22 @@ report::sign() {
         printf '  "format": "%s",\n' "$(report::_json_field "${FORMAT_MODE:-auto}")"
         printf '  "format_policy": "exfat>32GiB,fat32<=32GiB,mbr-first",\n'
         printf '  "hpa": "%s",\n' "$(report::_json_field "${HPA_MODE:-on}")"
+        # Software-overwrite provenance. Written only when at least one drive
+        # actually took the fallback: a firmware-only run must not name a
+        # software standard it never used.
+        local _sw_std="" _sw_passes="" _swdev=""
+        for _swdev in "${devices[@]}"; do
+            if [[ -n "${devrow[$_swdev.standard]:-}" ]]; then
+                _sw_std="${devrow[$_swdev.standard]}"
+                _sw_passes="${devrow[$_swdev.passes]:-}"
+                break
+            fi
+        done
+        if [[ -n "$_sw_std" ]]; then
+            printf '  "standard": "%s",\n' "$(report::_json_field "$_sw_std")"
+            printf '  "passes": "%s",\n' "$(report::_json_field "$_sw_passes")"
+            printf '  "erase_engine": "%s",\n' "$(report::_json_field "$(nwipe::eraser)")"
+        fi
         printf '  "selected": %s,\n' "$(report::selected_count)"
         printf '  "skipped": %s\n' "$(report::skipped_count)"
         printf '}\n'
@@ -598,6 +615,22 @@ config::load_usb() {
                         tscrub_verify)
                             [[ -z "${VERIFY_MODE:-}" ]] && VERIFY_MODE="$val"
                             CONFIG_USB_DEBUG+="  tscrub_verify: set"$'\n'
+                            ;;
+                        tscrub_method)
+                            if ! nwipe::method_valid "$val"; then
+                                echo "[!] tscrub.conf: unsupported tscrub_method='$val' (zero|random|dod|dodshort|gutmann|is5enh)" >&2
+                                exit 1
+                            fi
+                            [[ -z "${TS_NWIPE_METHOD:-}" ]] && TS_NWIPE_METHOD="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_method: set"$'\n'
+                            ;;
+                        tscrub_passes)
+                            if ! [[ "$val" =~ ^[0-9]+$ ]] || (( 10#$val < 1 || 10#$val > 64 )); then
+                                echo "[!] tscrub.conf: tscrub_passes='$val' must be an integer 1..64" >&2
+                                exit 1
+                            fi
+                            [[ -z "${TS_NWIPE_PASSES:-}" ]] && TS_NWIPE_PASSES="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_passes: set"$'\n'
                             ;;
                         tscrub_hpa)
                             [[ -z "${HPA_MODE:-}" ]] && HPA_MODE="$val"

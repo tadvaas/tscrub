@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.69"
+SCRIPT_VERSION="v1.11.70"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -33,6 +33,14 @@ TS_RETRY_PURGE=1
 #   TS_NVME_SOFTWARE_FALLBACK auto | off   (auto = nwipe fallback when sanitize/
 #   format is rejected for a non-Block-SID reason; off = fail the drive as before)
 TS_NVME_SOFTWARE_FALLBACK=auto
+# Software-overwrite standard. Applies ONLY when a firmware erase is
+# unavailable (SCSI without SANITIZE, NVMe rejecting sanitize/format).
+#   TS_NWIPE_METHOD  zero | random | dod | dodshort | gutmann | is5enh
+#   TS_NWIPE_PASSES  1..64   (repetitions of the selected standard)
+# Left unset so tscrub.conf can fill them (CLI and kernel cmdline still win);
+# the effective default is applied at the use sites.
+TS_NWIPE_METHOD_SET=0
+TS_NWIPE_PASSES_SET=0
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -877,11 +885,13 @@ ipc::close() {
 }
 
 parse_args() {
-    local arg mins
+    local arg mins v
 
     # Kernel-cmdline defaults first, so explicit CLI flags below win.
     cmdline::flr || true
     cmdline::nvme_software_fallback || true
+    cmdline::nwipe_method || true
+    cmdline::nwipe_passes || true
 
     while (($# > 0)); do
         arg="$1"
@@ -914,6 +924,40 @@ parse_args() {
                 ;;
             --verify=*)
                 VERIFY_MODE="${arg#*=}"
+                ;;
+            --method)
+                shift
+                [[ $# -gt 0 ]] || { echo "--method requires zero|random|dod|dodshort|gutmann|is5enh"; exit 1; }
+                if ! nwipe::method_valid "$1"; then
+                    echo "Unknown --method '$1' (zero|random|dod|dodshort|gutmann|is5enh)"; exit 1
+                fi
+                TS_NWIPE_METHOD="$1"
+                TS_NWIPE_METHOD_SET=1
+                ;;
+            --method=*)
+                v="${arg#*=}"
+                if ! nwipe::method_valid "$v"; then
+                    echo "Unknown --method '$v' (zero|random|dod|dodshort|gutmann|is5enh)"; exit 1
+                fi
+                TS_NWIPE_METHOD="$v"
+                TS_NWIPE_METHOD_SET=1
+                ;;
+            --passes)
+                shift
+                [[ $# -gt 0 ]] || { echo "--passes requires an integer 1..64"; exit 1; }
+                if ! [[ "$1" =~ ^[0-9]+$ ]] || (( 10#$1 < 1 || 10#$1 > 64 )); then
+                    echo "--passes must be an integer 1..64"; exit 1
+                fi
+                TS_NWIPE_PASSES="$1"
+                TS_NWIPE_PASSES_SET=1
+                ;;
+            --passes=*)
+                v="${arg#*=}"
+                if ! [[ "$v" =~ ^[0-9]+$ ]] || (( 10#$v < 1 || 10#$v > 64 )); then
+                    echo "--passes must be an integer 1..64"; exit 1
+                fi
+                TS_NWIPE_PASSES="$v"
+                TS_NWIPE_PASSES_SET=1
                 ;;
             --hpa)
                 shift
@@ -1126,6 +1170,8 @@ parse_args() {
                 echo "  --label LABEL      Volume label for formatted drives (default TSCRUB)."
                 echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
                 echo "  --nvme-software-fallback M  NVMe software overwrite when firmware erase is rejected: auto|off (default auto)."
+                echo "  --method STANDARD   Software-overwrite standard (fallback only): zero|random|dod|dodshort|gutmann|is5enh (default zero)."
+                echo "  --passes N          Repetitions of that standard, 1..64 (default 1)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
                 exit 0
                 ;;
@@ -1184,7 +1230,7 @@ cmdline::diag() {
 # disabled) — the PXE-fleet way to tune FLR without re-baking the image.
 cmdline::flr() {
     local param
-    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_flr=//p' | head -n 1)"
+    param="$( { tr ' ' '\n' < /proc/cmdline; } 2>/dev/null | sed -nE 's/^tscrub_flr=//p' | head -n 1)"
     [[ -n "$param" ]] || return 1
     param="${param//\"/}"
     case "$param" in
@@ -1202,13 +1248,46 @@ cmdline::flr() {
 # (tscrub_nvme_software_fallback=auto|off).
 cmdline::nvme_software_fallback() {
     local param
-    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_nvme_software_fallback=//p' | head -n 1)"
+    param="$( { tr ' ' '\n' < /proc/cmdline; } 2>/dev/null | sed -nE 's/^tscrub_nvme_software_fallback=//p' | head -n 1)"
     [[ -n "$param" ]] || return 1
     param="${param//\"/}"
     case "$param" in
         auto|off) TS_NVME_SOFTWARE_FALLBACK="$param" ;;
         *) TS_NVME_SOFTWARE_FALLBACK="auto" ;;
     esac
+    return 0
+}
+
+# Software-overwrite standard from the kernel command line
+# (tscrub_method=zero|random|dod|dodshort|gutmann|is5enh). An invalid value is
+# refused at boot: silently falling back to zero would run a weaker overwrite
+# than the operator asked for.
+cmdline::nwipe_method() {
+    local param
+    param="$( { tr ' ' '\n' < /proc/cmdline; } 2>/dev/null | sed -nE 's/^tscrub_method=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    if ! nwipe::method_valid "$param"; then
+        echo "tscrub_method=$param is not a supported software-overwrite method" >&2
+        exit 1
+    fi
+    TS_NWIPE_METHOD="$param"
+    TS_NWIPE_METHOD_SET=1
+    return 0
+}
+
+# Repetitions of the selected standard (tscrub_passes=1..64).
+cmdline::nwipe_passes() {
+    local param
+    param="$( { tr ' ' '\n' < /proc/cmdline; } 2>/dev/null | sed -nE 's/^tscrub_passes=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    if ! [[ "$param" =~ ^[0-9]+$ ]] || (( 10#$param < 1 || 10#$param > 64 )); then
+        echo "tscrub_passes=$param must be an integer 1..64" >&2
+        exit 1
+    fi
+    TS_NWIPE_PASSES="$param"
+    TS_NWIPE_PASSES_SET=1
     return 0
 }
 

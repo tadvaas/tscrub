@@ -569,6 +569,201 @@ function mdm_autopilot_reachable(?string $token = null, ?array $tenant = null): 
     return strtolower((string)($d['syncStatus'] ?? '')) !== 'failed';
 }
 
+/**
+ * Read the probe tenant's Microsoft 365/Intune subscription state.
+ *
+ * The operator needs two facts the rest of the MDM code never looks at: is the
+ * subscription a trial, and when does it end. `directory/subscriptions` is the
+ * only Graph resource exposing `isTrial` + `nextLifecycleDateTime`;
+ * `subscribedSkus` supplies the seat counts and status. Both are read-only and
+ * need no extra permission beyond Directory.Read.All / Organization.Read.All.
+ *
+ * Returns (all keys always present):
+ *   ok                 bool   false when Graph/tenant lookup failed
+ *   configured         bool   false when the autopilot block is incomplete
+ *   tenant_id          string
+ *   tenant_name        string organization displayName (best effort)
+ *   sku                string skuPartNumber (e.g. Microsoft_Intune_Suite)
+ *   status             string Enabled | Suspended | Warning | ...
+ *   is_trial           bool
+ *   total_licenses     int
+ *   consumed_licenses  int
+ *   created_at         string ISO-8601
+ *   next_lifecycle     string ISO-8601 (trial end / next state change)
+ *   days_remaining     int|null  null when the date is unknown
+ *   expired            bool
+ *   warning            bool  trial ends within $warnDays, or not Enabled
+ *   expiry_known       bool  false when only subscribedSkus was readable
+ *   error              string (only when ok=false)
+ *   checked_at         string ISO-8601
+ *
+ * Never throws: a transport/permission failure is reported as ok=false so the
+ * dashboard can stay silent instead of inventing an expiry date.
+ */
+function mdm_tenant_status(int $warnDays = 30): array {
+    $s = mdm_settings();
+    $out = [
+        'ok'                => false,
+        'configured'        => false,
+        'tenant_id'         => (string)($s['tenant_id'] ?? ''),
+        'tenant_name'       => '',
+        'sku'               => '',
+        'status'            => '',
+        'is_trial'          => false,
+        'total_licenses'    => 0,
+        'consumed_licenses' => 0,
+        'created_at'        => '',
+        'next_lifecycle'    => '',
+        'days_remaining'    => null,
+        'expired'           => false,
+        'warning'           => false,
+        'expiry_known'      => false,
+        'error'             => '',
+        'checked_at'        => gmdate('c'),
+    ];
+
+    if (!mdm_configured()) {
+        $out['error'] = 'autopilot not configured';
+        return $out;
+    }
+    $out['configured'] = true;
+
+    $token = mdm_token(
+        (string)($s['tenant_id'] ?? ''),
+        (string)($s['client_id'] ?? ''),
+        (string)($s['client_secret'] ?? '')
+    );
+    if ($token === null) {
+        $out['error'] = 'token request failed';
+        return $out;
+    }
+    $auth = ['Authorization: Bearer ' . $token];
+
+    // Best effort: the organisation name is cosmetic, never a reason to fail.
+    $org = mdm_http([
+        'method'  => 'GET',
+        'url'     => mdm_graph() . '/v1.0/organization',
+        'headers' => $auth,
+        'timeout' => 15,
+    ]);
+    if ($org['ok'] && $org['status'] === 200) {
+        $od = json_decode($org['body'], true);
+        if (is_array($od) && isset($od['value'][0])) {
+            $out['tenant_name'] = (string)($od['value'][0]['displayName'] ?? '');
+        }
+    }
+
+    // Seat counts. Also the fallback when directory/subscriptions is forbidden.
+    $skus = mdm_http([
+        'method'  => 'GET',
+        'url'     => mdm_graph() . '/v1.0/subscribedSkus',
+        'headers' => $auth,
+        'timeout' => 15,
+    ]);
+    $skuList = [];
+    if ($skus['ok'] && $skus['status'] === 200) {
+        $sd = json_decode($skus['body'], true);
+        if (is_array($sd) && is_array($sd['value'] ?? null)) {
+            $skuList = $sd['value'];
+        }
+    }
+
+    $subs = mdm_http([
+        'method'  => 'GET',
+        'url'     => mdm_graph() . '/v1.0/directory/subscriptions',
+        'headers' => $auth,
+        'timeout' => 15,
+    ]);
+
+    if (!($subs['ok'] && $subs['status'] === 200)) {
+        // Fallback: seats/status only, no expiry date. Still useful, and honest
+        // about not knowing when the trial ends.
+        if ($skuList === []) {
+            $out['error'] = 'subscription lookup failed (HTTP ' . (int)$subs['status'] . ')';
+            return $out;
+        }
+        $pick = null;
+        foreach ($skuList as $sku) {
+            if (stripos((string)($sku['skuPartNumber'] ?? ''), 'intune') !== false) {
+                $pick = $sku;
+                break;
+            }
+        }
+        $pick = $pick ?? $skuList[0];
+        $units = is_array($pick['prepaidUnits'] ?? null) ? $pick['prepaidUnits'] : [];
+        $out['ok']                = true;
+        $out['sku']               = (string)($pick['skuPartNumber'] ?? '');
+        $out['status']            = ((int)($units['enabled'] ?? 0) > 0) ? 'Enabled' : 'Unknown';
+        $out['total_licenses']    = (int)($units['enabled'] ?? 0);
+        $out['consumed_licenses'] = (int)($pick['consumedUnits'] ?? 0);
+        $out['expiry_known']      = false;
+        $out['warning']           = $out['status'] !== 'Enabled';
+        return $out;
+    }
+
+    $cd = json_decode($subs['body'], true);
+    $list = (is_array($cd) && is_array($cd['value'] ?? null)) ? $cd['value'] : [];
+    if ($list === []) {
+        $out['error'] = 'no subscription found in tenant';
+        return $out;
+    }
+
+    // Prefer a live Intune subscription, then any Intune one, then the first.
+    $pick = null;
+    foreach ($list as $sub) {
+        if (stripos((string)($sub['skuPartNumber'] ?? ''), 'intune') !== false
+            && strtolower((string)($sub['status'] ?? '')) === 'enabled') {
+            $pick = $sub;
+            break;
+        }
+    }
+    if ($pick === null) {
+        foreach ($list as $sub) {
+            if (stripos((string)($sub['skuPartNumber'] ?? ''), 'intune') !== false) {
+                $pick = $sub;
+                break;
+            }
+        }
+    }
+    $pick = $pick ?? $list[0];
+
+    $out['sku']            = (string)($pick['skuPartNumber'] ?? '');
+    $out['status']         = (string)($pick['status'] ?? '');
+    $out['is_trial']       = (bool)($pick['isTrial'] ?? false);
+    $out['total_licenses'] = (int)($pick['totalLicenses'] ?? 0);
+    $out['created_at']     = (string)($pick['createdDateTime'] ?? '');
+    $out['next_lifecycle'] = (string)($pick['nextLifecycleDateTime'] ?? '');
+
+    $skuId = (string)($pick['skuId'] ?? '');
+    foreach ($skuList as $sku) {
+        if ($skuId !== '' && (string)($sku['skuId'] ?? '') === $skuId) {
+            $out['consumed_licenses'] = (int)($sku['consumedUnits'] ?? 0);
+            $units = is_array($sku['prepaidUnits'] ?? null) ? $sku['prepaidUnits'] : [];
+            if ($out['total_licenses'] === 0) {
+                $out['total_licenses'] = (int)($units['enabled'] ?? 0);
+            }
+            break;
+        }
+    }
+
+    $out['expiry_known'] = $out['next_lifecycle'] !== '';
+    if ($out['expiry_known']) {
+        $end = strtotime($out['next_lifecycle']);
+        if ($end !== false) {
+            $out['days_remaining'] = (int)ceil(($end - time()) / 86400);
+        }
+    }
+
+    // Expired = past its lifecycle date or no longer enabled. A trial that ends
+    // in under $warnDays is a warning, not an error.
+    $out['expired'] = ($out['days_remaining'] !== null && $out['days_remaining'] < 0)
+        || (strtolower($out['status']) !== 'enabled' && $out['status'] !== '');
+    $out['warning'] = $out['expired']
+        || ($out['is_trial'] && $out['days_remaining'] !== null && $out['days_remaining'] <= $warnDays);
+    $out['ok'] = true;
+    return $out;
+}
+
 // ---- Graph client ---------------------------------------------------------
 
 function mdm_token(string $tenant, string $client, string $secret): ?string {
