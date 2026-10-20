@@ -40,6 +40,27 @@ nwipe::method_label() {
     esac
 }
 
+# The ordered standard list, space-separated on one line. Single source of
+# truth for the triage picker's cycle order: the validator, the CLI help and
+# the picker must never disagree about which names exist.
+nwipe::methods() {
+    printf '%s' "zero random dod dodshort gutmann is5enh"
+}
+
+# Short label for the console legends (<= 12 chars, so the standard plus its
+# round count still fits an 80-column footer).
+nwipe::method_short() {
+    case "${1:-zero}" in
+        zero)     printf '%s' "Zero" ;;
+        random)   printf '%s' "PRNG" ;;
+        dod)      printf '%s' "DoD 7-pass" ;;
+        dodshort) printf '%s' "DoD Short" ;;
+        gutmann)  printf '%s' "Gutmann" ;;
+        is5enh)   printf '%s' "IS5 Enh" ;;
+        *)        printf '%s' "Zero" ;;
+    esac
+}
+
 # Patterns (writes) per round, from nwipe v0.41's method table. The run's own
 # log line ("pass P of Q, round R of N") overrides this when it appears.
 nwipe::method_patterns() {

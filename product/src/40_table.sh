@@ -1066,9 +1066,20 @@ TRIAGE_MODE=0
 
 # Compact selection legend (also shown in the sticky footer). The selected
 # count is embedded so the footer can be repainted in place on each toggle.
+# The chosen overwrite standard is appended when it fits: this screen is where
+# the operator confirms what is about to run, so hiding it here would be the
+# one place the choice is invisible. It is read-only here — cycling lives on
+# the triage screen, one Esc away.
 select::legend() {
-    printf 'Space=select ↑/↓=move A=all N=none T=start Esc   Sel: %d/%d' \
-        "$(select::count)" "${#devices[@]}"
+    local base std
+    base="$(printf 'Space=select ↑/↓=move A=all N=none T=start Esc   Sel: %d/%d' \
+        "$(select::count)" "${#devices[@]}")"
+    std="  Overwrite: $(nwipe::method_short "$(triage::method)") x$(triage::passes)"
+    if (( ${#base} + ${#std} <= $(table::detect_terminal_width) )); then
+        printf '%s%s' "$base" "$std"
+    else
+        printf '%s' "$base"
+    fi
 }
 
 # Repaint a single drive row in place (no clear/reflow) — used by the selection
@@ -1200,9 +1211,149 @@ select::run() {
 # TRIAGE SCREEN — the idle diagnostics screen shown after COCID entry
 # =============================================================================
 
-# Triage (idle) screen key legend, shown in the sticky footer.
+# -----------------------------------------------------------------------------
+# Software-overwrite standard picker (triage screen)
+#
+# Chooses the standard for the SOFTWARE-OVERWRITE FALLBACK only: a drive whose
+# firmware erase is available never reaches nwipe. The picker writes the same
+# TS_NWIPE_METHOD/TS_NWIPE_PASSES pair the CLI, the kernel cmdline and
+# tscrub.conf write, so the run records exactly what the operator sees here.
+# -----------------------------------------------------------------------------
+
+# Repeat-count ladder for the `p` key. The CLI accepts 1..64; this is the bench
+# operator's shortlist, not the full range (a scripted 64-round run uses
+# --passes, not a keyboard).
+TRIAGE_PASSES_LADDER=(1 2 3 4 5 6 8 10)
+
+# Effective standard and repeat count: the configured value when one was given
+# (CLI / cmdline / tscrub.conf), else the engine default the wipe would use.
+triage::method() {
+    local m="${TS_NWIPE_METHOD:-}"
+    if [[ -n "$m" ]] && nwipe::method_valid "$m"; then
+        printf '%s' "$m"
+        return 0
+    fi
+    printf '%s' zero
+}
+
+triage::passes() {
+    local p="${TS_NWIPE_PASSES:-}"
+    if [[ "$p" =~ ^[0-9]+$ ]] && (( 10#$p >= 1 && 10#$p <= 64 )); then
+        printf '%s' "$(( 10#$p ))"
+        return 0
+    fi
+    printf '%s' 1
+}
+
+# Pattern passes this choice yields (patterns x rounds). nwipe's trailing
+# blanking pass sits outside the method and is deliberately NOT counted, so the
+# number matches the CSV's Passes column exactly.
+triage::total_passes() {
+    local m p
+    m="$(triage::method)"
+    p="$(triage::passes)"
+    printf '%s' "$(( p * $(nwipe::method_patterns "$m") ))"
+}
+
+# Log a console choice to the run log (fd 5), never to the screen: the picker
+# repaints one line and any extra output would scribble over the table.
+triage::_log_choice() {
+    { printf '[%s] OVERWRITE: standard=%s passes=%s%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(triage::method)" "$(triage::passes)" \
+        "${1:-}" >&5; } 2>/dev/null || true
+}
+
+# Next standard in nwipe::methods() order, wrapping. Sets the *_SET flags so
+# anything that asks "was this chosen?" sees the operator's choice.
+triage::cycle_method() {
+    local cur next="" m seen=0
+    local -a names
+    read -r -a names <<< "$(nwipe::methods)"
+    cur="$(triage::method)"
+    for m in "${names[@]}"; do
+        if (( seen )); then next="$m"; break; fi
+        [[ "$m" == "$cur" ]] && seen=1
+    done
+    [[ -n "$next" ]] || next="${names[0]}"
+    TS_NWIPE_METHOD="$next"
+    TS_NWIPE_METHOD_SET=1
+    triage::_log_choice " (console cycle)"
+    triage::paint_legend
+}
+
+# Next repeat count on the ladder, wrapping. A configured value that is not on
+# the ladder (e.g. --passes 32) steps to the next ladder value above it rather
+# than jumping to the bottom, so a scripted run is never silently weakened.
+triage::cycle_passes() {
+    local cur n i next=""
+    cur="$(triage::passes)"
+    n=${#TRIAGE_PASSES_LADDER[@]}
+    for (( i = 0; i < n; i++ )); do
+        if [[ "${TRIAGE_PASSES_LADDER[$i]}" == "$cur" ]]; then
+            next="${TRIAGE_PASSES_LADDER[$(( (i + 1) % n ))]}"
+            break
+        fi
+    done
+    if [[ -z "$next" ]]; then
+        for (( i = 0; i < n; i++ )); do
+            if (( TRIAGE_PASSES_LADDER[i] > cur )); then
+                next="${TRIAGE_PASSES_LADDER[$i]}"
+                break
+            fi
+        done
+    fi
+    [[ -n "$next" ]] || next="${TRIAGE_PASSES_LADDER[0]}"
+    TS_NWIPE_PASSES="$next"
+    TS_NWIPE_PASSES_SET=1
+    triage::_log_choice " (console cycle)"
+    triage::paint_legend
+}
+
+# One-line standard summary, ASCII only: "DoD Short x2 = 6 passes".
+triage::standard_text() {
+    local total
+    total="$(triage::total_passes)"
+    if [[ "$total" == "1" ]]; then
+        printf '%s x%s = 1 pass' \
+            "$(nwipe::method_short "$(triage::method)")" "$(triage::passes)"
+    else
+        printf '%s x%s = %s passes' \
+            "$(nwipe::method_short "$(triage::method)")" "$(triage::passes)" "$total"
+    fi
+}
+
+# Triage (idle) screen key legend, shown in the sticky footer. Built longest
+# first and downgraded until it fits the terminal: `ui::footer` CENTRES this
+# line, so a too-long legend would wrap into the drive table. ASCII only, so a
+# byte-based truncation can never split a glyph.
 triage::legend() {
-    printf 'Shift+T=erase  D=diagnostics  R=restart  S=shutdown  Esc=quit'
+    local std w full mid short
+    std="$(triage::standard_text)"
+    w="$(table::detect_terminal_width)"
+    full="Overwrite fallback (not firmware erase): ${std}   m=standard p=rounds   T=erase D=diagnostics R=restart S=shutdown Esc=quit"
+    mid="Overwrite: ${std}   m=std p=rounds   T=erase D=diagnostics R/S=power Esc=quit"
+    short="Overwrite ${std}  m p  T=erase D=diag R/S=power Esc"
+    if (( ${#full} <= w )); then
+        printf '%s' "$full"
+    elif (( ${#mid} <= w )); then
+        printf '%s' "$mid"
+    else
+        printf '%s' "${short:0:w}"
+    fi
+}
+
+# Repaint the footer legend in place after a picker change (no clear, no
+# reflow). The legend is the LAST line ui::footer prints, so it always sits on
+# the bottom row (rows-1) whether or not a report-status line precedes it.
+triage::paint_legend() {
+    local rows term_w pad legend
+    [[ -t 1 ]] || return 0
+    rows="$(table::detect_terminal_height)"
+    term_w="$(table::detect_terminal_width)"
+    legend="$(triage::legend)"
+    pad=$(( (term_w - ${#legend}) / 2 ))
+    (( pad < 0 )) && pad=0
+    printf "\033[%d;1H\033[K%*s%s" "$(( rows - 1 ))" "$pad" "" "$legend"
 }
 
 # Persistent triage screen: shows the live diagnostics table (timer, LAN IP,
@@ -1372,6 +1523,10 @@ triage::run() {
                 mdm::sync_state
                 table::render
                 ;;
+            # Overwrite-standard picker. Cycles the standard / repeat count for
+            # the software fallback and repaints just the footer legend.
+            m|M) triage::cycle_method ;;
+            p|P) triage::cycle_passes ;;
             R|r) TRIAGE_MODE=0; select::reboot; return 0 ;;
             S|s) TRIAGE_MODE=0; select::shutdown; return 0 ;;
             $'\e'|q|Q) break ;;

@@ -11,7 +11,10 @@ device::capability_label() {
         CAP_ATA_PURGE_ENHANCED)      echo "ATA Purge (Enhanced Erase)" ;;
         CAP_ATA_CLEAR)               echo "ATA Clear (Secure Erase)" ;;
         CAP_SCSI_SANITIZE)           echo "SCSI Sanitize (Overwrite)" ;;
-        CAP_SCSI_NWIPE)              echo "SCSI Clear (nwipe Quick)" ;;
+        # Reflects the configured standard: this is the operator's pre-wipe
+        # preview of what the software fallback will run. "nwipe Quick" was a
+        # stale literal after the standards became selectable (v1.11.70).
+        CAP_SCSI_NWIPE)              echo "nwipe $(nwipe::method_short "${TS_NWIPE_METHOD:-zero}")" ;;
         CAP_OPAL_CRYPTO)             echo "SED Purge (OPAL Crypto Erase)" ;;
         CAP_NONE)                    echo "No Supported Wipe" ;;
     esac

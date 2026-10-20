@@ -10,6 +10,21 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
+- **The software-overwrite standard can be chosen on the triage screen.** v1.11.70
+  made the standard selectable but only from `--method`/`--passes`, a kernel
+  parameter or `tscrub.conf`, so a tech booting the stock ISO could not see or
+  change it. `m` now cycles the standard (zero fill, PRNG stream, DoD 5220.22-M,
+  DoD Short, Gutmann, HMG IS5 Enhanced) and `p` cycles the rounds (1-6, 8, 10);
+  the footer legend shows the choice and the resulting number of pattern passes.
+  The picker starts from whatever the CLI, cmdline or `tscrub.conf` configured,
+  repaints only the legend line (no reflow), and writes the same
+  `TS_NWIPE_METHOD`/`TS_NWIPE_PASSES` the engine reads, so the report records
+  exactly what the operator saw. It applies to the **software fallback only** —
+  a drive with a working firmware erase is never overwritten — and the drive
+  selection screen now shows the chosen standard alongside the selected count.
+  The `SCSI Clear (nwipe Quick)` capability label, a stale literal since the
+  standards became selectable, now names the configured standard.
+
 - **Sortable headers and a Submitted date on the Media tab.** The Media table could not be
   sorted at all — clicking a heading did nothing — and `/api/drives` did not accept `sort`
   or `dir`, unlike `/api/devices`. Every heading except Actions now sorts, in both

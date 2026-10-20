@@ -212,13 +212,15 @@ with the release that carried them (per `CHANGELOG.md`).
       picker below is still open. Plan:
       `research/multi-pass-overwrite/README.md` (records the keep-nwipe
       decision and the replacement effort estimate).
-- [ ] Interactive triage-screen standard picker (outstanding from v1.11.70) —
-      the six standards are reachable only from the CLI, kernel cmdline or
-      `tscrub.conf`; a bench operator booting the stock ISO cannot choose one.
-      Needs a pre-run key/selection row in `table::render` that sets
-      `TS_NWIPE_METHOD`/`TS_NWIPE_PASSES`, showing the pattern count and an
-      estimated duration per drive so nobody selects Gutmann on a 2 TB disk by
-      accident.
+- [x] Interactive triage-screen standard picker — the six standards were
+      reachable only from the CLI, kernel cmdline or `tscrub.conf`; a bench
+      operator booting the stock ISO could not choose one. `m` cycles the
+      standard, `p` cycles the rounds, the footer legend shows both plus the
+      resulting pattern-pass count, and the selection screen repeats the choice
+      next to the selected count.
+      → **Implemented 2026-10-20, awaiting an appliance release** (it ships with
+      the next ISO; the docs text must go out with the image, not before). Plan:
+      `research/triage-standard-picker/README.md`.
 - [ ] Overwrite-standard automated coverage (outstanding from v1.11.70) —
       (a) a Proxmox scenario `tests/proxmox/scenarios/14_overwrite_method.sh`
       on a `virtio-scsi` disk (the only cheap path that reaches
