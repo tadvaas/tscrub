@@ -108,24 +108,39 @@ t::assert_eq "1" "$TS_NWIPE_PASSES" "off-ladder value with nothing above wraps t
 reset_choice
 STUB_W=186
 legend="$(triage::legend)"
-t::assert_contains "$legend" "Overwrite fallback (not firmware erase)" \
+t::assert_contains "$legend" "Overwrite (fallback):" \
     "wide legend says the choice is fallback-only"
-t::assert_contains "$legend" "Zero x1 = 1 pass" "wide legend names the default standard"
-t::assert_contains "$legend" "m=standard p=rounds" "wide legend documents both keys"
+t::assert_contains "$legend" "Zero x1 (1 pass)" "wide legend names the default standard"
+t::assert_contains "$legend" "m=std p=rounds" "wide legend documents both keys"
 t::assert_contains "$legend" "T=erase" "wide legend keeps the erase key"
 t::check "wide legend fits the terminal" '[[ "${#legend}" -le 186 ]]'
 
-STUB_W=120
+# The line is CENTRED in the footer, so an over-wide legend wraps into the
+# drive table. The first cut ran to ~140 columns; keep the worst case under 100.
+worst=0
+for m in $(nwipe::methods); do
+    for p in 1 2 10 64; do
+        TS_NWIPE_METHOD="$m"
+        TS_NWIPE_PASSES="$p"
+        STUB_W=200
+        l="$(triage::legend)"
+        (( ${#l} > worst )) && worst=${#l}
+    done
+done
+reset_choice
+t::check "widest legend is at most 100 cols (got ${worst})" '(( worst <= 100 ))'
+
+STUB_W=100
 mid="$(triage::legend)"
-t::assert_contains "$mid" "Overwrite: " "mid legend uses the short prefix"
-t::assert_contains "$mid" "Zero x1 = 1 pass" "mid legend still names the standard"
-t::check "mid legend drops the long caveat" '[[ "${#mid}" -le 120 ]]'
+t::assert_contains "$mid" "Overwrite (fallback):" "a 100-column console still gets the full form"
+t::check "100-column legend fits" '[[ "${#mid}" -le 100 ]]'
 
 STUB_W=80
 short="$(triage::legend)"
 t::check "compact legend fits an 80-column console" '[[ "${#short}" -le 80 ]]'
-t::assert_contains "$short" "Overwrite" "compact legend still labels the setting"
+t::assert_contains "$short" "Overwrite:" "compact legend still labels the setting"
 t::assert_contains "$short" "Zero x1" "compact legend still names the standard"
+t::assert_contains "$short" "m p" "compact legend still names both keys"
 
 for w in 200 160 120 100 80 60; do
     STUB_W="$w"
@@ -141,7 +156,7 @@ STUB_W=186
 triage::cycle_method
 triage::cycle_passes
 picked="$(triage::legend)"
-t::assert_contains "$picked" "PRNG x2 = 2 passes" "legend reflects the picked standard and rounds"
+t::assert_contains "$picked" "PRNG x2 (2 passes)" "legend reflects the picked standard and rounds"
 t::assert_contains "$picked" "PRNG" "legend shows the new standard, not the old one"
 
 # --- the choice reaches the engine's preview and the selection screen --------

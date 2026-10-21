@@ -6,6 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Changed
+
+- **The triage footer legend is much shorter.** The row the operator reads all day
+  had grown to ~140 columns (`Overwrite fallback (not firmware erase): Gutmann x4 =
+  140 passes   m=standard p=rounds   T=erase D=diagnostics R=restart
+  S=shutdown Esc=quit`), which is wide even on a 240-column console and wraps
+  into the drive table on anything narrower. It is now
+  `Overwrite (fallback): Gutmann x4 (140 passes)   m=std p=rounds   T=erase
+  D=diag R/S=power Esc` (worst case 97 columns, measured across all six
+  standards at 1/2/10/64 rounds), with a 56-column form
+  (`Overwrite: Gutmann x4  m p  T=erase D=diag R/S=power Esc`) for consoles under
+  ~97. The choice, the pass total it yields and the fact that it applies to the
+  fallback only are all still stated; only the wording got tighter.
+
 ## [v1.11.71] - 2026-10-20
 
 ### Added

@@ -1310,33 +1310,39 @@ triage::cycle_passes() {
 }
 
 # One-line standard summary, ASCII only: "DoD Short x2 = 6 passes".
+# One-line standard summary, ASCII only: "DoD Short x2 (6 passes)".
 triage::standard_text() {
     local total
     total="$(triage::total_passes)"
     if [[ "$total" == "1" ]]; then
-        printf '%s x%s = 1 pass' \
+        printf '%s x%s (1 pass)' \
             "$(nwipe::method_short "$(triage::method)")" "$(triage::passes)"
     else
-        printf '%s x%s = %s passes' \
+        printf '%s x%s (%s passes)' \
             "$(nwipe::method_short "$(triage::method)")" "$(triage::passes)" "$total"
     fi
 }
 
-# Triage (idle) screen key legend, shown in the sticky footer. Built longest
-# first and downgraded until it fits the terminal: `ui::footer` CENTRES this
-# line, so a too-long legend would wrap into the drive table. ASCII only, so a
+# The same choice without the pass total ("DoD Short x2"), for the narrow form.
+triage::standard_brief() {
+    printf '%s x%s' \
+        "$(nwipe::method_short "$(triage::method)")" "$(triage::passes)"
+}
+
+# Triage (idle) screen key legend, shown in the sticky footer. Deliberately
+# short: `ui::footer` CENTRES this line, so a long one wraps into the drive
+# table, and the first cut ran to ~140 columns. Worst case (longest standard at
+# 64 rounds) is under 100 columns. Two measured tiers, ASCII only so the
 # byte-based truncation can never split a glyph.
 triage::legend() {
-    local std w full mid short
+    local std brief w full short
     std="$(triage::standard_text)"
+    brief="$(triage::standard_brief)"
     w="$(table::detect_terminal_width)"
-    full="Overwrite fallback (not firmware erase): ${std}   m=standard p=rounds   T=erase D=diagnostics R=restart S=shutdown Esc=quit"
-    mid="Overwrite: ${std}   m=std p=rounds   T=erase D=diagnostics R/S=power Esc=quit"
-    short="Overwrite ${std}  m p  T=erase D=diag R/S=power Esc"
+    full="Overwrite (fallback): ${std}   m=std p=rounds   T=erase D=diag R/S=power Esc"
+    short="Overwrite: ${brief}  m p  T=erase D=diag R/S=power Esc"
     if (( ${#full} <= w )); then
         printf '%s' "$full"
-    elif (( ${#mid} <= w )); then
-        printf '%s' "$mid"
     else
         printf '%s' "${short:0:w}"
     fi
