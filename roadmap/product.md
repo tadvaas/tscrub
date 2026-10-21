@@ -230,6 +230,17 @@ with the release that carried them (per `CHANGELOG.md`).
       side of `standard`/`passes`/`erase_engine` (parser → Annex A → JSON-LD)
       built from a synthetic CSV — today only the appliance half is covered and
       the server half was verified with throwaway probe scripts.
+      → **(b) shipped 2026-10-21** (`marketing/tests/overwrite_parse_test.php`,
+      47 checks): `parse_reports()` now delegates to `reports_header_map()`,
+      `reports_row_value()` and `reports_drive_provenance()`, so the column
+      contract, the `OverwriteStandard`→legacy `Standard` fallback, the
+      verification fields and the chain through the certificate annex and
+      JSON-LD are all testable from the CLI. The fixture is the REAL header +
+      one row written by `report::csv`
+      (`marketing/tests/fixtures/report-v1.11.73.csv`, regenerate with
+      `product/tests/tools/gen_report_fixture.sh` after any column change), and
+      the test also asserts the three helpers are actually CALLED by the
+      importer. **(a) still open** (needs a VM with a virtio-scsi disk).
 - [x] Configurable write passes + custom algorithms — `--passes N` +
       `--pattern <zero|one|random|hex>` mapped to nwipe custom patterns; record
       a `Custom` method in the report. (§11.1)

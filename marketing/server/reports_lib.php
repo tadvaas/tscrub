@@ -207,6 +207,60 @@ function reports_drive_serials(array $payload): array {
  * @return array $groups[COCID] = [cocid, drives[], reports[], shaState, sigState,
  *                                 system, sysserial, bbserial, first, last]
  */
+/**
+ * CSV header → [normalised column name => column index].
+ *
+ * Normalisation is `strtolower(trim(...))` and nothing else, so `EraseEngine`
+ * becomes `eraseengine` and `OverwriteStandard` becomes `overwritestandard`.
+ * A duplicated header keeps the LAST occurrence, as it always has.
+ *
+ * Pulled out of parse_reports() so the column contract can be tested: that
+ * function reads uploads via is_uploaded_file(), so it cannot be driven from
+ * the CLI at all, which left the whole server side of the CSV format (and the
+ * v1.11.73 Standard -> OverwriteStandard rename) covered only by ad-hoc probes.
+ */
+function reports_header_map(array $header): array {
+    $map = [];
+    foreach ($header as $idx => $col) { $map[strtolower(trim((string)$col))] = $idx; }
+    return $map;
+}
+
+/** One cell by normalised column name; '' when the column or the cell is absent. */
+function reports_row_value(array $row, array $map, string $key): string {
+    $idx = $map[$key] ?? null;
+    return ($idx !== null && isset($row[$idx])) ? trim((string)$row[$idx]) : '';
+}
+
+/**
+ * Software-overwrite provenance + verification technique for one CSV row.
+ *
+ * Two things here are deliberately more than a straight column read:
+ *
+ *  - `OverwriteStandard` (v1.11.73+) is preferred, with the pre-rename
+ *    `Standard` column accepted as a fallback, because reports written by
+ *    v1.11.70-v1.11.72 must still import. The rename freed the bare word
+ *    "standard" for the sanitisation CLAIM a later release may assert; the
+ *    VALUE means the same thing under both names.
+ *  - a row with an empty `OverwriteStandard` but a populated `Standard` (a
+ *    41-column-era file, or one where the new column was added empty) must not
+ *    lose the standard, which is exactly what a plain
+ *    `$row['overwritestandard'] ?: ...` on a normalised map gets wrong.
+ */
+function reports_drive_provenance(array $row, array $map): array {
+    $std = reports_row_value($row, $map, 'overwritestandard');
+    if ($std === '') $std = reports_row_value($row, $map, 'standard');
+    return [
+        'standard' => clip_str($std, 32),
+        'passes' => clip_str(reports_row_value($row, $map, 'passes'), 16),
+        'erase_engine' => clip_str(reports_row_value($row, $map, 'eraseengine'), 32),
+        // What KIND of evidence the read-back carries: sentinel |
+        // overwrite-sample | ce-exempt. The percentage only exists for
+        // overwrite-sample (see product/src/43_verify.sh).
+        'verify_technique' => clip_str(reports_row_value($row, $map, 'verifytechnique'), 32),
+        'verify_coverage_pct' => clip_str(reports_row_value($row, $map, 'verifycoveragepct'), 16),
+    ];
+}
+
 function parse_reports(array $files, array $licencePubKeys = [], array $ingestedShas = [], ?array &$stats = null): array {
     // 1) Bucket uploads by stem.
     $csvs = [];
@@ -275,11 +329,9 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
         if ($header === false) { fclose($fh); continue; }
 
         // Map columns by name so the 12/15/23-column formats are all accepted.
-        $map = [];
-        foreach ($header as $idx => $col) { $map[strtolower(trim((string)$col))] = $idx; }
+        $map = reports_header_map($header);
         $get = function ($row, $key) use (&$map) {
-            $idx = $map[$key] ?? null;
-            return ($idx !== null && isset($row[$idx])) ? trim((string)$row[$idx]) : '';
+            return reports_row_value($row, $map, $key);
         };
 
         $cocid = '';
@@ -460,24 +512,13 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'psid_revert' => clip_str($get($row, 'psidrevert'), 16),
                 'lock_kind' => clip_str($get($row, 'lockkind'), 16),
                 'ppi_requested' => clip_str($get($row, 'ppirequested'), 16),
-                // Software-overwrite provenance (fallback paths only).
-                // The appliance renamed its CSV column Standard ->
-                // OverwriteStandard (v1.11.73) so the bare word "standard" can
-                // later mean the sanitisation CLAIM; both spellings are accepted
-                // because reports written before the rename stay valid.
-                'standard' => clip_str($get($row, 'overwritestandard') !== ''
-                    ? $get($row, 'overwritestandard') : $get($row, 'standard'), 32),
-                'passes' => clip_str($get($row, 'passes'), 16),
-                'erase_engine' => clip_str($get($row, 'eraseengine'), 32),
-                // What KIND of evidence the read-back carries: sentinel |
-                // overwrite-sample | ce-exempt. The percentage is only present
-                // for overwrite-sample (see product/src/43_verify.sh).
-                'verify_technique' => clip_str($get($row, 'verifytechnique'), 32),
-                'verify_coverage_pct' => clip_str($get($row, 'verifycoveragepct'), 16),
                 // Derivable only across reports (prior BLOCKED -> now COMPLETED);
                 // computed in merge_group(). A single report is always 'no'.
                 'ppi_cleared' => 'no',
             ];
+            // Overwrite standard / passes / engine and the verification
+            // technique: see reports_drive_provenance().
+            $drive = array_merge($drive, reports_drive_provenance($row, $map));
             $dkey = $serial !== '' ? strtolower($serial) : '';
             if ($dkey !== '' && isset($seenSerials[$cocid][$dkey])) {
                 // Same physical drive seen again in this upload — keep the best outcome.
