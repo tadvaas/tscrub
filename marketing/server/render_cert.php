@@ -66,6 +66,26 @@ function method_label($method, $cls, $status = '') {
 
     $m = strtoupper(trim((string)$method));
     $c = strtoupper(trim((string)$cls));
+
+    // Named software-overwrite standards (v1.11.70+). The METHOD field carries
+    // the standard's own label ("DoD Short", "Zero fill", …), which matches
+    // none of the aliases below and none of the strpos rules, so these rows used
+    // to fall through to the class wording "Sanitisation (Clear) - Verified" —
+    // the same sentence for every standard, with the name printed nowhere in
+    // the method summary. Older reports carry the literal "nwipe Quick", which
+    // the NWIPE rule further down still handles.
+    $overwrite = [
+        'ZERO FILL'        => 'Zero fill',
+        'PRNG STREAM'      => 'PRNG stream',
+        'DOD 5220.22-M'    => 'DoD 5220.22-M',
+        'DOD SHORT'        => 'DoD Short',
+        'GUTMANN'          => 'Gutmann',
+        'HMG IS5 ENHANCED' => 'HMG IS5 Enhanced',
+    ];
+    if (isset($overwrite[$m])) {
+        return 'Software Overwrite — ' . $overwrite[$m] . ' (Clear) - Verified';
+    }
+
     $aliases = [
         // NVMe purge methods (current product strings).
         'NVME CRYPTO PURGE'      => 'NVMe Crypto Sanitise (Purge) - Verified',

@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Fixed
+
+- **The certificate now names the software-overwrite standard it ran.** v1.11.70
+  started recording the standard (`Standard`/`Passes`/`EraseEngine`), but the
+  certificate's method label did not know the new METHOD strings: those rows
+  carry the standard's own label (`DoD Short`, `Zero fill`, …), which matched
+  neither the alias table nor the `NWIPE` rule that caught the pre-v1.11.70
+  literal `nwipe Quick`. Every software overwrite therefore fell through to the
+  generic class wording, so the DESTRUCTION METHOD SUMMARY said `Sanitisation
+  (Clear) - Verified` for all six standards and the standard's name appeared
+  nowhere in it — a certificate showing `Passes 6` and `Eraser nwipe 0.41` but
+  not which standard produced them (6 could be DoD Short ×2 or IS5 ×2). The six
+  named standards now render `Software Overwrite — DoD Short (Clear) -
+  Verified`, and every other wording is byte-identical: the firmware labels, the
+  legacy `nwipe Quick`, the generic CLEAR fallback and the status overrides
+  (FAILED/BLOCKED/…) are unchanged, and a firmware-only certificate never
+  mentions a software overwrite. Server-only; already-issued PDFs keep their
+  wording until regenerated, which is the operator's call because regeneration
+  changes the document hash.
+
 ## [v1.11.72] - 2026-10-21
 
 ### Changed
