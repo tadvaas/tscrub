@@ -221,17 +221,18 @@ with the release that carried them (per `CHANGELOG.md`).
       → **Implemented 2026-10-20, awaiting an appliance release** (it ships with
       the next ISO; the docs text must go out with the image, not before). Plan:
       `research/triage-standard-picker/README.md`.
-- [ ] Overwrite-standard automated coverage (outstanding from v1.11.70) —
-      (a) a Proxmox scenario `tests/proxmox/scenarios/14_overwrite_method.sh`
-      on a `virtio-scsi` disk (the only cheap path that reaches
-      `CAP_SCSI_NWIPE`) asserting the nwipe argv, the `"dodshort","2","nwipe
-      0.41"` CSV row and the manifest keys, plus a no-flag control run proving
-      the default argv is unchanged; (b) a committed PHP test for the server
-      side of `standard`/`passes`/`erase_engine` (parser → Annex A → JSON-LD)
-      built from a synthetic CSV — today only the appliance half is covered and
-      the server half was verified with throwaway probe scripts.
-      → **(b) shipped 2026-10-21** (`marketing/tests/overwrite_parse_test.php`,
-      47 checks): `parse_reports()` now delegates to `reports_header_map()`,
+- [ ] Overwrite-standard end-to-end coverage (outstanding from v1.11.70) —
+      **(a) open:** an end-to-end run on a `virtio-scsi` disk (the only cheap
+      path that reaches `CAP_SCSI_NWIPE`) asserting the nwipe argv, the
+      `"dodshort","2","nwipe 0.41"` CSV row and the manifest keys, plus a
+      no-flag control run proving the default argv is unchanged.
+      🚫 **The Proxmox host `192.168.0.5` is OFF LIMITS** (operator directive,
+      2026-10-21: "too crucial"). Do not run, create or inspect anything there.
+      (a) therefore needs a machine the operator nominates, or a local QEMU VM;
+      agree the target before writing the scenario.
+      **(b) shipped 2026-10-21** (`marketing/tests/overwrite_parse_test.php`,
+      47 checks) — a committed server-side test for the parser → Annex A →
+      JSON-LD chain: `parse_reports()` now delegates to `reports_header_map()`,
       `reports_row_value()` and `reports_drive_provenance()`, so the column
       contract, the `OverwriteStandard`→legacy `Standard` fallback, the
       verification fields and the chain through the certificate annex and
@@ -240,7 +241,7 @@ with the release that carried them (per `CHANGELOG.md`).
       (`marketing/tests/fixtures/report-v1.11.73.csv`, regenerate with
       `product/tests/tools/gen_report_fixture.sh` after any column change), and
       the test also asserts the three helpers are actually CALLED by the
-      importer. **(a) still open** (needs a VM with a virtio-scsi disk).
+      importer.
 - [x] Configurable write passes + custom algorithms — `--passes N` +
       `--pattern <zero|one|random|hex>` mapped to nwipe custom patterns; record
       a `Custom` method in the report. (§11.1)
