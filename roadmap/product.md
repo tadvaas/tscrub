@@ -239,13 +239,15 @@ with the release that carried them (per `CHANGELOG.md`).
 - [ ] IEEE 2883-2022 Purge incl. TPM clearing — `tpm::clear` (`tpm2_clear -c
       platform` / PPI request at next boot) plus an explicit "IEEE 2883 Purge"
       method = disk erase + TPM clear, recorded on the certificate. (§11.1)
-      → **Planned 2026-10-21, phased:** `research/ieee-2883-2022/PLAN-PHASED.md`
-      (§0 corrects the draft: the `Standard` column name is taken, and a Clear
-      coverage % is only measurable on the overwrite path). Phase 1 records the
-      technique + coverage (no claim, no new flag); Phase 2 adds the opt-in
-      `--standard ieee2883` claim with the gates; Phase 3 is copy. **TPM
-      clearing is an explicit non-goal** (BitRaser's twist, not needed for an
-      honest claim) — split it out if it is ever wanted on its own.
+      → **Phase 1 shipped v1.11.73** (2026-10-21): `VerifyTechnique`
+      (sentinel / overwrite-sample / ce-exempt) + `VerifyCoveragePct`, opt-in
+      `--verify-coverage N`, and the CSV column `Standard` → `OverwriteStandard`
+      so the word "standard" is free for the claim. No IEEE wording anywhere —
+      see `research/ieee-2883-2022/PLAN-PHASED.md` §12 for the as-built
+      deviations. Phases 2–3 (`--standard ieee2883` claim with the gates, then
+      copy) remain open. **TPM clearing is an explicit non-goal** (BitRaser's
+      twist, not needed for an honest claim) — split it out if it is ever
+      wanted on its own.
 - [ ] RAID controller physical-drive erase — bundle `megacli`/`hpacucli`, add a
       `device::raid_erase` path mapping a drive to its controller erase command,
       gated behind the "never auto-break an array" rule. (§11.1)
