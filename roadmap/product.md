@@ -379,6 +379,14 @@ with the release that carried them (per `CHANGELOG.md`).
       (see §1). Remaining nuance: positions are fixed, not random-LBA.
 - [ ] Offline / air-gapped verification — self-contained certificate QR
       (embedded signature + key) so a phone verifies with zero network. (§6)
+      → **Planned 2026-10-21, plan-first:** `research/offline-verification/README.md`.
+      Trust rests on the vendor key already published at
+      `/.well-known/tscrub-cert-key.json` (`kid tscrub-vendor-1`), **pinned in the
+      verifier**, never carried in the QR. Measured: a 180-char payload is a
+      53×53 symbol at ECC M (6.7 px/module at 30 mm / 300 dpi), so size is not
+      the constraint; the camera needs a secure context, so offline scanning
+      means a service-worker-cached page. Awaiting decisions §11 (trust anchor,
+      delivery, timestamp, payload scope, print layout, release grouping).
 - [ ] Overwrite-pattern verification + hexviewer — verify software-overwrite
       patterns were actually written (read-back compare) and add a hexviewer
       visual check for compliance (Blancco). Distinct from the sentinel check
