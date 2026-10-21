@@ -102,6 +102,120 @@ function jsonld_sign(string $canonical, ?string $key = null): ?string {
 }
 
 /**
+ * Pinned keys the OFFLINE verifier knows: kid => PEM. An unknown kid is a
+ * rejection, never a fallback, so key rotation means shipping a verifier that
+ * carries both (old one verify-only) rather than trusting whatever key a payload
+ * names. See research/offline-verification/README.md §4.
+ */
+function cert_code_keys(): array {
+    return ['tscrub-vendor-1' => jsonld_pub_key()['pem']];
+}
+
+function cert_code_kid(): string {
+    return 'tscrub-vendor-1';
+}
+
+/**
+ * The bytes that get signed: version|kid|cert_id|issued_at|pdf_sha256.
+ *
+ * The signature is appended as a sixth field, so a verifier that re-joins the
+ * first five cannot be tricked by reordering — any other split changes the
+ * message and the signature stops verifying.
+ */
+function cert_code_message(string $kid, string $certId, string $issuedAt, string $pdfSha256): string {
+    return '1|' . $kid . '|' . $certId . '|' . $issuedAt . '|' . strtolower($pdfSha256);
+}
+
+/** Field shapes, enforced on BOTH sides so a hostile payload cannot smuggle '|'. */
+function cert_code_fields_ok(string $certId, string $issuedAt, string $pdfSha256): bool {
+    if (preg_match('/^[A-Za-z0-9-]{1,64}$/', $certId) !== 1) return false;
+    if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $issuedAt) !== 1) return false;
+    if (preg_match('/^[0-9a-f]{64}$/i', $pdfSha256) !== 1) return false;
+    return true;
+}
+
+/**
+ * Self-contained verification code for one certificate:
+ *
+ *     1|<kid>|<cert_id>|<issued_at RFC3339 UTC>|<sha256 of the PDF>|<sig>
+ *
+ * The signature is Ed25519 over the first five fields (base64url), using the
+ * same vendor key that signs the JSON-LD document and licences. Returns null if
+ * the inputs are malformed or the key is unavailable — never a code with an
+ * empty signature, because a printed code is not something we can withdraw.
+ */
+function cert_offline_code(string $certId, string $issuedAt, string $pdfSha256, ?string $key = null, ?string $kid = null): ?string {
+    if (!cert_code_fields_ok($certId, $issuedAt, $pdfSha256)) return null;
+    $kid = $kid ?? cert_code_kid();
+    if (preg_match('/^[A-Za-z0-9._-]{1,32}$/', $kid) !== 1) return null;
+    $msg = cert_code_message($kid, $certId, $issuedAt, $pdfSha256);
+    $sig = jsonld_sign($msg, $key);
+    if ($sig === null || $sig === '') return null;
+    return $msg . '|' . $sig;
+}
+
+/**
+ * Parse and verify a code. Never throws; returns
+ *
+ *   ['ok' => bool, 'reason' => string, 'kid','cert_id','issued_at','pdf_sha256']
+ *
+ * `reason` is '' on success, otherwise one of: malformed | bad-version |
+ * unknown-key | bad-signature | pdf-mismatch. `expectPdfSha256` is optional: the
+ * verifier passes the hash of the document in the auditor's hand, which is what
+ * ties the printed code to that specific sheet.
+ */
+function cert_offline_verify(string $code, ?array $keys = null, string $expectPdfSha256 = ''): array {
+    $out = ['ok' => false, 'reason' => 'malformed', 'kid' => '', 'cert_id' => '',
+            'issued_at' => '', 'pdf_sha256' => ''];
+    $parts = explode('|', trim($code));
+    if (count($parts) !== 6) return $out;
+    [$ver, $kid, $certId, $issuedAt, $pdfSha, $sig] = $parts;
+    $out['kid'] = $kid;
+    $out['cert_id'] = $certId;
+    $out['issued_at'] = $issuedAt;
+    $out['pdf_sha256'] = strtolower($pdfSha);
+    if ($ver !== '1') { $out['reason'] = 'bad-version'; return $out; }
+    if (!cert_code_fields_ok($certId, $issuedAt, $pdfSha)) return $out;
+    if (preg_match('/^[A-Za-z0-9._-]{1,32}$/', $kid) !== 1) return $out;
+    if (preg_match('/^[A-Za-z0-9_-]+$/', $sig) !== 1) return $out;
+
+    // Unknown kid is a rejection on its own: a payload that names a key we did
+    // not pin must never be "verified" with a key taken from the payload.
+    $keys = $keys ?? cert_code_keys();
+    $pem = $keys[$kid] ?? '';
+    if ($pem === '') { $out['reason'] = 'unknown-key'; return $out; }
+
+    $raw = base64_decode(strtr($sig, '-_', '+/'), true);
+    if ($raw === false || strlen($raw) !== 64) return $out;
+
+    $msg = cert_code_message($kid, $certId, $issuedAt, $pdfSha);
+    $dir = sys_get_temp_dir();
+    $pubPath = tempnam($dir, 'tscrub_pub_');
+    $msgPath = tempnam($dir, 'tscrub_msg_');
+    $sigPath = tempnam($dir, 'tscrub_sig_');
+    if ($pubPath === false || $msgPath === false || $sigPath === false) return $out;
+    try {
+        if (file_put_contents($pubPath, $pem) === false) return $out;
+        if (file_put_contents($msgPath, $msg) === false) return $out;
+        if (file_put_contents($sigPath, $raw) === false) return $out;
+        $r = jsonld_run(['openssl', 'pkeyutl', '-verify', '-pubin', '-inkey', $pubPath,
+                         '-rawin', '-in', $msgPath, '-sigfile', $sigPath]);
+        if ($r === null) { $out['reason'] = 'bad-signature'; return $out; }
+    } finally {
+        @unlink($pubPath); @unlink($msgPath); @unlink($sigPath);
+    }
+
+    if ($expectPdfSha256 !== '' && !hash_equals(strtolower($expectPdfSha256), strtolower($pdfSha))) {
+        $out['reason'] = 'pdf-mismatch';
+        return $out;
+    }
+
+    $out['ok'] = true;
+    $out['reason'] = '';
+    return $out;
+}
+
+/**
  * RFC 3161 timestamp for the canonical bytes. Returns ['token' => base64url
  * TimeStampResp, 'state' => 'recorded'|'verified'] or null on any failure —
  * never fatal, so certificate issuance never blocks on a TSA outage.

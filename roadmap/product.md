@@ -382,11 +382,16 @@ with the release that carried them (per `CHANGELOG.md`).
       → **Planned 2026-10-21, plan-first:** `research/offline-verification/README.md`.
       Trust rests on the vendor key already published at
       `/.well-known/tscrub-cert-key.json` (`kid tscrub-vendor-1`), **pinned in the
-      verifier**, never carried in the QR. Measured: a 180-char payload is a
-      53×53 symbol at ECC M (6.7 px/module at 30 mm / 300 dpi), so size is not
-      the constraint; the camera needs a secure context, so offline scanning
-      means a service-worker-cached page. Awaiting decisions §11 (trust anchor,
-      delivery, timestamp, payload scope, print layout, release grouping).
+      verifier**, never carried in the QR. Measured: the production payload (27-char
+      certificate ID, RFC3339 timestamp) is 218 chars = a 61-module symbol at ECC M
+      (5.8 px/module at 30 mm / 300 dpi), so size is not the constraint; the camera
+      needs a secure context, so offline scanning means a service-worker-cached
+      page. **Phase 1 shipped 2026-10-21 (unreleased):** `cert_offline_code()` /
+      `cert_offline_verify()` in `jsonld.php` + `marketing/tests/offline_code_test.php`
+      (46 checks, mutation-tested, verified against the production vendor key).
+      Phases 2–4 (print the code, ship the verifier page, copy) remain, and the six
+      §11 decisions are taken as recommended — including **replacing** the URL QR,
+      since the payload carries the `cert_id` the online lookup needs anyway.
 - [ ] Overwrite-pattern verification + hexviewer — verify software-overwrite
       patterns were actually written (read-back compare) and add a hexviewer
       visual check for compliance (Blancco). Distinct from the sentinel check
@@ -429,6 +434,17 @@ with the release that carried them (per `CHANGELOG.md`).
       (`CONFIG_CFG80211` unset, no `wpa_supplicant`), so Wi-Fi-only sites and
       802.1x-port-authenticated networks can't upload reports (Blancco/BitRaser
       support both). (§9.3)
+- [ ] **Self-contained netboot appliance** — one Ubuntu Server x86 router box:
+      1 WAN + 7 LAN (discrete Intel NICs), optional 5G M.2, USB-C PD, no Wi-Fi.
+      Runs the router, DHCP, TFTP, HTTP and the iPXE chain that boots tScrub;
+      every connected machine gets dashboard egress (30 s heartbeat,
+      diagnostics and report uploads), with a store-and-forward spool as the
+      fallback. Three DHCP modes — router (default), proxyDHCP (coexist with an
+      existing DHCP server) and cooperate (their DHCP points option 66/67 at
+      us); a second authoritative DHCP on a shared L2 is explicitly
+      unsupported. Boot chain and image are unchanged.
+      → Plan: `research/netboot-appliance/README.md` (DHCP coexistence
+      analysis in §2; open decisions in §12).
 
 ### 4.5 Inventory & MDM (§6)
 
