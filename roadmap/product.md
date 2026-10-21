@@ -392,8 +392,12 @@ with the release that carried them (per `CHANGELOG.md`).
       is v2 — `2|<kid>|<cert_id>|<issued_at>|<sig>` — because v1's PDF hash could
       not be printed inside the PDF it hashes; what a code attests offline is "we
       issued this certificate id at this time under this key", and it sits exactly
-      on the 65-module line at ECC H (153 chars). Phases 3–4 (the verifier page and
-      the copy) remain, then one release carrying all of it.
+      on the 65-module line at ECC H (153 chars). **Phase 3 built 2026-10-21, also
+      undeployed:** `/verify-offline` + a shared verifier module (no DOM, no
+      network — node tests the same code the page runs) + a service worker that
+      precaches the page *and its hashed assets*. Verified in a real browser
+      against a production-signed code, including with the network switched off.
+      Phase 4 (copy) remains, then one release carrying 2–4.
 - [ ] Overwrite-pattern verification + hexviewer — verify software-overwrite
       patterns were actually written (read-back compare) and add a hexviewer
       visual check for compliance (Blancco). Distinct from the sentinel check

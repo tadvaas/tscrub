@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
+  <title>Verify a certificate offline — tScrub</title>
+  <link rel="canonical" href="https://tscrub.com/verify-offline" />
+  <meta name="robots" content="index, follow" />
+  <meta name="description" content="Check a tScrub Certificate of Destruction with no network connection: the code printed on the certificate is signed by tScrub's published Ed25519 key." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* Kept inline and tiny: this page has to work with the network switched off,
+       so it must not depend on a stylesheet that might not be cached yet. */
+    .ov-wrap { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    .ov-status { margin: 1rem 0; padding: .6rem .75rem; border-radius: .5rem; font-size: .9rem; }
+    .ov-warn { background: #fef3c7; color: #78350f; }
+    .ov-result { margin-top: 1.25rem; padding: 1rem 1.1rem; border-radius: .6rem; border: 1px solid; }
+    .ov-pass { border-color: #16a34a; background: #f0fdf4; color: #14532d; }
+    .ov-fail { border-color: #dc2626; background: #fef2f2; color: #7f1d1d; }
+    .ov-dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem .9rem; margin: .6rem 0 0; font-size: .9rem; }
+    .ov-dl dt { font-weight: 600; }
+    .ov-dl dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+    .ov-note { margin: .7rem 0 0; font-size: .85rem; line-height: 1.5; }
+    .ov-field { margin-top: 1rem; }
+    .ov-field label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+    .ov-field textarea, .ov-field input { width: 100%; padding: .6rem .7rem; border: 1px solid #cbd5e1; border-radius: .45rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    .ov-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+    .ov-btn { padding: .6rem 1rem; border-radius: .5rem; font-weight: 600; font-size: .9rem; border: 1px solid #0f172a; cursor: pointer; }
+    .ov-primary { background: #0f172a; color: #fff; }
+    .ov-secondary { background: #fff; color: #0f172a; }
+    .ov-muted { color: #475569; font-size: .85rem; margin-top: .5rem; }
+    #ov-video { width: 100%; max-height: 22rem; margin-top: 1rem; border-radius: .5rem; background: #000; }
+    .ov-fp { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; word-break: break-all; }
+  </style>
+</head>
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+
+        <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
+        </ul>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content" tabindex="-1">
+    <div class="ov-wrap">
+      <h1 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Verify a certificate offline</h1>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        Every tScrub Certificate of Destruction carries a QR code that contains a signed code, not just a web link.
+        This page checks that signature on your own device, so it works with no network connection at all.
+        Scan the code with the camera, or paste it in.
+      </p>
+
+      <div class="ov-field">
+        <label for="ov-code">Verification code</label>
+        <textarea id="ov-code" rows="3" spellcheck="false" autocomplete="off" placeholder="2|tscrub-vendor-1|COD-…|2026-…|<signature>"></textarea>
+      </div>
+
+      <div class="ov-field">
+        <label for="ov-expect">Certificate ID printed on the certificate (optional)</label>
+        <input id="ov-expect" type="text" spellcheck="false" autocomplete="off" placeholder="COD-000000-XX-XXX-0000-XXXX" />
+        <p class="ov-muted">If you enter it, the check also fails when the code belongs to a different certificate.</p>
+      </div>
+
+      <div class="ov-actions">
+        <button id="ov-check" class="ov-btn ov-primary" type="button">Check code</button>
+        <button id="ov-scan" class="ov-btn ov-secondary" type="button" hidden>Scan with camera</button>
+      </div>
+      <p id="ov-scan-hint" class="ov-muted"></p>
+
+      <video id="ov-video" hidden playsinline muted></video>
+
+      <p id="ov-status" class="ov-status" hidden></p>
+      <div id="ov-result" class="ov-result" hidden>
+        <strong id="ov-title"></strong>
+        <div id="ov-detail"></div>
+      </div>
+
+      <h2 class="mt-10 text-lg font-bold text-ink-900 dark:text-white">What a pass means — and what it does not</h2>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        A pass means the code was issued by tScrub for that Certificate ID at that time, signed with the key whose
+        fingerprint is printed below. It does not, on its own, prove which drives were erased: this page holds no
+        database. To see what the certificate actually records, open the online record for the same Certificate ID
+        (the link is offered after a pass) or scan the certificate's QR with a normal camera app while online.
+      </p>
+      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">
+        Trusted signing key: <span class="ov-fp" id="ov-fingerprint">…</span>
+      </p>
+      <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+        The same fingerprint is published at
+        <a href="/.well-known/tscrub-cert-key.json" class="text-brand-600 dark:text-brand-400">/.well-known/tscrub-cert-key.json</a>.
+        Once this page has loaded it keeps working with the network off — add it to your home screen, or leave it open.
+      </p>
+    </div>
+  </main>
+
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="compliance" class="hover:text-white">Compliance</a></li>
+        <li><a href="pricing" class="hover:text-white">Pricing</a></li>
+        <li><a href="download" class="hover:text-white">Download</a></li>
+        <li><a href="faq" class="hover:text-white">FAQ</a></li>
+        <li><a href="docs" class="hover:text-white">Docs</a></li>
+        <li><a href="resources" class="hover:text-white">Resources</a></li>
+        <li><a href="privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="terms" class="hover:text-white">Terms</a></li>
+        <li><a href="contact" class="hover:text-white">Contact</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/verify-offline-page.js"></script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

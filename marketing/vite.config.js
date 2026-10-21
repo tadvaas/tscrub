@@ -22,6 +22,7 @@ const pages = {
   terms: 'terms.html',
   docs: 'docs.html',
   contact: 'contact.html',
+  'verify-offline': 'verify-offline.html',
   resources: 'resources.html',
   'resources-standards': 'resources/standards.html',
   'resources-drive-types': 'resources/drive-types.html',
