@@ -382,16 +382,18 @@ with the release that carried them (per `CHANGELOG.md`).
       → **Planned 2026-10-21, plan-first:** `research/offline-verification/README.md`.
       Trust rests on the vendor key already published at
       `/.well-known/tscrub-cert-key.json` (`kid tscrub-vendor-1`), **pinned in the
-      verifier**, never carried in the QR. Measured: the production payload (27-char
-      certificate ID, RFC3339 timestamp) is 218 chars = a 61-module symbol at ECC M
-      (5.8 px/module at 30 mm / 300 dpi), so size is not the constraint; the camera
-      needs a secure context, so offline scanning means a service-worker-cached
-      page. **Phase 1 shipped 2026-10-21 (unreleased):** `cert_offline_code()` /
-      `cert_offline_verify()` in `jsonld.php` + `marketing/tests/offline_code_test.php`
-      (46 checks, mutation-tested, verified against the production vendor key).
-      Phases 2–4 (print the code, ship the verifier page, copy) remain, and the six
-      §11 decisions are taken as recommended — including **replacing** the URL QR,
-      since the payload carries the `cert_id` the online lookup needs anyway.
+      verifier**, never carried in the QR. The camera needs a secure context, so
+      offline scanning means a service-worker-cached page, not a downloaded file.
+      **Phase 1 shipped 2026-10-21 (unreleased):** `cert_offline_code()` /
+      `cert_offline_verify()` in `jsonld.php` + `marketing/tests/offline_code_test.php`.
+      **Phase 2 built 2026-10-21, deliberately NOT deployed:** the renderer draws
+      the code in place of the URL when the generator supplies one, but production
+      keeps the URL QR until the verifier exists (plan §11 decision 6). The payload
+      is v2 — `2|<kid>|<cert_id>|<issued_at>|<sig>` — because v1's PDF hash could
+      not be printed inside the PDF it hashes; what a code attests offline is "we
+      issued this certificate id at this time under this key", and it sits exactly
+      on the 65-module line at ECC H (153 chars). Phases 3–4 (the verifier page and
+      the copy) remain, then one release carrying all of it.
 - [ ] Overwrite-pattern verification + hexviewer — verify software-overwrite
       patterns were actually written (read-back compare) and add a hexviewer
       visual check for compliance (Blancco). Distinct from the sentinel check

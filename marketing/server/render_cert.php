@@ -957,7 +957,7 @@ function cert_attestation_text(string $toolName, int $devices, int $attItems, in
     return $text;
 }
 
-function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = []): array {
+function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = [], string $offlineCode = ''): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
     usort($drives, function ($a, $b) {
@@ -1390,13 +1390,21 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     if (($ISSUER['addr'] ?? '') !== '') { $pdf->SetXY(30, $y); $pdf->Cell(190, 4, $ISSUER['addr'], 0, 1, 'L'); $y += 4; }
     if (($ISSUER['phone'] ?? '') !== '') { $pdf->SetXY(30, $y); $pdf->Cell(190, 4, 'Tel: ' . $ISSUER['phone'], 0, 1, 'L'); $y += 4; }
 
-    // Verification QR code (bottom-right) — on every certificate, paid or free.
-    $verifyUrl = 'https://tscrub.com/verify?cert=' . $certId;
-    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 244, 157, 30, 30, ['border' => 0, 'padding' => 0], 'N');
+    // Verification code (bottom-right) — on every certificate, paid or free.
+    //
+    // The self-contained offline code replaces the old "verify?cert=…" URL:
+    // a printed certificate should still be checkable when nothing can reach
+    // us, and the code carries the Certificate ID the online lookup needs, so
+    // the verifier can offer that lookup as a link when the phone has network.
+    // When no code can be produced (vendor key unavailable at generation time)
+    // the URL is drawn instead, so a certificate never ships with no way to
+    // check it.
+    $marker = $offlineCode !== '' ? $offlineCode : ('https://tscrub.com/verify?cert=' . $certId);
+    $pdf->write2DBarcode($marker, 'QRCODE,H', 244, 157, 30, 30, ['border' => 0, 'padding' => 0], 'N');
     $pdf->SetFont('helvetica', '', 6.5);
     $pdf->SetTextColor(100, 116, 139);
     $pdf->SetXY(244, 189);
-    $pdf->Cell(30, 4, 'Verify online', 0, 0, 'C');
+    $pdf->Cell(30, 4, $offlineCode !== '' ? 'Verify offline or online' : 'Verify online', 0, 0, 'C');
 
     // Scope + retention line.
     $pdf->SetFont('helvetica', '', 7.5);

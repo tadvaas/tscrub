@@ -116,39 +116,48 @@ function cert_code_kid(): string {
 }
 
 /**
- * The bytes that get signed: version|kid|cert_id|issued_at|pdf_sha256.
+ * The bytes that get signed: version|kid|cert_id|issued_at.
  *
- * The signature is appended as a sixth field, so a verifier that re-joins the
- * first five cannot be tricked by reordering — any other split changes the
+ * The signature is appended as a fifth field, so a verifier that re-joins the
+ * first four cannot be tricked by reordering — any other split changes the
  * message and the signature stops verifying.
+ *
+ * WHY THERE IS NO HASH OF THE PDF HERE. Version 1 carried `sha256` of the
+ * rendered PDF, which is impossible to do honestly: the code is printed INSIDE
+ * that PDF, so adding the code changes the file and therefore the hash. A
+ * hash of "the PDF without the code" matches nothing an auditor can compute from
+ * the paper they hold. So the printed code attests what can be attested offline:
+ * we issued THIS certificate id at THIS time, under THIS key. Binding the paper
+ * to its content is what the online record and the signed JSON-LD are for (the
+ * document carries `pdf_sha256` for exactly that), and the verifier compares the
+ * verified cert_id with the one printed on the page.
  */
-function cert_code_message(string $kid, string $certId, string $issuedAt, string $pdfSha256): string {
-    return '1|' . $kid . '|' . $certId . '|' . $issuedAt . '|' . strtolower($pdfSha256);
+function cert_code_message(string $kid, string $certId, string $issuedAt): string {
+    return '2|' . $kid . '|' . $certId . '|' . $issuedAt;
 }
 
 /** Field shapes, enforced on BOTH sides so a hostile payload cannot smuggle '|'. */
-function cert_code_fields_ok(string $certId, string $issuedAt, string $pdfSha256): bool {
+function cert_code_fields_ok(string $certId, string $issuedAt): bool {
     if (preg_match('/^[A-Za-z0-9-]{1,64}$/', $certId) !== 1) return false;
     if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $issuedAt) !== 1) return false;
-    if (preg_match('/^[0-9a-f]{64}$/i', $pdfSha256) !== 1) return false;
     return true;
 }
 
 /**
  * Self-contained verification code for one certificate:
  *
- *     1|<kid>|<cert_id>|<issued_at RFC3339 UTC>|<sha256 of the PDF>|<sig>
+ *     2|<kid>|<cert_id>|<issued_at RFC3339 UTC>|<sig>
  *
- * The signature is Ed25519 over the first five fields (base64url), using the
+ * The signature is Ed25519 over the first four fields (base64url), using the
  * same vendor key that signs the JSON-LD document and licences. Returns null if
  * the inputs are malformed or the key is unavailable — never a code with an
  * empty signature, because a printed code is not something we can withdraw.
  */
-function cert_offline_code(string $certId, string $issuedAt, string $pdfSha256, ?string $key = null, ?string $kid = null): ?string {
-    if (!cert_code_fields_ok($certId, $issuedAt, $pdfSha256)) return null;
+function cert_offline_code(string $certId, string $issuedAt, ?string $key = null, ?string $kid = null): ?string {
+    if (!cert_code_fields_ok($certId, $issuedAt)) return null;
     $kid = $kid ?? cert_code_kid();
     if (preg_match('/^[A-Za-z0-9._-]{1,32}$/', $kid) !== 1) return null;
-    $msg = cert_code_message($kid, $certId, $issuedAt, $pdfSha256);
+    $msg = cert_code_message($kid, $certId, $issuedAt);
     $sig = jsonld_sign($msg, $key);
     if ($sig === null || $sig === '') return null;
     return $msg . '|' . $sig;
@@ -157,25 +166,23 @@ function cert_offline_code(string $certId, string $issuedAt, string $pdfSha256, 
 /**
  * Parse and verify a code. Never throws; returns
  *
- *   ['ok' => bool, 'reason' => string, 'kid','cert_id','issued_at','pdf_sha256']
+ *   ['ok' => bool, 'reason' => string, 'kid','cert_id','issued_at']
  *
  * `reason` is '' on success, otherwise one of: malformed | bad-version |
- * unknown-key | bad-signature | pdf-mismatch. `expectPdfSha256` is optional: the
- * verifier passes the hash of the document in the auditor's hand, which is what
- * ties the printed code to that specific sheet.
+ * unknown-key | bad-signature | cert-mismatch. `expectCertId` is optional: the
+ * verifier passes the Certificate ID printed on the page in front of the
+ * auditor, which is the one binding a paper-only check can actually make.
  */
-function cert_offline_verify(string $code, ?array $keys = null, string $expectPdfSha256 = ''): array {
-    $out = ['ok' => false, 'reason' => 'malformed', 'kid' => '', 'cert_id' => '',
-            'issued_at' => '', 'pdf_sha256' => ''];
+function cert_offline_verify(string $code, ?array $keys = null, string $expectCertId = ''): array {
+    $out = ['ok' => false, 'reason' => 'malformed', 'kid' => '', 'cert_id' => '', 'issued_at' => ''];
     $parts = explode('|', trim($code));
-    if (count($parts) !== 6) return $out;
-    [$ver, $kid, $certId, $issuedAt, $pdfSha, $sig] = $parts;
+    if (count($parts) !== 5) return $out;
+    [$ver, $kid, $certId, $issuedAt, $sig] = $parts;
     $out['kid'] = $kid;
     $out['cert_id'] = $certId;
     $out['issued_at'] = $issuedAt;
-    $out['pdf_sha256'] = strtolower($pdfSha);
-    if ($ver !== '1') { $out['reason'] = 'bad-version'; return $out; }
-    if (!cert_code_fields_ok($certId, $issuedAt, $pdfSha)) return $out;
+    if ($ver !== '2') { $out['reason'] = 'bad-version'; return $out; }
+    if (!cert_code_fields_ok($certId, $issuedAt)) return $out;
     if (preg_match('/^[A-Za-z0-9._-]{1,32}$/', $kid) !== 1) return $out;
     if (preg_match('/^[A-Za-z0-9_-]+$/', $sig) !== 1) return $out;
 
@@ -188,7 +195,7 @@ function cert_offline_verify(string $code, ?array $keys = null, string $expectPd
     $raw = base64_decode(strtr($sig, '-_', '+/'), true);
     if ($raw === false || strlen($raw) !== 64) return $out;
 
-    $msg = cert_code_message($kid, $certId, $issuedAt, $pdfSha);
+    $msg = cert_code_message($kid, $certId, $issuedAt);
     $dir = sys_get_temp_dir();
     $pubPath = tempnam($dir, 'tscrub_pub_');
     $msgPath = tempnam($dir, 'tscrub_msg_');
@@ -205,8 +212,8 @@ function cert_offline_verify(string $code, ?array $keys = null, string $expectPd
         @unlink($pubPath); @unlink($msgPath); @unlink($sigPath);
     }
 
-    if ($expectPdfSha256 !== '' && !hash_equals(strtolower($expectPdfSha256), strtolower($pdfSha))) {
-        $out['reason'] = 'pdf-mismatch';
+    if ($expectCertId !== '' && !hash_equals($expectCertId, $certId)) {
+        $out['reason'] = 'cert-mismatch';
         return $out;
     }
 
