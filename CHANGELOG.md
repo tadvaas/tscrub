@@ -6,6 +6,60 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.74] - 2026-10-21
+
+**Server and site only — the appliance image is unchanged (still v1.11.73).**
+
+### Added
+
+- **Certificates can now be verified with no network at all.** The certificate
+  QR used to carry only a lookup URL, so a printed certificate was worthless
+  without our server answering. It now carries the verifier URL with a signed
+  code in the URL fragment: `tscrub.com/verify-offline#c=2|<kid>|<cert_id>|
+  <issued_at>|<signature>`. Because the code sits after the `#`, it is never sent
+  to us — the signature is checked on the reader's own device against the vendor
+  key built into the page, whose fingerprint (`be81586c…5802`) is the one
+  published at `/.well-known/tscrub-cert-key.json`. Load the page once and it
+  keeps working with the network switched off, which is what an auditor with a
+  segregated laptop or a phone in aeroplane mode needs. Scanning with an ordinary
+  camera opens the page with the code already filled in; the paste box works
+  anywhere, and camera scanning appears only where the browser allows it (a page
+  saved to a file cannot use the camera, by platform rule).
+- **An honest account of what that check proves.** A pass means the code was
+  issued by tScrub for that Certificate ID at that time and has not been altered.
+  It does not prove the drive was erased, and it does not compare against the
+  printed content: a page on a phone holds no database. The page says so in as
+  many words, offers the online record for the same Certificate ID after a pass,
+  and can be told the Certificate ID printed on the paper so that a code lifted
+  onto another certificate is rejected.
+- The document is now `OverwriteStandard` on the wire (was `Standard`), and every
+  drive records `VerifyTechnique`/`VerifyCoveragePct` — see the entry below for
+  the appliance half; the server reads either spelling, so reports written by
+  v1.11.70–v1.11.72 still import.
+
+### Security notes
+
+- An unknown signing-key id is a **rejection**, never a fallback to a key taken
+  from the code. A payload that carried its own key would prove only that its
+  author can sign; trust comes from the pinned key and from how the page reached
+  the device.
+- The printed code deliberately contains **no hash of the PDF**. A code printed
+  inside a PDF cannot sign that PDF's own hash (drawing the code changes the
+  file), and a hash of "the PDF without the code" is one nobody holding the paper
+  can reproduce. The JSON-LD document and the online record still carry
+  `pdf_sha256` for file-level integrity.
+- The RFC 3161 timestamp is not in the QR. Its chain needs the TSA's
+  certificates and revocation data, so it stays an online check, and the page
+  says so rather than implying otherwise.
+
+### Fixed
+
+- **The certificate's verification caption and QR are now generated from the
+  certificate's own code**, and the generator supplies it at both creation sites
+  (create, and merge-and-re-render). If the vendor key is unavailable the
+  renderer falls back to the old lookup URL, so a certificate can never ship with
+  no way to check it.
+
 ## [v1.11.73] - 2026-10-21
 
 ### Added

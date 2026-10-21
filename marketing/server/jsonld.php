@@ -173,7 +173,35 @@ function cert_offline_code(string $certId, string $issuedAt, ?string $key = null
  * verifier passes the Certificate ID printed on the page in front of the
  * auditor, which is the one binding a paper-only check can actually make.
  */
+/**
+ * What gets drawn into the certificate QR: the verifier URL with the code in the
+ * FRAGMENT.
+ *
+ * A QR containing only the bare code is self-contained but useless to a phone's
+ * ordinary camera, which shows it as text and opens nothing. As a URL, any
+ * camera opens the verifier, and because the code sits after '#' it is never
+ * sent to the server — the page verifies it locally. Cost measured with TCPDF's
+ * encoder: 189 chars is 65 modules at ECC Q, i.e. the same size and
+ * pixels-per-module as the bare code at ECC H.
+ */
+function cert_offline_marker(string $code): string {
+    return 'https://tscrub.com/verify-offline#c=' . $code;
+}
+
+/**
+ * Accept a bare code or the whole verify-offline URL a camera may have copied.
+ * Returns the bare code, or the input unchanged when no code can be recognised.
+ */
+function cert_offline_unwrap(string $input): string {
+    $s = trim($input);
+    $pos = strpos($s, '#c=');
+    if ($pos === false) $pos = strpos($s, '?c=');
+    if ($pos !== false) $s = substr($s, $pos + 3);
+    return rawurldecode($s);
+}
+
 function cert_offline_verify(string $code, ?array $keys = null, string $expectCertId = ''): array {
+    $code = cert_offline_unwrap($code);
     $out = ['ok' => false, 'reason' => 'malformed', 'kid' => '', 'cert_id' => '', 'issued_at' => ''];
     $parts = explode('|', trim($code));
     if (count($parts) !== 5) return $out;

@@ -50,9 +50,22 @@ function fieldsOk(certId, issuedAt) {
     && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(issuedAt);
 }
 
+/**
+ * The QR carries a URL with the code in the fragment, so a phone's ordinary
+ * camera opens the verifier instead of showing a wall of text. Accept either
+ * form: the bare code, or the whole URL someone copied out of their camera app.
+ * The fragment is never sent to a server, so the code stays on the device.
+ */
+export function unwrapCode(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  const m = s.match(/[#?]c=([^\s]+)/);
+  const body = m ? m[1] : s;
+  try { return decodeURIComponent(body); } catch (e) { return body; }
+}
+
 /** Split a code without verifying it (used for display and for the tests). */
 export function parseCode(raw) {
-  const code = String(raw == null ? '' : raw).trim();
+  const code = unwrapCode(raw);
   const parts = code.split('|');
   if (parts.length !== 5) return { ok: false, reason: 'malformed' };
   const [version, kid, certId, issuedAt, sig] = parts;

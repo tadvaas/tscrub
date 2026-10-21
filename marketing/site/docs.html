@@ -398,12 +398,20 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400"><strong>What such a record does and does not claim.</strong> It appears on the certificate in its own section, every line carrying the qualifier <em>&quot;operator-attested &mdash; not instrument-verified&quot;</em>. It is never counted as sanitised, never mixed into the per-drive wipe evidence, and never implied to have been erased by tScrub: there is no scan data behind it, so no wipe result, no NIST level and no pre/post-wipe SMART data are attributed to it. The dashboard badges the row <strong>Attested</strong> and reports how many of the total are attestations, so a destroyed phone cannot inflate the count of machines the appliance actually saw. When an attestation rests on a vendor's certificate, record its reference so a reader can go to the source.</p>
 
               <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Verifying a certificate online</h3>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Each certificate carries a unique Certificate ID (<code class="font-mono">COD-…</code>). Scanning the QR code — or visiting <code class="font-mono">tscrub.com/verify?cert=COD-…</code> — looks up the issuance record and confirms:</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Each certificate carries a unique Certificate ID (<code class="font-mono">COD-…</code>). The QR code contains a link to the verifier, so scanning it with an ordinary phone camera opens that page with the certificate's signed code already filled in. The same record is reachable directly at <code class="font-mono">tscrub.com/verify?cert=COD-…</code>. Either way it confirms:</p>
               <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
                 <li>the Certificate ID, Chain of Custody ID, and sanitisation window;</li>
                 <li>device, method, and run counts;</li>
                 <li>the integrity and signature status recorded at issuance;</li>
                 <li>a SHA-256 hash of the PDF itself, so the document can be checked for alteration since issue.</li>
+              </ul>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Verifying a certificate with no network</h3>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The same QR opens <a href="/verify-offline" class="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-400">tscrub.com/verify-offline</a>, which checks the signature <strong>on the device</strong> using the public key built into the page. Load it once and it keeps working with the network switched off, which is what an auditor with a segregated laptop or a phone in aeroplane mode needs. The code sits after the <code class="font-mono">#</code> in the link, so it is never sent to us: the check happens locally.</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
+                <li><strong>What a pass proves:</strong> the code was issued by tScrub for that Certificate ID at that time, and has not been altered since. The signing key's fingerprint is shown on the page, and is published at <code class="font-mono">/.well-known/tscrub-cert-key.json</code>.</li>
+                <li><strong>What it does not prove:</strong> that the drive was erased, or that the details printed on the page are the ones the certificate records. A verifier page holds no database. Send the auditor the online link as well if they need the recorded content, or let them compare the printed Certificate ID with the one the page reports.</li>
+                <li><strong>Camera or keyboard:</strong> where the browser supports it, the page can scan the code directly. A copy of the page saved to a file cannot use the camera (browsers only allow that over https), so it falls back to the paste box.</li>
               </ul>
 
               <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Machine-readable certificate (JSON-LD)</h3>

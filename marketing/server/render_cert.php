@@ -1400,7 +1400,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // the URL is drawn instead, so a certificate never ships with no way to
     // check it.
     $marker = $offlineCode !== '' ? $offlineCode : ('https://tscrub.com/verify?cert=' . $certId);
-    $pdf->write2DBarcode($marker, 'QRCODE,H', 244, 157, 30, 30, ['border' => 0, 'padding' => 0], 'N');
+    // ECC Q, not H: the offline marker is ~189 characters, which is 65 modules at
+    // Q (5.4 px/module at 30 mm / 300 dpi) but 73 at H (4.8), where cheap phone
+    // cameras start failing.
+    $pdf->write2DBarcode($marker, 'QRCODE,Q', 244, 157, 30, 30, ['border' => 0, 'padding' => 0], 'N');
     $pdf->SetFont('helvetica', '', 6.5);
     $pdf->SetTextColor(100, 116, 139);
     $pdf->SetXY(244, 189);

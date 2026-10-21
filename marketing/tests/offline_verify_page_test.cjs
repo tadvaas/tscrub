@@ -145,6 +145,17 @@ const msgB = `2|test-1|${CERT_B}|${AT}`;
   }
   eq('parseCode explains the version problem', 'bad-version', parseCode(withField(0, '1')).reason);
 
+  // The printed QR is a URL with the code in the fragment, so a phone's ordinary
+  // camera opens the verifier instead of showing text. Pasting that URL must work
+  // exactly like pasting the bare code.
+  const asUrl = 'https://tscrub.com/verify-offline#c=' + codeA;
+  eq('a pasted verifier URL unwraps to the same certificate id', CERT_A, parseCode(asUrl).certId);
+  check('a pasted verifier URL verifies', (await verifyCode(asUrl, { keys })).ok === true);
+  check('a pasted URL with a query (?c=) verifies too',
+    (await verifyCode('https://tscrub.com/verify-offline?c=' + encodeURIComponent(codeA), { keys })).ok === true);
+  check('a tampered URL still fails',
+    (await verifyCode(asUrl.replace('869047', '869048'), { keys })).ok === false);
+
   // -------------------------------------------------------------------------
   // 6. The pinned key is the published one
   // -------------------------------------------------------------------------

@@ -257,24 +257,29 @@ t_check("the code is at most 170 characters (measured: $len)", $len <= 170);
 t_eq('the signature is 86 base64url characters', 86, strlen($parts[4]));
 
 if (class_exists('QRcode')) {
-    // The renderer draws the code at ECC H, 30 mm square. Anything above 65
-    // modules drops below 5.4 px/module at 300 dpi, where cheap phone cameras
-    // start failing, so this is a layout guard, not a style preference.
-    $q = new QRcode((string)$code, 'H');
-    $arr = $q->getBarcodeArray();
-    $rows = (int)($arr['num_rows'] ?? 0);
-    t_check("the code fits a 65-module symbol at ECC H (measured: $rows)",
-        $rows > 0 && $rows <= 65);
+    // What is PRINTED is the marker (URL + '#c=<code>'), not the bare code: a QR
+    // holding only the code is a wall of text to a phone's ordinary camera. The
+    // marker is ~189 chars, which is 65 modules at ECC Q (5.4 px/module at
+    // 30 mm / 300 dpi) but 73 at H, so the renderer uses Q.
+    $marker = cert_offline_marker((string)$code);
+    t_check('the marker is the verifier URL with the code in the fragment',
+        strpos($marker, 'https://tscrub.com/verify-offline#c=2|') === 0);
+    check_marker($marker, 'test key');
 
     // Longest realistic case: the production kid (15 chars) with a 27-char
-    // certificate id. This is what actually gets printed, and it sits exactly at
-    // the guard, so any field growth forces a deliberate layout decision.
-    $prod = cert_offline_code($certId, $issuedAt, $kp['key'], 'tscrub-vendor-1');
-    $q = new QRcode((string)$prod, 'H');
+    // certificate id. This is what actually gets printed, so any field growth
+    // forces a deliberate layout decision.
+    $prod = cert_offline_marker((string)cert_offline_code($certId, $issuedAt, $kp['key'], 'tscrub-vendor-1'));
+    check_marker($prod, 'production shape');
+}
+
+function check_marker(string $marker, string $label): void
+{
+    $q = new QRcode($marker, 'Q');
     $arr = $q->getBarcodeArray();
-    $prows = (int)($arr['num_rows'] ?? 0);
-    t_check("the production-shaped code fits too (" . strlen((string)$prod)
-        . " chars, $prows modules at ECC H)", $prows > 0 && $prows <= 65);
+    $rows = (int)($arr['num_rows'] ?? 0);
+    t_check("the $label marker fits a 65-module symbol at ECC Q ("
+        . strlen($marker) . " chars, $rows modules)", $rows > 0 && $rows <= 65);
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +323,12 @@ t_eq('the generator builds the code before rendering',
     true, strpos($api, "gmdate('Y-m-d\\TH:i:s\\Z')") !== false);
 $sites = preg_match_all('/render_certificate_pdf\([^;]*?cert_offline_code\(\$certId, \$issuedAtCode\)/s', $api);
 t_eq('both render call sites pass the offline code', 2, (int)$sites);
+
+// A code can arrive as the bare string or as the whole URL a camera app copied.
+$markerForVerify = cert_offline_marker((string)$code);
+$t = cert_offline_verify($markerForVerify, $keys);
+t_check('verifying the printed URL marker works', $t['ok'] === true);
+t_eq('the URL marker yields the same certificate id', $certId, $t['cert_id']);
 
 printf("\n%d checks, %d failures\n", $count, $fails);
 exit($fails === 0 ? 0 : 1);

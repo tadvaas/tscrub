@@ -235,7 +235,7 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
         // merge: load it and hand it to the renderer as its own (attested) section.
         $attested = manual_attested_load((int)$existing['id']);
         $rendered = render_certificate_pdf($merged, $certId, $canSign, $certifier, $destroyed, $attested,
-            (string)cert_offline_code($certId, $issuedAtCode));
+            (string)cert_offline_marker((string)cert_offline_code($certId, $issuedAtCode)));
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
@@ -274,7 +274,7 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     } else {
         $certId = gen_cert_id();
         $rendered = render_certificate_pdf($g, $certId, $canSign, $certifier, $destroyed, [],
-            (string)cert_offline_code($certId, $issuedAtCode));
+            (string)cert_offline_marker((string)cert_offline_code($certId, $issuedAtCode)));
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
