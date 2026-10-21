@@ -461,9 +461,19 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'lock_kind' => clip_str($get($row, 'lockkind'), 16),
                 'ppi_requested' => clip_str($get($row, 'ppirequested'), 16),
                 // Software-overwrite provenance (fallback paths only).
-                'standard' => clip_str($get($row, 'standard'), 32),
+                // The appliance renamed its CSV column Standard ->
+                // OverwriteStandard (v1.11.73) so the bare word "standard" can
+                // later mean the sanitisation CLAIM; both spellings are accepted
+                // because reports written before the rename stay valid.
+                'standard' => clip_str($get($row, 'overwritestandard') !== ''
+                    ? $get($row, 'overwritestandard') : $get($row, 'standard'), 32),
                 'passes' => clip_str($get($row, 'passes'), 16),
                 'erase_engine' => clip_str($get($row, 'eraseengine'), 32),
+                // What KIND of evidence the read-back carries: sentinel |
+                // overwrite-sample | ce-exempt. The percentage is only present
+                // for overwrite-sample (see product/src/43_verify.sh).
+                'verify_technique' => clip_str($get($row, 'verifytechnique'), 32),
+                'verify_coverage_pct' => clip_str($get($row, 'verifycoveragepct'), 16),
                 // Derivable only across reports (prior BLOCKED -> now COMPLETED);
                 // computed in merge_group(). A single report is always 'no'.
                 'ppi_cleared' => 'no',
@@ -897,6 +907,8 @@ function certificate_drives_ensure_schema(): void {
             'standard'     => "VARCHAR(32) NOT NULL DEFAULT '' AFTER media_destination",
             'passes'       => "VARCHAR(16) NOT NULL DEFAULT '' AFTER standard",
             'erase_engine' => "VARCHAR(64) NOT NULL DEFAULT '' AFTER passes",
+            'verify_technique' => "VARCHAR(32) NOT NULL DEFAULT '' AFTER erase_engine",
+            'verify_coverage_pct' => "VARCHAR(16) NOT NULL DEFAULT '' AFTER verify_technique",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -920,7 +932,7 @@ function load_cert_drives(int $certId): array {
                 smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
                 firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
                 tool_version, operator, validator, media_source, media_destination,
-                standard, passes, erase_engine
+                standard, passes, erase_engine, verify_technique, verify_coverage_pct
          FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
     );
     $stmt->execute([$certId]);
@@ -952,6 +964,8 @@ function certificate_drives_column_map(): array {
         'operator' => 'operator', 'validator' => 'validator',
         'media_source' => 'media_source', 'media_destination' => 'media_destination',
         'standard' => 'standard', 'passes' => 'passes', 'erase_engine' => 'erase_engine',
+        'verify_technique' => 'verify_technique',
+        'verify_coverage_pct' => 'verify_coverage_pct',
     ];
 }
 
@@ -1069,6 +1083,8 @@ function db_drive_to_group(array $d): array {
         'standard'      => (string)($d['standard'] ?? ''),
         'passes'        => (string)($d['passes'] ?? ''),
         'erase_engine'  => (string)($d['erase_engine'] ?? ''),
+        'verify_technique' => (string)($d['verify_technique'] ?? ''),
+        'verify_coverage_pct' => (string)($d['verify_coverage_pct'] ?? ''),
     ];
 }
 

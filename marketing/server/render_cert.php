@@ -237,6 +237,33 @@ function cert_level(array $drives): string {
     return 'Not sanitised';
 }
 
+/**
+ * Label for the annex "Verification" cell: what KIND of read-back evidence the
+ * appliance recorded for this drive.
+ *
+ *   sentinel          - self-planted sentinel sectors were re-read and were gone
+ *   overwrite-sample  - N% of the address space was read back and found zero
+ *                       (only possible after a software overwrite, where the
+ *                       whole drive once held a known pattern)
+ *   ce-exempt         - a crypto erase destroyed the media key, so a content
+ *                       read-back cannot add evidence either way
+ *
+ * 'none'/blank returns '', which lets the whole column disappear when no drive
+ * carries a technique (e.g. a firmware-erase-only certificate).
+ */
+function cert_verify_label(string $technique, string $pct = ''): string {
+    $t = strtolower(trim($technique));
+    if ($t === '' || $t === 'none' || $t === 'na' || $t === 'n/a') return '';
+    if ($t === 'overwrite-sample') {
+        $p = trim($pct);
+        if ($p !== '' && preg_match('/^[0-9]{1,3}$/', $p)) return 'Sampled ' . $p . '%';
+        return 'Sampled';
+    }
+    if ($t === 'sentinel') return 'Sentinel';
+    if ($t === 'ce-exempt') return 'CE exempt';
+    return '';
+}
+
 /** Compact (single-line) sanitisation method label for the fleet table. */
 function cert_method_short(string $method, string $cls, string $status): string {
     $s = strtoupper(trim($status));
@@ -281,6 +308,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'method'   => ['label' => 'Method',       'w' => 42, 'align' => 'L'],
         'passes'   => ['label' => 'Passes',       'w' => 14, 'align' => 'C'],
         'eraser'   => ['label' => 'Eraser',       'w' => 26, 'align' => 'C'],
+        // Kind of read-back evidence (sentinel / sampled overwrite coverage /
+        // crypto-erase exemption). Hidden entirely when no drive carries one,
+        // so a firmware-only certificate is unchanged.
+        'verify'   => ['label' => 'Verification', 'w' => 22, 'align' => 'C'],
         'tool'     => ['label' => 'Tool',         'w' => 24, 'align' => 'C'],
         'system'   => ['label' => 'Machine',      'w' => 32, 'align' => 'L'],
         'sysserial'=> ['label' => 'Machine SN',   'w' => 23, 'align' => 'C'],
@@ -304,6 +335,9 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'method': return cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
             case 'passes': return trim((string)($d['passes'] ?? ''));
             case 'eraser': return (string)($d['erase_engine'] ?? '');
+            case 'verify': return cert_verify_label(
+                (string)($d['verify_technique'] ?? ''),
+                (string)($d['verify_coverage_pct'] ?? ''));
             case 'tool': {
                 $tv = trim((string)($d['tool_version'] ?? ''));
                 return $tv !== '' ? 'tScrub ' . $tv : 'tScrub';
@@ -348,6 +382,9 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'method': return trim((string)($d['method'] ?? '')) === '' && trim((string)($d['cls'] ?? '')) === '';
             case 'passes': return trim((string)($d['passes'] ?? '')) === '';
             case 'eraser': return trim((string)($d['erase_engine'] ?? '')) === '';
+            case 'verify': return cert_verify_label(
+                (string)($d['verify_technique'] ?? ''),
+                (string)($d['verify_coverage_pct'] ?? '')) === '';
             case 'tool':   return trim((string)($d['tool_version'] ?? '')) === '';
             case 'system':    return trim((string)($d['system'] ?? '')) === '';
             case 'sysserial': return trim((string)($d['sysserial'] ?? '')) === '';

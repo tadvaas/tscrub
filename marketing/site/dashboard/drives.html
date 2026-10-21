@@ -363,6 +363,19 @@
         var s = String(v == null ? '' : v);
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       }
+      // Kind of read-back evidence the appliance recorded (sentinel sectors,
+      // sampled overwrite coverage, or a crypto-erase exemption).
+      function verifyLabel(technique, pct) {
+        var t = String(technique == null ? '' : technique).toLowerCase();
+        if (!t || t === 'none' || t === 'na' || t === 'n/a') return '';
+        if (t === 'overwrite-sample') {
+          var p = String(pct == null ? '' : pct).replace(/[^0-9]/g, '');
+          return p ? 'Sampled ' + p + '%' : 'Sampled';
+        }
+        if (t === 'sentinel') return 'Sentinel';
+        if (t === 'ce-exempt') return 'CE exempt';
+        return '';
+      }
       function smartCsv(d) {
         var rows = [
           ['Serial', d.serial], ['Model', d.model], ['Size', d.size], ['Bus', d.bus], ['Type', d.type],
@@ -378,6 +391,7 @@
           ['SED status', d.sed_status], ['Self-test', d.selftest], ['Reallocated (post)', d.reallocsectorspost],
           ['Verification', d.verify_result], ['Verified sectors', d.verify_sectors],
           ['Overwrite standard', d.standard], ['Overwrite passes', d.passes], ['Erase engine', d.erase_engine],
+          ['Verification evidence', verifyLabel(d.verify_technique, d.verify_coverage_pct)],
           ['Formatted', d.format_fs], ['Partition scheme', d.format_scheme],
           ['Volume label', d.format_label], ['Format result', d.format_result],
           ['PSID revert', d.psid_revert],
@@ -511,6 +525,7 @@
         ['sed_status','SED status'], ['selftest','Self-test'], ['reallocsectorspost','Reallocated (post)'],
         ['verify_result','Verification'], ['verify_sectors','Verified sectors'],
         ['standard','Overwrite standard'], ['passes','Overwrite passes'], ['erase_engine','Erase engine'],
+        ['verify_technique','Verification technique'], ['verify_coverage_pct','Verified coverage %'],
         ['format_result','Format result'], ['format_fs','Formatted'], ['format_scheme','Partition scheme'], ['format_label','Volume label'],
         ['psid_revert','PSID revert'],
         ['lock_kind','TCG lock'],

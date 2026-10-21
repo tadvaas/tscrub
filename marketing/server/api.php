@@ -1952,6 +1952,7 @@ if ($method === 'GET' && $route === '/drives/export') {
         'sed_status' => 'SED status', 'selftest' => 'Self-test', 'reallocsectorspost' => 'Reallocated (post)',
         'verify_result' => 'Verification', 'verify_sectors' => 'Verified sectors',
         'standard' => 'Overwrite standard', 'passes' => 'Overwrite passes', 'erase_engine' => 'Erase engine',
+        'verify_technique' => 'Verification technique', 'verify_coverage_pct' => 'Verified coverage %',
         'format_result' => 'Format result', 'format_fs' => 'Formatted', 'format_scheme' => 'Partition scheme', 'format_label' => 'Volume label',
         'psid_revert' => 'PSID revert', 'lock_kind' => 'TCG lock', 'ppi_requested' => 'PPI requested', 'ppi_cleared' => 'PPI cleared',
         'start_time' => 'Start time', 'end_time' => 'End time', 'duration_secs' => 'Duration (s)',

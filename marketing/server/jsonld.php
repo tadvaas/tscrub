@@ -226,9 +226,16 @@ function jsonld_normalize_drive(array $d): array {
         'format_label'   => jsonld_na((string)($d['format_label'] ?? '')),
         'format_result'  => jsonld_na((string)($d['format_result'] ?? '')),
         'format_confirm' => jsonld_na((string)($d['format_confirm'] ?? '')),
-        'standard'       => jsonld_na((string)($d['standard'] ?? '')),
+        // Wire name for the overwrite technique is now overwrite_standard, so
+        // the bare word "standard" stays free for the sanitisation CLAIM
+        // (sanitization_standard) that a later release may assert.
+        'overwrite_standard' => jsonld_na((string)($d['standard'] ?? '')),
         'passes'         => jsonld_na((string)($d['passes'] ?? '')),
         'erase_engine'   => jsonld_na((string)($d['erase_engine'] ?? '')),
+        // Verification provenance: the kind of read-back evidence recorded for
+        // the drive, and the sampled percentage where one exists.
+        'verify_technique'    => jsonld_na((string)($d['verify_technique'] ?? '')),
+        'verify_coverage_pct' => jsonld_na((string)($d['verify_coverage_pct'] ?? '')),
         'psid_revert'   => jsonld_na((string)($d['psid_revert'] ?? '')),
         'ppi_requested' => jsonld_na((string)($d['ppi_requested'] ?? '')),
         'ppi_cleared'   => jsonld_na((string)($d['ppi_cleared'] ?? '')),
@@ -245,10 +252,18 @@ function jsonld_drive(array $norm): array {
         'sed_status', 'reallocsectorspost', 'selftest', 'tool_version', 'operator',
         'validator', 'media_source', 'media_destination',
         'format_fs', 'format_scheme', 'format_label', 'format_result', 'format_confirm',
-        'standard', 'passes', 'erase_engine',
+        'overwrite_standard', 'passes', 'erase_engine',
+        'verify_technique', 'verify_coverage_pct',
         'psid_revert', 'ppi_requested', 'ppi_cleared',
     ] as $k) {
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }
+    }
+
+    // Deprecated alias: documents published before the rename carried the same
+    // value as "standard". Emitted so an older reader keeps working; new
+    // readers should use overwrite_standard.
+    if (isset($props['overwrite_standard'])) {
+        $props['standard'] = $props['overwrite_standard'];
     }
 
     $duration = ($norm['duration_secs'] !== '' && ctype_digit($norm['duration_secs']))

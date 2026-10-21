@@ -8,6 +8,52 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **The report now records HOW a drive was verified, not just whether it passed.**
+  Post-erasure read-back used to plant 40 sentinel sectors (0.000001% of a 512 GB
+  drive) and check they were gone — an absence test, valid evidence, but it says
+  nothing about the rest of the address space. `VerifyTechnique` records which
+  kind of evidence a drive actually carries: `sentinel` (the sentinel sectors
+  were re-read and gone), `overwrite-sample` (a sampled percentage of the address
+  space was read back and found zero), or `ce-exempt` (a crypto erase destroyed
+  the media key, so a content read-back cannot add evidence either way — it is
+  recorded as an exemption rather than scored as a pass that proves nothing).
+  - Sampling is **opt-in** and off by default, so the default run is unchanged:
+    `--verify-coverage N` (1..100) or `tscrub_verify_coverage=N` in
+    `tscrub.conf`. It reads N% of the drive as 20 evenly spread contiguous 1 MiB
+    ranges and requires every sampled byte to be zero.
+  - It is attempted **only after a software overwrite** (the nwipe path, where
+    the whole address space once held a known pattern and nwipe's trailing
+    blanking pass leaves zeros). A firmware erase leaves undefined post-erase
+    content, so sampling there would measure readability, not absence, and the
+    drive records `sentinel`.
+  - If any sampled range holds data the drive is **failed**, and that verdict
+    cannot be overwritten by a later sentinel pass. A range that cannot be read
+    (or no `cmp` on the image) makes sampling not applicable and leaves the
+    sentinel verdict — the technique field then says `sentinel`, because that is
+    the evidence that actually produced the number.
+  - The percentage recorded is what was really read, rounded to the nearest
+    percent (a 5% sample reads 4.88% of the drive and records 5, not 4).
+  - CSV gains `VerifyTechnique`/`VerifyCoveragePct`, the manifest gains
+    `verify_technique`/`verify_coverage_pct`, the certificate annex gains a
+    `Verification` column showing `Sentinel` / `Sampled N%` / `CE exempt` (the
+    column disappears entirely when no drive carries a technique, so a
+    firmware-only certificate is unchanged), and the drive drawer and JSON-LD
+    publish both.
+- **The CSV column `Standard` is now `OverwriteStandard`.** The old name was
+  ambiguous: it meant the overwrite *technique* (`dodshort`, `is5enh`, …), but
+  `standard` is the word a future sanitisation *claim* will need (e.g. a named
+  standard such as IEEE 2883). The wire name changes; the meaning does not. The
+  report reader accepts both spellings, so reports written by v1.11.70–v1.11.72
+  still import, and JSON-LD publishes `overwrite_standard` with `standard` kept
+  as a deprecated alias so existing readers keep working.
+
+### Notes
+
+- Nothing in this release claims compliance with any standard. It records what
+  the appliance did and how it verified it; the naming is deliberately neutral.
+
 ### Fixed
 
 - **The certificate now names the software-overwrite standard it ran.** v1.11.70

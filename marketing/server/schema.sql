@@ -129,6 +129,11 @@ CREATE TABLE IF NOT EXISTS certificate_drives (
   standard         VARCHAR(32)     NOT NULL DEFAULT '',
   passes           VARCHAR(16)     NOT NULL DEFAULT '',
   erase_engine     VARCHAR(64)     NOT NULL DEFAULT '',
+  -- Verification provenance: what kind of read-back evidence the row carries
+  -- (sentinel | overwrite-sample | ce-exempt) and the sampled percentage, which
+  -- is only meaningful for overwrite-sample.
+  verify_technique VARCHAR(32)     NOT NULL DEFAULT '',
+  verify_coverage_pct VARCHAR(16)  NOT NULL DEFAULT '',
   -- Manual (attested) destruction: see research/manual-destruction/README.md.
   -- 'report' rows are appliance evidence; 'manual' rows are operator attestations.
   source              VARCHAR(16)   NOT NULL DEFAULT 'report',

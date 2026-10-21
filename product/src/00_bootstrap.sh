@@ -41,6 +41,15 @@ TS_NVME_SOFTWARE_FALLBACK=auto
 # the effective default is applied at the use sites.
 TS_NWIPE_METHOD_SET=0
 TS_NWIPE_PASSES_SET=0
+# Clear-coverage sampling (opt-in, Phase 1 of the IEEE 2883 work). Empty/0 =
+# today's behaviour (5 sentinel windows only). N = after a software overwrite,
+# read N% of the address space in contiguous ranges and require every sampled
+# byte to be zero. Only meaningful where the WHOLE drive once carried a known
+# pattern: after a firmware erase the post-erase content is undefined, so a
+# percentage read would prove readability, not absence.
+VERIFY_COVERAGE_PCT=""
+# Ranges the coverage sample is split into (contiguous, evenly spread).
+VERIFY_COVERAGE_RANGES=20
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -925,6 +934,21 @@ parse_args() {
             --verify=*)
                 VERIFY_MODE="${arg#*=}"
                 ;;
+            --verify-coverage)
+                shift
+                [[ $# -gt 0 ]] || { echo "--verify-coverage requires an integer 1..100"; exit 1; }
+                if ! [[ "$1" =~ ^[0-9]+$ ]] || (( 10#$1 < 1 || 10#$1 > 100 )); then
+                    echo "--verify-coverage must be an integer 1..100"; exit 1
+                fi
+                VERIFY_COVERAGE_PCT=$(( 10#$1 ))
+                ;;
+            --verify-coverage=*)
+                _vc="${arg#*=}"
+                if ! [[ "$_vc" =~ ^[0-9]+$ ]] || (( 10#$_vc < 1 || 10#$_vc > 100 )); then
+                    echo "--verify-coverage must be an integer 1..100"; exit 1
+                fi
+                VERIFY_COVERAGE_PCT=$(( 10#$_vc ))
+                ;;
             --method)
                 shift
                 [[ $# -gt 0 ]] || { echo "--method requires zero|random|dod|dodshort|gutmann|is5enh"; exit 1; }
@@ -1163,6 +1187,8 @@ parse_args() {
                 echo "  --media-source SRC   Record the media source (e.g. 'IT decommissioning')."
                 echo "  --media-destination DST  Record the media destination (e.g. 'resale', 'recycle')."
                 echo "  --verify MODE       Post-erasure verification: none|sampled|full (default sampled)."
+                echo "  --verify-coverage N Read N% of the address space after a SOFTWARE OVERWRITE and"
+                echo "                      require every sampled byte to be zero (1..100; default off)."
                 echo "  --hpa MODE         Reset HPA/DCO hidden areas before erasure: on|off (default on)."
                 echo "  --format MODE      Format wiped drives for reuse: auto|off (default auto)."
                 echo "  --fs FS            Filesystem: auto|fat32|exfat (default auto: exfat >32GiB)."

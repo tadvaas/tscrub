@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,Standard,Passes,EraseEngine"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,OverwriteStandard,Passes,EraseEngine,VerifyTechnique,VerifyCoveragePct"
         for dev in "${devices[@]}"; do
             local st en dur sed_status ppi_cleared
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -113,7 +113,8 @@ report::csv() {
                 "${devrow[$dev.freeze_state]:-none}" "${devrow[$dev.block_sid]:-no}" "${devrow[$dev.flr_attempts]:-0}" \
                 "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}" \
                 "${devrow[$dev.ppi_requested]:-no}" "$ppi_cleared" "${devrow[$dev.ppi_resumed]:-no}" \
-                "${devrow[$dev.standard]:-}" "${devrow[$dev.passes]:-}" "${devrow[$dev.eraser]:-}"
+                "${devrow[$dev.standard]:-}" "${devrow[$dev.passes]:-}" "${devrow[$dev.eraser]:-}" \
+                "${devrow[$dev.verify_technique]:-none}" "${devrow[$dev.verify_coverage]:-}"
         done
     } > "$report_file"
 
@@ -295,9 +296,24 @@ report::sign() {
             fi
         done
         if [[ -n "$_sw_std" ]]; then
-            printf '  "standard": "%s",\n' "$(report::_json_field "$_sw_std")"
+            printf '  "overwrite_standard": "%s",\n' "$(report::_json_field "$_sw_std")"
             printf '  "passes": "%s",\n' "$(report::_json_field "$_sw_passes")"
             printf '  "erase_engine": "%s",\n' "$(report::_json_field "$(nwipe::eraser)")"
+        fi
+        # Verification provenance. The technique says what KIND of evidence the
+        # run carries, because a coverage percentage is only meaningful where the
+        # whole drive once held a known pattern (the nwipe path).
+        local _vt="" _vc="" _vdev=""
+        for _vdev in "${devices[@]}"; do
+            if [[ -n "${devrow[$_vdev.verify_technique]:-}" && "${devrow[$_vdev.verify_technique]}" != "none" ]]; then
+                _vt="${devrow[$_vdev.verify_technique]}"
+                _vc="${devrow[$_vdev.verify_coverage]:-}"
+                break
+            fi
+        done
+        if [[ -n "$_vt" ]]; then
+            printf '  "verify_technique": "%s",\n' "$(report::_json_field "$_vt")"
+            printf '  "verify_coverage_pct": "%s",\n' "$(report::_json_field "$_vc")"
         fi
         printf '  "selected": %s,\n' "$(report::selected_count)"
         printf '  "skipped": %s\n' "$(report::skipped_count)"
@@ -615,6 +631,11 @@ config::load_usb() {
                         tscrub_verify)
                             [[ -z "${VERIFY_MODE:-}" ]] && VERIFY_MODE="$val"
                             CONFIG_USB_DEBUG+="  tscrub_verify: set"$'\n'
+                            ;;
+                        tscrub_verify_coverage)
+                            # Fill-if-empty like the rest; the CLI wins.
+                            [[ -z "${VERIFY_COVERAGE_PCT:-}" ]] && VERIFY_COVERAGE_PCT="$val"
+                            CONFIG_USB_DEBUG+="  tscrub_verify_coverage: set"$'\n'
                             ;;
                         tscrub_method)
                             if ! nwipe::method_valid "$val"; then

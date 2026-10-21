@@ -127,4 +127,108 @@ VERIFY_MODE="bogus"
 verify::resolve_mode
 t::assert_eq "sampled" "$VERIFY_MODE" "invalid mode resolves to sampled"
 
+# --- coverage sampling is opt-in and parses 1..100 --------------------------
+VERIFY_COVERAGE_PCT=""
+parse_args --verify-coverage 5
+t::assert_eq "5" "$VERIFY_COVERAGE_PCT" "--verify-coverage 5"
+VERIFY_COVERAGE_PCT=""
+parse_args --verify-coverage=100
+t::assert_eq "100" "$VERIFY_COVERAGE_PCT" "--verify-coverage=100"
+t::check "--verify-coverage 0 is refused" '( parse_args --verify-coverage 0 ) >/dev/null 2>&1; (( $? != 0 ))'
+t::check "--verify-coverage 101 is refused" '( parse_args --verify-coverage 101 ) >/dev/null 2>&1; (( $? != 0 ))'
+t::check "--verify-coverage abc is refused" '( parse_args --verify-coverage abc ) >/dev/null 2>&1; (( $? != 0 ))'
+t::check "--verify-coverage needs a value" '( parse_args --verify-coverage ) >/dev/null 2>&1; (( $? != 0 ))'
+VERIFY_COVERAGE_PCT=""
+verify::resolve_coverage
+t::assert_eq "0" "$VERIFY_COVERAGE_PCT" "coverage off by default"
+
+# --- coverage arithmetic + verdict precedence -------------------------------
+# A virtual 4096 MiB drive whose range reader is stubbed, so the sampling
+# arithmetic is checked without touching real media.
+verify::_total_sectors() { echo $(( 4096 * 2048 )); }   # 4096 MiB at 512 B
+verify::_range_probe_ok() { return 0; }
+RANGE_CALLS=0
+RANGE_FAIL_AT=-1
+verify::_range_is_zero() {
+    RANGE_CALLS=$(( RANGE_CALLS + 1 ))
+    (( RANGE_FAIL_AT > 0 && RANGE_CALLS >= RANGE_FAIL_AT )) && return 1
+    return 0
+}
+
+VERIFY_COVERAGE_PCT=5
+RANGE_CALLS=0
+verify::_coverage_check sda
+rc=$?
+t::assert_eq "0" "$rc" "coverage passes when every sampled byte is zero"
+t::assert_eq "20" "$RANGE_CALLS" "5% of 4096 MiB is sampled as 20 ranges"
+t::assert_eq "5" "$VERIFY_COVERAGE_ACTUAL" "coverage rounds 4.88% to 5"
+
+t::check "_range_probe_ok failure makes coverage not applicable" '
+    verify::_range_probe_ok() { return 1; }
+    VERIFY_COVERAGE_PCT=5
+    verify::_coverage_check sda; rc=$?
+    verify::_range_probe_ok() { return 0; }
+    [[ $rc -eq 2 ]]'
+
+RANGE_CALLS=0
+RANGE_FAIL_AT=15
+VERIFY_COVERAGE_PCT=5
+verify::_coverage_check sda
+rc=$?
+t::assert_eq "1" "$rc" "coverage reports data found"
+t::assert_eq "3" "$VERIFY_COVERAGE_ACTUAL" "partial coverage is recorded honestly"
+
+# The sentinel loop's final assignment must not overwrite a coverage failure.
+RANGE_FAIL_AT=15
+devrow[sda.standard]="dodshort"
+devrow[sda.capability]="CAP_SCSI_NWIPE"
+devrow[sda.status]="COMPLETED"
+dd if=/dev/zero of="$FAKE_DEV" bs=512 count="$TOTAL" conv=notrunc 2>/dev/null
+# The earlier dry-run plant minted a fresh state dir with no per-drive file, and
+# _check_drive skips a drive with no plant record.
+: > "$VERIFY_STATE_DIR/sda.verify"
+RANGE_CALLS=0
+verify::check_all
+t::assert_eq "overwrite-sample" "${devrow[sda.verify_technique]}" "nwipe path records coverage sampling"
+t::assert_eq "failed" "${devrow[sda.verify_result]}" "data found in a sampled range fails the drive"
+t::assert_eq "3" "${devrow[sda.verify_coverage]}" "failed coverage still records what was read"
+
+# A clean coverage pass keeps the sentinel verdict.
+RANGE_FAIL_AT=-1
+verify::check_all
+t::assert_eq "passed" "${devrow[sda.verify_result]}" "coverage pass leaves the verdict passed"
+dd if=/dev/zero of="$FAKE_DEV" bs=512 count="$TOTAL" conv=notrunc 2>/dev/null
+printf '' > "$VERIFY_STATE_DIR/sda.verify"   # no sentinels -> nothing to find
+verify::check_all
+t::assert_eq "passed" "${devrow[sda.verify_result]}" "sentinel-free drive passes with coverage on"
+
+# Off by default: same drive, coverage disabled, records the sentinel technique.
+VERIFY_COVERAGE_PCT=0
+verify::check_all
+t::assert_eq "sentinel" "${devrow[sda.verify_technique]}" "coverage off records the sentinel technique"
+t::check "coverage off records no percentage" '[[ -z "${devrow[sda.verify_coverage]}" ]]'
+
+# A firmware erase can never carry a coverage percentage.
+VERIFY_COVERAGE_PCT=5
+devrow[sda.standard]=""
+verify::check_all
+t::assert_eq "sentinel" "${devrow[sda.verify_technique]}" "firmware erase records the sentinel technique"
+t::check "firmware erase records no coverage" '[[ -z "${devrow[sda.verify_coverage]}" ]]'
+
+# A crypto erase is exempt rather than sampled.
+devrow[sda.capability]="CAP_OPAL_CRYPTO"
+verify::check_all
+t::assert_eq "ce-exempt" "${devrow[sda.verify_result]}" "crypto erase reports the exemption"
+t::check "crypto erase records no coverage" '[[ -z "${devrow[sda.verify_coverage]}" ]]'
+
+# Coverage sampling is not attempted where the whole drive never held a pattern
+# but the drive IS an overwrite: only `standard` decides, and a stub that always
+# reports data must not be reached at all when coverage is off.
+devrow[sda.capability]="CAP_SCSI_NWIPE"
+devrow[sda.standard]="dodshort"
+RANGE_CALLS=0
+VERIFY_COVERAGE_PCT=0
+verify::check_all
+t::assert_eq "0" "$RANGE_CALLS" "coverage reader is never called when off"
+
 t::summary
