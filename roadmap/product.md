@@ -260,6 +260,17 @@ with the release that carried them (per `CHANGELOG.md`).
       copy) remain open. **TPM clearing is an explicit non-goal** (BitRaser's
       twist, not needed for an honest claim) — split it out if it is ever
       wanted on its own.
+      → **First hardware run 2026-10-22, gate confirmed, sampler not yet
+      exercised** (`192.168.0.95`, HP EliteBook 830 G5, Samsung PM981a
+      `MZVLB512HAJQ`, v1.11.73, netboot entry with `tscrub_verify_coverage=5`):
+      the drive accepted `NVMe Format`, so nwipe never ran and the record
+      correctly carries `VerifyTechnique=sentinel` with an empty
+      `VerifyCoveragePct`, and the certificate prints "Sentinel" — the gate that
+      stops a percentage being claimed after a firmware erase works on real
+      hardware. The sampler still needs a target that reaches **nwipe** (a
+      virtio-scsi VM disk or a SATA drive on a real controller; USB-attached
+      drives are excluded from discovery). Certificate
+      `COD-019035-LH-OEA-6893-STSO`, 26 s run, SMART PASS before and after.
 - [ ] RAID controller physical-drive erase — bundle `megacli`/`hpacucli`, add a
       `device::raid_erase` path mapping a drive to its controller erase command,
       gated behind the "never auto-break an array" rule. (§11.1)
