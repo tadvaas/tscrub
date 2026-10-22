@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,OverwriteStandard,Passes,EraseEngine,VerifyTechnique,VerifyCoveragePct,SanitizationStandard,SanitizationShortfall"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,OverwriteStandard,Passes,EraseEngine,VerifyTechnique,VerifyCoveragePct,SanitizationStandard,SanitizationLevel,SanitizationShortfall"
         for dev in "${devices[@]}"; do
             local st en dur sed_status ppi_cleared
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -115,7 +115,8 @@ report::csv() {
                 "${devrow[$dev.ppi_requested]:-no}" "$ppi_cleared" "${devrow[$dev.ppi_resumed]:-no}" \
                 "${devrow[$dev.standard]:-}" "${devrow[$dev.passes]:-}" "${devrow[$dev.eraser]:-}" \
                 "${devrow[$dev.verify_technique]:-none}" "${devrow[$dev.verify_coverage]:-}" \
-                "${devrow[$dev.sanitization_standard]:-}" "${devrow[$dev.sanitization_shortfall]:-}"
+                "${devrow[$dev.sanitization_standard]:-}" "${devrow[$dev.sanitization_level]:-}" \
+                "${devrow[$dev.sanitization_shortfall]:-}"
         done
     } > "$report_file"
 

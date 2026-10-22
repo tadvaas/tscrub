@@ -393,7 +393,9 @@
           ['Overwrite standard', d.standard], ['Overwrite passes', d.passes], ['Erase engine', d.erase_engine],
           ['Verification evidence', verifyLabel(d.verify_technique, d.verify_coverage_pct)],
           ['Sanitisation standard', d.sanitization_standard
-            ? (d.sanitization_standard + (d.sanitization_shortfall ? ' — ' + d.sanitization_shortfall : ''))
+            ? (d.sanitization_standard
+                + (d.sanitization_level ? ' (' + d.sanitization_level + ')' : '')
+                + (d.sanitization_shortfall ? ' — ' + d.sanitization_shortfall : ''))
             : ''],
           ['Formatted', d.format_fs], ['Partition scheme', d.format_scheme],
           ['Volume label', d.format_label], ['Format result', d.format_result],
@@ -529,7 +531,8 @@
         ['verify_result','Verification'], ['verify_sectors','Verified sectors'],
         ['standard','Overwrite standard'], ['passes','Overwrite passes'], ['erase_engine','Erase engine'],
         ['verify_technique','Verification technique'], ['verify_coverage_pct','Verified coverage %'],
-        ['sanitization_standard','Sanitisation standard'], ['sanitization_shortfall','Claim shortfall'],
+        ['sanitization_standard','Sanitisation standard'], ['sanitization_level','Sanitisation level'],
+        ['sanitization_shortfall','Claim shortfall'],
         ['format_result','Format result'], ['format_fs','Formatted'], ['format_scheme','Partition scheme'], ['format_label','Volume label'],
         ['psid_revert','PSID revert'],
         ['lock_kind','TCG lock'],

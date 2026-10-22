@@ -184,6 +184,13 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     certs_ensure_schema();
     $certifier = certifier_for_user($userId);
 
+    // Any ALTER TABLE this needs must happen BEFORE the transaction below: DDL
+    // in MySQL causes an implicit COMMIT, which leaves the later commit() with
+    // "There is no active transaction" and fails the whole request. That is not
+    // hypothetical — it took out certificate generation the first time a new
+    // drive column was added (2026-10-22).
+    certificate_drives_ensure_schema();
+
     // Operator strategy: the report's own operator when present, otherwise the
     // account holder who generated the certificate (name, else email).
     $g['operator'] = operator_for_pdf($g, $userId);
@@ -1960,7 +1967,8 @@ if ($method === 'GET' && $route === '/drives/export') {
         'verify_result' => 'Verification', 'verify_sectors' => 'Verified sectors',
         'standard' => 'Overwrite standard', 'passes' => 'Overwrite passes', 'erase_engine' => 'Erase engine',
         'verify_technique' => 'Verification technique', 'verify_coverage_pct' => 'Verified coverage %',
-        'sanitization_standard' => 'Sanitisation standard', 'sanitization_shortfall' => 'Claim shortfall',
+        'sanitization_standard' => 'Sanitisation standard', 'sanitization_level' => 'Sanitisation level',
+        'sanitization_shortfall' => 'Claim shortfall',
         'format_result' => 'Format result', 'format_fs' => 'Formatted', 'format_scheme' => 'Partition scheme', 'format_label' => 'Volume label',
         'psid_revert' => 'PSID revert', 'lock_kind' => 'TCG lock', 'ppi_requested' => 'PPI requested', 'ppi_cleared' => 'PPI cleared',
         'start_time' => 'Start time', 'end_time' => 'End time', 'duration_secs' => 'Duration (s)',

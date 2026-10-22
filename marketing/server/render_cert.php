@@ -299,8 +299,16 @@ function cert_claim(array $drives): array {
     if ($scored === 0 || $ieee !== $scored) {
         return ['standard' => 'NIST SP 800-88 Rev 1', 'level' => '', 'shortfall' => $shortfall, 'ieee' => false];
     }
-    // Uniform level where every drive agrees; otherwise name both.
-    $level = count($levels) === 1 ? (string)array_key_first($levels) : 'Clear, Purge';
+    // Uniform level where every drive agrees. A drive whose level was not
+    // recorded (an appliance older than the level column) leaves the set empty:
+    // say nothing rather than guess, because "Clear, Purge" on an all-Purge job
+    // would be a fabricated detail.
+    $level = '';
+    if (count($levels) === 1) {
+        $level = (string)array_key_first($levels);
+    } elseif (count($levels) > 1) {
+        $level = 'Clear, Purge';
+    }
     return ['standard' => 'IEEE 2883-2022', 'level' => $level, 'shortfall' => '', 'ieee' => true];
 }
 

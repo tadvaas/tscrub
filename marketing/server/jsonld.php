@@ -390,6 +390,7 @@ function jsonld_normalize_drive(array $d): array {
         // "IEEE 2883-2022" appears only where every conformance gate passed;
         // otherwise NIST 800-88 plus a machine-readable shortfall.
         'sanitization_standard'  => jsonld_na((string)($d['sanitization_standard'] ?? '')),
+        'sanitization_level'     => jsonld_na((string)($d['sanitization_level'] ?? '')),
         'sanitization_shortfall' => jsonld_na((string)($d['sanitization_shortfall'] ?? '')),
         'psid_revert'   => jsonld_na((string)($d['psid_revert'] ?? '')),
         'ppi_requested' => jsonld_na((string)($d['ppi_requested'] ?? '')),
@@ -409,7 +410,7 @@ function jsonld_drive(array $norm): array {
         'format_fs', 'format_scheme', 'format_label', 'format_result', 'format_confirm',
         'overwrite_standard', 'passes', 'erase_engine',
         'verify_technique', 'verify_coverage_pct',
-        'sanitization_standard', 'sanitization_shortfall',
+        'sanitization_standard', 'sanitization_level', 'sanitization_shortfall',
         'psid_revert', 'ppi_requested', 'ppi_cleared',
     ] as $k) {
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }

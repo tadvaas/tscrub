@@ -147,6 +147,33 @@ t_eq('a missing cell reads empty',
     '', reports_row_value(['only'], reports_header_map(['Model', 'Passes']), 'passes'));
 
 // ---------------------------------------------------------------------------
+// 1b. The sanitisation claim (v1.11.76+), including the pre-claim report
+// ---------------------------------------------------------------------------
+// The fixture below predates the claim, which is exactly why these cases use a
+// synthetic row: an old report must read as "no claim", and a new one must
+// carry standard + level + shortfall independently. Getting this wrong is what
+// made the first hardware run lose the level (it was computed and never
+// reported), so the three columns are asserted separately.
+$claimMap = reports_header_map(['Model', 'SanitizationStandard', 'SanitizationLevel',
+    'SanitizationShortfall']);
+$claimRow = ['m1', 'IEEE 2883-2022', 'Purge', ''];
+t_eq('the claim standard parses', 'IEEE 2883-2022',
+    reports_row_value($claimRow, $claimMap, 'sanitizationstandard'));
+t_eq('the claim level parses', 'Purge',
+    reports_row_value($claimRow, $claimMap, 'sanitizationlevel'));
+t_eq('an earned claim has no shortfall', '',
+    reports_row_value($claimRow, $claimMap, 'sanitizationshortfall'));
+
+$refusedMap = reports_header_map(['Model', 'SanitizationStandard', 'SanitizationShortfall']);
+$refusedRow = ['m1', 'NIST 800-88', 'G2 coverage 2% < 5%'];
+t_eq('a refused claim keeps NIST', 'NIST 800-88',
+    reports_row_value($refusedRow, $refusedMap, 'sanitizationstandard'));
+t_eq('a refused claim names its gate', 'G2 coverage 2% < 5%',
+    reports_row_value($refusedRow, $refusedMap, 'sanitizationshortfall'));
+t_eq('a report without the claim columns reads as no claim', '',
+    reports_row_value(['m1'], reports_header_map(['Model']), 'sanitizationstandard'));
+
+// ---------------------------------------------------------------------------
 // 2. The REAL appliance header, from a CSV that report::csv wrote
 // ---------------------------------------------------------------------------
 $fixture = __DIR__ . '/fixtures/report-v1.11.73.csv';
