@@ -467,6 +467,28 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && chmod 640 config.json && chmod 6
 
 ## 4. nginx changes (needs root — you run these)
 
+⚠️ **`.6` is a shared nginx host** (dayrota, emotorbay, grassbarbers, homepage,
+lan, nebula, … all live here). Keep every change additive and inside the
+tscrub.com server block.
+
+⚠️ **Do not add an origin-level `return 301 https://…` for tscrub.com.** Measured
+2026-10-22: that server block has no `listen 443` and no certificate, and the
+site sits behind Cloudflare in **Flexible** SSL, so the CDN fetches the origin on
+port 80. A scheme-wide redirect there also matches the CDN's own request, which
+loops every visitor (`ERR_TOO_MANY_REDIRECTS`). The public redirect belongs at
+the edge: Cloudflare → SSL/TLS → Edge Certificates → **Always Use HTTPS**.
+`marketing/server/nginx-redirects.conf` PART A carries the same warning.
+
+A **staged patch** for the retired-page 301s (and the `www` target, which sent
+visitors to `http://`) lives on `.6` as `~/tscrub.conf.new`. To install it:
+
+```bash
+ssh oxwet@192.168.0.6
+sudo cp -a /etc/nginx/sites-available/tscrub.conf /etc/nginx/sites-available/tscrub.conf.bak-$(date +%F)
+sudo install -o root -g root -m 644 /home/oxwet/tscrub.conf.new /etc/nginx/sites-available/tscrub.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 The nginx config lives at `/etc/nginx/sites-available/tscrub.conf` (root-owned; `oxwet` has no sudo). Reference snippets are in `marketing/server/nginx-location.conf` (PHP/API routes) and `marketing/server/nginx-redirects.conf` (HTTP→HTTPS + retired-page 301s).
 
 Current PHP routes:
@@ -554,6 +576,10 @@ curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/submit      # 405
 # These two only pass once §4 has been applied as root and nginx reloaded.
 # Until then http:// still answers 200 and /how-it-works still 404s — that is
 # the unapplied state, not a failed release.
+# NOTE: the http:// -> https:// redirect is a CLOUDFLARE edge toggle (Always Use
+# HTTPS), NOT an origin nginx rule — the origin has no TLS listener and the CDN
+# fetches it on port 80, so an origin redirect loops. Expect 301 here only once
+# the edge toggle is on.
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://tscrub.com/                # 301 https://tscrub.com/
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-it-works   # 301 https://tscrub.com/docs
 
