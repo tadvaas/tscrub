@@ -142,6 +142,28 @@ VERIFY_COVERAGE_PCT=""
 verify::resolve_coverage
 t::assert_eq "0" "$VERIFY_COVERAGE_PCT" "coverage off by default"
 
+# --- coverage primitives, for REAL (not stubbed) ----------------------------
+# v1.11.73 compared each sampled range against /dev/zero, which can never report
+# equal because /dev/zero never ends — so on real hardware `--verify-coverage`
+# silently returned "not applicable" on every drive. It shipped green because
+# the tests below stubbed the very function that was broken. These run the
+# primitive against real data, with a file standing in for the device.
+COVFILE="$TDIR/cov-1m.bin"
+dd if=/dev/zero of="$COVFILE" bs=1M count=1 2>/dev/null
+t::check "_range_probe_ok accepts a bounded reference" 'verify::_range_probe_ok'
+t::check "_range_is_zero passes on an all-zero 1 MiB range" 'verify::_range_is_zero "$COVFILE" 0 1'
+t::check "an unbounded /dev/zero reference can never compare equal (why the fix exists)" \
+    'dd if=/dev/zero bs=1M count=1 2>/dev/null | cmp -s - /dev/zero; [[ $? -ne 0 ]]'
+printf 'X' | dd of="$COVFILE" bs=1 seek=524288 conv=notrunc 2>/dev/null
+t::check "_range_is_zero reports data found" 'verify::_range_is_zero "$COVFILE" 0 1; rc=$?; [[ $rc -eq 1 ]]'
+t::check "_range_is_zero reports an unreadable range as not applicable" \
+    'verify::_range_is_zero "$TDIR/no-such-device" 0 1; rc=$?; [[ $rc -eq 2 ]]'
+dd if=/dev/zero of="$COVFILE" bs=1M count=2 conv=notrunc 2>/dev/null
+printf 'Y' | dd of="$COVFILE" bs=1 seek=1572864 conv=notrunc 2>/dev/null   # 2nd MiB
+t::check "_range_is_zero honours skip (first MiB clean)" 'verify::_range_is_zero "$COVFILE" 0 1'
+t::check "_range_is_zero sees data in the skipped-to range" \
+    'verify::_range_is_zero "$COVFILE" 1 1; rc=$?; [[ $rc -eq 1 ]]'
+
 # --- coverage arithmetic + verdict precedence -------------------------------
 # A virtual 4096 MiB drive whose range reader is stubbed, so the sampling
 # arithmetic is checked without touching real media.

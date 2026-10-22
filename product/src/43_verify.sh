@@ -52,20 +52,46 @@ verify::resolve_coverage() {
 # Read `count` 1 MiB blocks starting at block `skip` and report whether every
 # byte is zero. Overridable as a shell function in tests.
 #   0 = all zero, 1 = data found, 2 = read error / tool unavailable
-verify::_range_is_zero() {   # <dev> <skip_blocks> <count_blocks>
-    local dev="$1" skip="$2" count="$3" rc_dd rc_cmp
-    dd if="/dev/$dev" bs=1M skip="$skip" count="$count" 2>/dev/null | cmp -s - /dev/zero
-    rc_dd=${PIPESTATUS[0]}; rc_cmp=$?
-    (( rc_dd == 0 )) || return 2
-    (( rc_cmp == 0 )) && return 0
-    return 1
+#
+# The reference side MUST be bounded. Comparing the range against `/dev/zero`
+# can never report equal, because /dev/zero never ends: GNU and busybox `cmp`
+# both exit 1 on the length mismatch, which reads as "data found" on a perfect
+# erase. Bounding both sides is what makes the comparison meaningful — and this
+# is exactly the defect the 2026-10-22 hardware run exposed, after v1.11.73 had
+# already shipped (the unit tests stubbed this function, so they could not see
+# it). `src` accepts an absolute path so the primitive can be tested against a
+# file as well as /dev/<name>.
+verify::_range_is_zero() {   # <dev|path> <skip_blocks> <count_blocks>
+    local dev="$1" skip="$2" count="$3" src
+    # Declared BEFORE the pipeline: `local` is itself a command, so declaring it
+    # afterwards would wipe PIPESTATUS before it can be read.
+    local -a rc
+    src="/dev/$dev"
+    [[ "$dev" == /* ]] && src="$dev"
+    dd if="$src" bs=1M skip="$skip" count="$count" 2>/dev/null \
+        | cmp -s - <(dd if=/dev/zero bs=1M count="$count" 2>/dev/null)
+    # Read the pipeline's statuses as an array: `rc_cmp=$?` would capture the
+    # status of the *preceding assignment* (always 0), which is how a version of
+    # this function made every non-zero range look like zero. PIPESTATUS[0] is
+    # dd, [1] is cmp.
+    rc=("${PIPESTATUS[@]}")
+    local st_dd="${rc[0]:-2}" st_cmp="${rc[1]:-2}"
+    # dd is killed by SIGPIPE (128+13) the moment cmp stops early on a
+    # difference, so a real read error has to be told apart from that: only an
+    # unexpected dd status is "not applicable".
+    (( st_dd == 0 || st_dd == 141 )) || return 2
+    (( st_cmp == 1 )) && return 1                      # data found
+    (( st_cmp == 0 && st_dd == 0 )) && return 0        # equal, fully read
+    return 2
 }
 
-# Pre-flight for the primitive above: a `cmp` that cannot report "equal" on a
-# known-zero stream would read as "data found" on every range and fail a good
-# erase. Cheap, and it turns a silent false negative into "not applicable".
+# Pre-flight for the primitive above: a `cmp` that cannot report "equal" on two
+# known-zero streams would read as "data found" on every range and fail a good
+# erase. It compares exactly the construct the sampler uses (equal-length
+# streams), so it cannot pass while the sampler is broken.
 verify::_range_probe_ok() {
-    dd if=/dev/zero bs=1M count=1 2>/dev/null | cmp -s - /dev/zero
+    dd if=/dev/zero bs=1M count=1 2>/dev/null \
+        | cmp -s - <(dd if=/dev/zero bs=1M count=1 2>/dev/null)
 }
 
 # Sample VERIFY_COVERAGE_PCT of the address space as VERIFY_COVERAGE_RANGES
@@ -75,7 +101,7 @@ verify::_range_probe_ok() {
 # the drive at zero) — see the header guardrail.
 #   0 = pass (VERIFY_COVERAGE_ACTUAL set), 1 = data found, 2 = not applicable
 verify::_coverage_check() {   # <dev>
-    local dev="$1" total ss bytes total_mib ranges pct want per span read i skip rc
+    local dev="$1" total ss bytes total_mib ranges pct want per span got i skip rc
     pct="${VERIFY_COVERAGE_PCT:-0}"
     (( pct > 0 )) || return 2
     command -v cmp >/dev/null 2>&1 || return 2
@@ -98,7 +124,7 @@ verify::_coverage_check() {   # <dev>
     (( per > span )) && per=$span
     (( per >= 1 )) || return 2
 
-    read=0
+    got=0
     for (( i = 0; i < ranges; i++ )); do
         skip=$(( i * span ))
         verify::_range_is_zero "$dev" "$skip" "$per"
@@ -108,12 +134,12 @@ verify::_coverage_check() {   # <dev>
         elif (( rc == 1 )); then
             # Round to the nearest percent: a 5% sample must not be recorded
             # as 4 because integer division floored it.
-            VERIFY_COVERAGE_ACTUAL=$(( (read * 100 + total_mib / 2) / total_mib ))
+            VERIFY_COVERAGE_ACTUAL=$(( (got * 100 + total_mib / 2) / total_mib ))
             return 1
         fi
-        read=$(( read + per ))
+        got=$(( got + per ))
     done
-    VERIFY_COVERAGE_ACTUAL=$(( (read * 100 + total_mib / 2) / total_mib ))
+    VERIFY_COVERAGE_ACTUAL=$(( (got * 100 + total_mib / 2) / total_mib ))
     return 0
 }
 

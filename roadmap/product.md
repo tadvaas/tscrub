@@ -267,10 +267,21 @@ with the release that carried them (per `CHANGELOG.md`).
       correctly carries `VerifyTechnique=sentinel` with an empty
       `VerifyCoveragePct`, and the certificate prints "Sentinel" — the gate that
       stops a percentage being claimed after a firmware erase works on real
-      hardware. The sampler still needs a target that reaches **nwipe** (a
-      virtio-scsi VM disk or a SATA drive on a real controller; USB-attached
-      drives are excluded from discovery). Certificate
-      `COD-019035-LH-OEA-6893-STSO`, 26 s run, SMART PASS before and after.
+      hardware. Certificate `COD-019035-LH-OEA-6893-STSO`, 26 s run, SMART PASS
+      before and after.
+      → **Sampler fixed and proven, v1.11.75** (2026-10-22). The field test
+      exposed two defects that made `--verify-coverage` inert on every drive:
+      each range was compared against `/dev/zero` (unbounded, so `cmp` could
+      never report equal) and the comparison's exit status was captured from an
+      assignment instead of `cmp`. Both fixed; six tests now run the real
+      primitives instead of stubbing them (the stubs are why v1.11.73 shipped
+      green). Proven in a **virtio-scsi VM** — the only easy route to the nwipe
+      path, because USB-attached drives are excluded from discovery:
+      `VerifyTechnique=overwrite-sample`, `VerifyCoveragePct=5` on a 2 GB disk
+      (100 MB as 20 ranges), and certificate `COD-945244-FY-NIH-2986-BUSI`
+      prints "Sampled 5%". This also closes §4.1(a): the virtio-scsi overwrite
+      run is now an on-demand test (VM 9500 `tscrub-coverage-e2e` on Proxmox
+      `192.168.0.85`).
 - [ ] RAID controller physical-drive erase — bundle `megacli`/`hpacucli`, add a
       `device::raid_erase` path mapping a drive to its controller erase command,
       gated behind the "never auto-break an array" rule. (§11.1)

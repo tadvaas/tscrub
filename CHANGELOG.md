@@ -6,6 +6,57 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.75] - 2026-10-22
+
+**Appliance fix.** `--verify-coverage` has never produced a number on real
+hardware since it shipped in v1.11.73. Found by the first hardware run of the
+feature, not by the test suite.
+
+### Fixed
+
+- **Coverage sampling compared each range against an unbounded reference.** The
+  sampler read a range and compared it with `/dev/zero`, which never ends, so
+  `cmp` exited 1 on the length mismatch every time. The pre-flight probe failed
+  for the same reason, so `verify::_coverage_check()` returned "not applicable"
+  on every drive and every run fell back to `VerifyTechnique=sentinel` with an
+  empty `VerifyCoveragePct`. Both sides of the comparison are now bounded, using
+  only `dd` and `cmp` (no dependency on `head -c` or `cmp -n`).
+- **The comparison's exit status was discarded.** `rc_cmp=$?` ran *after*
+  `rc_dd=${PIPESTATUS[0]}`, so it captured the status of an assignment (always
+  0). Fixing the probe alone would have made the sampler report *every* range as
+  zero, including drives full of data. The pipeline's statuses are now read as
+  an array, with `local -a rc` declared before the pipeline (`local` is itself a
+  command and wipes `PIPESTATUS`).
+- **SIGPIPE is no longer mistaken for a read error.** `dd` is killed by SIGPIPE
+  the moment `cmp` stops early on a difference, so an unexpected `dd` status now
+  means "not applicable" while `cmp`'s verdict decides pass or fail.
+
+Nothing false was ever *claimed* while the feature was inert: the record said
+`sentinel` and the certificate printed "Sentinel" rather than inventing a
+percentage. The feature was simply doing nothing.
+
+### Verified on hardware
+
+- `192.168.0.95`, HP EliteBook 830 G5 (Samsung PM981a): the drive accepted
+  `NVMe Format`, so nwipe never ran and the record correctly carried
+  `sentinel` with no percentage — that is the guard working, and it is what the
+  certificate `COD-019035-LH-OEA-6893-STSO` shows.
+- Proxmox VM with a **virtio-scsi** disk on v1.11.75 (the only easy way to reach
+  the software-overwrite path, since USB-attached drives are excluded from
+  discovery): `Zero fill`, `erase_engine=nwipe`,
+  **`VerifyTechnique=overwrite-sample`**, **`VerifyCoveragePct=5`** on a 2 GB
+  disk (100 MB read as 20 contiguous ranges), `verify_result=passed`. The
+  certificate now prints **Sampled 5%** in Annex A
+  (`COD-945244-FY-NIH-2986-BUSI`).
+
+### Tests
+
+- Six new tests run the coverage primitives **for real** against files instead
+  of stubbing them, including one that pins the reason for the fix ("an
+  unbounded /dev/zero reference can never compare equal"). The stubs are
+  precisely why v1.11.73 shipped green: no test ever executed the function that
+  was broken. Appliance suite: 1146 checks, 0 failures.
+
 ## [v1.11.74] - 2026-10-21
 
 **Server and site only — the appliance image is unchanged (still v1.11.73).**
