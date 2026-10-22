@@ -296,6 +296,7 @@ if ($found) {
       ?></td></tr>
       <tr><th>Document hash (SHA-256)</th><td><code><?= v_h($record['pdf_sha256'] ?? '') ?></code></td></tr>
       <tr><th>Machine-readable</th><td><a href="/verify?cert=<?= v_h(urlencode($record['cert'] ?? $cert)) ?>&amp;format=jsonld">Machine-readable JSON-LD certificate</a></td></tr>
+      <tr><th>Offline check</th><td>Certificates issued from 21 Oct 2026 carry a signed code in the QR, which <a href="/verify-offline">verifies on the device with no network</a>.</td></tr>
     </table>
     <?php if ($recordsMoved): ?>
     <div class="note"><strong>These records have changed since this certificate was issued.</strong>

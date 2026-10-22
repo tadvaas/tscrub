@@ -41,7 +41,7 @@
 - [Certificates & chain of custody](https://tscrub.com/resources/certificates): Certificate of destruction.
 - [Chain of custody](https://tscrub.com/resources/chain-of-custody): The per-drive record.
 - [How reports are signed](https://tscrub.com/resources/report-signing): SHA-256 + Ed25519.
-- [How to verify a certificate](https://tscrub.com/resources/verify-certificate): The QR code.
+- [How to verify a certificate](https://tscrub.com/resources/verify-certificate): The QR code, the offline signed-code check, and the online record.
 - [SMART data as audit evidence](https://tscrub.com/resources/smart-audit-evidence)
 - [Buyer's guide](https://tscrub.com/resources/buyers-guide): Choosing erasure software.
 - [DBAN alternatives](https://tscrub.com/resources/dban-alternatives)
@@ -73,7 +73,7 @@
 - The choice can be made on the appliance's triage screen (`m` cycles the standard, `p` the rounds), fixed per fleet with `tscrub_method=`/`tscrub_passes=`, or passed as `--method`/`--passes`.
 - Bootable, inspectable appliance image; inspect every line of what runs.
 - Triage-first boot: diagnostics + online heartbeat at boot; erasure starts on Shift+T from the triage screen.
-- End-to-end loop: erase → signed report → PDF Certificate of Destruction with a verification QR (tscrub.com/verify).
+- End-to-end loop: erase → signed report → PDF Certificate of Destruction with a verification QR (signed code checked at tscrub.com/verify-offline, record at tscrub.com/verify).
 - Air-gapped certificate checking: the certificate QR carries a signed code checked on the device at tscrub.com/verify-offline, so an auditor with no network can confirm the certificate was issued by tScrub and not altered, against the published Ed25519 key.
 - Every certificate is also issued as a signed machine-readable JSON-LD document (add &format=jsonld to the verification URL), so automated auditors can ingest and verify it without parsing the PDF.
 - The customer (data controller) certifies their own destruction; tScrub supplies the signed, tamper-evident evidence.

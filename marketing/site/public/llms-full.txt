@@ -113,7 +113,7 @@ Guides at https://tscrub.com/resources:
   - **Degaussing & physical destruction** (https://tscrub.com/resources/degaussing-destruction) — when erasure isn't possible.
 - **Certificates & chain of custody** (https://tscrub.com/resources/certificates) — what a certificate of destruction is, what it must include, the verification QR code, and free vs paid signing.  - **Chain of custody** (https://tscrub.com/resources/chain-of-custody) — the per-drive record, COCIDs.
   - **How reports are signed** (https://tscrub.com/resources/report-signing) — SHA-256 + Ed25519, self-signed vs vendor-signed.
-  - **How to verify a certificate** (https://tscrub.com/resources/verify-certificate) — the QR code and /verify.
+  - **How to verify a certificate** (https://tscrub.com/resources/verify-certificate) — the QR code, the offline signed-code check, and /verify.
   - **SMART data as audit evidence** (https://tscrub.com/resources/smart-audit-evidence) — pre/post-wipe health.- **Buyer's guide** (https://tscrub.com/resources/buyers-guide) — choosing data erasure software, tScrub vs Blancco, and ITAD / data-centre considerations.
   - **DBAN alternatives** (https://tscrub.com/resources/dban-alternatives) — modern options that handle SSDs and NVMe.
   - **Open source vs commercial** (https://tscrub.com/resources/open-source-vs-commercial) — transparency vs certification.
