@@ -22,17 +22,25 @@ step links to the detailed section that follows:
    poll `build_tscrub.log` for `TSCRUB_BUILD_DONE` (§2).
 5. **Publish the ISO** — copy `output/images/tscrub-…-<hash>.iso` into
    `~/webs/tscrub/downloads/`, write its `.sha256`, repoint the
-   `tscrub-appliance.iso` symlink (§2).
-6. **Publish + sign the PXE kernel** — copy `bzImage` to
-   `~/webs/lan/ipxe/tscrub/`, `sbsign` it, verify the issuer (§2).
+   `tscrub-appliance.iso` symlink (§2). `<hash>` is the **build host's HEAD
+   commit**, not a content hash: commit the overlay (step 3) *before* building,
+   or a new ISO advertises the previous release's commit in its filename.
+6. **Publish + sign the PXE kernel** — `bash ops/publish-netboot.sh` copies,
+   signs with the iPXE vendor key, verifies the issuer and prints the SHA-256;
+   `--check` re-verifies whatever is being served (§2).
 7. **Update the surfaces that show the ISO** — `download-manifest.json`
    `appliance` block + `download.html` `FALLBACK`, then `npm run deploy:server`,
-   copy the manifest to `/downloads/manifest.json`, and
-   `npm run build && npm run deploy` (§2).
+   copy the manifest to `/downloads/manifest.json` (**that exact filename** —
+   `manifest.json` is what the Download page fetches; publish
+   `download-manifest.json` and the page silently falls back to its in-page
+   block), and `npm run build && npm run deploy` (§2).
 8. **Commit + tag + push on the Mac repo** — `git add -A && git commit`,
    `git tag -a vX.Y.Z -m "tScrub vX.Y.Z"`, `git push origin main &&
    git push origin vX.Y.Z` (§6).
-9. **Verify the release is live** — run the curl checks in §7.
+9. **Verify the release is live AND coherent** — run every check in §7. They
+   assert that the artefacts *agree with each other*, not merely that each URL
+   answers: a stale symlink, a stale page fallback and a manifest at the wrong
+   path all return HTTP 200.
 
 ## Signing keys (overview)
 
@@ -110,14 +118,22 @@ Served files under `/downloads/`: `tscrub.sh` (the script), `tscrub.sh.sha256` (
 
 **Versioning & release history:** bump `SCRIPT_VERSION` in `product/src/00_bootstrap.sh` whenever the source changes before releasing. Don't bump for a byte-identical re-host — the SHA-256 won't change. `host-download.sh` reads the version and warns if it's already in the release history. After releasing a new version, add a `## [vX.Y.Z]` entry to `CHANGELOG.md`. Note `host-download.sh` only updates the manifest's **script** block; the **appliance** block and the Download page `FALLBACK` are updated in the appliance section below.
 
-Manual equivalent (upload only, no site redeploy):
+Manual equivalent (upload only, no site redeploy). **The checksum and the
+signature are separate steps: skip the `pkeyutl` line and the new script ships
+beside the PREVIOUS release's `.sig`**, which either fails verification or, far
+worse, is trusted against a file it never signed:
 
 ```bash
 cd product
 make build
 scp -o BatchMode=yes build/tscrub.sh oxwet@192.168.0.6:~/webs/tscrub/downloads/tscrub.sh
-ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/webs/tscrub/downloads && sha256sum tscrub.sh > tscrub.sh.sha256'
+ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/webs/tscrub/downloads && \
+  sha256sum tscrub.sh > tscrub.sh.sha256 && \
+  openssl pkeyutl -sign -inkey /home/oxwet/webs/tscrub-form/vendor.key -rawin -in tscrub.sh -out tscrub.sh.sig'
 ```
+
+The signature is Ed25519 over the raw script bytes (`-rawin`), verified against
+`tscrub.pub` — see `report-verification.md` for the client-side check.
 
 The marketing deploy excludes `downloads/` (`--exclude downloads/`) so `--delete` never wipes it. `download_url` in `~/webs/tscrub-form/config.json` points at this file (used in licence emails).
 
@@ -150,6 +166,19 @@ ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/shredos.x86_64 && \
   rm -f build_tscrub.log && \
   tmux new-session -d -s tscrub "board/shredos/modules/build-into-overlay.sh && make 2>&1 | tee -a build_tscrub.log; echo TSCRUB_BUILD_DONE >> build_tscrub.log"'
 # poll: ssh oxwet@192.168.0.6 'grep -q TSCRUB_BUILD_DONE ~/shredos.x86_64/build_tscrub.log'
+```
+
+**Prove the image carries the version you think it does.** Nothing else checks
+this: the build succeeds against *whatever* is in the overlay, and the ISO
+filename only tells you the commit, not the script. Compare the overlay byte for
+byte with the slim build you just made:
+
+```bash
+shasum -a 256 product/build/tscrub.sh | awk '{print $1}'          # local slim
+ssh -o BatchMode=yes oxwet@192.168.0.6 'sha256sum \
+  ~/shredos.x86_64/board/shredos/fsoverlay/usr/bin/tscrub.sh | awk "{print \$1}"'
+# the two must be identical, and both must report the expected version:
+grep -m1 '^SCRIPT_VERSION=' product/build/tscrub.sh
 ```
 
 The image also carries tScrub's **out-of-tree kernel modules** from
@@ -204,9 +233,23 @@ npm run build && npm run deploy
 
 **Publish the PXE kernel** to the LAN file server on `.6`
 (`~/webs/lan/ipxe/tscrub/bzImage`, served at
-`http://192.168.0.6:8080/ipxe/tscrub/bzImage`). The build already runs on `.6`,
-so there is no Mac relay — copy straight from the build output and sign in place
-with the operator's iPXE vendor key (`sbsign`; keys live in `~/ipxe-sb/` on `.6`):
+`http://192.168.0.6:8080/ipxe/tscrub/bzImage`). **Use the helper** — it copies,
+signs, verifies and prints the SHA-256 in one step, and exits non-zero rather
+than publish an unsigned kernel:
+
+```bash
+bash ops/publish-netboot.sh          # copy + sbsign + sbverify + sha256
+bash ops/publish-netboot.sh --check  # verify whatever is currently served
+```
+
+> The build-output `bzImage` is UNSIGNED. The netboot chain is shim → kernel,
+> so serving the raw file stops every Secure Boot machine at a MOK prompt —
+> even one that already enrolled the key. The tell is size: the signature adds
+> exactly **1,568 bytes**. Do not hand-copy the file.
+
+The manual equivalent (only if the helper is unavailable). The build already
+runs on `.6`, so there is no Mac relay — copy straight from the build output and
+sign in place with the operator's iPXE vendor key (`~/ipxe-sb/` on `.6`):
 
 ```bash
 ssh -o BatchMode=yes oxwet@192.168.0.6 'mkdir -p ~/webs/lan/ipxe/tscrub && \
@@ -426,6 +469,24 @@ order:
   or retitled, or a service/feature list changes (keep the LLM context files in
   sync per the SEO preference).
 
+### Claim surfaces (when the release changes what the product ASSERTS)
+
+A copy sweep is not enough when a release changes a claim about a drive, a job
+or a standard. This repo has shipped three claim surfaces disagreeing at once
+(PDF, JSON-LD and `/verify`), and a helper with passing tests that nothing
+called. Tick each surface against the new class of evidence:
+
+- [ ] **PDF certificate** — `render_cert.php`, rendered and text-extracted, not
+      merely read.
+- [ ] **JSON-LD twin** — the same certificate with `&format=jsonld`, carrying the
+      same claim, or an explicit reason it is absent.
+- [ ] **`/verify`** — the public page's wording, plus its tests.
+- [ ] **Dashboard drawer + CSV export** — `api.php`'s `$cols` whitelist silently
+      drops any field you forget to add.
+- [ ] **Grep the RENDERED artefacts** for the claim, never only the source. A
+      claim can be correct in one artefact and absent in another; that is
+      precisely how a false statement survived a green test suite.
+
 Find every mention of the new token, then update + deploy:
 
 ```bash
@@ -509,10 +570,41 @@ curl -fsSI https://tscrub.com/downloads/tscrub.pub | head -1
 
 # Download page serves the NEW build hash (the in-page FALLBACK and the runtime
 # manifest read must agree)
-curl -fsS https://tscrub.com/download.html | grep -c '<hash>'
+curl -fsS https://tscrub.com/download | grep -c '<hash>'
 
 # docs.html carries any newly-added flag / config token (e.g. psids.conf)
 curl -fsS https://tscrub.com/docs.html | grep -oE 'psids\.conf'
+```
+
+### 7b. Artefacts must agree, not merely exist
+
+Every check above passes on a broken release: a stale `tscrub-appliance.iso`
+symlink, a stale Download-page `FALLBACK`, and a manifest published under the
+wrong filename all answer HTTP 200. All three happened in v1.11.77. Assert
+correspondence instead:
+
+```bash
+M=https://tscrub.com/downloads/manifest.json
+ISO=$(curl -fsS $M | python3 -c 'import json,sys;print(json.load(sys.stdin)["appliance"]["filename"])')
+SHA=$(curl -fsS $M | python3 -c 'import json,sys;print(json.load(sys.stdin)["appliance"]["sha256"])')
+SSH=$(curl -fsS $M | python3 -c 'import json,sys;print(json.load(sys.stdin)["script"]["sha256"])')
+SIZ=$(curl -fsS $M | python3 -c 'import json,sys;print(json.load(sys.stdin)["appliance"]["size_mb"])')
+
+# 1. the manifest names a file that actually exists
+curl -fsSI "https://tscrub.com/downloads/$ISO" | head -1
+
+# 2. the stable symlink resolves to THAT file (a stale symlink still 200s)
+curl -fsS https://tscrub.com/downloads/tscrub-appliance.iso.sha256 | grep -q "$SHA" && echo "symlink OK"
+
+# 3. the Download page's fallback agrees with the manifest
+curl -fsS https://tscrub.com/download | grep -q "$SHA" && echo "fallback OK"
+
+# 4. the script checksum sidecar agrees with the manifest's script block
+curl -fsS https://tscrub.com/downloads/tscrub.sh.sha256 | grep -q "$SSH" && echo "script sha OK"
+
+# 5. size_mb is the real size, not a figure copied from the previous release
+BYTES=$(curl -fsSI "https://tscrub.com/downloads/$ISO" | awk 'tolower($1)=="content-length:"{print $2}' | tr -d '\r')
+echo "manifest ${SIZ} MiB vs served $((BYTES / 1048576)) MiB"   # must match
 ```
 
 > **Cloudflare cache.** `/assets/*` (and the generated site JS) is served with
