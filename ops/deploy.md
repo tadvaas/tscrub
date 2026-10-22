@@ -472,12 +472,18 @@ lan, nebula, … all live here). Keep every change additive and inside the
 tscrub.com server block.
 
 ⚠️ **Do not add an origin-level `return 301 https://…` for tscrub.com.** Measured
-2026-10-22: that server block has no `listen 443` and no certificate, and the
-site sits behind Cloudflare in **Flexible** SSL, so the CDN fetches the origin on
-port 80. A scheme-wide redirect there also matches the CDN's own request, which
-loops every visitor (`ERR_TOO_MANY_REDIRECTS`). The public redirect belongs at
-the edge: Cloudflare → SSL/TLS → Edge Certificates → **Always Use HTTPS**.
-`marketing/server/nginx-redirects.conf` PART A carries the same warning.
+2026-10-22 (and it took two corrections to get right): the origin now HAS a
+`listen 443` with a Cloudflare Origin CA certificate, but **public traffic never
+arrives there**. tScrub is fronted by a **Cloudflare Tunnel** — every public
+request in `/var/log/nginx/access.log` comes from `192.168.0.250` and **no
+Cloudflare IP appears at all** — and the tunnel's `service:` points at
+`http://192.168.0.6:80`. Consequences: the zone **SSL mode does not govern a
+tunnelled hostname** (the `service:` scheme does), the internet-facing leg is the
+encrypted tunnel, and an origin-level scheme redirect would still loop because
+the connector arrives over `http` on port 80. The public redirect belongs at the
+edge: Cloudflare → SSL/TLS → Edge Certificates → **Always Use HTTPS** (on since
+2026-10-22). `marketing/server/nginx-redirects.conf` PART A carries the same
+warning.
 
 A **staged patch** for the retired-page 301s (and the `www` target, which sent
 visitors to `http://`) lives on `.6` as `~/tscrub.conf.new`. To install it:
@@ -573,12 +579,11 @@ curl -s -o /dev/null -w "%{http_code}\n" "https://tscrub.com/verify?cert=COD-003
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/submit      # 405
 
 # edge redirects (marketing/server/nginx-redirects.conf)
-# State as of 2026-10-22: the three retired-page 301s and the www target ARE
-# applied at origin (verified live), so the /how-it-works line passes.
-# The http:// line does NOT, and cannot, come from origin nginx: the origin has
-# no TLS listener and Cloudflare is in Flexible mode, so a scheme-wide origin
-# redirect loops. It passes only once the CLOUDFLARE EDGE TOGGLE is on
-# (SSL/TLS -> Edge Certificates -> Always Use HTTPS).
+# State as of 2026-10-22: the three retired-page 301s, the www target AND the
+# Cloudflare "Always Use HTTPS" toggle are all applied, so both lines pass.
+# The http:// redirect is served by the EDGE, not by origin nginx: public traffic
+# arrives through a Cloudflare Tunnel (connector on 192.168.0.250) that speaks
+# http to this origin on port 80, so an origin-level scheme redirect would loop.
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://tscrub.com/                # 301 https://tscrub.com/
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-it-works   # 301 https://tscrub.com/docs
 
