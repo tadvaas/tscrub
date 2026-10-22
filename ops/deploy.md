@@ -573,13 +573,12 @@ curl -s -o /dev/null -w "%{http_code}\n" "https://tscrub.com/verify?cert=COD-003
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/submit      # 405
 
 # edge redirects (marketing/server/nginx-redirects.conf)
-# These two only pass once §4 has been applied as root and nginx reloaded.
-# Until then http:// still answers 200 and /how-it-works still 404s — that is
-# the unapplied state, not a failed release.
-# NOTE: the http:// -> https:// redirect is a CLOUDFLARE edge toggle (Always Use
-# HTTPS), NOT an origin nginx rule — the origin has no TLS listener and the CDN
-# fetches it on port 80, so an origin redirect loops. Expect 301 here only once
-# the edge toggle is on.
+# State as of 2026-10-22: the three retired-page 301s and the www target ARE
+# applied at origin (verified live), so the /how-it-works line passes.
+# The http:// line does NOT, and cannot, come from origin nginx: the origin has
+# no TLS listener and Cloudflare is in Flexible mode, so a scheme-wide origin
+# redirect loops. It passes only once the CLOUDFLARE EDGE TOGGLE is on
+# (SSL/TLS -> Edge Certificates -> Always Use HTTPS).
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://tscrub.com/                # 301 https://tscrub.com/
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-it-works   # 301 https://tscrub.com/docs
 
