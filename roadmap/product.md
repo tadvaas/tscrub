@@ -230,6 +230,22 @@ with the release that carried them (per `CHANGELOG.md`).
       2026-10-21: "too crucial"). Do not run, create or inspect anything there.
       (a) therefore needs a machine the operator nominates, or a local QEMU VM;
       agree the target before writing the scenario.
+      → **argv half shipped 2026-10-22** (`product/tests/test_nwipe_argv.sh`,
+      **29 checks**, suite now 1202): the test stops the fake `nwipe` binary
+      recording its own argv, so it reads the REAL command line
+      `device::exec_nwipe` builds. Covers the default argv (`--autonuke`,
+      `--method=zero`, `--nogui` only when `--help` advertises it, `--logfile`,
+      `/dev/<dev>`, **no** `--rounds`), a configured `dodshort` + 2 rounds
+      (`--method=dodshort --rounds=2`, `PASSES 6`, `ERASER nwipe 0.41`),
+      one round never expressed as `--rounds=1`, clamp of `0`/`65`/`abc`, the
+      unknown-method fallback to `zero` (reported, not silent), the engine's own
+      round/pass line overriding the static table (4x3 → `PASSES 12`), and a
+      non-zero engine exit reporting FAILED with the operator instruction.
+      **Mutation-tested:** `passes > 1` → `>= 1` produces 5 failures; misspelling
+      the nwipe method (`dodshrt`) is caught by two assertions.
+      **Still open:** the VM end-to-end run — a stub cannot catch "real nwipe
+      0.41 rejects our flag spelling", and only a real run shows the CSV row and
+      manifest carry what the engine actually did.
       **(b) shipped 2026-10-21** (`marketing/tests/overwrite_parse_test.php`,
       47 checks) — a committed server-side test for the parser → Annex A →
       JSON-LD chain: `parse_reports()` now delegates to `reports_header_map()`,
