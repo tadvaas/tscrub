@@ -128,4 +128,30 @@ t::check "an engine without --nogui is not given it" \
 t::assert_contains "$(wipe_argv)" "--autonuke" "the rest of the argv is unchanged"
 unset -f nwipe
 
+echo
+echo "== 9. the engine version probe uses the option the engine implements =="
+# MEASURED DEFECT (2026-10-22): nwipe v0.41 declares --version in its long-option
+# table but its case-0 handler never matches it, so --version prints NOTHING and
+# every report recorded "nwipe" instead of "nwipe 0.41". The fake now mirrors that
+# (it answers -V only), so this assertion fails if the probe regresses.
+run_nwipe zero 1 sdi
+first="$(head -n 1 "$ARGV")"
+t::assert_eq "-V" "$first" "the version probe asks for -V (the implemented option)"
+t::assert_contains "$(cat "$STATUS")" "ERASER nwipe 0.41" \
+    "the engine version reaches the record as a result"
+t::check "the probe does not rely on --version alone" \
+    '[[ "$(nwipe::version)" == "0.41" ]]'
+
+# Fallback for a build that only answers --version.
+nwipe() {
+    case "$1" in
+        -V)        return 22 ;;
+        --version) printf 'nwipe version 9.99\n'; return 0 ;;
+        --help)    printf 'usage: --nogui\n'; return 0 ;;
+        *)         return 0 ;;
+    esac
+}
+t::assert_eq "9.99" "$(nwipe::version)" "a build that answers only --version still yields its version"
+unset -f nwipe
+
 t::summary

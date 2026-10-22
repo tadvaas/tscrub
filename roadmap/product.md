@@ -246,6 +246,27 @@ with the release that carried them (per `CHANGELOG.md`).
       **Still open:** the VM end-to-end run — a stub cannot catch "real nwipe
       0.41 rejects our flag spelling", and only a real run shows the CSV row and
       manifest carry what the engine actually did.
+      → **VM end-to-end run done 2026-10-22** (Proxmox `.85`, VM 9500,
+      `tscrub_method=dodshort tscrub_passes=2`, COCID **95110**, report id
+      **1309**): the run **completed in 51 s**, `Verify 1 passed`, and the report
+      recorded `standard=dodshort`, `passes=6` (3 patterns × 2 rounds — the only
+      way to get 6 from dodshort, so `--rounds=2` demonstrably took effect),
+      `method=DoD Short`, `status=COMPLETED`, `verify_technique=sentinel`. The
+      triage footer confirmed `DoD Short x2 (6 passes)` before the run.
+      **⚠️ It also found a REAL DEFECT the stub could never catch:**
+      `erase_engine` came back as **`nwipe`**, not `nwipe 0.41`. The probe used
+      `nwipe --version`, which nwipe v0.41 **declares in its long-option table
+      but never handles** (`case 0:` in `src/options.c` compares only
+      force/autonuke/autopoweroff/…), so it prints nothing. The fake answered
+      `--version`, so the suite stayed green. **Fixed** by probing `-V` first
+      (the handler that actually prints `"%s version %s"`) with `--version` as
+      a fallback, and by making the fake mirror the real binary (answers `-V`,
+      exits 22 on `--version`) so a regression fails 4 assertions.
+      **Correction to the expectation above:** the report has **no rounds
+      column** — it records `Passes` (physical passes) and `EraseEngine`. There
+      is nothing to "assert as rounds"; the pass count plus the engine string is
+      the provenance. **Confirming the fix on the real engine needs one more
+      image build + VM run** (the kernel that ran 95110 predates it).
       **(b) shipped 2026-10-21** (`marketing/tests/overwrite_parse_test.php`,
       47 checks) — a committed server-side test for the parser → Annex A →
       JSON-LD chain: `parse_reports()` now delegates to `reports_header_map()`,

@@ -73,12 +73,20 @@ nwipe::method_patterns() {
 }
 
 # Engine version, e.g. "0.41". Empty when it cannot be read; never invented.
-# `--version` is a supported long option in nwipe 0.41 (prints "nwipe version
-# 0.41"), so this cannot start a wipe.
+# The engine's version, for the report's EraseEngine field.
+#
+# MEASURED 2026-10-22 against the bundled nwipe v0.41 source (src/options.c):
+# `--version` is DECLARED in the long-option table but the `case 0:` handler
+# never matches it, so it prints NOTHING and this probe silently returned an
+# empty version — every software-overwrite job recorded "nwipe" instead of
+# "nwipe 0.41". Found by an end-to-end VM run; the unit tests passed because the
+# fake answered a flag the real binary ignores. The handler that does print it is
+# the SHORT option `-V` ("%s version %s"). Probe that first, and keep
+# `--version` only as a fallback for other builds.
 nwipe::version() {
     local out=""
     command -v nwipe >/dev/null 2>&1 || return 0
-    out="$(nwipe --version 2>/dev/null | head -n 1 || true)"
+    out="$( { nwipe -V 2>/dev/null || nwipe --version 2>/dev/null; } | head -n 1 || true)"
     if [[ "$out" =~ ([0-9]+\.[0-9]+(\.[0-9]+)?) ]]; then
         printf '%s' "${BASH_REMATCH[1]}"
     fi
