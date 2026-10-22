@@ -215,6 +215,13 @@ ssh -o BatchMode=yes oxwet@192.168.0.6 'cd ~/webs/tscrub/downloads && \
   printf "%s  tscrub-appliance.iso\n" "$(sha256sum "$ISO" | awk "{print \$1}")" > tscrub-appliance.iso.sha256'
 ```
 
+⚠️ **Edit the manifest LOCALLY, then deploy.** `marketing/server/download-manifest.json`
+is a tracked file that `npm run deploy:server` rsyncs over the server's copy, so
+editing `~/webs/tscrub-form/download-manifest.json` on the box is silently undone
+by the very next backend deploy — the manifest then advertises the previous
+release while everything else says the new one. Happened during the v1.11.78
+release. Edit the repo file, deploy, *then* copy it to `/downloads/manifest.json`.
+
 Then update the three places that surface the ISO (the Download page reads
 `/downloads/manifest.json` at runtime and falls back to an in-page `FALLBACK`,
 so both must change):

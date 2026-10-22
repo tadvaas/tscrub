@@ -6,7 +6,29 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.78] - 2026-10-22
+
+### Fixed
+
+- **The engine version was missing from every software-overwrite report.**
+  `EraseEngine` recorded `nwipe` instead of `nwipe 0.41`, because the probe asked
+  for `--version` — an option the bundled nwipe v0.41 *declares* in its option
+  table and then **never handles**, so it printed nothing and the empty result
+  was treated as "no version to report". The engine version is provenance for
+  the overwrite standard, so this was a silent loss on every software job.
+  The probe now uses `-V`, which is the handler that actually prints it, with
+  `--version` kept as a fallback for other builds.
+
+  Found by an end-to-end run on the appliance, not by the test suite: the fake
+  `nwipe` answered `--version`, so the suite was green while the real binary
+  ignored the flag. The fake now mirrors the real binary (answers `-V`, exits 22
+  on `--version`) so a regression fails four assertions, and a new
+  `product/tests/test_nwipe_argv.sh` (33 checks) asserts the command line
+  tScrub actually hands to nwipe, which nothing had ever checked.
+
+  Proven end to end: the same job recorded `engine=[nwipe]` before the fix
+  (COCID 95110, report 1309) and `engine=[nwipe 0.41]` after it (COCID 95111,
+  report 1311), with `standard=dodshort`, `passes=6`, `COMPLETED` in both.
 
 ### Changed
 
@@ -19,8 +41,6 @@ and this project uses date-based versioning (`v1.x`).
   states nothing there rather than newly asserting "NIST" about a job nobody
   re-assessed, and the caveat *"IEEE 2883-2022 methods described, not IEEE
   certified"* is defined once and printed by both surfaces.
-
-Server-only change; the appliance is unaffected.
 
 ## [v1.11.77] - 2026-10-22
 
