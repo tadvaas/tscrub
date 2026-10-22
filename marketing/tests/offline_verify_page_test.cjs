@@ -198,6 +198,11 @@ const msgB = `2|test-1|${CERT_B}|${AT}`;
   check('the page has a title element inside the result panel', /id="ov-title"/.test(html));
   check('the page offers the online record after a pass', /verify\?cert=/.test(pageJs));
   check('the page registers the service worker', /navigator\.serviceWorker\.register\('\/sw-verify-offline\.js'\)/.test(pageJs));
+  // Tapping a link for a different certificate while the verifier is already
+  // open changes only the fragment, which fires no navigation.
+  check('a changed #c= fragment re-verifies', /addEventListener\('hashchange', verifyFromHash\)/.test(pageJs));
+  check('the fragment path is shared by the first load and later changes',
+    /function verifyFromHash\(/.test(pageJs) && /verifyFromHash\(\);/.test(pageJs));
 
   // -------------------------------------------------------------------------
   // 9. The service worker actually caches the page

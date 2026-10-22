@@ -162,11 +162,18 @@ if (!hasBarcodeDetector || !isSecure || !navigator.mediaDevices) {
 })();
 
 // A code can also arrive by URL fragment (#c=…), which never leaves the device.
-if (location.hash.startsWith('#c=')) {
+// The hash can change WITHOUT a page load: an installed verifier sits open, and
+// an auditor taps a link for a different certificate. Without the hashchange
+// listener that second tap silently does nothing (found while decoding a printed
+// QR and navigating to it in an already-open tab).
+function verifyFromHash() {
+  if (!location.hash.startsWith('#c=')) return;
   const fromHash = decodeURIComponent(location.hash.slice(3));
   codeEl.value = fromHash;
   runVerify(fromHash);
 }
+verifyFromHash();
+window.addEventListener('hashchange', verifyFromHash);
 
 // ---------------------------------------------------------------------------
 // Offline support: cache this page after the first successful load

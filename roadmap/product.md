@@ -377,27 +377,24 @@ with the release that carried them (per `CHANGELOG.md`).
       positions (0/25/50/75/tail), read back post-wipe and sha256-compared;
       modes `none|sampled|full`, recorded as `Verify/VerifySectors/VerifyResult`
       (see §1). Remaining nuance: positions are fixed, not random-LBA.
-- [ ] Offline / air-gapped verification — self-contained certificate QR
+- [x] Offline / air-gapped verification — self-contained certificate QR
       (embedded signature + key) so a phone verifies with zero network. (§6)
-      → **Planned 2026-10-21, plan-first:** `research/offline-verification/README.md`.
-      Trust rests on the vendor key already published at
-      `/.well-known/tscrub-cert-key.json` (`kid tscrub-vendor-1`), **pinned in the
-      verifier**, never carried in the QR. The camera needs a secure context, so
-      offline scanning means a service-worker-cached page, not a downloaded file.
-      **Phase 1 shipped 2026-10-21 (unreleased):** `cert_offline_code()` /
-      `cert_offline_verify()` in `jsonld.php` + `marketing/tests/offline_code_test.php`.
-      **Phase 2 built 2026-10-21, deliberately NOT deployed:** the renderer draws
-      the code in place of the URL when the generator supplies one, but production
-      keeps the URL QR until the verifier exists (plan §11 decision 6). The payload
-      is v2 — `2|<kid>|<cert_id>|<issued_at>|<sig>` — because v1's PDF hash could
-      not be printed inside the PDF it hashes; what a code attests offline is "we
-      issued this certificate id at this time under this key", and it sits exactly
-      on the 65-module line at ECC H (153 chars). **Phase 3 built 2026-10-21, also
-      undeployed:** `/verify-offline` + a shared verifier module (no DOM, no
-      network — node tests the same code the page runs) + a service worker that
-      precaches the page *and its hashed assets*. Verified in a real browser
-      against a production-signed code, including with the network switched off.
-      Phase 4 (copy) remains, then one release carrying 2–4.
+      → **Shipped v1.11.74** (2026-10-21, server + site; the appliance image is
+      unchanged). Plan: `research/offline-verification/README.md`.
+      The printed QR is `https://tscrub.com/verify-offline#c=2|<kid>|<cert_id>|
+      <issued_at>|<sig>`: a URL so any camera opens the verifier, with the code
+      in the fragment so it never reaches the server. The key is **pinned in the
+      page** (kid `tscrub-vendor-1`, fingerprint `be81586c…5802`, also published
+      at `/.well-known/tscrub-cert-key.json`) and an unknown kid is a rejection.
+      A pass means the certificate was issued by us at that time and not altered;
+      the page says plainly that it does not prove a drive was erased and offers
+      the online record. Service worker keeps it working with no network.
+      **Mechanically verified end to end (2026-10-22):** rendered a certificate
+      carrying a real marker on the server, rasterised page 1 at 400 dpi,
+      decoded the QR with OpenCV — 189 characters, byte-identical to the marker
+      that was signed — then verified that exact value on the live page. The same
+      check found that changing only the `#c=` fragment of an already-open page
+      did nothing; fixed and redeployed.
 - [ ] Overwrite-pattern verification + hexviewer — verify software-overwrite
       patterns were actually written (read-back compare) and add a hexviewer
       visual check for compliance (Blancco). Distinct from the sentinel check
