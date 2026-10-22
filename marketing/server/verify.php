@@ -8,6 +8,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/certifier.php';
 require_once __DIR__ . '/jsonld.php';
+require_once __DIR__ . '/claim_lib.php';
 // Pure vocabulary only (no DB) — the qualifier string must be the same one the PDF and
 // the JSON-LD twin print, so a verifier cannot read a different claim on the web page.
 require_once __DIR__ . '/manual_destruction.php';
@@ -95,6 +96,20 @@ if ($isValidId) {
             // would misstate every ordinary certificate.
             $hasReports  = !empty($record['reports']);
             $hasAttested = ($docAttDevices + $docAttMedia) > 0;
+
+            // The sanitisaton-standard claim, taken from the DOCUMENT rather
+            // than the live table (this page verifies a document) and computed
+            // by the same rule the PDF uses, so the two cannot disagree. It is
+            // null unless the job earned the IEEE label: a page that stated
+            // nothing before must not start asserting 'NIST' for a job nobody
+            // re-assessed.
+            $claimDrives = [];
+            foreach (($snapshot['about'] ?? []) as $aboutItem) {
+                if (is_array($aboutItem['properties'] ?? null)) {
+                    $claimDrives[] = $aboutItem['properties'];
+                }
+            }
+            $claimView = cert_claim_display(cert_claim($claimDrives));
 
             // Two separate figures, never summed: one is instrument-verified, the other is
             // the operator's word. Same rule as the PDF and the JSON-LD twin.
@@ -286,6 +301,9 @@ if ($found) {
       <?php if ($hasAttested): ?>
       <tr><th>Operator-attested</th><td><?= v_h($attestedSummary) ?></td></tr>
       <?php endif; ?>
+<?php if ($claimView !== null): ?>
+      <tr><th>Sanitisation standard</th><td><?= v_h($claimView['value']) ?><br><span style="font-size:12px;color:#64748b;"><?= v_h($claimView['note']) ?></span></td></tr>
+<?php endif; ?>
       <tr><th>Integrity</th><td><?= v_h(v_sha_state($record['sha_state'] ?? 'unverified')) ?></td></tr>
       <tr><th>Signature</th><td><?php
         // 'Self-signed by the appliance' describes a report signature, so it is wrong on a

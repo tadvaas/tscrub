@@ -272,9 +272,19 @@ with the release that carried them (per `CHANGELOG.md`).
       `COD-618815-RU-UID-1146-ADMJ`, `(Clear, Purge)`), and **refused** in the
       VM (2% sample, passing read-back → NIST + `G2 coverage 2% < 5%`,
       certificate `COD-649912-XS-CDB-0989-LUUK` contains no occurrence of
-      "IEEE"). **Open follow-up:** the public `/verify` page shows no claim row
-      yet — it makes no standard claim today, so silence is not a false
-      statement; add the row and the caveat together, with a test.
+      "IEEE"). **Phase 2 complete 2026-10-22:** the `/verify` page now states
+      the claim too. The rule moved out of `render_cert.php` into
+      `server/claim_lib.php` (`cert_claim()`, `cert_claim_label()`,
+      `cert_claim_caveat()`, `cert_claim_display()`), so the PDF and the page
+      call ONE function instead of two implementations that drift. The page
+      reads the per-drive claim from the stored JSON-LD document (it verifies a
+      document, not the live table) and renders the row only when the job
+      earned it: a refused job states nothing rather than newly asserting
+      "NIST". Verified live: `COD-618815` shows `IEEE 2883-2022 (Clear, Purge)`
+      plus the caveat; `COD-649912` and `COD-019035` contain the word IEEE zero
+      times. Tests: `marketing/tests/claim_surfaces_test.php` (37 checks, incl.
+      "the surfaces actually call the rule" and "the caveat is defined exactly
+      once") + the rendered-PDF suite `cert_claim_line_test.php` (90).
       → **First hardware run 2026-10-22, gate confirmed, sampler not yet
       exercised** (`192.168.0.95`, HP EliteBook 830 G5, Samsung PM981a
       `MZVLB512HAJQ`, v1.11.73, netboot entry with `tscrub_verify_coverage=5`):

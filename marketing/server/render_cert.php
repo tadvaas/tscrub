@@ -23,6 +23,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/tcpdf/tcpdf.php';
 require_once __DIR__ . '/cert_terms.php';
+require_once __DIR__ . '/claim_lib.php';
 
 function fmt_ts($ts) {
     if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/', (string)$ts, $m)) {
@@ -262,54 +263,6 @@ function cert_verify_label(string $technique, string $pct = ''): string {
     if ($t === 'sentinel') return 'Sentinel';
     if ($t === 'ce-exempt') return 'CE exempt';
     return '';
-}
-
-/**
- * The sanitisation claim for a whole job.
- *
- * The appliance scores each drive against the IEEE 2883-2022 gates and records
- * a standard per drive ("IEEE 2883-2022" only where every gate passed, else
- * "NIST 800-88" plus a shortfall). A job may only be labelled IEEE when EVERY
- * scored drive earned it — one refusal takes the certificate back to NIST, and
- * the shortfall is carried so a reader can see why.
- *
- * Wording rule: we describe methods, we never claim to be certified. Nothing
- * certifies a product to IEEE 2883, exactly as nothing certifies one to
- * NIST 800-88.
- *
- * @return array{standard:string,level:string,shortfall:string,ieee:bool}
- */
-function cert_claim(array $drives): array {
-    $scored = 0;
-    $ieee = 0;
-    $levels = [];
-    $shortfall = '';
-    foreach ($drives as $d) {
-        $std = trim((string)($d['sanitization_standard'] ?? ''));
-        if ($std === '') continue;             // pre-v1.11.76 record: no claim either way
-        $scored++;
-        if (strcasecmp($std, 'IEEE 2883-2022') === 0) {
-            $ieee++;
-            $lvl = trim((string)($d['sanitization_level'] ?? ''));
-            if ($lvl !== '') $levels[$lvl] = true;
-        } elseif ($shortfall === '') {
-            $shortfall = trim((string)($d['sanitization_shortfall'] ?? ''));
-        }
-    }
-    if ($scored === 0 || $ieee !== $scored) {
-        return ['standard' => 'NIST SP 800-88 Rev 1', 'level' => '', 'shortfall' => $shortfall, 'ieee' => false];
-    }
-    // Uniform level where every drive agrees. A drive whose level was not
-    // recorded (an appliance older than the level column) leaves the set empty:
-    // say nothing rather than guess, because "Clear, Purge" on an all-Purge job
-    // would be a fabricated detail.
-    $level = '';
-    if (count($levels) === 1) {
-        $level = (string)array_key_first($levels);
-    } elseif (count($levels) > 1) {
-        $level = 'Clear, Purge';
-    }
-    return ['standard' => 'IEEE 2883-2022', 'level' => $level, 'shortfall' => '', 'ieee' => true];
 }
 
 /** Compact (single-line) sanitisation method label for the fleet table. */
@@ -1317,9 +1270,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
 
     $erasureL = [
         ['Tool / version', $toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub'],
-        ['Standard',       $claim['ieee']
-            ? $claim['standard'] . ($claim['level'] !== '' ? ' (' . $claim['level'] . ')' : '')
-            : $claim['standard']],
+        ['Standard',       cert_claim_label($claim)],
         ['Level reached',  cert_level($drives)],
         ['Start',          ($g['first'] ?? null) !== null ? fmt_ts($g['first']) : ''],
         ['End',            ($g['last'] ?? null) !== null ? fmt_ts($g['last']) : ''],
@@ -1480,7 +1431,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetXY(30, 194);
     // The claim is described, never asserted as a certification: nothing
     // certifies a product to IEEE 2883, exactly as nothing does to NIST 800-88.
-    $footerBasis = $claim['ieee'] ? '  |  IEEE 2883-2022 methods described, not IEEE certified' : '';
+    $footerBasis = $claim['ieee'] ? '  |  ' . cert_claim_caveat() : '';
     $pdf->Cell(237, 5, 'Prepared with tScrub — verifiable disk sanitisation' . $footerBasis
         . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'C');
 

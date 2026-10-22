@@ -6,6 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Changed
+
+- **`/verify` states the IEEE 2883-2022 claim** (closing the follow-up
+  deliberately left open in v1.11.77). The decision rule moved out of
+  `render_cert.php` into `server/claim_lib.php`, which the PDF and the public
+  page both call, because a rule re-implemented per surface is a rule that
+  drifts.
+- The page shows the row **only when the job earned the claim**. A refused job
+  states nothing there rather than newly asserting "NIST" about a job nobody
+  re-assessed, and the caveat *"IEEE 2883-2022 methods described, not IEEE
+  certified"* is defined once and printed by both surfaces.
+
+Server-only change; the appliance is unaffected.
+
 ## [v1.11.77] - 2026-10-22
 
 **The opt-in IEEE 2883-2022 claim.** Off by default; nothing on the default path
