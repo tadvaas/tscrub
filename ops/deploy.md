@@ -457,6 +457,9 @@ curl -s -o /dev/null -w "%{http_code}\n" "https://tscrub.com/verify?cert=COD-003
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/submit      # 405
 
 # edge redirects (marketing/server/nginx-redirects.conf)
+# These two only pass once §4 has been applied as root and nginx reloaded.
+# Until then http:// still answers 200 and /how-it-works still 404s — that is
+# the unapplied state, not a failed release.
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://tscrub.com/                # 301 https://tscrub.com/
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-it-works   # 301 https://tscrub.com/docs
 
