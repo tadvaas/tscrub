@@ -41,7 +41,7 @@
 - [Certificates & chain of custody](https://tscrub.com/resources/certificates): Certificate of destruction.
 - [Chain of custody](https://tscrub.com/resources/chain-of-custody): The per-drive record.
 - [How reports are signed](https://tscrub.com/resources/report-signing): SHA-256 + Ed25519.
-- [How to verify a certificate](https://tscrub.com/resources/verify-certificate): The QR code, the offline signed-code check, and the online record.
+- [How to verify a certificate](https://tscrub.com/resources/verify-certificate): The QR code (signed code vs record link), the offline signed-code check, and the online record.
 - [SMART data as audit evidence](https://tscrub.com/resources/smart-audit-evidence)
 - [Buyer's guide](https://tscrub.com/resources/buyers-guide): Choosing erasure software.
 - [DBAN alternatives](https://tscrub.com/resources/dban-alternatives)

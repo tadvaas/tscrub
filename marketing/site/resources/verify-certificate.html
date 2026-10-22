@@ -85,6 +85,14 @@
       <p>Every tScrub certificate carries a <strong>QR code</strong> in the corner. Scanning it with an ordinary phone camera opens <code>tscrub.com/verify-offline</code> with a <strong>signed code</strong> for that certificate already filled in. The signature is checked <em>on the phone</em>, against the key published at <code>/.well-known/tscrub-cert-key.json</code>, so the check works with no network at all. The same certificate ID also has a public record at <code>tscrub.com/verify?cert=…</code>, which needs a connection and shows the fuller picture. Between them, a static PDF becomes something a client, an auditor or a regulator can check without calling you.</p>
       <p class="text-base">Certificates issued before 21 October 2026 carry the record link in the QR instead of a signed code. They verify exactly as they always did — they just need a connection to do it.</p>
 
+      <h2>Which QR code is on your certificate?</h2>
+      <p>The caption printed under the code tells you, without scanning anything:</p>
+      <ul>
+        <li><strong>"Verify offline or online"</strong> — the code is a signed message: a format version, the key ID <code>tscrub-vendor-1</code>, the Certificate ID, the issue timestamp, and a signature over those three. About 189 characters, which is why it is printed slightly larger than a plain link needs to be: a cheap phone camera has to decode it reliably.</li>
+        <li><strong>"Verify online"</strong> — the code is the record link, <code>tscrub.com/verify?cert=…</code>. This is every certificate issued before 21 October 2026, plus any certificate generated while the vendor signing key was unavailable. Nothing is wrong with either case.</li>
+      </ul>
+      <p>What the code never contains: your name, the drive serials or models, the PDF hash, or an email address. A QR on a printed certificate is public forever and gets photographed by strangers, so it carries the minimum needed to prove issuance and nothing that identifies you or your assets. The Certificate ID inside it is what then unlocks the online record, so one scan is enough for both checks.</p>
+
       <h2>What the QR check proves — and what it does not</h2>
       <p>The signed code attests that <strong>tScrub issued that certificate ID at that time</strong> and that the code has not been altered since. It is the one check that needs no signal, no account and no database, which is what an auditor with a segregated laptop, or a phone in aeroplane mode, actually needs.</p>
       <p>It cannot confirm what the certificate records about the drives: a page on a phone holds no database. For that, open the online record for the same certificate ID, or scan the QR with a normal camera app while online. An auditor who wants both can enter the Certificate ID printed on the paper into the verifier: a code lifted from a different certificate is then rejected.</p>
