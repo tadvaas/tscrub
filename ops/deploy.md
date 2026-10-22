@@ -471,6 +471,10 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && chmod 640 config.json && chmod 6
 lan, nebula, … all live here). Keep every change additive and inside the
 tscrub.com server block.
 
+**Where security headers live:** HSTS and the http→https redirect are
+**Cloudflare edge settings**, not nginx. Do not try to reproduce them at the
+origin; see the warning below for why the redirect in particular would loop.
+
 ⚠️ **Do not add an origin-level `return 301 https://…` for tscrub.com.** Measured
 2026-10-22 (and it took two corrections to get right): the origin now HAS a
 `listen 443` with a Cloudflare Origin CA certificate, but **public traffic never
@@ -568,6 +572,13 @@ If a report-schema field changed, the backend parser
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/            # 200
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/login        # 200
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/robots.txt  # 200
+
+# security headers, set at the EDGE (Cloudflare), not in origin nginx.
+# HSTS went on 2026-10-22 with max-age=15552000 and, deliberately, WITHOUT
+# includeSubDomains and WITHOUT preload: preload is effectively permanent and
+# requires includeSubDomains, and the subdomains have not been audited.
+curl -sI https://tscrub.com/ | grep -i '^strict-transport-security'
+# expect: max-age=15552000   (and nothing else)
 
 # api (JSON; /api/me returns a user object or null)
 curl -s -o /dev/null -w "%{http_code}\n" https://tscrub.com/api/me       # 200
