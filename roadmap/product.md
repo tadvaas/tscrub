@@ -403,9 +403,19 @@ with the release that carried them (per `CHANGELOG.md`).
       IEEE 2883 terminology or state the NIST 800-88 target explicitly. (§9.2)
       → **Shipped**: compliance copy states the NIST 800-88 target explicitly
       and disclaims certification (never claims IEEE 2883).
-- [ ] Third-party testing / certification — prepare a certification submission
+- [~] Third-party testing / certification — prepare a certification submission
       + application runbook as `ops/certification.md`; never claim what we don't
       hold. (§9.4)
+      → **Runbook written** (2026-10-22), **nothing submitted**. `ops/certification.md`
+      covers the ADISA PCT/PA schemes (requirements sourced from ADISA's own
+      pages), the evidence pack we already hold (frozen build identity from
+      `download-manifest.json`, offline licence provisioning, 86-column CSV +
+      Ed25519, JSON-LD, offline QR), eight gaps to close first — headed by the
+      untested `--verify-coverage` on real hardware — and a claims register of
+      what may and may not be said today (no ADISA, no NAID, no ISO 27001, no
+      "IEEE 2883 certified"). First submission should be ADISA **PCT** with a
+      single narrow claim sentence; **PA** can be NIST-only, which avoids both the
+      IEEE PDF purchase and the 5% sampling bar.
 
 ### 4.4 Fleet & integrations (§6, §9.3)
 
