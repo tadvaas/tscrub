@@ -52,6 +52,19 @@ and this project uses date-based versioning (`v1.x`).
   certificates and revocation data, so it stays an online check, and the page
   says so rather than implying otherwise.
 
+### Changed
+
+- **The verifier leads with the answer.** Scanning a certificate opens the page
+  with the code already in the link, so the reader wants a verdict — but the page
+  led with "Verify a certificate offline" and a form, with the result underneath
+  it and often below the fold on a phone (operator-reported: *"header says verify
+  offline, genuine only at the bottom"*). A checked code now replaces the heading
+  with the verdict ("Genuine certificate" / "Certificate not verified"), shows a
+  tick or cross with the Certificate ID, issue time and key, and steps the form
+  aside behind **Check another code**. That button also clears the old code from
+  the address bar, so a reload cannot silently re-verify it. Opening the page
+  with no code in the link still shows the form first.
+
 ### Fixed
 
 - **The certificate's verification caption and QR are now generated from the

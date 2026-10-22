@@ -198,6 +198,18 @@ const msgB = `2|test-1|${CERT_B}|${AT}`;
   check('the page has a title element inside the result panel', /id="ov-title"/.test(html));
   check('the page offers the online record after a pass', /verify\?cert=/.test(pageJs));
   check('the page registers the service worker', /navigator\.serviceWorker\.register\('\/sw-verify-offline\.js'\)/.test(pageJs));
+  // Reported by the operator: scanning showed the heading "Verify a certificate
+  // offline" with the verdict only at the bottom of the page. A scan already
+  // carries the code, so the answer must come first.
+  check('the result panel sits ABOVE the form in the document',
+    html.indexOf('id="ov-result"') < html.indexOf('id="ov-form"'));
+  check('the page heading becomes the verdict', /h1El\.textContent\s*=\s*'Genuine certificate'/.test(pageJs));
+  check('a failed check also says so in the heading', /h1El\.textContent\s*=\s*'Certificate not verified'/.test(pageJs));
+  check('the form steps out of the way once there is a verdict',
+    /formEl\.hidden = true/.test(pageJs) && /introEl\.hidden = true/.test(pageJs));
+  check('the form comes back on request', /againWrap\.addEventListener\('click', resetToForm\)/.test(pageJs));
+  check('a manual check scrolls the verdict into view', /scrollIntoView\(\{ block: 'start'/.test(pageJs));
+  check('the verdict is announced to screen readers', /role="status"/.test(html) && /aria-live="polite"/.test(html));
   // Tapping a link for a different certificate while the verifier is already
   // open changes only the fragment, which fires no navigation.
   check('a changed #c= fragment re-verifies', /addEventListener\('hashchange', verifyFromHash\)/.test(pageJs));

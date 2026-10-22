@@ -16,6 +16,11 @@ const statusEl = $('ov-status');
 const resultEl = $('ov-result');
 const titleEl = $('ov-title');
 const detailEl = $('ov-detail');
+const iconEl = $('ov-icon');
+const h1El = $('ov-h1');
+const introEl = $('ov-intro');
+const formEl = $('ov-form');
+const againWrap = $('ov-again-wrap');
 const codeEl = $('ov-code');
 const expectEl = $('ov-expect');
 const scanBtn = $('ov-scan');
@@ -52,7 +57,15 @@ function showResult(res) {
   // in the unit tests.)
   if (res.ok) {
     resultEl.className = 'ov-result ov-pass';
-    titleEl.textContent = 'Genuine tScrub certificate code';
+    // Not a repeat of the heading: the heading is the verdict, this line says what
+    // the verdict rests on.
+    titleEl.textContent = "Verified against tScrub's published key";
+    iconEl.textContent = '\u2713';
+    // A scan carries the code, so the reader wants the answer, not an
+    // instruction: the page heading becomes the verdict and the form steps out
+    // of the way. (Reported by the operator as confusing: "header says verify
+    // offline, genuine only at the bottom".)
+    h1El.textContent = 'Genuine certificate';
     detailEl.innerHTML =
       '<dl class="ov-dl">'
       + '<dt>Certificate ID</dt><dd>' + esc(res.certId) + '</dd>'
@@ -69,17 +82,45 @@ function showResult(res) {
   } else {
     resultEl.className = 'ov-result ov-fail';
     titleEl.textContent = 'Not verified';
+    iconEl.textContent = '\u2715';
+    h1El.textContent = 'Certificate not verified';
     detailEl.innerHTML = '<p class="ov-note">' + esc(REASON_TEXT[res.reason] || 'This code could not be verified.') + '</p>';
   }
+  // One answer on screen at a time; the form comes back on request.
+  introEl.hidden = true;
+  formEl.hidden = true;
+  againWrap.hidden = false;
 }
+
+function resetToForm() {
+  resultEl.hidden = true;
+  introEl.hidden = false;
+  formEl.hidden = false;
+  againWrap.hidden = true;
+  h1El.textContent = 'Verify a certificate offline';
+  codeEl.value = '';
+  // Drop the previous code from the address bar too, so a reload does not silently
+  // re-verify it and the old code does not linger in history. A code is not a
+  // secret, but leaving it there is confusing when the form looks empty.
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  codeEl.focus();
+}
+
+againWrap.addEventListener('click', resetToForm);
 
 async function runVerify(code) {
   const raw = String(code == null ? '' : code).trim();
   if (raw === '') { setStatus('Enter a code, or scan the one on the certificate.', 'warn'); return; }
   setStatus('Checking…', '');
+  const wasFormVisible = !formEl.hidden;
   const res = await verifyCode(raw, { expectCertId: String(expectEl.value || '').trim() });
   setStatus('', '');
   showResult(res);
+  // A manual check leaves the reader scrolled at the button, with the verdict now
+  // above it: bring it into view. A scan already starts at the top.
+  if (wasFormVisible && resultEl.getBoundingClientRect().top < 0) {
+    resultEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
 }
 
 checkBtn.addEventListener('click', () => runVerify(codeEl.value));
