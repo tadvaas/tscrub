@@ -260,6 +260,21 @@ with the release that carried them (per `CHANGELOG.md`).
       copy) remain open. **TPM clearing is an explicit non-goal** (BitRaser's
       twist, not needed for an honest claim) — split it out if it is ever
       wanted on its own.
+      → **Phase 2 shipped v1.11.77** (2026-10-22): the opt-in claim, off by
+      default. `--standard ieee2883` / `tscrub_standard=`; five gates per drive
+      (technique, coverage, verification, completion, media scope) with the
+      failing gate recorded in `SanitizationShortfall`, the level (`Clear` /
+      `Purge`) in `SanitizationLevel`, and the certificate `Standard` row
+      naming the standard only when every scored drive earned it, plus the
+      footer caveat "IEEE 2883-2022 methods described, not IEEE certified".
+      **Proven three ways**: awarded on the bench (`.13`, 5 drives / 4
+      techniques), awarded with levels (certificate
+      `COD-618815-RU-UID-1146-ADMJ`, `(Clear, Purge)`), and **refused** in the
+      VM (2% sample, passing read-back → NIST + `G2 coverage 2% < 5%`,
+      certificate `COD-649912-XS-CDB-0989-LUUK` contains no occurrence of
+      "IEEE"). **Open follow-up:** the public `/verify` page shows no claim row
+      yet — it makes no standard claim today, so silence is not a false
+      statement; add the row and the caveat together, with a test.
       → **First hardware run 2026-10-22, gate confirmed, sampler not yet
       exercised** (`192.168.0.95`, HP EliteBook 830 G5, Samsung PM981a
       `MZVLB512HAJQ`, v1.11.73, netboot entry with `tscrub_verify_coverage=5`):

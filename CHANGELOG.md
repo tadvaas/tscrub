@@ -6,6 +6,73 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.77] - 2026-10-22
+
+**The opt-in IEEE 2883-2022 claim.** Off by default; nothing on the default path
+changed. Phase 2 of the IEEE 2883 work (`research/ieee-2883-2022/PLAN-PHASED.md`).
+
+### Added
+
+- `--standard nist|ieee2883` (also `tscrub_standard=` in `tscrub.conf` and on
+  the kernel command line). Default is `nist`.
+- **Five gates, evaluated per drive.** A drive is labelled `IEEE 2883-2022` only
+  where every gate passes; otherwise it keeps `NIST 800-88` **and records a
+  machine-readable shortfall**, so a refusal is visible rather than silent:
+
+  | Gate | Rule |
+  |---|---|
+  | G1 technique | the capability must map to a real 2883 technique; only techniques reaching non-addressable locations may claim **Purge** (an ATA *normal* erase and an NVMe Format are **Clear**) |
+  | G2 coverage | Clear on the **software-overwrite** path needs a sampled read-back of 5% or more |
+  | G3 verification | the sentinel must be gone, unless it is a crypto erase (exempt by design and recorded as such) |
+  | G0 completion | the erase must have completed |
+  | G5 scope | only HDD / SATA SSD / NVMe / SAS may carry the claim |
+
+- New CSV columns `SanitizationStandard`, `SanitizationLevel`,
+  `SanitizationShortfall`; manifest keys emitted only when the claim is active.
+- Certificate: the page-1 `Standard` row becomes per job — `IEEE 2883-2022
+  (Clear)`, `(Purge)` or `(Clear, Purge)` only when **every** scored drive earned
+  it — and the footer adds *"IEEE 2883-2022 methods described, not IEEE
+  certified"*. Nothing certifies a product to IEEE 2883, exactly as nothing does
+  to NIST 800-88, so the word "certified" never appears as a claim.
+- JSON-LD `sanitizationStandard` / `sanitizationLevel` / `sanitizationShortfall`;
+  dashboard drawer and export carry the same fields.
+
+### Fixed
+
+- **The claim level was computed but never reported.** There was no column for
+  it, so it died before the server saw it and the certificate had to guess —
+  right by luck on a mixed job, wrong on an all-Purge one. `cert_claim()` now
+  says nothing when no level was recorded rather than inventing one.
+- **DDL inside the certificate transaction.** Adding columns made the first
+  certificate generation afterwards run `ALTER TABLE`, which implicitly commits
+  in MySQL, so `commit()` failed with *"There is no active transaction"* and
+  issuance 500'd. The schema step now runs before the transaction begins.
+
+### Verified on hardware (2026-10-22)
+
+- `192.168.0.13`, v1.11.76: six drives, five wiped in one job across four
+  techniques — NVMe crypto purge, NVMe block purge, two NVMe formats and an ATA
+  enhanced erase — **all five earned `IEEE 2883-2022`**, and the unselected drive
+  carried no claim. The ATA enhanced erase took 41 minutes in drive firmware;
+  the NVMe drives took 56 seconds.
+- `192.168.0.13`, v1.11.77: crypto purge recorded **Purge**, NVMe format
+  recorded **Clear**; certificate `COD-618815-RU-UID-1146-ADMJ` prints
+  `Standard: IEEE 2883-2022 (Clear, Purge)` with the caveat, and the JSON-LD twin
+  carries both levels.
+- **Refusal proven, not just the award:** a VM run on the nwipe path with a 2%
+  sample and a *passing* read-back was refused — `NIST 800-88`, shortfall
+  `G2 coverage 2% < 5%` — and certificate `COD-649912-XS-CDB-0989-LUUK` contains
+  **no occurrence of the word IEEE** while still reporting `Sampled 2%`.
+
+### Not in this release
+
+- The public `/verify` page does not yet show the claim. It makes no standard
+  claim today, so its silence is not a false statement, and a half-verified
+  surface is worse than an honest gap. Tracked in `roadmap/product.md`.
+- The 5% coverage bar is **our house policy**, not a quoted requirement — we do
+  not own the standard and will not attribute a figure to it. Clause citations
+  stay out until the PDF is purchased.
+
 ## [v1.11.75] - 2026-10-22
 
 **Appliance fix.** `--verify-coverage` has never produced a number on real

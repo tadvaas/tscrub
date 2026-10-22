@@ -7,9 +7,9 @@
     "size_mb": 176
   },
   "script": {
-    "version": "v1.11.75",
+    "version": "v1.11.77",
     "url": "/downloads/tscrub.sh",
-    "sha256": "e7c5b9c5f2d418c93f0e99144abce378b839920d997b7be464db7c0de51d972d",
+    "sha256": "b57e5d2a8626a7b895260e090299e6d8aee3c1c68b403fccd63cfda5b788332c",
     "sig_url": "/downloads/tscrub.sh.sig",
     "pub_url": "/downloads/tscrub.pub"
   },
