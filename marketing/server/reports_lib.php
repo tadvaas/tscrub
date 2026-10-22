@@ -258,6 +258,10 @@ function reports_drive_provenance(array $row, array $map): array {
         // overwrite-sample (see product/src/43_verify.sh).
         'verify_technique' => clip_str(reports_row_value($row, $map, 'verifytechnique'), 32),
         'verify_coverage_pct' => clip_str(reports_row_value($row, $map, 'verifycoveragepct'), 16),
+        // Opt-in IEEE claim (v1.11.76+). Empty on every older report, which is
+        // exactly right: those runs made no such claim.
+        'sanitization_standard' => clip_str(reports_row_value($row, $map, 'sanitizationstandard'), 32),
+        'sanitization_shortfall' => clip_str(reports_row_value($row, $map, 'sanitizationshortfall'), 64),
     ];
 }
 
@@ -950,6 +954,8 @@ function certificate_drives_ensure_schema(): void {
             'erase_engine' => "VARCHAR(64) NOT NULL DEFAULT '' AFTER passes",
             'verify_technique' => "VARCHAR(32) NOT NULL DEFAULT '' AFTER erase_engine",
             'verify_coverage_pct' => "VARCHAR(16) NOT NULL DEFAULT '' AFTER verify_technique",
+            'sanitization_standard' => "VARCHAR(32) NOT NULL DEFAULT '' AFTER verify_coverage_pct",
+            'sanitization_shortfall' => "VARCHAR(64) NOT NULL DEFAULT '' AFTER sanitization_standard",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -973,7 +979,8 @@ function load_cert_drives(int $certId): array {
                 smart, tempc, poweronhours, powercycles, reallocsectors, pctused, availspare, tbw_tb, smartpost, tempcpost, poweronhourspost,
                 firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
                 tool_version, operator, validator, media_source, media_destination,
-                standard, passes, erase_engine, verify_technique, verify_coverage_pct
+                standard, passes, erase_engine, verify_technique, verify_coverage_pct,
+                sanitization_standard, sanitization_shortfall
          FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
     );
     $stmt->execute([$certId]);
@@ -1007,6 +1014,8 @@ function certificate_drives_column_map(): array {
         'standard' => 'standard', 'passes' => 'passes', 'erase_engine' => 'erase_engine',
         'verify_technique' => 'verify_technique',
         'verify_coverage_pct' => 'verify_coverage_pct',
+        'sanitization_standard' => 'sanitization_standard',
+        'sanitization_shortfall' => 'sanitization_shortfall',
     ];
 }
 
@@ -1126,6 +1135,8 @@ function db_drive_to_group(array $d): array {
         'erase_engine'  => (string)($d['erase_engine'] ?? ''),
         'verify_technique' => (string)($d['verify_technique'] ?? ''),
         'verify_coverage_pct' => (string)($d['verify_coverage_pct'] ?? ''),
+        'sanitization_standard' => (string)($d['sanitization_standard'] ?? ''),
+        'sanitization_shortfall' => (string)($d['sanitization_shortfall'] ?? ''),
     ];
 }
 

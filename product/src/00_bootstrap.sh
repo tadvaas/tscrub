@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.75"
+SCRIPT_VERSION="v1.11.76"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 LICENSE_USB_DEV=""
@@ -50,6 +50,18 @@ TS_NWIPE_PASSES_SET=0
 VERIFY_COVERAGE_PCT=""
 # Ranges the coverage sample is split into (contiguous, evenly spread).
 VERIFY_COVERAGE_RANGES=20
+# Sanitisation claim (Phase 2 of the IEEE 2883 work).
+#   nist      (default) - NIST SP 800-88 wording only. No IEEE word anywhere.
+#   ieee2883            - evaluate the conformance gates per drive and label a
+#                         drive "IEEE 2883-2022" ONLY where they all pass;
+#                         otherwise it keeps NIST plus a machine-readable
+#                         shortfall. Nothing is claimed that was not measured.
+# Opt-in because the Clear gates want a coverage sample that costs real time.
+SANITIZATION_STANDARD="nist"
+# Minimum sampled read-back (percent of address space) for an IEEE Clear claim
+# on the software-overwrite path. OUR house bar, not a quoted IEEE number: we do
+# not own the standard, so we do not attribute a figure to it.
+SANITIZATION_COVERAGE_MIN=5
 START_TS=0
 UI_INPLACE=0
 # Completion theme: 0=normal, 1=green (all good), 2=red (drive failed),
@@ -901,6 +913,7 @@ parse_args() {
     cmdline::nvme_software_fallback || true
     cmdline::nwipe_method || true
     cmdline::nwipe_passes || true
+    cmdline::standard || true
 
     while (($# > 0)); do
         arg="$1"
@@ -948,6 +961,21 @@ parse_args() {
                     echo "--verify-coverage must be an integer 1..100"; exit 1
                 fi
                 VERIFY_COVERAGE_PCT=$(( 10#$_vc ))
+                ;;
+            --standard)
+                shift
+                [[ $# -gt 0 ]] || { echo "--standard requires nist|ieee2883"; exit 1; }
+                if ! standard::valid "$1"; then
+                    echo "--standard must be nist or ieee2883"; exit 1
+                fi
+                SANITIZATION_STANDARD="$1"
+                ;;
+            --standard=*)
+                v="${arg#*=}"
+                if ! standard::valid "$v"; then
+                    echo "--standard must be nist or ieee2883"; exit 1
+                fi
+                SANITIZATION_STANDARD="$v"
                 ;;
             --method)
                 shift
@@ -1314,6 +1342,22 @@ cmdline::nwipe_passes() {
     fi
     TS_NWIPE_PASSES="$param"
     TS_NWIPE_PASSES_SET=1
+    return 0
+}
+
+# Sanitisation claim from the kernel command line (tscrub_standard=nist|ieee2883).
+# An unknown value is refused rather than silently defaulting, because the two
+# values mean different wording on a certificate.
+cmdline::standard() {
+    local param
+    param="$( { tr ' ' '\n' < /proc/cmdline; } 2>/dev/null | sed -nE 's/^tscrub_standard=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    if ! standard::valid "$param"; then
+        echo "tscrub_standard=$param must be nist or ieee2883" >&2
+        exit 1
+    fi
+    SANITIZATION_STANDARD="$param"
     return 0
 }
 

@@ -46,6 +46,12 @@ verify::resolve_coverage() {
     else
         VERIFY_COVERAGE_PCT=0
     fi
+    # The Clear gate needs a number. When the IEEE claim is active and the
+    # operator gave no sample size, use the house minimum rather than silently
+    # recording a shortfall that was never measured.
+    if [[ "${SANITIZATION_STANDARD:-nist}" == "ieee2883" ]] && (( VERIFY_COVERAGE_PCT == 0 )); then
+        VERIFY_COVERAGE_PCT="${SANITIZATION_COVERAGE_MIN:-5}"
+    fi
 }
 
 # --- Coverage sampling (opt-in) --------------------------------------------
@@ -260,6 +266,142 @@ verify::_plant_drive() {
         devrow["$dev.verify_result"]="skipped"
     fi
     devrow["$dev.verify_sectors"]="$count"
+}
+
+# --- Sanitisation claim (Phase 2 of the IEEE 2883 work) ----------------------
+# IEEE 2883-2022 is OPT-IN and gated. A drive is labelled IEEE 2883-2022 only
+# where every gate below passes; otherwise it keeps its NIST 800-88 label plus a
+# machine-readable shortfall, so a refusal is visible rather than silent.
+#
+# Wording rules (do not relax these):
+#   * "performs methods described by IEEE 2883-2022" — never "IEEE certified"
+#     (nothing certifies to the standard), never "IEEE approved".
+#   * the 5% sampling bar is OUR house policy, never quoted as the standard's.
+#   * Destruct and out-of-scope media are never labelled IEEE.
+standard::valid() {
+    case "$1" in
+        nist|ieee2883) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Which technique a capability actually performs, and the strongest level it can
+# honestly support: "<technique> <level>", or empty when the capability performs
+# nothing we would call a sanitisation.
+#   overwrite - nwipe wrote every addressable sector        -> Clear
+#   block     - firmware erase of addressable LBAs only     -> Clear
+#   purge     - firmware erase incl. non-addressable areas  -> Purge
+#   crypto    - media encryption key destroyed              -> Purge (verification
+#               is not required: the key, not the media, is the mechanism)
+standard::technique() {   # <capability>
+    case "$1" in
+        CAP_OPAL_CRYPTO|CAP_NVME_PURGE_CRYPTO)
+            echo "crypto Purge" ;;
+        CAP_NVME_PURGE_BLOCK|CAP_NVME_PURGE_OVERWRITE|CAP_ATA_PURGE_ENHANCED|CAP_SCSI_SANITIZE)
+            echo "purge Purge" ;;
+        # A plain ATA Secure Erase and an NVMe Format only cover addressable
+        # LBAs, and nwipe only writes addressable LBAs. None of them may claim
+        # Purge — that is gate G1, not a formatting detail.
+        CAP_ATA_CLEAR|CAP_NVME_CLEAR_ONLY)
+            echo "block Clear" ;;
+        CAP_SCSI_NWIPE)
+            echo "overwrite Clear" ;;
+        *)
+            echo "" ;;
+    esac
+}
+
+# Is this media inside the scope we are willing to claim for? We can only
+# exclude what we classify, so the certificate states the scope explicitly and
+# the claim never says "all media".
+standard::media_in_scope() {   # <bus> <type>
+    local bus="$1" type="$2"
+    case "$type" in
+        HDD|SSD) ;;
+        *) return 1 ;;
+    esac
+    case "$bus" in
+        NVMe|SATA|SCSI|SAS|SATA/SAS) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Evaluate the gates for one drive and record the claim on the drive row.
+# Only selected drives are scored: an unselected drive was never sanitised, so
+# it carries no claim at all (not a shortfall).
+verify::_claim_drive() {   # <dev>
+    local dev="$1" cap pair tech level shortfall="" vres cov
+    # Guarded here as well as in claim_all: no future call site can write a
+    # claim field on the default path, which must stay byte-identical.
+    [[ "${SANITIZATION_STANDARD:-nist}" == "ieee2883" ]] || return 0
+    [[ "${devrow[$dev.selected]:-0}" == "1" ]] || return 0
+
+    cap="${devrow[$dev.capability]:-${capability[$dev]:-}}"
+    pair="$(standard::technique "$cap")"
+    if [[ -z "$pair" ]]; then
+        shortfall="G1 technique"
+    else
+        tech="${pair% *}"; level="${pair#* }"
+    fi
+
+    # G5 — media scope. Checked independently of the technique so an out-of-scope
+    # device that somehow carries a capability is still refused.
+    if [[ -z "$shortfall" ]] && ! standard::media_in_scope "${bus[$dev]:-}" "${type[$dev]:-}"; then
+        shortfall="G5 media ${bus[$dev]:-?}/$( [[ -n "${type[$dev]:-}" ]] && echo "${type[$dev]}" || echo "?")"
+    fi
+
+    if [[ -z "$shortfall" && "${devrow[$dev.status]:-}" != "COMPLETED" ]]; then
+        shortfall="G0 ${devrow[$dev.status]:-unknown}"
+    fi
+
+    # G3 — verification. A crypto erase is exempt BY DESIGN and says so; every
+    # other technique must show the sentinel gone.
+    if [[ -z "$shortfall" ]]; then
+        vres="${devrow[$dev.verify_result]:-}"
+        if [[ "$tech" == "crypto" ]]; then
+            level="Purge"
+        elif [[ "$vres" != "passed" ]]; then
+            shortfall="G3 verification ${vres:-not recorded}"
+        fi
+    fi
+
+    # G2 — a Clear claim on the OVERWRITE path must show sampled read-back of our
+    # house bar. Firmware Clear (ATA Secure Erase / NVMe Format) cannot: its
+    # post-erase content is undefined, so a percentage read would prove nothing.
+    if [[ -z "$shortfall" && "$tech" == "overwrite" ]]; then
+        cov="${devrow[$dev.verify_coverage]:-}"
+        if [[ ! "$cov" =~ ^[0-9]+$ ]] || (( cov < SANITIZATION_COVERAGE_MIN )); then
+            shortfall="G2 coverage ${cov:-0}% < ${SANITIZATION_COVERAGE_MIN}%"
+        fi
+    fi
+
+    # Purge reaches non-addressable locations only if the hidden areas are gone.
+    if [[ -z "$shortfall" && "$tech" == "purge" ]]; then
+        case "$(printf '%s %s' "${devrow[$dev.hpa_result]:-}" "${devrow[$dev.dco_result]:-}")" in
+            *fail*|*error*|*blocked*) shortfall="G1 hidden areas" ;;
+        esac
+    fi
+
+    if [[ -z "$shortfall" ]]; then
+        devrow["$dev.sanitization_standard"]="IEEE 2883-2022"
+        devrow["$dev.sanitization_level"]="$level"
+    else
+        devrow["$dev.sanitization_standard"]="NIST 800-88"
+        devrow["$dev.sanitization_level"]=""
+        devrow["$dev.sanitization_shortfall"]="$shortfall"
+    fi
+    return 0
+}
+
+# Score every drive. A no-op on the default (NIST) path: the record must be
+# byte-identical to what it was before this feature existed.
+standard::claim_all() {
+    [[ "${SANITIZATION_STANDARD:-nist}" == "ieee2883" ]] || return 0
+    local dev
+    for dev in "${devices[@]}"; do
+        verify::_claim_drive "$dev"
+    done
+    return 0
 }
 
 # --- Check (post-erase) ------------------------------------------------------

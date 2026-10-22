@@ -253,4 +253,85 @@ VERIFY_COVERAGE_PCT=0
 verify::check_all
 t::assert_eq "0" "$RANGE_CALLS" "coverage reader is never called when off"
 
+# --- sanitisation claim gates (Phase 2) --------------------------------------
+# Every gate that fails must keep the NIST label AND name itself in the
+# shortfall, so a refusal is visible rather than silent.
+declare -Ag bus type capability
+claim_case() {   # <cap> <bus> <type> <status> <verify_result> <coverage> [selected]
+    devrow=()
+    devrow[sda.selected]="${7:-1}"
+    devrow[sda.capability]="$1"
+    devrow[sda.status]="$4"
+    devrow[sda.verify_result]="$5"
+    devrow[sda.verify_coverage]="$6"
+    devrow[sda.hpa_result]="n/a"
+    devrow[sda.dco_result]="n/a"
+    bus[sda]="$2"
+    type[sda]="$3"
+    SANITIZATION_STANDARD="${8:-ieee2883}"
+    verify::_claim_drive sda
+}
+
+t::assert_eq "overwrite Clear" "$(standard::technique CAP_SCSI_NWIPE)" "nwipe maps to an overwrite Clear"
+t::assert_eq "purge Purge" "$(standard::technique CAP_ATA_PURGE_ENHANCED)" "ATA enhanced maps to Purge"
+t::assert_eq "block Clear" "$(standard::technique CAP_NVME_CLEAR_ONLY)" "NVMe format maps to Clear, never Purge"
+t::assert_eq "block Clear" "$(standard::technique CAP_ATA_CLEAR)" "ATA normal erase maps to Clear, never Purge"
+t::assert_eq "crypto Purge" "$(standard::technique CAP_OPAL_CRYPTO)" "crypto erase maps to Purge"
+t::check "unknown capability has no technique" '[[ -z "$(standard::technique CAP_NONE)" ]]'
+
+# All gates pass on the overwrite path with our house sampling bar.
+claim_case CAP_SCSI_NWIPE SATA SSD COMPLETED passed 5
+t::assert_eq "IEEE 2883-2022" "${devrow[sda.sanitization_standard]}" "overwrite with 5% coverage earns the claim"
+t::assert_eq "Clear" "${devrow[sda.sanitization_level]}" "overwrite earns a Clear level"
+t::check "no shortfall when the claim is earned" '[[ -z "${devrow[sda.sanitization_shortfall]}" ]]'
+
+# G2: below the bar the claim is refused and the shortfall says why.
+claim_case CAP_SCSI_NWIPE SATA SSD COMPLETED passed 2
+t::assert_eq "NIST 800-88" "${devrow[sda.sanitization_standard]}" "2% coverage refuses the Clear claim"
+t::assert_eq "G2 coverage 2% < 5%" "${devrow[sda.sanitization_shortfall]}" "the shortfall names the coverage gate"
+
+# A firmware Clear cannot show coverage (post-erase content is undefined), so it
+# is not asked for one — but it must still have passed verification.
+claim_case CAP_NVME_CLEAR_ONLY NVMe SSD COMPLETED passed ""
+t::assert_eq "IEEE 2883-2022" "${devrow[sda.sanitization_standard]}" "firmware Clear does not need a coverage number"
+t::assert_eq "Clear" "${devrow[sda.sanitization_level]}" "NVMe format is Clear"
+
+# Purge needs a technique that reaches non-addressable locations.
+claim_case CAP_ATA_PURGE_ENHANCED SATA HDD COMPLETED passed ""
+t::assert_eq "IEEE 2883-2022" "${devrow[sda.sanitization_standard]}" "ATA enhanced earns the claim"
+t::assert_eq "Purge" "${devrow[sda.sanitization_level]}" "ATA enhanced is Purge"
+claim_case CAP_ATA_PURGE_ENHANCED SATA HDD COMPLETED passed "" 1 ieee2883
+devrow[sda.hpa_result]="failed"
+verify::_claim_drive sda
+t::assert_eq "NIST 800-88" "${devrow[sda.sanitization_standard]}" "a failed hidden-area removal refuses Purge"
+t::assert_eq "G1 hidden areas" "${devrow[sda.sanitization_shortfall]}" "hidden-area failure is named"
+
+# G3: a crypto erase is exempt by design; anything else must show the sentinel gone.
+claim_case CAP_OPAL_CRYPTO SATA SSD COMPLETED "" ""
+t::assert_eq "IEEE 2883-2022" "${devrow[sda.sanitization_standard]}" "crypto erase needs no sentinel result"
+t::assert_eq "Purge" "${devrow[sda.sanitization_level]}" "crypto erase is Purge"
+claim_case CAP_SCSI_NWIPE SATA SSD COMPLETED failed 5
+t::assert_eq "G3 verification failed" "${devrow[sda.sanitization_shortfall]}" "a failed read-back refuses the claim"
+
+# G0: an incomplete erase can never be claimed, whatever the technique.
+claim_case CAP_ATA_PURGE_ENHANCED SATA HDD BLOCKED "" ""
+t::assert_eq "G0 BLOCKED" "${devrow[sda.sanitization_shortfall]}" "an incomplete erase is refused"
+
+# G5: media we do not classify as in scope never earns the claim.
+claim_case CAP_SCSI_NWIPE USB SSD COMPLETED passed 5
+t::assert_eq "NIST 800-88" "${devrow[sda.sanitization_standard]}" "out-of-scope bus is refused"
+t::check "the scope shortfall names the gate" '[[ "${devrow[sda.sanitization_shortfall]}" == G5* ]]'
+
+# An unselected drive was never sanitised, so it carries no claim at all.
+claim_case CAP_SCSI_NWIPE SATA SSD COMPLETED passed 5 0
+t::check "unselected drives carry no claim" '[[ -z "${devrow[sda.sanitization_standard]:-}" ]]'
+
+# The default (NIST) path must record nothing at all — byte-identical reports.
+claim_case CAP_SCSI_NWIPE SATA SSD COMPLETED passed 5 1 nist
+t::check "the NIST default records no claim fields" '[[ -z "${devrow[sda.sanitization_standard]:-}" ]]'
+SANITIZATION_STANDARD=nist
+devrow=(); devrow[sda.selected]=1
+standard::claim_all
+t::check "claim_all is a no-op on the default path" '[[ -z "${devrow[sda.sanitization_standard]:-}" ]]'
+
 t::summary

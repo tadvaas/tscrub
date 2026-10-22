@@ -353,6 +353,21 @@ firmware handshake.
 
   (The kernel has no serial console; the TUI runs on `tty3`.)
 
+  ⚠️ **Publish the netboot kernel SIGNED.** The chain is shim → kernel, and
+  `output/images/bzImage` is the raw build output: `sign_secureboot.sh` signs
+  only the copy that goes **inside the ISO**. Copying the raw file into the
+  netboot directory hands shim an unsigned kernel, so every Secure Boot machine
+  stops at a MOK prompt. Use the helper, which signs with the same MOK key and
+  then verifies:
+
+  ```sh
+  bash ops/publish-netboot.sh          # copy + sbsign + sbverify + sha256
+  bash ops/publish-netboot.sh --check  # verify what is being served
+  ```
+
+  A signature adds exactly **1,568 bytes**, so the size is the quickest tell:
+  a `bzImage` matching `output/images/bzImage` byte-for-byte is unsigned.
+
 ### 2.7 Appliance gotchas
 
 - **Exec bit:** after any scp/replace, verify

@@ -385,6 +385,12 @@ function jsonld_normalize_drive(array $d): array {
         // the drive, and the sampled percentage where one exists.
         'verify_technique'    => jsonld_na((string)($d['verify_technique'] ?? '')),
         'verify_coverage_pct' => jsonld_na((string)($d['verify_coverage_pct'] ?? '')),
+        // Sanitisation CLAIM (opt-in, v1.11.76+). Empty on every older report:
+        // those runs were labelled NIST because no IEEE claim was requested.
+        // "IEEE 2883-2022" appears only where every conformance gate passed;
+        // otherwise NIST 800-88 plus a machine-readable shortfall.
+        'sanitization_standard'  => jsonld_na((string)($d['sanitization_standard'] ?? '')),
+        'sanitization_shortfall' => jsonld_na((string)($d['sanitization_shortfall'] ?? '')),
         'psid_revert'   => jsonld_na((string)($d['psid_revert'] ?? '')),
         'ppi_requested' => jsonld_na((string)($d['ppi_requested'] ?? '')),
         'ppi_cleared'   => jsonld_na((string)($d['ppi_cleared'] ?? '')),
@@ -403,6 +409,7 @@ function jsonld_drive(array $norm): array {
         'format_fs', 'format_scheme', 'format_label', 'format_result', 'format_confirm',
         'overwrite_standard', 'passes', 'erase_engine',
         'verify_technique', 'verify_coverage_pct',
+        'sanitization_standard', 'sanitization_shortfall',
         'psid_revert', 'ppi_requested', 'ppi_cleared',
     ] as $k) {
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }

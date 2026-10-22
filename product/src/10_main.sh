@@ -516,6 +516,7 @@ erasure::run() {
 
     smart::capture_all post
     verify::check_all
+    standard::claim_all
     format::run_all
 
     # A dry-run report is not evidence of a real wipe — never vendor-sign it.

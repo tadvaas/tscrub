@@ -64,7 +64,7 @@ report::csv() {
     sys_media_dst="${MEDIA_DESTINATION:-N/A}"
 
     {
-        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,OverwriteStandard,Passes,EraseEngine,VerifyTechnique,VerifyCoveragePct"
+        echo "COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM,Enrollment,BIOSLock,ChassisSerial,ChassisType,BIOSVersion,BIOSDate,SystemUUID,BIOSLockMethod,StartTime,EndTime,DurationSecs,Firmware,SectorSize,Sectors,HPA,DCO,HPAResult,DCOResult,SEDStatus,ReallocSectorsPost,SelfTest,SKU,AssetTag,BIOSVendor,BoardModel,TPM,MACAddress,StorageControllers,ToolVersion,Operator,Validator,MediaSource,MediaDestination,Verify,VerifySectors,VerifyResult,RAID,BIOSLockdown,Format,FormatFS,FormatScheme,FormatLabel,FormatResult,FormatConfirm,FreezeLock,BlockSID,FLRAttempts,PSIDRevert,LockKind,PPIRequested,PPICleared,PPIResumed,OverwriteStandard,Passes,EraseEngine,VerifyTechnique,VerifyCoveragePct,SanitizationStandard,SanitizationShortfall"
         for dev in "${devices[@]}"; do
             local st en dur sed_status ppi_cleared
             st="${devrow[$dev.start_ts]}"; en="${devrow[$dev.end_ts]}"
@@ -114,7 +114,8 @@ report::csv() {
                 "${devrow[$dev.psid_revert]:-no}" "${devrow[$dev.lock_kind]:-none}" \
                 "${devrow[$dev.ppi_requested]:-no}" "$ppi_cleared" "${devrow[$dev.ppi_resumed]:-no}" \
                 "${devrow[$dev.standard]:-}" "${devrow[$dev.passes]:-}" "${devrow[$dev.eraser]:-}" \
-                "${devrow[$dev.verify_technique]:-none}" "${devrow[$dev.verify_coverage]:-}"
+                "${devrow[$dev.verify_technique]:-none}" "${devrow[$dev.verify_coverage]:-}" \
+                "${devrow[$dev.sanitization_standard]:-}" "${devrow[$dev.sanitization_shortfall]:-}"
         done
     } > "$report_file"
 
@@ -314,6 +315,33 @@ report::sign() {
         if [[ -n "$_vt" ]]; then
             printf '  "verify_technique": "%s",\n' "$(report::_json_field "$_vt")"
             printf '  "verify_coverage_pct": "%s",\n' "$(report::_json_field "$_vc")"
+        fi
+        # Sanitisation claim. Emitted ONLY when the opt-in IEEE path was active,
+        # so a default (NIST) manifest stays byte-identical to what it was before
+        # the claim existed. The level is per job: "IEEE 2883-2022" only when
+        # every scored drive passed, otherwise the NIST label plus the shortfall
+        # of the first drive that failed.
+        local _ss_all="" _ss_ieee=1 _ss_short="" _ss_dev="" _ss_level="" _ss_n=0
+        for _ss_dev in "${devices[@]}"; do
+            [[ -n "${devrow[$_ss_dev.sanitization_standard]:-}" ]] || continue
+            _ss_n=$(( _ss_n + 1 ))
+            [[ "${devrow[$_ss_dev.sanitization_standard]}" == "IEEE 2883-2022" ]] || _ss_ieee=0
+            [[ -n "${devrow[$_ss_dev.sanitization_level]:-}" ]] && _ss_level="${devrow[$_ss_dev.sanitization_level]}"
+            if [[ -z "$_ss_short" && -n "${devrow[$_ss_dev.sanitization_shortfall]:-}" ]]; then
+                _ss_short="${devrow[$_ss_dev.sanitization_shortfall]}"
+            fi
+        done
+        if (( _ss_n > 0 )); then
+            if (( _ss_ieee == 1 )); then
+                _ss_all="IEEE 2883-2022"
+            else
+                _ss_all="NIST 800-88"
+            fi
+            printf '  "sanitization_standard": "%s",\n' "$(report::_json_field "$_ss_all")"
+            [[ -n "$_ss_level" && "$_ss_all" == "IEEE 2883-2022" ]] \
+                && printf '  "sanitization_level": "%s",\n' "$(report::_json_field "$_ss_level")"
+            [[ -n "$_ss_short" ]] \
+                && printf '  "sanitization_shortfall": "%s",\n' "$(report::_json_field "$_ss_short")"
         fi
         printf '  "selected": %s,\n' "$(report::selected_count)"
         printf '  "skipped": %s\n' "$(report::skipped_count)"
