@@ -231,6 +231,39 @@ ssh -o BatchMode=yes oxwet@192.168.0.6 'cp ~/webs/tscrub-form/download-manifest.
 npm run build && npm run deploy
 ```
 
+### Retention — what stays public
+
+**Keep two releases public: the current one and the previous one.** Everything
+older stays on the build host under `output/images/`, which is the archive of
+record; the public directory is a shop window, not a museum.
+
+```bash
+bash ops/prune-downloads.sh                 # dry run: prints the plan, deletes nothing
+bash ops/prune-downloads.sh --apply         # delete
+bash ops/prune-downloads.sh --keep 3        # keep the N most recent versions
+bash ops/prune-downloads.sh --apply --junk  # also drop WinPE dev artefacts + orphan sidecars
+```
+
+Why it matters more than disk: **any public ISO is a build that can still
+produce evidence.** v1.11.73 shipped a coverage sampler that was inert, fixed in
+v1.11.75; while 1.11.73 stays downloadable, a customer can generate a claim the
+current release would refuse, carrying our name. One current build plus one
+rollback is also the only answer to "which version are you running?".
+
+The script refuses to delete:
+
+- the file named in `/downloads/manifest.json`, or `tscrub-appliance.iso` and
+  the file it points at;
+- any build of the N most recent versions (it keeps *versions*, not file
+  counts — 5 versions were once published twice);
+- any ISO with no byte-identical copy in `output/images/` — if the archive copy
+  is missing, the public copy stays;
+- anything outside `~/webs/tscrub/downloads`.
+
+It appends an audit listing (`ls -l` of every removed file) to
+`~/prune-downloads-<UTC>.log` on `.6`. Deleting a binary does not erase its
+record: every release's SHA-256 stays in `CHANGELOG.md`.
+
 **Publish the PXE kernel** to the LAN file server on `.6`
 (`~/webs/lan/ipxe/tscrub/bzImage`, served at
 `http://192.168.0.6:8080/ipxe/tscrub/bzImage`). **Use the helper** — it copies,
