@@ -265,8 +265,13 @@ with the release that carried them (per `CHANGELOG.md`).
       **Correction to the expectation above:** the report has **no rounds
       column** — it records `Passes` (physical passes) and `EraseEngine`. There
       is nothing to "assert as rounds"; the pass count plus the engine string is
-      the provenance. **Confirming the fix on the real engine needs one more
-      image build + VM run** (the kernel that ran 95110 predates it).
+      the provenance. **CONFIRMED on the real engine 2026-10-22:** rebuilt the
+      image (build-host commit `290aa92a`) and re-ran the same job — COCID
+      **95111**, report id **1311**, `engine=[nwipe 0.41]`, `standard=dodshort`,
+      `passes=6`, `COMPLETED`, `verify_technique=sentinel`. Report 1309 recorded
+      `engine=[nwipe]`; 1311 records the version. **§4.1(a) is now closed**: the
+      argv is asserted by unit test (33 checks, mutation-tested) and the recorded
+      outcome is proven end to end on the real engine.
       **(b) shipped 2026-10-21** (`marketing/tests/overwrite_parse_test.php`,
       47 checks) — a committed server-side test for the parser → Annex A →
       JSON-LD chain: `parse_reports()` now delegates to `reports_header_map()`,
