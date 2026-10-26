@@ -84,6 +84,34 @@ and this project uses date-based versioning (`v1.x`).
   mutation-tested — re-adding `hidden` to the switch slot, dropping the pager's `min-w` or
   removing the overlay's `absolute` each fail it.
 
+## [v1.11.82] - 2026-10-26
+
+### Fixed
+
+- **tScrub refused to erase a stick it had quietly claimed for itself.** A bench
+  USB stick was listed `PROTECTED` with the reason *"boot medium (holds the
+  running appliance)"* — but it was neither the boot medium (the machine was
+  PXE-booted) nor the licence volume. `report::mount_boot_usb()` falls back to
+  **the first writable FAT volume**, so it had mounted the stick as its report
+  destination; `device::protected_disks()` protects any disk with a mounted
+  volume; and `device::usb_candidates()` printed one hardcoded sentence for that
+  state. The consequence is worse than a wrong label: on a bench where the
+  target stick is the only formatted volume, tScrub claims it, writes onto it,
+  and then refuses to erase the drive it was asked to erase.
+
+  A volume is now claimed only if it is demonstrably tScrub's — it carries the
+  boot marker, a licence, or the `TSCRUB`/`TSCRUB-USB` label. Anything else is
+  unmounted and left alone, and the report falls back to RAM with the existing
+  warning. `--no-report-usb` / `tscrub_report_usb=0` is the explicit escape
+  hatch for "I want to wipe the only formatted stick on this rig".
+- **A protected row now says WHICH rule applies.** `device::protected_disks()`
+  records a reason per disk, ranked so a boot medium always wins (boot medium >
+  licence volume > tScrub's own report mount > any other mounted volume), and
+  the row, the method column and the discovery notice print it. "The stick you
+  booted from", "the volume holding your licence" and "the volume tScrub
+  mounted for its report" are three different answers, and only the first is
+  about the appliance's own medium.
+
 ## [v1.11.81] - 2026-10-26
 
 Released artefacts: ISO `tscrub-v1.11.81_2025.11_30_x86-64_v0.41_20261026-4f08334d.iso`
