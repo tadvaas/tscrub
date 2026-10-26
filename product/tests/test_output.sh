@@ -105,6 +105,20 @@ t::assert_eq "fail" "${REPORT_USB_STATUS:-}" "opt-out records that the stick was
 unset -f lsblk mount
 REPORT_NO_USB=0
 
+# --- a vanished report destination falls back to RAM -------------------------
+# The bench stick holding the report mount was pulled out mid-run; every write
+# then failed with EIO and the run would have produced NO report at all. The
+# certificate must survive that: write it in RAM (still uploadable) and say so.
+REPORT_DIR="/tmp/tscrub-gone-$$/"
+REPORT_USB_MNT="/tmp/tscrub-usb.fake"
+REPORT_USB_STATUS=""
+REPORT_USB_REASON=""
+report::fallback_to_ram "gone"
+t::assert_eq "/" "$REPORT_DIR" "a vanished destination falls back to RAM"
+t::assert_eq "" "$REPORT_USB_MNT" "and drops the dead mount before sync_out can touch it"
+t::assert_eq "fail" "$REPORT_USB_STATUS" "and records that the local copy is volatile"
+t::check "already in RAM is not a fallback" 'REPORT_DIR="/"; ! report::fallback_to_ram "x"'
+
 # --- upload_http: fake curl posts multipart + token, parses count ---
 FAKE_CURL_LOG="$(mktemp)"
 export FAKE_CURL_LOG

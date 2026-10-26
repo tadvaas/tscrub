@@ -36,11 +36,34 @@ report::_where() {
 # the report destination, so the last thing that happened is on disk even when
 # no certificate was ever produced.
 report::journal() {  # <EVENT> <text...>
-    local f="${REPORT_JOURNAL:-}"
+    local f="${REPORT_JOURNAL:-}" line
     [[ -n "$f" ]] || return 0
-    printf '[%s] %-7s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${*:2}" \
-        >> "$f" 2>/dev/null || return 0
+    line="$(printf '[%s] %-7s %s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${*:2}")"
+    if ! printf '%s\n' "$line" >> "$f" 2>/dev/null; then
+        # The destination went away under us (a stick pulled mid-run) or turned
+        # read-only. Move the record somewhere writable rather than losing the
+        # rest of the run's history.
+        report::journal_relocate || return 0
+        printf '%s\n' "$line" >> "$REPORT_JOURNAL" 2>/dev/null || return 0
+    fi
     sync 2>/dev/null || true   # FAT writes are page-cached; a power cut drops them
+}
+
+# Move the journal to a writable directory after its media disappeared.
+report::journal_relocate() {
+    local dir="${REPORT_JOURNAL_FALLBACK:-/reports}"
+    [[ -n "${COCID:-}" ]] && dir="$dir/$COCID"
+    if ! mkdir -p "$dir" 2>/dev/null || [[ ! -w "$dir" ]]; then
+        dir="/tmp"
+        [[ -w "$dir" ]] || return 1
+    fi
+    [[ "${REPORT_JOURNAL:-}" == "${dir%/}"/* ]] && return 1   # already there
+    REPORT_JOURNAL="${dir%/}/run-journal.txt"
+    export REPORT_JOURNAL
+    printf '[%s] %-7s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" NOTE \
+        "journal moved to $REPORT_JOURNAL — the report destination became unwritable (media removed?)" \
+        >> "$REPORT_JOURNAL" 2>/dev/null || true
+    return 0
 }
 
 # Point the journal at the report destination and open this run.
@@ -1189,6 +1212,20 @@ report::mount_boot_usb() {
         return 0
     fi
     return 1
+}
+
+# The report destination can disappear mid-run (a stick pulled out of the
+# machine). Losing the certificate because of that is unacceptable: switch to RAM
+# so the run still produces — and uploads — a report, and record that the local
+# copy is volatile. Returns 0 when it switched.
+report::fallback_to_ram() {  # <reason>
+    [[ "${REPORT_DIR:-/}" == "/" ]] && return 1
+    report::journal NOTE "report destination ${REPORT_DIR} is unwritable — writing the report to RAM instead"
+    REPORT_DIR="/"
+    REPORT_USB_MNT=""   # a dead mount must never be handed to umount
+    REPORT_USB_STATUS="fail"
+    REPORT_USB_REASON="${1:-report destination disappeared (wrote to RAM)}"
+    return 0
 }
 
 # Flush the report to disk and release the USB mount (if any). FAT writes are

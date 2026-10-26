@@ -115,6 +115,30 @@ chmod 755 "$ro"
 REPORT_DIR="$tmpdir/"
 unset REPORT_JOURNAL_FALLBACK
 
+# --- media pulled mid-run: the journal moves itself -------------------------
+# Bench case: the DataTraveler holding the report mount was unplugged three
+# minutes into a run. Its mount survived with no device under it, so every write
+# returned EIO and the rest of the record was lost.
+dir_dead="$tmpdir/dead"
+mkdir -p "$dir_dead"
+REPORT_JOURNAL="$dir_dead/run-journal.txt"
+: > "$REPORT_JOURNAL"
+rm -f "$REPORT_JOURNAL"          # the file goes with the media
+chmod 555 "$dir_dead"            # ... and the directory cannot be written any more
+REPORT_JOURNAL_FALLBACK="$tmpdir/moved"
+COCID="99999"
+report::journal DRIVE "sda status=COMPLETED"
+t::check "the record survives the media disappearing" \
+    'grep -q "sda status=COMPLETED" "$REPORT_JOURNAL"'
+t::check "and says it moved, and why" 'grep -q "journal moved to" "$REPORT_JOURNAL"'
+t::check "the moved journal is no longer in the dead directory" \
+    '[[ "$REPORT_JOURNAL" != "$dir_dead"* ]]'
+chmod 755 "$dir_dead"
+COCID="12345"
+REPORT_JOURNAL_FALLBACK="$tmpdir/"
+report::journal_open
+unset REPORT_JOURNAL_FALLBACK
+
 # --- the session exit path ------------------------------------------------
 # session::on_exit is what every EXIT trap calls. On the bench the abort record
 # was silently lost because fn_main armed its own cursor/teardown trap, which

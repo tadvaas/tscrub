@@ -550,13 +550,26 @@ erasure::run() {
     fi
 
     if [[ "$erasure_complete" -eq 1 ]]; then
+        # A stick pulled mid-run must not cost the certificate: if the chosen
+        # destination is gone, write the report in RAM so it is still produced
+        # and still uploaded (see report::fallback_to_ram).
+        [[ -w "${REPORT_DIR:-/}" ]] || report::fallback_to_ram "report destination disappeared (wrote to RAM)"
         if report_file=$(report::csv); then
             # report::csv runs in a command-substitution subshell, so record the
             # USB-save outcome here (detect_output may already have flagged "fail").
             [[ -z "${REPORT_USB_STATUS:-}" ]] && REPORT_USB_STATUS="ok"
         else
-            REPORT_USB_STATUS="fail"
-            REPORT_USB_REASON="failed to write report file"
+            # Writable when checked, but the write still failed (EIO from a
+            # device that vanished in between, or a full volume).
+            if report::fallback_to_ram "could not write to the report destination (wrote to RAM)"; then
+                report_file=$(report::csv) || report_file=""
+            fi
+            if [[ -n "${report_file:-}" ]]; then
+                :
+            else
+                REPORT_USB_STATUS="fail"
+                REPORT_USB_REASON="failed to write report file"
+            fi
         fi
         if [[ "$DRY_RUN" -eq 0 && -n "$report_file" ]]; then
             report::parse_upload
