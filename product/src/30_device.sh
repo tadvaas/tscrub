@@ -107,6 +107,7 @@ device::is_usb_attached() {
 # "I found no boot disk" is the correct answer rather than a failure to look.
 device::is_network_boot() {
     local cmdline="${CMDLINE_FILE:-/proc/cmdline}"
+    [[ -r "$cmdline" ]] || return 1
     tr ' ' '\n' < "$cmdline" 2>/dev/null |
         grep -qE '^(BOOTIF=|ip=|tscrub_server=|tscrub_api_token=)'
 }

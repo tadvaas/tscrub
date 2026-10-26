@@ -14,9 +14,14 @@ HOTPLUG_SNAPSHOT=""
 HOTPLUG_ADDED=""
 HOTPLUG_REMOVED=""
 
-# The filtered block-device list — exactly the device::discover acceptance
-# rules: skip loop/ram/dm- and sr*, and keep only non-USB nvme*/sd* (a USB
-# bridge hides the drive's true identity, so those are never offered).
+# The filtered block-device list — exactly the devices device::discover can put
+# on screen: skip loop/ram/dm- and sr*, keep every nvme*/sd* whether or not it is
+# USB-attached. USB must NOT be filtered out here: since P2 a USB stick is a
+# first-class target, so a stick arriving or leaving IS a hot-plug event. (This
+# filter used to drop USB, when discovery dropped it too. Discovery was widened
+# and this was not, so plugging a stick in after boot never triggered a rescan
+# and the stick simply never appeared. Keep these two in step — the snapshot
+# must describe what the operator can see, not a narrower idea of a drive.)
 hotplug::snapshot() {
     local block_dir="${SYS_BLOCK_DIR:-/sys/block}"
     local path dev out=""
@@ -25,17 +30,7 @@ hotplug::snapshot() {
         dev="${path##*/}"
         [[ "$dev" =~ ^(loop|ram|dm-) ]] && continue
         [[ "$dev" =~ ^sr[0-9]+$ ]] && continue
-        if [[ "$dev" =~ ^nvme[0-9]+(c[0-9]+)?n[0-9]+$ ]]; then
-            if realpath "$block_dir/$dev/device" 2>/dev/null | grep -q '/usb'; then
-                continue
-            fi
-        elif [[ "$dev" =~ ^sd[a-z]+$ ]]; then
-            if realpath "$block_dir/$dev/device" 2>/dev/null | grep -q '/usb'; then
-                continue
-            fi
-        else
-            continue
-        fi
+        [[ "$dev" =~ ^(sd[a-z]+|nvme[0-9]+(c[0-9]+)?n[0-9]+)$ ]] || continue
         out+="$dev"$'\n'
     done
     printf '%s' "$out" | sort

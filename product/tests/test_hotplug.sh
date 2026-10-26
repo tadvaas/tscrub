@@ -21,6 +21,19 @@ hotplug::baseline
 t::check "snapshot contains nvme0n1" 'grep -qx nvme0n1 <<<"$HOTPLUG_SNAPSHOT"'
 t::check "snapshot excludes loop/sr" \
     '[[ "$HOTPLUG_SNAPSHOT" != *"loop0"* && "$HOTPLUG_SNAPSHOT" != *"sr0"* ]]'
+# The USB stick IS on screen, so it must be in the snapshot — otherwise a stick
+# that arrives or leaves is invisible to hot-plug and never rescanned.
+t::check "snapshot includes the usb target sdb" 'grep -qx sdb <<<"$HOTPLUG_SNAPSHOT"'
+
+# --- a USB stick arriving after boot is a hot-plug event ---------------------
+mkdir -p "$tmpdir/block/sde/queue" "$tmpdir/block/sde/device"
+printf 'usb\n' > "$tmpdir/block/sde/device/transport"
+printf '1\n' > "$tmpdir/block/sde/queue/rotational"
+t::check "poll detects a newly plugged-in USB stick" 'hotplug::poll'
+t::assert_eq "sde" "$(printf '%s' "${HOTPLUG_ADDED}" | tr -d '\n')" \
+    "a USB stick plugged in after boot is added, not ignored"
+rm -rf "$tmpdir/block/sde"
+hotplug::baseline
 
 # --- unchanged -> poll returns 1 --------------------------------------------
 t::check "poll returns 1 when unchanged" '! hotplug::poll'
@@ -58,12 +71,17 @@ t::check "rediscover drops the removed drive" '[[ "${devices[*]}" != *"sda"* ]]'
 t::check "rediscover keeps nvme0n1 and sdc" '[[ "${devices[*]}" == *"nvme0n1"* && "${devices[*]}" == *"sdc"* ]]'
 hotplug::baseline
 
-# --- USB-attached newcomer is ignored ---------------------------------------
+# --- a USB-attached newcomer IS a change now -------------------------------
+# It used to be ignored, when USB drives were never offered. P2 made them
+# selectable, so ignoring one means a stick plugged in at the bench never
+# appears on screen.
 mkdir -p "$tmpdir/block/sdd/queue" "$tmpdir/block/sdd/device"
 printf 'sata\n' > "$tmpdir/block/sdd/device/transport"
 printf '0\n' > "$tmpdir/block/sdd/queue/rotational"
 FAKE_USB_DEVICES="sdb sdd"
-t::check "USB newcomer not treated as a change" '! hotplug::poll'
+t::check "a USB-attached newcomer is a change" 'hotplug::poll'
+t::assert_eq "sdd" "$(printf '%s' "${HOTPLUG_ADDED}" | tr -d '\n')" \
+    "and it is named in the added list"
 
 rm -rf "$tmpdir"
 t::summary
