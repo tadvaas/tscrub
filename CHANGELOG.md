@@ -84,6 +84,66 @@ and this project uses date-based versioning (`v1.x`).
   mutation-tested — re-adding `hidden` to the switch slot, dropping the pager's `min-w` or
   removing the overlay's `absolute` each fail it.
 
+## [v1.11.79] - 2026-10-26
+
+Released artefacts: ISO `tscrub-v1.11.79_2025.11_30_x86-64_v0.41_20261026-e15f9aed.iso`
+(176,496,640 B, SHA-256 `d4974096f55e582f7c3c590073dae87439cb2a50b488070260e0cec24e72c271`,
+168 MiB); signed script SHA-256
+`38c0fe82128476ab1bc65168839019ac345b38a2696d09c2dd2233011d73fcd8`; PXE `bzImage`
+95,222,304 B signed `/CN=My iPXE Vendor Key`, SHA-256
+`38fe9da9ffe67b57940c4c4b2fdf52398a424422f4ed1006c98ccef8b6583bef`.
+
+### Added
+
+- **USB targets are listed and can be erased.** An unclaimed USB device now
+  renders as a normal `PLANNED` row and is selectable; before this, USB was
+  silently dropped from the list entirely.
+
+  Erasure is **software overwrite only**, whatever the bridge claims. A
+  USB-SATA bridge can advertise `ERASE UNIT` or `SANITIZE` and then refuse it,
+  hang, or drop off the bus mid-erase, and a half-erased stick reported as
+  `COMPLETED` is the worst outcome available. `device::detect()` therefore
+  short-circuits every USB device to the nwipe path *before any probe runs*,
+  which also keeps hdparm/sg_opcodes/sedutil away from a bridge that may
+  misbehave when spoken to. ATA-over-USB is deferred until it is proven on
+  hardware with a control that shows the erase actually happened.
+
+  The claim does not follow the capability: `standard::media_in_scope()` still
+  accepts only NVMe/SATA/SCSI/SAS, so an `ieee2883` run refuses a USB target at
+  gate G5 and records the shortfall instead of certifying it.
+
+- **The STATUS cell shows the pass nwipe is in** — `WRITE`, `VERIFY`, `SYNC`,
+  `RETRY`, `BLANK` — and appends `!` when the last progress sample is older than
+  two pump intervals. nwipe has no timer of its own: it writes a progress line
+  only when signalled, so a frozen ETA and a dead worker used to look identical.
+  Firmware erases report no phase and keep the marching wave.
+
+### Fixed
+
+- **The appliance offered its own boot stick for erasure.** A USB boot names no
+  device anywhere: the live system unpacks the rootfs into RAM and unmounts the
+  stick, so `/proc/mounts` has no row for it and `/proc/cmdline` is just
+  `BOOT_IMAGE=/boot/bzImage console=...`. Every source the protection logic used
+  was empty, and its fail-closed flag was reachable only from one narrow mount
+  case, so nothing was protected and the boot stick appeared as a target.
+  The boot medium now identifies itself from the labels its own image carries
+  (`TSCRUB` on the ISO9660 volume, `TSCRUB-USB` on the writable partition), read
+  with `blkid -p` straight from the block devices, which survives the unmount
+  and cannot false-positive on a customer data disk. Nothing naming a local
+  medium on a non-network boot now fails closed and refuses every USB target.
+
+- **Hot-plug could not see a USB stick at all.** `hotplug::snapshot()` kept its
+  own copy of the pre-P2 rule and filtered USB out, so a stick plugged in after
+  boot never changed the snapshot, nothing rescanned, and it never appeared —
+  silently, because nothing regarded it as a change.
+
+- **`eta 01:47:09` crashed the progress line.** nwipe's ETA fields are
+  zero-padded and were fed straight into bash arithmetic, where a leading zero
+  means octal, so any field of `08` or `09` aborted with `value too great for
+  base (error token is "09")` across the operator's screen and the ETA for that
+  tick was never recorded. Parsing moved into `nwipe::eta_seconds()` with
+  explicit `10#` bases.
+
 ## [v1.11.78] - 2026-10-22
 
 ### Fixed
