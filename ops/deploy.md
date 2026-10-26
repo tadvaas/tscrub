@@ -137,6 +137,28 @@ The signature is Ed25519 over the raw script bytes (`-rawin`), verified against
 
 The marketing deploy excludes `downloads/` (`--exclude downloads/`) so `--delete` never wipes it. `download_url` in `~/webs/tscrub-form/config.json` points at this file (used in licence emails).
 
+### Serving a build over the LAN (bench images)
+
+`http://192.168.0.6:8080/` is the local file server (`/etc/nginx/sites-enabled/lan.conf`,
+`root /home/oxwet/webs/lan`, `autoindex on`). Use it for anything that is not a
+release.
+
+> **⚠️ `~/webs/lan/downloads` is a SYMLINK to `~/webs/tscrub/downloads` — the
+> PUBLIC directory.** Anything dropped there is instantly reachable at
+> `https://tscrub.com/downloads/<file>` and appears alongside the published
+> releases. An unreleased bench image (or a licence file) must go in a real
+> directory instead, e.g. `~/webs/lan/bench/` ->
+> `http://192.168.0.6:8080/bench/`.
+
+Verify what you actually published rather than trusting the copy: a 200 plus
+a hash of the served bytes.
+
+```bash
+U=http://192.168.0.6:8080/bench/<file>.iso
+curl -sI "$U" | head -3
+curl -s "$U" | shasum -a 256     # must equal the build host's sha256sum
+```
+
 ### Appliance ISO + PXE kernel (`bzImage`)
 
 The appliance is a Buildroot/ShredOS fork on `oxwet@192.168.0.6:~/shredos.x86_64`. After a `SCRIPT_VERSION` bump and `bash ops/host-download.sh`, stage the slim script into the overlay, commit, and rebuild:
