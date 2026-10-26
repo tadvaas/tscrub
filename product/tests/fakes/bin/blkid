@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
-# Fake blkid for the format module tests: `blkid -s TYPE -o value /dev/sda1`
-# prints FAKE_BLKID_TYPE (empty by default = no type detected).
+# Fake blkid for the format and boot-medium tests.
+#   blkid -s TYPE  -o value /dev/sda1   -> FAKE_BLKID_TYPE
+#   blkid -p -s LABEL -o value /dev/sda3 -> FAKE_BLKID_LABEL_<node>
+#     (e.g. FAKE_BLKID_LABEL_sda3="TSCRUB-USB"); empty by default.
 [[ -n "${FAKE_FORMAT_CMDLOG:-}" ]] && printf 'blkid %s\n' "$*" >> "$FAKE_FORMAT_CMDLOG"
+node="${@: -1}"
+node="${node##*/}"
+safe="${node//[^A-Za-z0-9]/_}"
+requested=""
+prev=""
+for a in "$@"; do
+    [[ "$prev" == "-s" ]] && requested="$a"
+    prev="$a"
+done
+if [[ "$requested" == "LABEL" ]]; then
+    var="FAKE_BLKID_LABEL_$safe"
+    printf '%s\n' "${!var:-}"
+    exit "${FAKE_BLKID_RC:-0}"
+fi
 printf '%s\n' "${FAKE_BLKID_TYPE:-}"
 exit "${FAKE_BLKID_RC:-0}"

@@ -103,6 +103,14 @@ device::is_usb_attached() {
     grep -qi '^usb$' "$block_dir/$dev/device/transport" 2>/dev/null
 }
 
+# Was this a network (PXE) boot? Then no local boot medium exists by design and
+# "I found no boot disk" is the correct answer rather than a failure to look.
+device::is_network_boot() {
+    local cmdline="${CMDLINE_FILE:-/proc/cmdline}"
+    tr ' ' '\n' < "$cmdline" 2>/dev/null |
+        grep -qE '^(BOOTIF=|ip=|tscrub_server=|tscrub_api_token=)'
+}
+
 # Space-separated disk names that must never be offered as targets.
 #
 # Sources, any one of which protects a disk:
@@ -110,12 +118,22 @@ device::is_usb_attached() {
 #   2. every mounted block device (root, the report partition once it is mounted)
 #   3. any mount carrying boot/version.txt — the writable tScrub boot partition
 #   4. root= / live-media= on the kernel command line
+#   5. a filesystem label the appliance's own image lays down: TSCRUB (the
+#      ISO9660 volume) or TSCRUB-USB (the writable partition). This is the only
+#      source that survives a USB boot: the live system unpacks the rootfs into
+#      RAM and UNMOUNTS the stick it booted from, so on a real appliance boot
+#      /proc/mounts names no device and the kernel command line is just
+#      "BOOT_IMAGE=/boot/bzImage console=..." (measured on the QEMU USB run).
+#      Without (5) the boot stick is INVISIBLE and gets offered for erasure.
 #
-# Fail-closed: if a boot-marked mount cannot be resolved to a /dev device,
+# Fail-closed: if a boot-marked mount cannot be resolved to a /dev device, or if
+# NO source names any disk at all on something that is not a network boot,
 # DEVICE_PROTECT_UNRESOLVED=1 is set and callers must refuse to offer any USB
-# target at all. Over-protecting is explainable; under-protecting loses a report.
+# target at all. Over-protecting is explainable; under-protecting loses the
+# appliance and the report with it.
 device::protected_disks() {
-    local src mnt disk
+    local src mnt disk part label node dev
+    local block_dir="${SYS_BLOCK_DIR:-/sys/block}"
     local mounts="${PROC_MOUNTS_FILE:-/proc/mounts}"
     local cmdline="${CMDLINE_FILE:-/proc/cmdline}"
     local -a sources=() disks=()
@@ -148,6 +166,33 @@ device::protected_disks() {
         disk="$(device::disk_of "$src")"
         [[ -n "$disk" ]] && disks+=("$disk")
     done
+
+    # 5. The appliance's own labels, read from the media itself.
+    if command -v blkid >/dev/null 2>&1; then
+        local -a nodes=()
+        for node in "$block_dir"/*; do
+            [[ -d "$node" ]] || continue
+            dev="$(basename "$node")"
+            nodes=("$dev")                       # the whole disk first
+            for part in "$node"/*; do            # then every real partition
+                [[ -f "$part/partition" ]] || continue
+                nodes+=("$(basename "$part")")
+            done
+            for part in "${nodes[@]}"; do
+                label="$(blkid -p -s LABEL -o value "/dev/$part" 2>/dev/null || true)"
+                case "$label" in
+                    TSCRUB|TSCRUB-USB) disks+=("$dev"); break ;;
+                esac
+            done
+        done
+    fi
+
+    # Fail closed when nothing at all named a local boot medium. A USB boot
+    # looks exactly like this (see 5 above), so silence must not read as "there
+    # is no boot disk here".
+    if [[ "${#disks[@]}" -eq 0 ]] && ! device::is_network_boot; then
+        DEVICE_PROTECT_UNRESOLVED=1
+    fi
 
     DEVICE_PROTECTED_DISKS="$(printf '%s\n' "${disks[@]:-}" | sed '/^$/d' | sort -u | tr '\n' ' ')"
     printf '%s' "$DEVICE_PROTECTED_DISKS"

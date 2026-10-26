@@ -127,4 +127,42 @@ echo "== 11. the IEEE media gate still refuses USB =="
 t::check "USB/HDD is out of scope for the claim" '! standard::media_in_scope USB HDD'
 t::check "SATA/HDD is in scope (control)"        'standard::media_in_scope SATA HDD'
 
+echo
+echo "== 12. a USB boot names NO device anywhere (the real appliance case) =="
+# Measured on a QEMU USB boot: the live system unpacks the rootfs into RAM and
+# unmounts the stick, so /proc/mounts holds only rootfs/tmpfs and the cmdline is
+# just BOOT_IMAGE=/boot/bzImage console=... . The boot stick must still be found,
+# or it gets offered for erasure.
+BTREE="$TMP/boottree"
+mkdir -p "$BTREE/sda/sda1" "$BTREE/sda/sda3" "$BTREE/sdb"
+: > "$BTREE/sda/sda1/partition"
+: > "$BTREE/sda/sda3/partition"
+: > "$BTREE/sda/queue"      2>/dev/null || true
+export FAKE_BLKID_LABEL_sda1="TSCRUB"
+export FAKE_BLKID_LABEL_sda3="TSCRUB-USB"
+mounts "rootfs / rootfs rw 0 0" "proc /proc proc rw 0 0"
+: > "$CMDLINE_FILE"
+
+p=" $(SYS_BLOCK_DIR="$BTREE" device::protected_disks) "
+t::check "the boot stick is protected by its own filesystem label" '[[ "$p" == *" sda "* ]]'
+t::check "a plain USB stick is NOT protected"                      '[[ "$p" != *" sdb "* ]]'
+SYS_BLOCK_DIR="$BTREE" device::protected_disks >/dev/null
+t::assert_eq "0" "${DEVICE_PROTECT_UNRESOLVED:-missing}" \
+    "a label means the boot medium WAS identified"
+
+# Nothing identifies anything, and this is not a network boot: fail closed.
+unset FAKE_BLKID_LABEL_sda1 FAKE_BLKID_LABEL_sda3
+p=" $(SYS_BLOCK_DIR="$BTREE" device::protected_disks) "
+SYS_BLOCK_DIR="$BTREE" device::protected_disks >/dev/null
+t::assert_eq "1" "${DEVICE_PROTECT_UNRESOLVED:-missing}" \
+    "no boot medium and no label => fail closed"
+t::check "and no stick can be proven safe, so none is protected by name" '[[ -z "${p// /}" ]]'
+
+# A network boot has no local medium by design, so silence is correct there.
+printf 'BOOTIF=01-bc-24-11-98-d9-d1 ip=dhcp\n' > "$CMDLINE_FILE"
+SYS_BLOCK_DIR="$BTREE" device::protected_disks >/dev/null
+t::assert_eq "0" "${DEVICE_PROTECT_UNRESOLVED:-missing}" "a PXE boot does not fail closed"
+export SYS_BLOCK_DIR="$FIXTURES/sys/block"
+: > "$CMDLINE_FILE"
+
 t::summary
