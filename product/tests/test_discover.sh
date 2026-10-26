@@ -17,7 +17,10 @@ t::check "sda present" '[[ "${devices[*]}" == *"sda"* ]]'
 # here is now the selectable flag — see test_usb_protect.sh.
 t::check "sdb (usb) is listed" '[[ "${devices[*]}" == *"sdb"* ]]'
 t::assert_eq "USB" "${bus[sdb]:-}" "the usb row says BUS=USB"
-t::assert_eq "0" "${devrow[sdb.selectable]:-missing}" "the usb row cannot be selected"
+# P2: an unclaimed USB target IS selectable (it is a legitimate wipe target).
+# The protected case — the appliance's own boot stick — is covered in
+# test_usb_protect.sh, which is where the exclusion now lives.
+t::assert_eq "1" "${devrow[sdb.selectable]:-missing}" "the usb row can be selected"
 t::assert_eq "1" "${devrow[sda.selectable]:-missing}" "a native row can be selected"
 t::assert_eq "NVMe" "${bus[nvme0n1]}" "nvme bus"
 t::assert_eq "SSD" "${type[nvme0n1]}" "nvme type"

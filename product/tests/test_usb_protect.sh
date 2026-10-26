@@ -98,4 +98,33 @@ echo "== 9. is_usb_attached agrees for both signals =="
 t::check "sdb is USB (path/transport signal)" 'device::is_usb_attached sdb "$SYS_BLOCK_DIR"'
 t::check "sda is not USB"                     '! device::is_usb_attached sda "$SYS_BLOCK_DIR"'
 
+echo
+echo "== 10. P2: an ordinary USB target IS selectable, and is erased by nwipe =="
+unset DEVICE_PROTECT_UNRESOLVED
+# Nothing claims sdb any more: root and the licence are elsewhere.
+mounts "/dev/sda2 / ext4 rw 0 0"
+unset LICENSE_USB_DEV
+DISCOVERY_NOTICE=""
+device::discover || true
+t::assert_eq "1" "${devrow[sdb.selectable]:-missing}" "an unclaimed USB target is selectable"
+t::assert_eq ""  "${devrow[sdb.protect]:-}"           "and carries no protection reason"
+# The bridge ADVERTISES SANITIZE here. That is the case that matters: a native
+# disk would take the firmware path (CAP_SCSI_SANITIZE), but a USB-SATA bridge
+# that claims SANITIZE frequently refuses it or drops off the bus mid-erase, so
+# we refuse the firmware path for USB and fall back to software overwrite.
+export FAKE_SG_OPCODES_SUPPORTED=yes
+device::detect
+t::assert_eq "CAP_SCSI_NWIPE" "${capability[sdb]:-}" \
+    "USB is software-overwritten even when the bridge claims SANITIZE"
+unset FAKE_SG_OPCODES_SUPPORTED
+select::none
+select::all
+t::check "select-all now takes the USB stick too" '[[ "$(select::chosen)" == *"sdb"* ]]'
+t::assert_eq "SATA" "${bus[sda]:-}" "the native disk keeps its own bus"
+
+echo
+echo "== 11. the IEEE media gate still refuses USB =="
+t::check "USB/HDD is out of scope for the claim" '! standard::media_in_scope USB HDD'
+t::check "SATA/HDD is in scope (control)"        'standard::media_in_scope SATA HDD'
+
 t::summary

@@ -27,9 +27,10 @@ select::toggle sda
 t::check "select: toggle again deselects" '[[ "${devrow[sda.selected]}" == "0" ]]'
 
 select::all
-t::check "select: select all" '[[ "$(select::count)" == "2" ]]'
+t::check "select: select all" '[[ "$(select::count)" == "3" ]]'
 t::assert_contains "$(select::chosen)" "nvme0n1" "select: chosen has nvme0n1"
 t::assert_contains "$(select::chosen)" "sda" "select: chosen has sda"
+t::assert_contains "$(select::chosen)" "sdb" "select: chosen has the usb target"
 
 # --- SKIPPED is terminal and normalised honestly ---
 # select::all, not a raw loop: protected rows (a USB stick) must stay out of the
@@ -37,6 +38,7 @@ t::assert_contains "$(select::chosen)" "sda" "select: chosen has sda"
 select::all
 devrow[sda.status]="SKIPPED"
 devrow[nvme0n1.status]="COMPLETED"
+devrow[sdb.status]="COMPLETED"
 t::check "select: SKIPPED is terminal" 'ui::all_drives_terminal'
 
 device::normalize_outcome
@@ -44,7 +46,7 @@ t::check "select: SKIPPED normalises class" '[[ "${devrow[sda.class]}" == "SKIPP
 t::check "select: SKIPPED normalises cert" '[[ "${devrow[sda.cert]}" == "NOT SANITISED" ]]'
 t::check "select: SKIPPED normalises method" '[[ "${devrow[sda.method]}" == "Not selected" ]]'
 t::check "select: skipped count is 1" '[[ "$(report::skipped_count)" == "1" ]]'
-t::check "select: selected count is 2" '[[ "$(report::selected_count)" == "2" ]]'
+t::check "select: selected count is 3" '[[ "$(report::selected_count)" == "3" ]]'
 
 # --- autonuke flags ---
 COCID=""; NON_INTERACTIVE=0; AUTONUKE=0

@@ -189,7 +189,7 @@ device::usb_candidates() {
         elif [[ "${DEVICE_PROTECT_UNRESOLVED:-0}" -eq 1 ]]; then
             prot="protected (boot medium could not be identified)"
         else
-            prot="USB target (erasure not supported yet)"
+            prot=""          # an ordinary USB target: selectable in P2
         fi
         DISCOVERY_NOTICE="${DISCOVERY_NOTICE:+$DISCOVERY_NOTICE; }$dev: $prot"
 
@@ -208,11 +208,16 @@ device::usb_candidates() {
         hpa[$dev]="N/A"
         dco[$dev]="N/A"
         raid[$dev]=""
-        devrow["$dev.selectable"]=0
-        devrow["$dev.protect"]="$prot"
-        devrow["$dev.class"]="—"
-        devrow["$dev.method"]="$prot"
-        devrow["$dev.status"]="PROTECTED"
+        if [[ -n "$prot" ]]; then
+            devrow["$dev.selectable"]=0
+            devrow["$dev.protect"]="$prot"
+            devrow["$dev.class"]="—"
+            devrow["$dev.method"]="$prot"
+            devrow["$dev.status"]="PROTECTED"
+        else
+            devrow["$dev.selectable"]=1
+            devrow["$dev.protect"]=""
+        fi
         devrow["$dev.smart"]="-"
         devrow["$dev.temp"]=""
         devrow["$dev.selected"]=0
@@ -614,6 +619,20 @@ device::detect() {
         fi
 
         capability[$device]="CAP_NONE"
+
+        # P2 (research/usb-target-erase/README.md): a USB target is ALWAYS
+        # software-overwritten. A USB-SATA bridge can advertise ERASE UNIT or
+        # SANITIZE and then refuse it, hang, or drop off the bus mid-erase, and
+        # none of that can be probed safely without sacrificial hardware. nwipe
+        # writes through the block layer, so it works on every stick and its
+        # evidence (sentinel, sampled read-back) is honest. Skipping the probes
+        # also keeps hdparm/sg_opcodes/sedutil away from a bridge that may
+        # misbehave when spoken to. ATA-over-USB is a later, separately-proven
+        # step.
+        if device::is_usb_attached "$device" "${SYS_BLOCK_DIR:-/sys/block}"; then
+            capability[$device]="CAP_SCSI_NWIPE"
+            continue
+        fi
 
         if [[ "$device" == nvme* ]]; then
             features="$(nvme id-ctrl -H /dev/$device 2>&5 || true)"
