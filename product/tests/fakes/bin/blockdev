@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 if [[ "$1" == "--getsize64" ]]; then
-    printf '1000204886016\n'
+    # FAKE_BLOCKDEV_SIZE lets a test model an empty card reader (0 bytes) or a
+    # small stick without inventing a whole fake tree.
+    printf '%s\n' "${FAKE_BLOCKDEV_SIZE:-1000204886016}"
 elif [[ "$1" == "--getss" ]]; then
     printf '512\n'
 fi

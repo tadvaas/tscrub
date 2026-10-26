@@ -38,7 +38,7 @@ for pid in "${pids[@]}"; do
     wait "$pid" 2>/dev/null || true
 done
 
-t::check "smoke: 2 devices" '(( ${#devices[@]} == 2 ))'
+t::check "smoke: 3 rows incl. the usb one" '(( ${#devices[@]} == 3 ))'
 t::check "smoke: nvme0n1 COMPLETED" '[[ ${devrow[nvme0n1.status]} == "COMPLETED" ]]'
 t::check "smoke: nvme0n1 PURGE" '[[ ${devrow[nvme0n1.class]} == "PURGE" ]]'
 t::check "smoke: sda COMPLETED" '[[ ${devrow[sda.status]} == "COMPLETED" ]]'

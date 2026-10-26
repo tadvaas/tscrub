@@ -68,6 +68,157 @@ device::is_virtual_disk() {
     return 1
 }
 
+# --- what the appliance is running from -------------------------------------
+# A USB target is easy to find; not erasing the stick tScrub booted from is the
+# hard part, because root, the licence and the report destination can all be on
+# it. Erasing it destroys the report, which is the only artefact the customer
+# bought. This derives a set of whole DISKS to protect — whole disks, not
+# partitions, because a dd'd hybrid ISO keeps its read-only ISO9660 volume and
+# its writable TSCRUB-USB partition on different devices of the same disk.
+
+# Partition name -> its disk. Tool-free on purpose: correct on a fake sysfs tree
+# in tests, and it cannot disagree with lsblk's PKNAME on whether sda1 is sda.
+device::disk_of() {
+    local n="${1##*/}"
+    case "$n" in
+        nvme*[0-9]p[0-9]*) printf '%s' "${n%p*}" ;;
+        mmcblk*[0-9]p[0-9]*) printf '%s' "${n%p*}" ;;
+        sd[a-z][0-9]*)     printf '%s' "${n%[0-9]*}" ;;
+        vd[a-z][0-9]*)     printf '%s' "${n%[0-9]*}" ;;
+        hd[a-z][0-9]*)     printf '%s' "${n%[0-9]*}" ;;
+        *)                 printf '%s' "$n" ;;
+    esac
+}
+
+# True when the device hangs off USB (a bridge hides whatever is behind it).
+# One helper, used by discovery's exclusion AND by the USB candidate scan, so
+# the two can never disagree about what "USB" means.
+device::is_usb_attached() {
+    local dev="$1" block_dir="${2:-${SYS_BLOCK_DIR:-/sys/block}}"
+    if realpath "$block_dir/$dev/device" 2>/dev/null | grep -q '/usb'; then
+        return 0
+    fi
+    # Second signal, independent of the resolved path: the transport attribute.
+    [[ -r "$block_dir/$dev/device/transport" ]] || return 1
+    grep -qi '^usb$' "$block_dir/$dev/device/transport" 2>/dev/null
+}
+
+# Space-separated disk names that must never be offered as targets.
+#
+# Sources, any one of which protects a disk:
+#   1. LICENSE_USB_DEV   — the volume the licence was found on
+#   2. every mounted block device (root, the report partition once it is mounted)
+#   3. any mount carrying boot/version.txt — the writable tScrub boot partition
+#   4. root= / live-media= on the kernel command line
+#
+# Fail-closed: if a boot-marked mount cannot be resolved to a /dev device,
+# DEVICE_PROTECT_UNRESOLVED=1 is set and callers must refuse to offer any USB
+# target at all. Over-protecting is explainable; under-protecting loses a report.
+device::protected_disks() {
+    local src mnt disk
+    local mounts="${PROC_MOUNTS_FILE:-/proc/mounts}"
+    local cmdline="${CMDLINE_FILE:-/proc/cmdline}"
+    local -a sources=() disks=()
+
+    DEVICE_PROTECT_UNRESOLVED=0
+    [[ -n "${LICENSE_USB_DEV:-}" ]] && sources+=("$LICENSE_USB_DEV")
+
+    if [[ -r "$mounts" ]]; then
+        while read -r src mnt _; do
+            [[ "$src" == /dev/* ]] && sources+=("$src")
+            if [[ -d "$mnt" && -f "$mnt/boot/version.txt" && "$src" != /dev/* ]]; then
+                # A tScrub boot partition we cannot name: protect everything.
+                DEVICE_PROTECT_UNRESOLVED=1
+            fi
+        done < "$mounts"
+    fi
+
+    if [[ -r "$cmdline" ]]; then
+        local tok
+        for tok in $(cat "$cmdline" 2>/dev/null); do
+            case "$tok" in
+                root=/dev/*)       sources+=("${tok#root=}") ;;
+                live-media=/dev/*) sources+=("${tok#live-media=}") ;;
+            esac
+        done
+    fi
+
+    for src in "${sources[@]}"; do
+        [[ -n "$src" ]] || continue
+        disk="$(device::disk_of "$src")"
+        [[ -n "$disk" ]] && disks+=("$disk")
+    done
+
+    DEVICE_PROTECTED_DISKS="$(printf '%s\n' "${disks[@]:-}" | sed '/^$/d' | sort -u | tr '\n' ' ')"
+    printf '%s' "$DEVICE_PROTECTED_DISKS"
+}
+
+# Append USB-attached storage to the device list as rows that are VISIBLE but
+# cannot be selected. P1 ships visibility and the safety property only; erasure
+# support is P2 in research/usb-target-erase/README.md.
+device::usb_candidates() {
+    local block_dir="${1:-${SYS_BLOCK_DIR:-/sys/block}}"
+    local path dev bytes prot rot
+    local protected=" $(device::protected_disks) "
+    local -a found=()
+
+    for path in "$block_dir"/*; do
+        dev="${path##*/}"
+        [[ "$dev" =~ ^(loop|ram|dm-) ]] && continue
+        [[ "$dev" =~ ^sr[0-9]+$ ]] && continue
+        [[ "$dev" =~ ^(sd[a-z]+|nvme[0-9]+(c[0-9]+)?n[0-9]+)$ ]] || continue
+        device::is_usb_attached "$dev" "$block_dir" || continue
+        found+=("$dev")
+    done
+
+    [[ ${#found[@]} -gt 0 ]] || return 0
+
+    for dev in "${found[@]}"; do
+        # A zero-capacity node is a card reader with no card, or a stale cache
+        # left by the last one. Never offered, and not silently dropped either:
+        # "no reader detected" and "reader present, no card" are different
+        # faults, and a bench operator needs to know which they have.
+        bytes="$(blockdev --getsize64 "/dev/$dev" 2>/dev/null || echo 0)"
+        if ! [[ "$bytes" =~ ^[0-9]+$ ]] || (( bytes <= 0 )); then
+            DISCOVERY_NOTICE="${DISCOVERY_NOTICE:+$DISCOVERY_NOTICE; }USB media absent on $dev (no readable capacity)"
+            continue
+        fi
+
+        if [[ "$protected" == *" $dev "* ]]; then
+            prot="boot medium (holds the running appliance)"
+        elif [[ "${DEVICE_PROTECT_UNRESOLVED:-0}" -eq 1 ]]; then
+            prot="protected (boot medium could not be identified)"
+        else
+            prot="USB target (erasure not supported yet)"
+        fi
+        DISCOVERY_NOTICE="${DISCOVERY_NOTICE:+$DISCOVERY_NOTICE; }$dev: $prot"
+
+        devices+=("$dev")
+        bus[$dev]="USB"
+        rot="$(cat "$block_dir/$dev/queue/rotational" 2>/dev/null || echo 1)"
+        [[ "$rot" == "0" ]] && type[$dev]="SSD" || type[$dev]="HDD"
+        model[$dev]="$(cat "$block_dir/$dev/device/model" 2>/dev/null | xargs 2>/dev/null || true)"
+        serial[$dev]="$(cat "$block_dir/$dev/device/serial" 2>/dev/null | xargs 2>/dev/null || true)"
+        device::identity_fallback "$dev" "$block_dir"
+        size[$dev]=$(( bytes / 1000000000 ))" GB"
+        sectors[$dev]=$(( bytes / 512 ))
+        secsize[$dev]=""
+        opal_locked[$dev]="NA"
+        firmware[$dev]=""
+        hpa[$dev]="N/A"
+        dco[$dev]="N/A"
+        raid[$dev]=""
+        devrow["$dev.selectable"]=0
+        devrow["$dev.protect"]="$prot"
+        devrow["$dev.class"]="—"
+        devrow["$dev.method"]="$prot"
+        devrow["$dev.status"]="PROTECTED"
+        devrow["$dev.smart"]="-"
+        devrow["$dev.temp"]=""
+        devrow["$dev.selected"]=0
+    done
+}
+
 device::discover() {
     devices=()
     NO_SUPPORTED_DRIVES=0
@@ -100,7 +251,7 @@ device::discover() {
         if [[ "$dev" =~ ^nvme[0-9]+(c[0-9]+)?n[0-9]+$ ]]; then
             # Exclude USB-attached NVMe (a USB bridge hides the true drive).
             # Thunderbolt is PCIe-attached and intentionally NOT excluded.
-            if realpath "$block_dir/$dev/device" 2>/dev/null | grep -q '/usb'; then
+            if device::is_usb_attached "$dev" "$block_dir"; then
                 continue
             fi
             devices+=("$dev")
@@ -150,7 +301,7 @@ device::discover() {
         # --- SATA/SCSI DISCOVERY ---
         elif [[ "$dev" =~ ^sd[a-z]+$ ]]; then
             # Accept any non-USB block device (SATA, SCSI, SAS) — hdparm determines capability
-            if ! realpath "$block_dir/$dev/device" | grep -q '/usb'; then
+            if ! device::is_usb_attached "$dev" "$block_dir"; then
                 devices+=("$dev")
                 
                 # Check for rotation (HDD vs SSD)
@@ -244,6 +395,15 @@ device::discover() {
         fi
 
         device::raid_detect "$dev"
+    done
+
+    # USB targets are listed but NOT selectable (plan phase P1): this ships the
+    # visibility and the safety property with no erase capability behind it.
+    device::usb_candidates "$block_dir"
+
+    # Native drives are selectable; USB rows set their own flag to 0.
+    for dev in "${devices[@]}"; do
+        [[ -n "${devrow[$dev.selectable]:-}" ]] || devrow["$dev.selectable"]=1
     done
 
     # Return control to the caller so the UI can still render system information.

@@ -32,7 +32,9 @@ t::assert_contains "$(select::chosen)" "nvme0n1" "select: chosen has nvme0n1"
 t::assert_contains "$(select::chosen)" "sda" "select: chosen has sda"
 
 # --- SKIPPED is terminal and normalised honestly ---
-for dev in "${devices[@]}"; do devrow["$dev.selected"]=1; done
+# select::all, not a raw loop: protected rows (a USB stick) must stay out of the
+# job, and writing devrow directly would bypass exactly the guard under test.
+select::all
 devrow[sda.status]="SKIPPED"
 devrow[nvme0n1.status]="COMPLETED"
 t::check "select: SKIPPED is terminal" 'ui::all_drives_terminal'

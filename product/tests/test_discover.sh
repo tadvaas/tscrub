@@ -9,10 +9,16 @@ export FAKE_USB_DEVICES="sdb"
 
 device::discover
 
-t::check "discover found 2 devices (nvme0n1, sda)" '(( ${#devices[@]} == 2 ))'
+t::check "discover found 3 rows (nvme0n1, sda, usb sdb)" '(( ${#devices[@]} == 3 ))'
 t::check "nvme0n1 present" '[[ "${devices[*]}" == *"nvme0n1"* ]]'
 t::check "sda present" '[[ "${devices[*]}" == *"sda"* ]]'
-t::check "sdb (usb) excluded" '[[ "${devices[*]}" != *"sdb"* ]]'
+# USB is no longer silently dropped: it is LISTED so the operator can see it,
+# and made unselectable so it cannot be erased. The exclusion that used to live
+# here is now the selectable flag — see test_usb_protect.sh.
+t::check "sdb (usb) is listed" '[[ "${devices[*]}" == *"sdb"* ]]'
+t::assert_eq "USB" "${bus[sdb]:-}" "the usb row says BUS=USB"
+t::assert_eq "0" "${devrow[sdb.selectable]:-missing}" "the usb row cannot be selected"
+t::assert_eq "1" "${devrow[sda.selectable]:-missing}" "a native row can be selected"
 t::assert_eq "NVMe" "${bus[nvme0n1]}" "nvme bus"
 t::assert_eq "SSD" "${type[nvme0n1]}" "nvme type"
 t::assert_eq "SN-NVME-1" "${serial[nvme0n1]}" "nvme serial"

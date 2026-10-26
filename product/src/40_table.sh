@@ -151,12 +151,16 @@ table::row_text() {
             MODEL)
                 val="${devrow[$dev.model]}"
                 if [[ "${SELECT_MODE:-0}" -eq 1 ]]; then
-                    if [[ "$dev" == "${SELECT_CURSOR:-}" ]]; then
-                        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] && val=">[x] $val" || val=">[ ] $val"
+                    local _gutter="[ ]"
+                    if [[ "${devrow[$dev.selectable]:-1}" -eq 0 ]]; then
+                        _gutter="[-]"
                     elif [[ "${devrow[$dev.selected]:-0}" -eq 1 ]]; then
-                        val=" [x] $val"
+                        _gutter="[x]"
+                    fi
+                    if [[ "$dev" == "${SELECT_CURSOR:-}" ]]; then
+                        val=">$_gutter $val"
                     else
-                        val=" [ ] $val"
+                        val=" $_gutter $val"
                     fi
                 fi
                 ;;
@@ -247,6 +251,11 @@ table::build() {
         devrow["$dev.type"]="${type[$dev]}"
         devrow["$dev.capability"]="$cap"
         devrow["$dev.status"]="PLANNED"
+        if [[ "${devrow[$dev.selectable]:-1}" -eq 0 ]]; then
+            # Listed so its absence is explainable, never queued for erasure.
+            devrow["$dev.status"]="PROTECTED"
+            devrow["$dev.method"]="${devrow[$dev.protect]:-unavailable}"
+        fi
         devrow["$dev.eta_mins"]=""
         devrow["$dev.eta_sec"]=""
         devrow["$dev.wipe_start"]=""
@@ -1005,6 +1014,10 @@ ui::loop() {
 ui::all_drives_terminal() {
     local dev
     for dev in "${devices[@]}"; do
+        # A protected row is not part of any job (it can never be selected), so
+        # it must not hold the finish screen open. Without this, simply having a
+        # USB stick plugged in would stop the run from ever completing.
+        [[ "${devrow[$dev.selectable]:-1}" -eq 1 ]] || continue
         case "${devrow[$dev.status]}" in
             COMPLETED|FAILED|FROZEN|BLOCKED|STALLED|DRY-RUN|SKIPPED) ;;
             *) return 1 ;;
@@ -1037,6 +1050,9 @@ select::chosen() {
 
 select::toggle() {
     local dev="$1"
+    # A protected row (the boot medium, or a USB target before P2) can never be
+    # selected — not by space, not by 'A'. This is the invariant, not a hint.
+    [[ "${devrow[$dev.selectable]:-1}" -eq 1 ]] || return 0
     if [[ "${devrow[$dev.selected]:-0}" -eq 1 ]]; then
         devrow["$dev.selected"]=0
     else
@@ -1046,7 +1062,10 @@ select::toggle() {
 
 select::all() {
     local dev
-    for dev in "${devices[@]}"; do devrow["$dev.selected"]=1; done
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selectable]:-1}" -eq 1 ]] || continue
+        devrow["$dev.selected"]=1
+    done
 }
 
 select::none() {

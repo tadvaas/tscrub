@@ -461,6 +461,8 @@ with the release that carried them (per `CHANGELOG.md`).
       `--retire-boot-media` **deferred** — a mode that destroys its own root can
       only be tested on sacrificial hardware and a bug in the ordering loses the
       report.
+      → **P1 shipped 2026-10-26** (unreleased): protected-disk set + USB rows
+      visible but unselectable; suite 1235 checks. P2 (actual erase) not started.
 - [x] **Factory reset for devices tScrub cannot boot** — switches, routers, IP phones
       and phones reset by the operator with their own facilities and put back into
       service. Recorded through the existing attested path (same modal, same

@@ -15,11 +15,12 @@ export FAKE_HDPARM_MODE=enhanced
 
 # --- snapshot mirrors discovery filters -------------------------------------
 device::discover
-t::check "baseline discovers nvme0n1 + sda" '(( ${#devices[@]} == 2 ))'
+t::check "baseline discovers nvme0n1 + sda + usb sdb" '(( ${#devices[@]} == 3 ))'
+# USB is a listed row now, so a stick arriving or leaving IS a hot-plug event.
 hotplug::baseline
 t::check "snapshot contains nvme0n1" 'grep -qx nvme0n1 <<<"$HOTPLUG_SNAPSHOT"'
-t::check "snapshot excludes loop/sr/usb" \
-    '[[ "$HOTPLUG_SNAPSHOT" != *"loop0"* && "$HOTPLUG_SNAPSHOT" != *"sr0"* && "$HOTPLUG_SNAPSHOT" != *"sdb"* ]]'
+t::check "snapshot excludes loop/sr" \
+    '[[ "$HOTPLUG_SNAPSHOT" != *"loop0"* && "$HOTPLUG_SNAPSHOT" != *"sr0"* ]]'
 
 # --- unchanged -> poll returns 1 --------------------------------------------
 t::check "poll returns 1 when unchanged" '! hotplug::poll'
