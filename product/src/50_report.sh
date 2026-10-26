@@ -45,16 +45,31 @@ report::journal() {  # <EVENT> <text...>
 
 # Point the journal at the report destination and open this run.
 report::journal_open() {
-    local dir dev n=0
+    local dir dev n=0 durable=0
     dir="${REPORT_DIR%/}/reports"
     [[ -n "${COCID:-}" ]] && dir="$dir/$COCID"
-    mkdir -p "$dir" 2>/dev/null || dir="${REPORT_DIR:-/}"
+    # The destination can refuse writes: a dying stick answers EIO on every
+    # block ("FAT-fs: Directory bread failed"), and a read-only volume refuses
+    # the directory outright. Writing NOTHING is the worst outcome — a journal
+    # in RAM still records what happened while the machine is up — so fall back
+    # and say what the record is worth.
+    if ! mkdir -p "$dir" 2>/dev/null || [[ ! -w "$dir" ]]; then
+        dir="${REPORT_JOURNAL_FALLBACK:-/reports}"
+        [[ -n "${COCID:-}" ]] && dir="$dir/$COCID"
+        if ! mkdir -p "$dir" 2>/dev/null || [[ ! -w "$dir" ]]; then
+            dir="/tmp"
+        fi
+    fi
     REPORT_JOURNAL="${dir%/}/run-journal.txt"
     export REPORT_JOURNAL
+    # Durable = it landed on the mounted USB volume rather than in RAM.
+    if [[ -n "${REPORT_USB_MNT:-}" && "$REPORT_JOURNAL" == "${REPORT_USB_MNT%/}"/* ]]; then
+        durable=1
+    fi
     report::journal RUN "started ${SCRIPT_VERSION:-?} cocid=${COCID:-none} operator=${OPERATOR_NAME:-none}"
     report::journal HOST "serial=${SYS_SERIAL:-N/A} uuid=${SYS_UUID:-N/A} destination=$(report::_where)"
-    if [[ -z "${REPORT_USB_MNT:-}" && "${REPORT_DIR:-/}" == "/" ]]; then
-        report::journal WARN "no writable persistent volume — this journal will NOT survive a power cut"
+    if [[ "$durable" -eq 0 ]]; then
+        report::journal WARN "journal is in RAM — it will NOT survive a power cut"
     fi
     for dev in "${devices[@]}"; do
         [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue

@@ -96,6 +96,25 @@ exec 3>&-
 RUN_ACTIVE=0
 
 rm -rf "$tmpdir"
+# --- a dead destination must still leave a journal --------------------------
+# Bench case: the ESD-USB stick tScrub had mounted answered EIO on every block
+# ("FAT-fs: Directory bread failed"), so mkdir failed and the old code silently
+# wrote the journal into the same broken volume — this run left NOTHING. A journal
+# in RAM still records what happened while the machine is up.
+ro="$tmpdir/ro"
+mkdir -p "$ro"
+chmod 555 "$ro"
+REPORT_DIR="$ro/"
+REPORT_USB_MNT=""
+REPORT_JOURNAL_FALLBACK="$tmpdir/ram"
+report::journal_open
+t::check "an unwritable destination falls back to a writable one" '[[ -f "$REPORT_JOURNAL" ]]'
+t::check "and the fallback journal names the run" 'grep -q "RUN .*started" "$REPORT_JOURNAL"'
+t::check "and says the record is not durable" 'grep -q "NOT survive a power cut" "$REPORT_JOURNAL"'
+chmod 755 "$ro"
+REPORT_DIR="$tmpdir/"
+unset REPORT_JOURNAL_FALLBACK
+
 # --- the session exit path ------------------------------------------------
 # session::on_exit is what every EXIT trap calls. On the bench the abort record
 # was silently lost because fn_main armed its own cursor/teardown trap, which
