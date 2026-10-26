@@ -445,6 +445,22 @@ with the release that carried them (per `CHANGELOG.md`).
       ChromeOS GBB/VPD enrolment flags. (§9.1)
 - [ ] Broader media coverage — USB/SD targets and RAID/FC/iSCSI volumes (the
       long tail beyond eMMC). (§6)
+      → **USB plan written 2026-10-26**: `research/usb-target-erase/README.md`.
+      The hard part is not discovery, it is that the appliance is often *running
+      from* a USB stick: root, the licence and the report destination can be the
+      same stick we are asked to erase, and erasing it destroys the only artefact
+      the customer bought. Plan derives a **protected set of whole disks** at
+      runtime (root's backing device, `LICENSE_USB_DEV`, any volume holding
+      `boot/version.txt`, everything in `/proc/mounts`, `root=`/`live-media=`),
+      resolves partition→disk with `PKNAME`, and protects the whole parent disk —
+      necessary because a dd'd hybrid ISO keeps its read-only ISO9660 volume and
+      its writable `TSCRUB-USB` partition on **different devices of the same
+      disk**. Phased: **P1 lists USB rows but does not allow selecting them**
+      (safety property proven first, zero risk), P2 adds nwipe/SAT erase, P3
+      reviews claim wording (USB stays out of scope for G5/IEEE), P4 optional
+      `--retire-boot-media` **deferred** — a mode that destroys its own root can
+      only be tested on sacrificial hardware and a bug in the ordering loses the
+      report.
 - [x] **Factory reset for devices tScrub cannot boot** — switches, routers, IP phones
       and phones reset by the operator with their own facilities and put back into
       service. Recorded through the existing attested path (same modal, same
