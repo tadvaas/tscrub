@@ -84,6 +84,32 @@ and this project uses date-based versioning (`v1.x`).
   mutation-tested — re-adding `hidden` to the switch slot, dropping the pager's `min-w` or
   removing the overlay's `absolute` each fail it.
 
+## [v1.11.81] - 2026-10-26
+
+### Fixed
+
+- **A run that was killed left no record at all — the abort hook was being
+  silently replaced.** v1.11.80 added an `EXIT` trap that writes an `ABORTED`
+  entry to the run journal, but `fn_main` arms its own `EXIT` trap for the
+  cursor and session teardown, and a non-interactive shell keeps only the
+  **last** one. Nothing warns you: the bench run killed with `SIGTERM` at 35%
+  left the journal untouched, which is precisely the defect the journal was
+  added to fix. Both traps now call a single `session::on_exit`, so whichever is
+  active the behaviour is identical, and a test asserts that no other
+  `trap … EXIT` exists anywhere in `src/` so a future trap cannot quietly
+  disable the record (mutation-checked: restoring the old trap fails it).
+  Verified on the bench with the rebuilt script: `SIGTERM` during a run now
+  writes `ABORTED exit=143`, each drive with its state, and a part-erased
+  warning.
+- **The dashboard under-reported progress as soon as a drive failed.**
+  `STALLED` was missing from the progress aggregator's "finished" list, so a
+  wedged drive was counted as a *still running* drive at its last percentage
+  (usually 0). With one good USB stick at 23% the dashboard read 12% while
+  `status::drive_terminal` was simultaneously reporting `drives_failed=1` for
+  the same run. `STALLED` now counts as finished, matching the counts surface.
+- The run journal no longer emits a double slash in its report path when the
+  destination is `/`.
+
 ## [v1.11.80] - 2026-10-26
 
 Released artefacts: ISO `tscrub-v1.11.80_2025.11_30_x86-64_v0.41_20261026-fb4563af.iso`
