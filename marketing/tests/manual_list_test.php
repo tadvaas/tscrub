@@ -360,6 +360,47 @@ try {
     t_check('an unknown column falls back to the default order instead of erroring',
         count(load_drives($userId, ['page' => 1, 'per' => 5, 'sort' => 'nonsense'])['drives'] ?? []) > 0);
 
+    // --- the source switch ---------------------------------------------------
+    // The Devices and Media tabs share a three-way switch: everything, only what the
+    // appliance erased, or only what an operator attested. It has to narrow the total as
+    // well as the rows, or the pager and the fleet cards contradict what is on screen — and
+    // it must never mix the two classes, because they are never mixed on the certificate.
+    t_check('the source value is normalised, so a typo cannot hide rows',
+        list_source('verified') === 'verified' && list_source('ATTESTED') === 'attested'
+        && list_source('') === 'all' && list_source('nope') === 'all');
+
+    $mAll = load_drives($userId, ['page' => 1, 'per' => 100, 'source' => 'all']);
+    $mVer = load_drives($userId, ['page' => 1, 'per' => 100, 'source' => 'verified']);
+    $mAtt = load_drives($userId, ['page' => 1, 'per' => 100, 'source' => 'attested']);
+    t_check('the media switch splits the list without losing a row',
+        $mVer['total'] + $mAtt['total'] === $mAll['total']);
+    t_check('media source=verified returns no attestations',
+        count(array_filter($mVer['drives'], static fn($d) => !empty($d['attested']))) === 0);
+    t_check('media source=attested returns only attestations',
+        count($mAtt['drives']) > 0
+        && count(array_filter($mAtt['drives'], static fn($d) => !empty($d['attested']))) === count($mAtt['drives']));
+    t_check('an unknown media source falls back to everything',
+        load_drives($userId, ['page' => 1, 'per' => 100, 'source' => 'bogus'])['total'] === $mAll['total']);
+    // The two media paths must agree: the fast key-first path (no search, no sort) and the
+    // full-decode path (sorted) are separate code, and only one of them was easy to forget.
+    t_check('the fast and sorted media paths agree on the filtered total',
+        load_drives($userId, ['page' => 1, 'per' => 100, 'source' => 'attested'])['total']
+        === load_drives($userId, ['page' => 1, 'per' => 100, 'sort' => 'date', 'dir' => 'desc', 'source' => 'attested'])['total']);
+
+    $dAll = load_devices($userId, ['page' => 1, 'per' => 100, 'source' => 'all']);
+    $dVer = load_devices($userId, ['page' => 1, 'per' => 100, 'source' => 'verified']);
+    $dAtt = load_devices($userId, ['page' => 1, 'per' => 100, 'source' => 'attested']);
+    t_check('the devices switch splits the list without losing a row',
+        $dVer['total'] + $dAtt['total'] === $dAll['total']);
+    t_check('devices source=verified returns no attestations',
+        count(array_filter($dVer['devices'], static fn($d) => !empty($d['attested']))) === 0);
+    t_check('devices source=attested returns only attestations',
+        count($dAtt['devices']) > 0
+        && count(array_filter($dAtt['devices'], static fn($d) => !empty($d['attested']))) === count($dAtt['devices']));
+    t_check('the devices summary narrows with the switch, so the cards match the rows',
+        (int)($dAtt['summary']['total'] ?? -1) === (int)$dAtt['total']
+        && (int)($dAtt['summary']['attested'] ?? -1) === (int)$dAtt['attested_total']);
+
     // --- deleting removes both the unit and its media -------------------------
     $devRowId = (int)$found['attested_id'];
     $removed = manual_attested_delete($certId, $devRowId, true);

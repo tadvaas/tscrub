@@ -1752,8 +1752,11 @@ if ($method === 'GET' && $route === '/devices') {
     // Normalised (and passed through load_devices()'s own normaliser) so 'asc', ±1 and a
     // missing value cannot be read three different ways.
     $dir = query_dir($_GET['dir'] ?? '');
+    // all | verified | attested — the three-way switch on the tab.
+    $source = list_source($_GET['source'] ?? '');
 
-    $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per, 'sort' => $sort, 'dir' => $dir]);
+    $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per,
+        'sort' => $sort, 'dir' => $dir, 'source' => $source]);
 
     json_out([
         'ok'      => true,
@@ -1769,6 +1772,7 @@ if ($method === 'GET' && $route === '/devices') {
         'summary' => is_array($res['summary'] ?? null) ? $res['summary'] : null,
         'page'    => $page,
         'per'     => $per,
+        'source'  => $source,
         'version' => devices_list_version((int)$u['id']),
     ]);
 }
@@ -1926,9 +1930,11 @@ if ($method === 'GET' && $route === '/drives') {
     // page that has never been sorted keeps the order it has always had.
     $sort = trim((string)($_GET['sort'] ?? ''));
     $dir = query_dir($_GET['dir'] ?? '');
+    // all | verified | attested — the three-way switch on the tab.
+    $source = list_source($_GET['source'] ?? '');
 
     $res = load_drives((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per,
-        'sort' => $sort, 'dir' => $dir]);
+        'sort' => $sort, 'dir' => $dir, 'source' => $source]);
 
     json_out([
         'ok'     => true,
@@ -1940,6 +1946,7 @@ if ($method === 'GET' && $route === '/drives') {
         'per'    => $per,
         'sort'   => $sort,
         'dir'    => $dir > 0 ? 'asc' : 'desc',
+        'source' => $source,
     ]);
 }
 

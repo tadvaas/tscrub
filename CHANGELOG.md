@@ -6,6 +6,28 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Added
+
+- **A three-way record-source switch on the Devices and Media tabs.** Subtle segmented
+  control beside the search box: **All · tScrub · Attested**, each with a tooltip saying what
+  it means. "tScrub" is what the appliance erased and reported on itself (instrument
+  verified); "Attested" is what an operator recorded by hand, which is never
+  instrument-verified — the same distinction the certificate, `/verify` and the JSON-LD twin
+  keep apart, now available as a view.
+
+  It filters **server-side** (`GET /api/devices?source=` and `GET /api/drives?source=`, values
+  `all` / `verified` / `attested`), so `total`, the pager and the Devices fleet cards all
+  narrow with the rows instead of contradicting them — a filtered page cannot say "24 total"
+  under a card reading "200". Applied before the sort and the page slice, so page boundaries
+  follow the filter, and an unrecognised value means `all`, so a stale bookmark or a typo
+  cannot hide records.
+
+  On Media the attested-only filter skips the payload decode entirely — an attested row has
+  no report to decode — and the "— N attested" pager suffix is dropped while a filter is
+  active, since it would only repeat the total.
+
 ## [v1.11.78] - 2026-10-22
 
 ### Fixed

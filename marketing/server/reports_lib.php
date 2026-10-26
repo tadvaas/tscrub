@@ -2636,6 +2636,23 @@ function media_sort_value(array $d, string $sort)
 }
 
 /**
+ * Normalise the record-source filter: which class of row a list should show.
+ *
+ *   all      both kinds (the default — nothing is hidden unless asked for)
+ *   verified only what the appliance erased and reported on itself
+ *   attested only what an operator recorded by hand, which is never instrument-verified
+ *
+ * The two are always kept apart on the certificate, on /verify and in the JSON-LD twin, so a
+ * single switch that narrows either list to one of them is the same distinction in the UI.
+ * Anything unrecognised means `all`, so a typo or a stale bookmark cannot hide rows.
+ */
+function list_source($value): string
+{
+    $v = strtolower(trim((string)$value));
+    return ($v === 'verified' || $v === 'attested') ? $v : 'all';
+}
+
+/**
  * Sort media rows by a chosen column, then by identity — never by anything a heartbeat or
  * another writer can change. Same rule and same reason as device_sort_keys(): a volatile
  * tie-break reorders the table underneath the reader.
@@ -2749,6 +2766,7 @@ function load_devices(int $userId, ?array $query = null): array {
         $per = min(100, max(1, (int)($query['per'] ?? 10)));
         $sort = (string)($query['sort'] ?? 'status');
         $dir = query_dir($query['dir'] ?? '');
+        $source = list_source($query['source'] ?? '');
 
         $cand = devices_candidates($ids, $ph, $userId);
         $presence = presence_map($userId);
@@ -2782,6 +2800,18 @@ function load_devices(int $userId, ?array $query = null): array {
                 if (strpos(strtolower((string)($d['_cocids'] ?? '')), $needle) !== false) return true;
                 return false;
             }));
+        }
+
+        // The source switch: 'all' shows both classes, 'verified' only what the appliance
+        // erased, 'attested' only what an operator recorded. Applied before the sort and the
+        // page slice, so `total`, `attested_total` and the fleet summary all describe what is
+        // actually being shown rather than the whole account.
+        if ($source !== 'all') {
+            $wantAttested = ($source === 'attested');
+            $list = array_values(array_filter(
+                $list,
+                static fn($d) => !empty($d['attested']) === $wantAttested
+            ));
         }
 
         $mdmRank = function (array $d): int {
@@ -3273,6 +3303,7 @@ function load_drives(int $userId, ?array $query = null): array {
     $per = min(100, max(1, (int)($query['per'] ?? 10)));
     $sort = (string)($query['sort'] ?? '');
     $dir  = query_dir($query['dir'] ?? '');
+    $source = list_source($query['source'] ?? '');
 
     // Fast path: no search and no chosen column → paginate over the small
     // `drive_serials` cache without decoding every erasure payload. A chosen sort cannot
@@ -3280,7 +3311,7 @@ function load_drives(int $userId, ?array $query = null): array {
     // payload that cache does not carry — so a sorted request uses the full path and sorts
     // before it slices, which is what makes the page boundaries follow the sort.
     if ($query !== null && $q === '' && $sort === '') {
-        return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId));
+        return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source);
     }
 
     $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
@@ -3349,6 +3380,15 @@ function load_drives(int $userId, ?array $query = null): array {
     $attested = manual_list_drives($userId);
     $out = array_merge($attested, $out);
 
+    // The source switch, before anything counts or slices: see load_devices().
+    if ($source !== 'all') {
+        $wantAttested = ($source === 'attested');
+        $out = array_values(array_filter(
+            $out,
+            static fn($d) => !empty($d['attested']) === $wantAttested
+        ));
+    }
+
     // The Submitted column's value, for every row, before anything sorts on it.
     $out = media_with_datetime($out);
 
@@ -3386,7 +3426,7 @@ function load_drives(int $userId, ?array $query = null): array {
  * `drive_serials` cache (no full-payload decode), then fetch payloads only for
  * the reports those drives appear in.
  */
-function drives_paged(array $ids, string $ph, int $page, int $per, array $attested = []): array {
+function drives_paged(array $ids, string $ph, int $page, int $per, array $attested = [], string $source = 'all'): array {
     $stmt = db()->prepare("SELECT id, uploaded_at, drive_serials FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($ids);
     $newest = [];
@@ -3423,7 +3463,16 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
         $k = (string)($a['_key'] ?? '');
         if ($k !== '' && !isset($attByKey[$k])) { $attByKey[$k] = $a; }
     }
-    $serials = array_merge(array_keys($attByKey), $serials);
+    // The source switch. 'attested' needs no payload fetch at all — an attested row has no
+    // report — and 'verified' simply leaves the attested keys out of the merge.
+    if ($source === 'attested') {
+        $serials = array_keys($attByKey);
+        $reportSerials = [];
+    } elseif ($source === 'verified') {
+        $attByKey = [];
+    } else {
+        $serials = array_merge(array_keys($attByKey), $serials);
+    }
 
     $total = count($serials);
     $pageSerials = array_slice($serials, ($page - 1) * $per, $per);
