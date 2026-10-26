@@ -13,6 +13,10 @@ REPORT_JOURNAL=""
 # 1 between "this run started erasing" and "the report (or refusal) is on
 # disk", so the EXIT trap knows a run needs an abort record.
 RUN_ACTIVE=0
+# 1 = never take a USB volume as the report destination (keeps the only
+# formatted stick on a bench ERASABLE). Set by --no-report-usb or
+# tscrub_report_usb=0.
+REPORT_NO_USB=0
 LICENSE_USB_DEV=""
 REPORT_OUTPUT=""
 TABLE_INDENT="    "
@@ -1096,6 +1100,18 @@ parse_args() {
                 [[ $# -gt 0 ]] || { echo "--output requires a path"; exit 1; }
                 REPORT_OUTPUT="$1"
                 ;;
+            --no-report-usb)
+                REPORT_NO_USB=1
+                ;;
+            --report-usb)
+                REPORT_NO_USB=0
+                ;;
+            --no-report-usb=*|--report-usb=*)
+                case "${arg#*=}" in
+                    0|no|off|false) REPORT_NO_USB=1 ;;
+                    *)              REPORT_NO_USB=0 ;;
+                esac
+                ;;
             --cocid=*)
                 COCID="${arg#*=}"
                 ;;
@@ -1203,7 +1219,7 @@ parse_args() {
                 esac
                 ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--no-report-usb] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
@@ -1212,6 +1228,7 @@ parse_args() {
                 echo "  --license PATH       Read the licence from PATH (default: boot USB, then /etc/tscrub/license.lic)."
                 echo "  --license-url URL    Fetch the licence from URL (e.g. http://192.168.1.10/license.lic)."
                 echo "  --output DIR         Write reports to DIR (default: boot USB, then /)."
+                echo "  --no-report-usb      Never use a USB volume for reports (keeps the stick erasable)."
                 echo "  --cocid 12345        Set the Chain of Custody ID (no longer implies autonuke)."
                 echo "  --autonuke           Select every drive and start erasure without the triage screen."
                 echo "  --operator NAME      Record the erasure technician on the report."

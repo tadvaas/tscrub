@@ -70,8 +70,47 @@ t::check "the native disk is still listed"      '[[ " ${devices[*]} " == *" sda 
 t::assert_eq "USB" "${bus[sdb]:-}"        "the USB row says BUS=USB"
 t::assert_eq "0" "${devrow[sdb.selectable]:-missing}" "the USB row is NOT selectable"
 t::assert_eq "1" "${devrow[sda.selectable]:-missing}" "the native row IS selectable"
-t::check "the reason names the boot medium" '[[ "${devrow[sdb.protect]:-}" == *"boot medium"* ]]'
+t::check "the reason describes the mounted volume" '[[ "${devrow[sdb.protect]:-}" == *"mounted volume"* ]]'
 t::check "the notice explains the row"      '[[ "$DISCOVERY_NOTICE" == *"sdb"* ]]'
+
+echo
+echo "== 6b. the reason says WHICH rule applied =="
+# "You cannot erase this" is useless without the reason, and the bench showed
+# why: a stick tScrub had mounted for its own report was described as the BOOT
+# MEDIUM, which is a different disk and a different decision.
+mounts "/dev/sda2 / ext4 rw 0 0" "/dev/sdb1 /mnt/stick vfat rw 0 0"
+: > "$CMDLINE_FILE"
+LICENSE_USB_DEV=""
+REPORT_USB_MNT=""
+device::protected_disks >/dev/null
+t::assert_eq "has a mounted volume" "${DEVICE_PROTECT_REASON[sdb]:-}" \
+    "an ordinary mounted volume is described as such"
+t::check "a mounted data stick is NOT called a boot medium" \
+    '[[ "${DEVICE_PROTECT_REASON[sdb]:-}" != *"boot medium"* ]]'
+
+# The volume tScrub mounted itself for the report: tScrub's own choice, and the
+# operator needs to know that is why the row is refused.
+REPORT_USB_MNT="/mnt/stick"
+device::protected_disks >/dev/null
+t::check "the report volume says it is the report volume" \
+    '[[ "${DEVICE_PROTECT_REASON[sdb]:-}" == *"writing this run"* ]]'
+
+# The licence volume.
+REPORT_USB_MNT=""
+LICENSE_USB_DEV="/dev/sdb1"
+device::protected_disks >/dev/null
+t::check "the licence volume says it holds the licence" \
+    '[[ "${DEVICE_PROTECT_REASON[sdb]:-}" == *"licence"* ]]'
+LICENSE_USB_DEV=""
+
+# The boot medium outranks everything else about the same disk.
+printf 'root=/dev/sdb2 console=tty3\n' > "$CMDLINE_FILE"
+REPORT_USB_MNT="/mnt/stick"
+device::protected_disks >/dev/null
+t::check "the boot medium wins over a report mount" \
+    '[[ "${DEVICE_PROTECT_REASON[sdb]:-}" == *"boot medium"* ]]'
+: > "$CMDLINE_FILE"
+REPORT_USB_MNT=""
 
 echo
 echo "== 7. selection cannot reach it =="

@@ -132,43 +132,74 @@ device::is_network_boot() {
 # DEVICE_PROTECT_UNRESOLVED=1 is set and callers must refuse to offer any USB
 # target at all. Over-protecting is explainable; under-protecting loses the
 # appliance and the report with it.
+# WHY a disk is protected, keyed by disk. "You cannot erase this" is useless to
+# an operator without the reason: the stick tScrub booted from, the volume
+# holding the licence, and the volume tScrub itself mounted for its report are
+# three completely different answers, and only the first is about the appliance
+# running from it. Filled by device::protected_disks, read by
+# device::usb_candidates for the on-screen explanation.
+declare -gA DEVICE_PROTECT_REASON=()
+
+# Record that <source> (a partition node or a disk name) implies protecting its
+# whole disk, at a given priority. Highest priority wins, so a boot medium is
+# never described as merely "a mounted volume".
+device::_protect_note() {  # <source> <rank> <text>
+    local disk rank="$2"
+    disk="$(device::disk_of "$1")"
+    [[ -n "$disk" ]] || return 0
+    if [[ "${_PROT_RANK[$disk]:-0}" -lt "$rank" ]]; then
+        _PROT_RANK[$disk]="$rank"
+        DEVICE_PROTECT_REASON[$disk]="$3"
+    fi
+}
+
 device::protected_disks() {
-    local src mnt disk part label node dev
+    local src mnt part label node dev disk tok
     local block_dir="${SYS_BLOCK_DIR:-/sys/block}"
     local mounts="${PROC_MOUNTS_FILE:-/proc/mounts}"
     local cmdline="${CMDLINE_FILE:-/proc/cmdline}"
-    local -a sources=() disks=()
+    local -A _PROT_RANK=()
+    local -a disks=()
 
     DEVICE_PROTECT_UNRESOLVED=0
-    [[ -n "${LICENSE_USB_DEV:-}" ]] && sources+=("$LICENSE_USB_DEV")
+    DEVICE_PROTECT_REASON=()
 
+    # 1. The licence volume. It is the customer's own medium AND the volume the
+    #    report is written to, so it must survive the run it is documenting.
+    [[ -n "${LICENSE_USB_DEV:-}" ]] && \
+        device::_protect_note "$LICENSE_USB_DEV" 30 "holds the licence this run is using"
+
+    # 2. Anything with a mounted volume. tScrub cannot erase a disk it has
+    #    mounted — and the volume it mounted ITSELF for reports matters most to
+    #    name, because that is a choice tScrub made, not one the operator made.
     if [[ -r "$mounts" ]]; then
         while read -r src mnt _; do
-            [[ "$src" == /dev/* ]] && sources+=("$src")
-            if [[ -d "$mnt" && -f "$mnt/boot/version.txt" && "$src" != /dev/* ]]; then
+            if [[ "$src" == /dev/* ]]; then
+                if [[ -n "${REPORT_USB_MNT:-}" && "${mnt%/}" == "${REPORT_USB_MNT%/}" ]]; then
+                    device::_protect_note "$src" 20 "tScrub is writing this run's report here"
+                else
+                    device::_protect_note "$src" 10 "has a mounted volume"
+                fi
+            elif [[ -d "$mnt" && -f "$mnt/boot/version.txt" ]]; then
                 # A tScrub boot partition we cannot name: protect everything.
                 DEVICE_PROTECT_UNRESOLVED=1
             fi
         done < "$mounts"
     fi
 
+    # 3. The medium the kernel booted from.
     if [[ -r "$cmdline" ]]; then
-        local tok
         for tok in $(cat "$cmdline" 2>/dev/null); do
             case "$tok" in
-                root=/dev/*)       sources+=("${tok#root=}") ;;
-                live-media=/dev/*) sources+=("${tok#live-media=}") ;;
+                root=/dev/*)
+                    device::_protect_note "${tok#root=}" 40 "holds the running appliance (boot medium)" ;;
+                live-media=/dev/*)
+                    device::_protect_note "${tok#live-media=}" 40 "holds the running appliance (boot medium)" ;;
             esac
         done
     fi
 
-    for src in "${sources[@]}"; do
-        [[ -n "$src" ]] || continue
-        disk="$(device::disk_of "$src")"
-        [[ -n "$disk" ]] && disks+=("$disk")
-    done
-
-    # 5. The appliance's own labels, read from the media itself.
+    # 4. The appliance's own labels, read from the media itself.
     if command -v blkid >/dev/null 2>&1; then
         local -a nodes=()
         for node in "$block_dir"/*; do
@@ -182,15 +213,18 @@ device::protected_disks() {
             for part in "${nodes[@]}"; do
                 label="$(blkid -p -s LABEL -o value "/dev/$part" 2>/dev/null || true)"
                 case "$label" in
-                    TSCRUB|TSCRUB-USB) disks+=("$dev"); break ;;
+                    TSCRUB|TSCRUB-USB)
+                        device::_protect_note "$dev" 40 "tScrub media (label $label)"
+                        break ;;
                 esac
             done
         done
     fi
 
     # Fail closed when nothing at all named a local boot medium. A USB boot
-    # looks exactly like this (see 5 above), so silence must not read as "there
+    # looks exactly like this (see 4 above), so silence must not read as "there
     # is no boot disk here".
+    disks=("${!DEVICE_PROTECT_REASON[@]}")
     if [[ "${#disks[@]}" -eq 0 ]] && ! device::is_network_boot; then
         DEVICE_PROTECT_UNRESOLVED=1
     fi
@@ -231,7 +265,10 @@ device::usb_candidates() {
         fi
 
         if [[ "$protected" == *" $dev "* ]]; then
-            prot="boot medium (holds the running appliance)"
+            # Say WHY, not just that it is protected: "the stick tScrub booted
+            # from" and "the volume tScrub mounted for its report" are very
+            # different messages, and only the first is about the boot medium.
+            prot="${DEVICE_PROTECT_REASON[$dev]:-protected (holds a mounted volume)}"
         elif [[ "${DEVICE_PROTECT_UNRESOLVED:-0}" -eq 1 ]]; then
             prot="protected (boot medium could not be identified)"
         else

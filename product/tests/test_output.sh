@@ -56,6 +56,55 @@ t::check "mount_boot_usb never mounts a fixed disk" '! grep -q "/dev/sda1" "$MOU
 unset -f lsblk mount umount rmdir
 rm -rf "$USBROOT" "$MOUNT_LOG"
 
+# --- mount_boot_usb: an unidentified FAT stick is NOT claimed ----------------
+# A plain data stick must never become the report destination: tScrub would
+# write its report onto somebody's media AND, because a mounted volume protects
+# its whole disk, make that stick permanently un-erasable. That is exactly how
+# the bench ended up refusing to erase the only formatted stick it had.
+USBROOT2="$(mktemp -d)"
+FAKE_DATA="$USBROOT2/data"
+mkdir -p "$FAKE_DATA"
+lsblk() { printf 'sdb1 part 1 vfat\n'; }
+mount() {
+    local mnt="${@: -1}"
+    cp -a "$FAKE_DATA"/. "$mnt"/ 2>/dev/null || true
+    return 0
+}
+umount() { return 0; }
+rmdir()  { return 0; }
+LICENSE_USB_DEV=""
+REPORT_DIR="/tmp/sentinel/"
+REPORT_USB_MNT=""
+report::mount_boot_usb
+t::check "an unidentified FAT stick is never claimed" '[[ -z "$REPORT_USB_MNT" ]]'
+printf 'licence\n' > "$FAKE_DATA/usb-bench.lic"
+report::mount_boot_usb
+t::check "a stick carrying a licence IS claimed" '[[ -n "$REPORT_USB_MNT" ]]'
+REPORT_USB_MNT=""
+rm -f "$FAKE_DATA/usb-bench.lic"
+FAKE_BLKID_LABEL_sdb1="TSCRUB-USB" report::mount_boot_usb
+t::check "a stick with the appliance label IS claimed" '[[ -n "$REPORT_USB_MNT" ]]'
+REPORT_USB_MNT=""
+unset -f lsblk mount umount rmdir
+rm -rf "$USBROOT2"
+
+# --- detect_output: --no-report-usb keeps the only stick ERASABLE ------------
+# Without an escape hatch there is no way to wipe the single formatted stick on
+# a bench, because tScrub would mount it for reports and then protect it.
+REPORT_OUTPUT=""
+REPORT_NO_USB=1
+REPORT_DIR="/tmp/sentinel/"
+REPORT_USB_MNT=""
+lsblk() { printf 'sdb1 part 1 vfat\n'; }
+mount() { return 0; }
+report::detect_output 2>/dev/null
+MOUNTED=1
+report::detect_output 2>/dev/null
+t::check "opt-out keeps the report in RAM" '[[ "$REPORT_DIR" == "/" && -z "$REPORT_USB_MNT" ]]'
+t::assert_eq "fail" "${REPORT_USB_STATUS:-}" "opt-out records that the stick was not used"
+unset -f lsblk mount
+REPORT_NO_USB=0
+
 # --- upload_http: fake curl posts multipart + token, parses count ---
 FAKE_CURL_LOG="$(mktemp)"
 export FAKE_CURL_LOG

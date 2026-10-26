@@ -1027,6 +1027,13 @@ license::apply() {
 report::detect_output() {
     local param dir
 
+    # The PXE/bench equivalent of --no-report-usb.
+    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_report_usb=//p' | head -n 1)"
+    case "${param,,}" in
+        0|no|off|false) REPORT_NO_USB=1 ;;
+        1|yes|on|true)  REPORT_NO_USB=0 ;;
+    esac
+
     # Only fall back to the kernel command line when --output wasn't given.
     # tscrub_output= may also carry a network destination (ftp:/sftp:) — those
     # are handled by report::parse_output, not here.
@@ -1051,15 +1058,47 @@ report::detect_output() {
         printf "%s[!] Output path '%s' is not writable — falling back.\n" "$TABLE_INDENT" "$dir" >&5
     fi
 
+    # Explicit opt-out (-no-report-usb / tscrub_report_usb=0): keep the report in
+    # RAM so the only formatted stick on the bench stays ERASABLE. Without this
+    # there is no way to wipe the one stick whose FAT volume tScrub would
+    # otherwise mount for reports.
+    if [[ "${REPORT_NO_USB:-0}" -eq 1 ]]; then
+        printf "%s[!] USB report destination disabled — report stays in RAM (/).\n" "$TABLE_INDENT" >&5
+        REPORT_DIR="/"
+        REPORT_USB_STATUS="fail"
+        REPORT_USB_REASON="USB report destination disabled (report stays in RAM)"
+        return 0
+    fi
+
     if report::mount_boot_usb; then
         return 0
     fi
 
-    printf "%s[!] No writable USB partition found — report stays in RAM (/).\n" "$TABLE_INDENT" >&5
+    printf "%s[!] No tScrub volume found (boot marker, licence or TSCRUB label) — report stays in RAM (/).\n" "$TABLE_INDENT" >&5
     REPORT_DIR="/"
     REPORT_USB_STATUS="fail"
     REPORT_USB_REASON="no writable USB partition found (report stays in RAM)"
     return 0
+}
+
+# May this volume become tScrub's report destination?
+#
+# Only if it can be shown to belong to this appliance: it carries the boot
+# marker, holds a licence, or has the appliance's own label. Any other writable
+# FAT stick is somebody's storage, and claiming it does TWO harmful things: it
+# writes our report onto their media, and — because a mounted volume protects
+# its whole disk — it makes that stick permanently un-erasable. On a bench where
+# the target stick is the only formatted volume, tScrub would refuse to erase
+# the very drive it was asked to erase, and blame the boot medium for it.
+report::volume_is_tscrub() {  # <dev> <mnt>
+    local lbl
+    [[ -f "$2/boot/version.txt" ]] && return 0
+    find "$2" -maxdepth 1 -iname '*.lic' -print -quit 2>/dev/null | grep -q . && return 0
+    if command -v blkid >/dev/null 2>&1; then
+        lbl="$(blkid -p -s LABEL -o value "$1" 2>/dev/null || true)"
+        case "$lbl" in TSCRUB|TSCRUB-USB) return 0 ;; esac
+    fi
+    return 1
 }
 
 # Mount the appliance's writable USB partition and point REPORT_DIR at it.
@@ -1086,7 +1125,6 @@ report::mount_boot_usb() {
     # Removable volumes only (RM=1). lsblk reports the removable flag per
     # partition, so an internal NVMe/SATA EFI partition (RM=0) is excluded here.
     command -v lsblk >/dev/null 2>&1 || return 1
-
     list="$(mktemp /tmp/tscrub-fats.XXXXXX)"
     lsblk -rno NAME,TYPE,RM,FSTYPE 2>/dev/null \
         | awk '$2=="part" && $3=="1" && ($4=="vfat"||$4=="exfat") {print "/dev/"$1}' > "$list"
@@ -1101,7 +1139,7 @@ report::mount_boot_usb() {
         fi
 
         # The writable boot partition carries boot/version.txt (the EFI and
-        # ISO9660 volumes don't) — prefer it over any other removable FAT volume.
+        # ISO9660 volumes don't) — prefer it over any other tScrub volume.
         if [[ -f "$mnt/boot/version.txt" ]]; then
             REPORT_DIR="${mnt%/}/"
             REPORT_USB_MNT="${mnt%/}"
@@ -1111,6 +1149,14 @@ report::mount_boot_usb() {
             fi
             rm -f "$list"
             return 0
+        fi
+
+        # A second choice only when it is demonstrably ours (see
+        # report::volume_is_tscrub). Anything else is unmounted and left alone.
+        if ! report::volume_is_tscrub "$dev" "$mnt"; then
+            umount "$mnt" 2>/dev/null || true
+            rmdir "$mnt" 2>/dev/null || true
+            continue
         fi
 
         if [[ -z "$fallback" ]]; then
