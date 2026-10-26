@@ -151,6 +151,29 @@ out_captured="$(cat "$OUT")"
 t::assert_contains "$out_captured" "sda STATUS 8%" \
     "nwipe 08.00% is emitted as STATUS 8%"
 t::check "no zero-padded status reaches the IPC pipe" \
-    '! grep -Eq "STATUS 0[0-9]%" <<< "$out_captured"'
+    '! grep -Eq "STATUS 0[0-9]%" <<< "$out_captured"'echo
+echo "== a terminally failed drive counts as FINISHED, not as a stalled 0% =="
+# STALLED was missing from the aggregator's "finished" list, so the wedged
+# Intel 660p on the bench was counted as a RUNNING drive at its last percentage
+# (0%). With one good USB stick at 23% the dashboard read 12% while the stick
+# was visibly a quarter done. status::drive_terminal already counts STALLED in
+# drives_failed, so the two surfaces disagreed about the same run.
+devices=(sda sdb)
+devrow=(); devrow[sda.selected]=1; devrow[sdb.selected]=1
+devrow[sda.status]="50%"
+devrow[sdb.status]="STALLED"
+devrow[sdb.progress_pct]="0"
+status::recompute_progress
+t::assert_eq "75" "$(status::progress_field progress_pct)" \
+    "STALLED counts as finished -> (100 + 50) / 2"
+devrow[sdb.progress_pct]="07"
+status::recompute_progress
+t::assert_eq "75" "$(status::progress_field progress_pct)" \
+    "a failed drive's stale percentage never inflates the aggregate"
+devrow[sda.status]="FAILED"
+status::recompute_progress
+t::assert_eq "-1" "$(status::progress_field progress_pct)" \
+    "no running drive -> indeterminate, not a fictional 100 (phase flips to failed)"
+
 
 t::summary

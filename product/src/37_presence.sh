@@ -226,7 +226,13 @@ status::recompute_progress() {
         st="${devrow[$dev.status]:-}"
         pct=""
         case "$st" in
-            COMPLETED|DRY-RUN|SKIPPED|FAILED|BLOCKED|FROZEN|UNKNOWN)
+            COMPLETED|DRY-RUN|SKIPPED|FAILED|BLOCKED|FROZEN|STALLED|UNKNOWN)
+                # STALLED belongs here: a wedged controller will never advance
+                # again, so treating it as a RUNNING drive at its last
+                # percentage (usually 0) halved the aggregate the dashboard
+                # showed for the drive that WAS making progress. It also made
+                # this disagree with status::drive_terminal, which already
+                # counts STALLED in drives_failed.
                 finished=$((finished+1)) ;;
             *)
                 running=$((running+1))
