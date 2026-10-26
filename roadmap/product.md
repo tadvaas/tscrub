@@ -467,6 +467,14 @@ with the release that carried them (per `CHANGELOG.md`).
       **waited for** (progress reported, stall detector unchanged) instead of
       being reported as failed; and the heartbeat carries `failed_devices`
       (`"<serial> (<reason>)"`), shown in the dashboard status tooltip.
+      → **v1.11.81 (same day).** A live kill test found the abort record was
+      never written: `fn_main` armed its own `EXIT` trap, and a non-interactive
+      shell keeps only the LAST one, so the journal hook was silently replaced.
+      Both now call `session::on_exit`, with a test asserting no other
+      `trap … EXIT` exists. Verified on the bench (SIGTERM at 35% -> `ABORTED
+      exit=143` with each drive's state). Also fixed: `STALLED` was missing from
+      the progress aggregator's finished list, so a wedged drive made the
+      dashboard read 12% while the surviving stick was at 23%.
       → **USB plan written 2026-10-26**: `research/usb-target-erase/README.md`.
       The hard part is not discovery, it is that the appliance is often *running
       from* a USB stick: root, the licence and the report destination can be the

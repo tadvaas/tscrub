@@ -86,6 +86,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [v1.11.81] - 2026-10-26
 
+Released artefacts: ISO `tscrub-v1.11.81_2025.11_30_x86-64_v0.41_20261026-4f08334d.iso`
+(176,496,640 B, SHA-256 `2fa5a1231825d452f9a563467082a67c9b0e7093f263bab1d103499c7b7f2090`,
+168 MiB); signed script SHA-256
+`391c18e61f5b9892b64d2c6ae935cc277dd2246ae51822ac8f1474cd371bffa9` (overlay copy
+`e63e7c0a8d2146427919b515b520ced6d0305c8ac8dd3bf0adffb3547b7469f4`, verified byte
+for byte against the slim build); PXE `bzImage` 95,218,208 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`dba5d372078380a1e3f00ce61b5ecacd771cc266c35b077d0e04447b93ae5f57`; build-host
+commit `4f08334d`.
+
 ### Fixed
 
 - **A run that was killed left no record at all — the abort hook was being
