@@ -454,6 +454,19 @@ with the release that carried them (per `CHANGELOG.md`).
       no artefact when a run ends early, a sanitize-in-progress drive shown as
       FAILED, and a heartbeat that cannot name the failed device. Details in
       `research/usb-target-erase/README.md` (local, gitignored).
+      → **Resolved 2026-10-26 (v1.11.80).** The trace named it: **bash octal**.
+      nwipe formats progress as `%05.2f`, so the status word is `08%`, and `08`
+      is an invalid octal literal whose rejection is *fatal* to a non-interactive
+      shell — the whole UI process exited mid-erase and orphaned nwipe. `07` is
+      valid octal, which is why it was always ~7 minutes in. Fixed with `10#` at
+      the producer, the IPC ingestion point and both aggregator branches (plus
+      the NVMe SSTAT/SPROG parse), and the regression test was mutation-checked.
+      All three recorded defects are fixed in the same release: an append-only
+      synced `run-journal.txt` plus an EXIT/INT/TERM trap means any run that ends
+      leaves a durable `ABORTED` record; an `nvme sanitize-log` state of 2 is now
+      **waited for** (progress reported, stall detector unchanged) instead of
+      being reported as failed; and the heartbeat carries `failed_devices`
+      (`"<serial> (<reason>)"`), shown in the dashboard status tooltip.
       → **USB plan written 2026-10-26**: `research/usb-target-erase/README.md`.
       The hard part is not discovery, it is that the appliance is often *running
       from* a USB stick: root, the licence and the report destination can be the

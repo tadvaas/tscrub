@@ -86,6 +86,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [v1.11.80] - 2026-10-26
 
+Released artefacts: ISO `tscrub-v1.11.80_2025.11_30_x86-64_v0.41_20261026-fb4563af.iso`
+(176,496,640 B, SHA-256 `89b178a4d9470ef3ce8f44ca816aae83001c8f17d21f29ed5ca517715a1f83a3`,
+168 MiB); signed script SHA-256
+`a9310fb6b42fced14028895a869b683d4b4e609375b2c1980f2df032a1a6f73f` (overlay copy
+`0c169003003723792611a5f2eee4f318995381fac8cfad0ec28b8fb36753079a`, verified byte
+for byte against the slim build); PXE `bzImage` 95,218,208 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`ac7f8c9cccf0c662f17400aaf6bd3a5c23ec9558d2f154acdca1913e22a9a673`; build-host
+commit `fb4563af`.
+
 ### Fixed
 
 - **Every `nwipe` run died at exactly 8%, and took the report with it.** The
