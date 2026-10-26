@@ -20,6 +20,16 @@ devrow[sda.status]="RUNNING"
 status::recompute_progress
 t::assert_eq "-1" "$(status::progress_field progress_pct)" "opaque RUNNING drive -> indeterminate"
 
+# --- the LIVE representation: ui::loop keeps the number in progress_pct ---
+# A running worker's status word is RUNNING and the percentage lands in
+# devrow[DEV.progress_pct]. Requiring the percentage to be in the status word
+# made every real job report -1 (indeterminate) while visibly wiping.
+devrow[sda.progress_pct]="43"
+status::recompute_progress
+t::assert_eq "71" "$(status::progress_field progress_pct)" \
+    "RUNNING + progress_pct=43 is aggregated, not treated as indeterminate"
+unset 'devrow[sda.progress_pct]'
+
 # --- ATA ETA from the timing word (eta_mins*60 - elapsed) ---
 devrow[sda.eta_mins]=90
 devrow[sda.start_ts]=$(($(ts::now) - 600))

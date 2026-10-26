@@ -198,6 +198,15 @@ status::recompute_progress() {
                 if [[ "$st" =~ ^([0-9]+)%$ ]]; then
                     pct=${BASH_REMATCH[1]}
                     pct_sum=$((pct_sum + pct))
+                elif [[ "${devrow[$dev.progress_pct]:-}" =~ ^[0-9]+$ ]]; then
+                    # A live worker emits "STATUS NN%", but ui::loop records the
+                    # number in devrow[DEV.progress_pct] and leaves the status
+                    # word as RUNNING — so $st does NOT carry the percentage for
+                    # a real job. Without this branch every software-overwrite
+                    # run reported progress_pct=-1 (indeterminate) to the
+                    # dashboard while it was visibly wiping.
+                    pct=${devrow[$dev.progress_pct]}
+                    pct_sum=$((pct_sum + pct))
                 else
                     indeterminate=$((indeterminate+1))
                 fi
