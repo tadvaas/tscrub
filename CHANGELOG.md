@@ -10,6 +10,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [v1.11.83] - 2026-10-26
 
+Released artefacts: ISO `tscrub-v1.11.83_2025.11_30_x86-64_v0.41_20261026-98925c40.iso`
+(176,496,640 B, SHA-256 `4c110a3900628c69bedc570baa102b84d8e4313dc4022c8b53fd61568200dd16`,
+168 MiB); signed script SHA-256
+`c4fbf0183ae052ce8d44e9865ddd84a2d2a9c62d771963197a007f1d190aeb20` (overlay copy
+`2d5f90568355c9c12b50267f4a249d830f2a3d0571cb230f6b3eaa466440ba08`, verified byte
+for byte against the slim build); PXE `bzImage` 95,234,592 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`4edc260e6df6f96020e684361f9d86c2a370308a3812e5570e30a6537ba5913c`; build-host
+commit `98925c40`.
+
 ### Fixed
 
 - **A run still produces a certificate when its report destination disappears.**
