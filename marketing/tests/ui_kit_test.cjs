@@ -35,6 +35,17 @@ const PAGES = [
   { file: path.join(root, 'site', 'dashboard', 'drives.html'), label: 'drives' },
 ];
 
+// Pages whose chrome (toolbars, pagers, row actions) is on the kit. Only the
+// surfaces that were migrated are asserted; the modal-internal controls are
+// still legacy and are covered by the ratchet at the bottom.
+const KIT_PAGES = [
+  { label: 'devices', file: 'devices.html', pager: true, want: ['ts-btn', 'ts-btn--primary', 'ts-btn--secondary', 'ts-btn--info', 'ts-btn--success', 'ts-input'] },
+  { label: 'drives', file: 'drives.html', pager: true, want: ['ts-btn--primary', 'ts-btn--secondary', 'ts-btn--info', 'ts-input'] },
+  { label: 'certificates', file: 'certificates.html', pager: true, want: ['ts-btn ts-btn--primary', 'ts-btn ts-btn--secondary', 'ts-input'] },
+  { label: 'licences', file: 'licences.html', want: ['ts-btn ts-btn--primary', 'ts-btn ts-btn--secondary'] },
+  { label: 'billing', file: 'billing.html', want: ['ts-btn ts-btn--primary', 'ts-btn ts-btn--secondary'] },
+];
+
 let count = 0;
 let fails = 0;
 function check(label, ok, detail) {
@@ -76,6 +87,7 @@ const kit = componentsLayer(css).replace(/\/\*[\s\S]*?\*\//g, '');
 
 console.log('== the kit exists ==');
 for (const sel of ['.ts-btn', '.ts-btn--primary', '.ts-btn--secondary', '.ts-btn--danger',
+                   '.ts-btn--info', '.ts-btn--success', ".ts-btn--info[aria-expanded='true']",
                    '.ts-btn--sm', '.ts-btn--lg', '.ts-input', '.ts-input--icon',
                    '.ts-seg', ".ts-seg > button", ".ts-seg > button[aria-pressed='true']"]) {
   check('declares ' + sel, kit.includes(sel));
@@ -93,8 +105,8 @@ check('.ts-input declares no vertical padding', !/\bpy-/.test(rule(kit, '.ts-inp
 
 console.log('\n== the size scale is closed ==');
 const sizes = [...kit.matchAll(/\.ts-btn(--[a-z]+)?\s*\{/g)].map((m) => m[1] || '(base)');
-check('only base / --sm / --lg / --primary / --secondary / --danger are declared',
-  sizes.every((s) => ['(base)', '--primary', '--secondary', '--danger', '--sm', '--lg'].includes(s)), sizes.join(','));
+check('only base / --sm / --lg / palettes are declared',
+  sizes.every((s) => ['(base)', '--primary', '--secondary', '--danger', '--info', '--success', '--sm', '--lg'].includes(s)), sizes.join(','));
 check('--sm is one step down (h-7)', /\bh-7\b/.test(rule(kit, '.ts-btn--sm')));
 check('--lg is one step up (h-11)', /\bh-11\b/.test(rule(kit, '.ts-btn--lg')));
 const sizeMods = sizes.filter((s) => ['--sm', '--lg'].includes(s));
@@ -140,6 +152,38 @@ for (const p of PAGES) {
     check('drives: upload form uses the small button', /ts-btn ts-btn--primary ts-btn--sm/.test(html));
   }
 }
+
+console.log('\n== migrated chrome ==');
+for (const p of KIT_PAGES) {
+  const html = fs.readFileSync(path.join(root, 'site', 'dashboard', p.file), 'utf8');
+  for (const want of p.want) {
+    const escaped = want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+');
+    check(p.label + ': uses ' + want, new RegExp(escaped).test(html));
+  }
+  // Pager buttons: either a shared navCls (devices/drives) or inline classes
+  // (certificates) — both must be the kit's small secondary button.
+  if (p.pager) {
+    check(p.label + ': pager buttons use the kit',
+      /var navCls = 'ts-btn ts-btn--secondary ts-btn--sm/.test(html) ||
+      /el\('button', 'ts-btn ts-btn--secondary ts-btn--sm[^']*', '(← Prev|Next →)'\)/.test(html));
+  }
+}
+
+// Ratchet on the controls still written by hand. The number may only go DOWN —
+// lower it whenever a surface is migrated. It exists so "we'll migrate the rest
+// later" cannot quietly become "we added another one".
+const LEGACY_CEILING = 45;
+let legacy = 0;
+{
+  const legacyCls = /\b(bg-brand-600|bg-amber-600|bg-red-600|bg-slate-900|py-[12](\.5)?\b)/;
+  for (const f of fs.readdirSync(path.join(root, 'site', 'dashboard'))) {
+    if (!f.endsWith('.html')) continue;
+    const s = fs.readFileSync(path.join(root, 'site', 'dashboard', f), 'utf8');
+    for (const m of s.matchAll(/<(button|a)\b[^>]*class="([^"]*)"/g)) if (legacyCls.test(m[2])) legacy++;
+    for (const m of s.matchAll(/el\('(button|a)',\s*'([^']*)'/g)) if (legacyCls.test(m[2])) legacy++;
+  }
+}
+check('hand-written controls at or below the ratchet (' + LEGACY_CEILING + ')', legacy <= LEGACY_CEILING, legacy);
 
 console.log('\n' + count + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

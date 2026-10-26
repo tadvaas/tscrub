@@ -203,6 +203,25 @@ html:not(.dark) .ts-dash .text-slate-300 {
     @apply border-transparent bg-red-700 text-white shadow-sm
       hover:bg-red-800 disabled:opacity-50;
   }
+  /* Sky = information. A disclosure (open the log, show the reports) is not an
+     action that changes anything, so it must not borrow the brand fill. Its open
+     state rides on aria-expanded, which is also what a screen reader reads —
+     the button never carries a state class of its own. */
+  .ts-btn--info {
+    @apply border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100
+      dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300
+      dark:hover:bg-sky-900/50;
+  }
+  .ts-btn--info[aria-expanded='true'] {
+    @apply border-sky-600 bg-sky-600 text-white
+      dark:border-sky-500 dark:bg-sky-500 dark:text-white;
+  }
+  /* Emerald = the compliance artefact (the signed report), matching .ts-chip. */
+  .ts-btn--success {
+    @apply border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100
+      dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300
+      dark:hover:bg-emerald-900/50;
+  }
   /* Small: table row actions and the pager. */
   .ts-btn--sm {
     @apply h-7 rounded-lg px-2.5 text-xs;

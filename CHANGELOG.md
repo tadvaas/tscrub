@@ -35,6 +35,17 @@ and this project uses date-based versioning (`v1.x`).
   Plan and migration order: `research/dashboard-kit/README.md` (linked from the marketing
   roadmap §1).
 
+  **Phase 2** moved the rest of the dashboard chrome onto the kit: the Devices and Media row
+  actions (`Log` / `Ops` / `Rep`, and `Reports ▾` with its `View` / `PDF` sub-table), every
+  pager (`Devices`, `Media`, `Certificates`), and the `Certificates`, `Licences` and
+  `Billing` controls. Two palettes were added for the semantic colours the UI already used:
+  `--info` (sky, a disclosure) and `--success` (emerald, the signed artefact). A disclosure's
+  open state is driven by `aria-expanded` rather than a state class, so it is announced as
+  well as drawn. Measured after: row actions 28px, pagers 28px, toolbars 36px — and the pager
+  keeps its `min-w-[88px]` reservation, so a loading spinner still cannot resize it.
+  `ui_kit_test.cjs` (67 checks) now also ratchets the number of hand-written controls
+  (45 remaining, mostly modal-internal) so the count can only go down.
+
 - **A three-way record-source switch on the Devices and Media tabs.** Subtle segmented
   control beside the search box: **All · tScrub · Attested**, each with a tooltip saying what
   it means. "tScrub" is what the appliance erased and reported on itself (instrument

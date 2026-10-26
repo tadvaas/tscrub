@@ -47,12 +47,12 @@
         <div>
           <label for="cocid-search" class="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">Chain of Custody ID</label>
           <input id="cocid-search" list="cocid-options" type="text" placeholder="Type to search, or pick from the list…" autocomplete="off"
-                 class="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
+                 class="ts-input" />
           <datalist id="cocid-options"></datalist>
           <p id="cocid-hint" class="mt-2 text-xs text-slate-500 dark:text-slate-400">Loading Chain of Custody IDs from your uploaded reports…</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <button id="generate" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Generate certificate</button>
+          <button id="generate" class="ts-btn ts-btn--primary">Generate certificate</button>
           <a href="/dashboard/drives" class="text-sm font-semibold text-brand-700 dark:text-brand-400 hover:underline">Upload reports first →</a>
         </div>
         <p id="generate-status" class="hidden text-xs font-semibold" aria-live="polite"></p>
@@ -64,8 +64,8 @@
       <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Every certificate on your account — one consolidated certificate per Chain of Custody ID.</p>
       <div class="mt-4 flex items-center gap-2">
         <input id="cert-search" type="text" placeholder="Search certificates — ID or Chain of Custody…" autocomplete="off"
-               class="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500" />
-        <button type="button" id="cert-search-clear" class="hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800">Clear</button>
+               class="ts-input min-w-0 flex-1" />
+        <button type="button" id="cert-search-clear" class="ts-btn ts-btn--secondary hidden">Clear</button>
       </div>
       <div class="mt-4 max-h-[70vh] overflow-auto rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800 p-6 shadow-sm">
         <div id="cert-list">
@@ -132,7 +132,7 @@
           </label>
         </div>
         <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-4">
-          <button id="destroy-modal-generate" class="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">Generate certificate</button>
+          <button id="destroy-modal-generate" class="ts-btn ts-btn--primary">Generate certificate</button>
         </div>
       </div>
     </div>
@@ -326,10 +326,10 @@
         var totalPages = Math.max(1, Math.ceil(d.total / d.per));
         if (totalPages <= 1) return;
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var prev = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', '← Prev');
+        var prev = el('button', 'ts-btn ts-btn--secondary ts-btn--sm disabled:cursor-not-allowed', '← Prev');
         prev.disabled = d.page <= 1;
         prev.addEventListener('click', function () { if (d.page > 1) goTo(d.page - 1); });
-        var next = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50', 'Next →');
+        var next = el('button', 'ts-btn ts-btn--secondary ts-btn--sm disabled:cursor-not-allowed', 'Next →');
         next.disabled = d.page >= totalPages;
         next.addEventListener('click', function () { if (d.page < totalPages) goTo(d.page + 1); });
         wrap.appendChild(prev);

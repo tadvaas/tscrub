@@ -1086,14 +1086,12 @@
 
           var tdv = el('td', 'px-3 py-2 text-right');
           // Same visual language as the Devices tab: sky means information, and
-          // fills in while the row is open. Brand blue stays reserved for the
-          // controls that change something.
-          // h-7 matches the icon buttons in the attested rows, and the row height is set by the
-          // tallest control in it: at py-1.5 this measured 30px, which made every scanned row
-          // 2px taller than an attested one.
-          var vbtn = el('button', 'inline-flex h-7 items-center whitespace-nowrap rounded-lg border px-3 text-xs font-semibold ' + (expanded[serial]
-            ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
-            : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
+          // fills in while the row is open (via aria-expanded, so the state is
+          // also announced). Brand blue stays reserved for controls that change
+          // something. h-7 matches the icon buttons in the attested rows, and the row
+          // height is set by the tallest control in it.
+          var vbtn = el('button', 'whitespace-nowrap ts-btn ts-btn--sm ts-btn--info', 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
+          vbtn.setAttribute('aria-expanded', expanded[serial] ? 'true' : 'false');
           vbtn.title = 'Show every report for this medium';
           vbtn.addEventListener('click', function () {
             expanded[serial] = !expanded[serial];
@@ -1135,10 +1133,10 @@
               htr.appendChild(el('td', 'px-2 py-1.5 ' + verifyClass(h.verify_result), capVerify(h.verify_result) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', capFormat(h) || '—'));
               var htdv = el('td', 'px-2 py-1.5 text-right');
-              var hvbtn = el('button', 'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'View');
+              var hvbtn = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', 'View');
               hvbtn.addEventListener('click', function () { openDrive(h); });
               htdv.appendChild(hvbtn);
-              var hpbtn = el('button', 'ml-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700', 'PDF');
+              var hpbtn = el('button', 'ml-1 ts-btn ts-btn--sm ts-btn--primary', 'PDF');
               hpbtn.title = 'Download a drive health report';
               hpbtn.addEventListener('click', function () {
                 downloadPdf('/api/drives/' + h.report_id + '/pdf?serial=' + encodeURIComponent(h.serial || ''), 'Drive-Health-' + (h.serial || 'drive') + '.pdf');
@@ -1165,7 +1163,7 @@
         pbox.innerHTML = '';
         var totalPages = Math.max(1, Math.ceil(total / per));
         var wrap = el('div', 'flex items-center justify-between gap-2');
-        var navCls = 'inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 enabled:hover:bg-slate-100 dark:enabled:hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50';
+        var navCls = 'ts-btn ts-btn--secondary ts-btn--sm min-w-[88px] disabled:cursor-not-allowed';
 
         // Same pager as the Devices tab, including the spinner: a page request takes long
         // enough to show that the button was pressed, and without it a slow response looked
