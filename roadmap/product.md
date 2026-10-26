@@ -445,6 +445,15 @@ with the release that carried them (per `CHANGELOG.md`).
       ChromeOS GBB/VPD enrolment flags. (§9.1)
 - [ ] Broader media coverage — USB/SD targets and RAID/FC/iSCSI volumes (the
       long tail beyond eMMC). (§6)
+      → **Status 2026-10-26:** protection and USB erasure shipped in v1.11.79
+      (software overwrite only), verified on hardware: the running stick and a
+      second tScrub stick are both refused by label. **Open blocker found on the
+      bench:** a run self-terminates after ~7 minutes with nwipe at 8% and no
+      report produced, twice in a row, so the abort is tScrub's exit and not the
+      media. Next: `bash -x` trace to name the branch. Then fix three defects:
+      no artefact when a run ends early, a sanitize-in-progress drive shown as
+      FAILED, and a heartbeat that cannot name the failed device. Details in
+      `research/usb-target-erase/README.md` (local, gitignored).
       → **USB plan written 2026-10-26**: `research/usb-target-erase/README.md`.
       The hard part is not discovery, it is that the appliance is often *running
       from* a USB stick: root, the licence and the report destination can be the
