@@ -8,6 +8,27 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.83] - 2026-10-26
+
+### Fixed
+
+- **A run still produces a certificate when its report destination disappears.**
+  On the bench the DataTraveler carrying the report mount was unplugged three
+  minutes into a run; its mount survived with no device behind it, so every write
+  answered `EIO` (`FAT-fs: Directory bread failed`). The CSV could not be
+  written, and because the upload only ever runs when a CSV exists, the run was
+  on course to produce **no report at all** — a perfect erase with no evidence.
+  The destination is now checked before the report is written, and again if the
+  write fails anyway: if it has gone, the report is written in RAM, so it is
+  still produced and still uploaded, with `REPORT_USB_STATUS=fail` recording that
+  the local copy is volatile.
+- **The run journal survives its media disappearing.** `report::journal`
+  relocates itself to a writable directory when an append fails and records
+  where it went and why ("media removed?"), rather than losing the rest of the
+  run's history; `journal_open` likewise falls back instead of writing into a
+  volume that refuses it. A journal that did not land on the USB volume says so
+  explicitly ("journal is in RAM — it will NOT survive a power cut").
+
 ### Added
 
 - **An internal control kit (`ts-btn`, `ts-input`, `ts-seg`) shared by the dashboard and the
