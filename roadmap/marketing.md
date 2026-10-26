@@ -54,6 +54,11 @@ reflect what is actually built (verified against `marketing/site/`), not intent.
       (Rich Results Test / Schema Markup Validator) before adding new types.
 - [ ] Core Web Vitals / Lighthouse pass on the top pages (home, compliance,
       docs, download, pricing, resources hub).
+- [~] **Internal UI kit (`ts-*`)** — one control vocabulary shared by the dashboard
+      and the marketing site, so control heights stop being inferred from padding
+      and border. Phase 1 (Devices/Media toolbars) shipped 2026-10-26; marketing nav
+      and CTAs are phase 5.
+      (`→ Plan: research/dashboard-kit/README.md`)
 - [ ] Serve the `.md` twins correctly once §3 ships (`Content-Type:
       text/markdown`, UTF-8, no rewrite loop).
 

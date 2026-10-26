@@ -10,6 +10,31 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
+- **An internal control kit (`ts-btn`, `ts-input`, `ts-seg`) shared by the dashboard and the
+  marketing site.** The site had grown 29 distinct button class signatures, and one toolbar
+  carried three different control heights: search 38px, Export 38px, Add 36px (it had no
+  border) and the record-source switch 30px — on three different baselines.
+
+  The cause was that heights were *implied* by padding + border + font size, so a control
+  that merely lacked a border came out 2px shorter than its neighbour, and a segmented
+  control 8px shorter than the row. **The kit declares heights instead**: `h-9` (36px) for
+  everything in a toolbar — buttons, inputs and the segmented group — with `--sm` (h-7) for
+  table row actions and `--lg` (h-11) reserved for marketing CTAs. Palette modifiers are
+  `--primary`, `--secondary` and `--danger`. After the change all four Devices/Media toolbar
+  controls measure 36px on one baseline, and the Media upload form's controls all measure
+  28px.
+
+  Two traps are documented in the stylesheet and asserted by
+  `marketing/tests/ui_kit_test.cjs` (43 checks, mutation-tested): components must apply
+  `bg-brand-700` rather than `bg-brand-600`, because `html .bg-brand-600` only overrides the
+  utility class **in the markup** — an `@apply` inside a component inlines the raw colour and
+  would fail AA at 3.77:1; and the switch's pressed state now comes from CSS on
+  `[aria-pressed]` instead of a `className` string rebuilt in JS, which would have wiped any
+  component class on the first click.
+
+  Plan and migration order: `research/dashboard-kit/README.md` (linked from the marketing
+  roadmap §1).
+
 - **A three-way record-source switch on the Devices and Media tabs.** Subtle segmented
   control beside the search box: **All · tScrub · Attested**, each with a tooltip saying what
   it means. "tScrub" is what the appliance erased and reported on itself (instrument

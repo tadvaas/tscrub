@@ -42,9 +42,9 @@
 
     <form id="upload-form" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-3 py-2">
       <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Upload reports</span>
-      <label for="reports" class="cursor-pointer rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800" title="Select one or more .csv report files (optionally with their .json and .csv.sig sidecars)">Choose files</label>
+      <label for="reports" class="ts-btn ts-btn--secondary ts-btn--sm cursor-pointer" title="Select one or more .csv report files (optionally with their .json and .csv.sig sidecars)">Choose files</label>
       <span id="reports-name" class="min-w-0 flex-1 truncate text-xs text-slate-500 dark:text-slate-400">No files chosen</span>
-      <button type="submit" class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">Upload</button>
+      <button type="submit" class="ts-btn ts-btn--primary ts-btn--sm">Upload</button>
       <input id="reports" name="reports[]" type="file" multiple accept=".csv,.sig,.json" class="sr-only" />
       <p id="upload-status" class="hidden w-full text-xs font-semibold" aria-live="polite"></p>
     </form>
@@ -53,7 +53,7 @@
       <!-- Three-way record-source switch. Subtle on purpose: it narrows the list, it is not
            a primary action. Server-side (`source`), so total and the page boundaries follow
            it together. -->
-      <div id="source-switch" class="inline-flex items-center rounded-lg border border-slate-300 bg-white p-0.5 dark:border-slate-700 dark:bg-ink-900" role="group" aria-label="Filter by how the record was made">
+      <div id="source-switch" class="ts-seg" role="group" aria-label="Filter by how the record was made">
         <button type="button" data-source="all" title="Everything on this account — wiped and operator-attested">All</button>
         <button type="button" data-source="verified" title="Erased by the tScrub appliance — instrument-verified">tScrub</button>
         <button type="button" data-source="attested" title="Recorded by an operator — not instrument-verified">Attested</button>
@@ -67,14 +67,14 @@
       <div class="relative w-full min-w-0 sm:w-auto sm:flex-1">
         <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
         <input id="search-input" type="text" placeholder="Search media — serial, model, CoC ID…" autocomplete="off"
-               class="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-200" />
+               class="ts-input ts-input--icon" />
       </div>
-      <button type="button" id="search-clear" class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800">Clear</button>
-      <button type="button" id="export-btn" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800" title="Export the media inventory">
+      <button type="button" id="search-clear" class="ts-btn ts-btn--secondary hidden">Clear</button>
+      <button type="button" id="export-btn" class="ts-btn ts-btn--secondary" title="Export the media inventory">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
         Export
       </button>
-      <button type="button" id="add-btn" onclick="ManualAssets.openFor('drive')" class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700" title="Record a media item that was destroyed, or factory reset with its device (an operator attestation)">
+      <button type="button" id="add-btn" onclick="ManualAssets.openFor('drive')" class="ts-btn ts-btn--primary" title="Record a media item that was destroyed, or factory reset with its device (an operator attestation)">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
         Add
       </button>
@@ -511,13 +511,13 @@
       // total and the page boundaries narrow together.
       var source = 'all';
       var sourceButtons = Array.prototype.slice.call(document.querySelectorAll('#source-switch button'));
+      // Only the attribute is written. `.ts-seg` styles the pressed state from
+      // [aria-pressed='true'], so there is no class string here to drift from the
+      // rest of the toolbar — and, more importantly, nothing here can wipe a
+      // component class off the button.
       function paintSourceSwitch() {
         sourceButtons.forEach(function (b) {
-          var on = (b.getAttribute('data-source') === source);
-          b.setAttribute('aria-pressed', on ? 'true' : 'false');
-          b.className = 'rounded-md px-2.5 py-1 text-xs font-semibold ' + (on
-            ? 'bg-slate-200 text-ink-900 dark:bg-ink-700 dark:text-white'
-            : 'text-slate-600 hover:text-ink-900 dark:text-slate-400 dark:hover:text-white');
+          b.setAttribute('aria-pressed', b.getAttribute('data-source') === source ? 'true' : 'false');
         });
       }
       sourceButtons.forEach(function (b) {
