@@ -100,4 +100,57 @@ t::assert_eq "VERIFY   " "$(ui::phase_cell VERIFY 2 9)"  "fresh sample: phase, n
 t::assert_eq "VERIFY!  " "$(ui::phase_cell VERIFY 40 9)" "40s without a sample: marked stale"
 t::assert_eq "VERIFY   " "$(ui::phase_cell VERIFY 25 9)" "at exactly 25s it is still fresh"
 
+echo
+echo "== zero-padded percentages are DECIMAL, never octal =="
+# nwipe formats progress as "%05.2f", so the worker sees "08.67%" and emitted
+# "STATUS 08%". A bare 08 is an ILLEGAL OCTAL literal, and bash treats the
+# failed arithmetic expansion as FATAL in a non-interactive shell — so every
+# nwipe run died at exactly 8%, orphaning nwipe (which kept erasing), losing
+# the report and freezing the heartbeat. Each aggregator call runs in a
+# subshell so a regression cannot abort the whole suite.
+devices=(sda)
+devrow=(); devrow[sda.selected]=1
+
+devrow[sda.status]="08%"
+( status::recompute_progress ) 2>/dev/null
+t::assert_eq "0" "$?" "status 08% does not abort the aggregator"
+t::assert_eq "8" "$(status::progress_field progress_pct)" "08% aggregates as 8"
+
+devrow[sda.status]="RUNNING"
+devrow[sda.progress_pct]="08"
+( status::recompute_progress ) 2>/dev/null
+t::assert_eq "0" "$?" "progress_pct=08 does not abort the aggregator"
+t::assert_eq "8" "$(status::progress_field progress_pct)" \
+    "progress_pct=08 aggregates as 8"
+unset 'devrow[sda.progress_pct]'
+
+devrow[sda.status]="09%"
+devrow[sda.start_ts]=$(($(ts::now) - 100))
+( status::recompute_progress ) 2>/dev/null
+t::assert_eq "0" "$?" "status 09% does not abort the aggregator"
+eta="$(status::progress_field progress_eta_sec)"
+t::check "09% still extrapolates an ETA" \
+    '[[ "$eta" =~ ^[0-9]+$ ]] && (( eta > 900 && eta < 1100 ))'
+
+echo
+echo "== the worker emits a clean decimal status (no leading zero) =="
+LOG="$(mktemp)"
+OUT="$(mktemp)"
+exec 5>"$LOG"
+exec 3>"$OUT"
+devices=(sda)
+capability[sda]="CAP_SCSI_NWIPE"
+devrow=()
+devrow[sda.class]="CLEAR"
+devrow[sda.capability]="CAP_SCSI_NWIPE"
+export FAKE_NWIPE_RC=0 FAKE_NWIPE_PROGRESS=08 FAKE_NWIPE_ETA="00:12:34"
+device::exec_nwipe sda
+exec 3>&-
+exec 5>&-
+out_captured="$(cat "$OUT")"
+t::assert_contains "$out_captured" "sda STATUS 8%" \
+    "nwipe 08.00% is emitted as STATUS 8%"
+t::check "no zero-padded status reaches the IPC pipe" \
+    '! grep -Eq "STATUS 0[0-9]%" <<< "$out_captured"'
+
 t::summary

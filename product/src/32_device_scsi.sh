@@ -232,7 +232,13 @@ device::exec_nwipe() {
                     pass_total="${BASH_REMATCH[4]}"
                 fi
                 if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
-                    pct="${BASH_REMATCH[1]}"
+                    # nwipe prints "%05.2f", so this captures "08" from
+                    # "08.67%". A bare 08 in arithmetic is OCTAL, and 8/9 are
+                    # not octal digits, so ANY later arithmetic on it aborts
+                    # bash with "value too great for base" — which kills the
+                    # whole run (it is fatal to a non-interactive shell).
+                    # 10# forces decimal at the point of capture.
+                    pct=$(( 10#${BASH_REMATCH[1]} ))
                     if eta_sec="$(nwipe::eta_seconds "$line")"; then
                         echo "$dev ETA $eta_sec" >&3
                     fi
@@ -256,7 +262,7 @@ device::exec_nwipe() {
             pass_total="${BASH_REMATCH[4]}"
         fi
         if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
-            pct="${BASH_REMATCH[1]}"
+            pct=$(( 10#${BASH_REMATCH[1]} ))   # decimal, never octal (see above)
             if eta_sec="$(nwipe::eta_seconds "$line")"; then
                 echo "$dev ETA $eta_sec" >&3
             fi

@@ -28,6 +28,71 @@ report::_where() {
     fi
 }
 
+# --- Durable run journal -----------------------------------------------------
+# The signed CSV/JSON set only exists once a run REACHES ITS END, so a run that
+# dies — a crash, a power cut, an operator pulling the stick — used to leave no
+# durable evidence at all: the log, the progress and the drive table all lived
+# in RAM and vanished with the machine. The journal is append-only and synced to
+# the report destination, so the last thing that happened is on disk even when
+# no certificate was ever produced.
+report::journal() {  # <EVENT> <text...>
+    local f="${REPORT_JOURNAL:-}"
+    [[ -n "$f" ]] || return 0
+    printf '[%s] %-7s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${*:2}" \
+        >> "$f" 2>/dev/null || return 0
+    sync 2>/dev/null || true   # FAT writes are page-cached; a power cut drops them
+}
+
+# Point the journal at the report destination and open this run.
+report::journal_open() {
+    local dir dev n=0
+    dir="${REPORT_DIR:-/}reports"
+    [[ -n "${COCID:-}" ]] && dir="$dir/$COCID"
+    mkdir -p "$dir" 2>/dev/null || dir="${REPORT_DIR:-/}"
+    REPORT_JOURNAL="${dir%/}/run-journal.txt"
+    export REPORT_JOURNAL
+    report::journal RUN "started ${SCRIPT_VERSION:-?} cocid=${COCID:-none} operator=${OPERATOR_NAME:-none}"
+    report::journal HOST "serial=${SYS_SERIAL:-N/A} uuid=${SYS_UUID:-N/A} destination=$(report::_where)"
+    if [[ -z "${REPORT_USB_MNT:-}" && "${REPORT_DIR:-/}" == "/" ]]; then
+        report::journal WARN "no writable persistent volume — this journal will NOT survive a power cut"
+    fi
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
+        n=$((n+1))
+        report::journal DRIVE "$dev serial=${devrow[$dev.serial]:-N/A} method=\"${devrow[$dev.method]:-?}\" class=${devrow[$dev.class]:-?} cert=${devrow[$dev.cert]:-?}"
+    done
+    report::journal COUNT "$n drive(s) queued for erasure"
+}
+
+# Set the journal up for a run that is about to start erasing.
+report::journal_begin() {
+    report::journal_open
+    RUN_ACTIVE=1
+}
+
+# Close the run: from here on a crash cannot lose the outcome, because the
+# outcome is already on disk.
+report::journal_end() {  # <text>
+    report::journal END "$1"
+    RUN_ACTIVE=0
+}
+
+# Write the durable record for a run that was STILL ERASING when the shell went
+# down (EXIT/INT/TERM trap). Idempotent and silent when no run is active, so a
+# normal session exit never leaves a spurious abort note beside the report.
+report::abort_record() {  # <exit-code>
+    local rc="${1:-0}" dev
+    [[ "${RUN_ACTIVE:-0}" -eq 1 ]] || return 0
+    report::journal ABORTED "exit=$rc — the run ended before any certificate was written"
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
+        report::journal DRIVE "$dev status=${devrow[$dev.status]:-?} progress=${devrow[$dev.progress_pct]:--}"
+    done
+    report::journal NOTE "the drive may be left part-erased; re-run to certify it"
+    RUN_ACTIVE=0
+    report::sync_out   # flush to the stick: the machine may be about to die
+}
+
 report::csv() {
     local now report_file outdir rel runid
     now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

@@ -1802,6 +1802,7 @@ function presence_ensure_schema(): void {
                drives_failed INT UNSIGNED   NOT NULL DEFAULT 0,
                progress_pct TINYINT         NOT NULL DEFAULT -1,
                progress_eta_sec INT         NOT NULL DEFAULT -1,
+               failed_devices VARCHAR(255)  NOT NULL DEFAULT "",
                last_seen_ts INT UNSIGNED    NOT NULL,
                PRIMARY KEY (id),
                UNIQUE KEY uq_presence_device (user_id, serial, uuid),
@@ -1817,6 +1818,7 @@ function presence_ensure_schema(): void {
             'drives_failed' => 'ADD COLUMN drives_failed INT UNSIGNED NOT NULL DEFAULT 0 AFTER drives_done',
             'progress_pct'     => 'ADD COLUMN progress_pct TINYINT NOT NULL DEFAULT -1 AFTER drives_failed',
             'progress_eta_sec' => 'ADD COLUMN progress_eta_sec INT NOT NULL DEFAULT -1 AFTER progress_pct',
+            'failed_devices'   => 'ADD COLUMN failed_devices VARCHAR(255) NOT NULL DEFAULT "" AFTER progress_eta_sec',
         ];
         foreach ($cols as $col => $ddl) {
             $stmt = db()->query("SHOW COLUMNS FROM device_presence LIKE '$col'");
@@ -1830,12 +1832,12 @@ function presence_ensure_schema(): void {
 }
 
 /** Record a heartbeat from a booted appliance (keyed by serial + uuid). */
-function presence_heartbeat(int $userId, string $serial, string $uuid, string $lanIp = '', string $phase = '', int $drivesTotal = 0, int $drivesDone = 0, int $drivesFailed = 0, int $progressPct = -1, int $progressEtaSec = -1, bool $touchPhase = false): void {
+function presence_heartbeat(int $userId, string $serial, string $uuid, string $lanIp = '', string $phase = '', int $drivesTotal = 0, int $drivesDone = 0, int $drivesFailed = 0, int $progressPct = -1, int $progressEtaSec = -1, bool $touchPhase = false, string $failedDevices = ''): void {
     try {
         if ($touchPhase) {
             db()->prepare(
-                'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, progress_pct, progress_eta_sec, last_seen_ts)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())
+                'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, progress_pct, progress_eta_sec, failed_devices, last_seen_ts)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())
                  ON DUPLICATE KEY UPDATE
                    lan_ip = IF(VALUES(lan_ip) = \'\', lan_ip, VALUES(lan_ip)),
                    -- Once a wipe finishes (done/failed), ignore a stale in-flight
@@ -1850,8 +1852,9 @@ function presence_heartbeat(int $userId, string $serial, string $uuid, string $l
                    drives_failed = IF(VALUES(phase) = \'\', 0, VALUES(drives_failed)),
                    progress_pct     = IF(VALUES(phase) = \'wiping\', VALUES(progress_pct), -1),
                    progress_eta_sec = IF(VALUES(phase) = \'wiping\', VALUES(progress_eta_sec), -1),
+                   failed_devices   = IF(VALUES(phase) = \'\', \'\', VALUES(failed_devices)),
                    last_seen_ts = UNIX_TIMESTAMP()'
-            )->execute([$userId, $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $progressPct, $progressEtaSec]);
+            )->execute([$userId, $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $progressPct, $progressEtaSec, $failedDevices]);
         } else {
             db()->prepare(
                 'INSERT INTO device_presence (user_id, serial, uuid, lan_ip, last_seen_ts)
@@ -1874,7 +1877,7 @@ function presence_map(int $userId): array {
     try {
         $ids = org_member_ids($userId);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = db()->prepare("SELECT serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, progress_pct, progress_eta_sec, last_seen_ts FROM device_presence WHERE user_id IN ($ph)");
+        $stmt = db()->prepare("SELECT serial, uuid, lan_ip, phase, drives_total, drives_done, drives_failed, progress_pct, progress_eta_sec, failed_devices, last_seen_ts FROM device_presence WHERE user_id IN ($ph)");
         $stmt->execute($ids);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $ts = (int)$r['last_seen_ts'];
@@ -1886,6 +1889,8 @@ function presence_map(int $userId): array {
                 'drives_failed' => (int)($r['drives_failed'] ?? 0),
                 'progress_pct'  => (int)($r['progress_pct'] ?? -1),
                 'progress_eta_sec' => (int)($r['progress_eta_sec'] ?? -1),
+                // WHICH drive failed and why, e.g. "S3Z8NB0K123 (sanitize stalled)".
+                'failed_devices'   => (string)($r['failed_devices'] ?? ''),
             ];
             $s  = strtolower(trim((string)$r['serial']));
             $u  = strtolower(trim((string)$r['uuid']));

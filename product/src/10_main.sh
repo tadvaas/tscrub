@@ -403,6 +403,11 @@ erasure::run() {
         [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || devrow["$dev.status"]="SKIPPED"
     done
 
+    # From here on the run must leave a durable trace even if it never reaches
+    # the report: the certificate is written only at the very end, so a crash
+    # used to leave literally nothing on disk (see report::journal).
+    report::journal_begin
+
     # Clear the per-drive terminal-status files (written by device::emit_status)
     # so a stale value from a previous run can never be mistaken for this run's
     # outcome by device::recover_terminal.
@@ -551,6 +556,13 @@ erasure::run() {
         REPORT_USB_REASON="erasure incomplete — report withheld"
     fi
     debug::save
+    # Close the journal BEFORE sync_out: sync_out unmounts the stick the journal
+    # lives on, so a later append would land nowhere.
+    if [[ "$erasure_complete" -eq 1 ]]; then
+        report::journal_end "report=${report_file:-none} save=${REPORT_USB_STATUS:-ok}"
+    else
+        report::journal_end "report withheld (erasure incomplete); ${REPORT_USB_REASON:-no report written}"
+    fi
     report::sync_out
 
     # PPI reboot-to-confirm: if a request was staged this cycle, reboot now so

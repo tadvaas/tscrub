@@ -84,6 +84,52 @@ and this project uses date-based versioning (`v1.x`).
   mutation-tested — re-adding `hidden` to the switch slot, dropping the pager's `min-w` or
   removing the overlay's `absolute` each fail it.
 
+## [v1.11.80] - 2026-10-26
+
+### Fixed
+
+- **Every `nwipe` run died at exactly 8%, and took the report with it.** The
+  bench run stopped after 7m 21s with nothing on screen, no report, and an
+  orphaned `nwipe` that carried on erasing. Root cause: nwipe formats progress
+  as `%05.2f`, so the status word arrives as `08%` — and `08` is an **invalid
+  octal literal** in bash. The failed arithmetic expansion is *fatal* to a
+  non-interactive shell, so the whole UI process exited mid-erase. `07` is a
+  valid octal number, which is exactly why it always happened about seven
+  minutes in, the moment nwipe first prints `08.00%`. Fixed at the producer
+  (`32_device_scsi.sh`), at the IPC ingestion point (`40_table.sh`) and in both
+  branches of the heartbeat aggregator (`37_presence.sh`) by forcing base 10
+  with `10#`; the same hazard was removed from the NVMe SSTAT/SPROG parse.
+  Regression-tested, and the test was mutation-checked: reverting the fix fails
+  4 checks, including the shell abort itself.
+- **A drive that was still sanitizing was reported as `STALLED`/failed.** An
+  `nvme sanitize-log` state of 2 means an erase left by an earlier run is *in
+  progress*, not broken — the bench drive was actively erasing while the UI
+  called it failed and told the operator to power-cycle a healthy drive. tScrub
+  now **waits** for the in-flight sanitize (reporting its progress, with the
+  same 15-minute inactivity detector and 6-hour backstop) and then issues this
+  run's own operation, so the certificate only ever claims what this appliance
+  actually did. A genuinely wedged controller is still named `STALLED` with the
+  power-cycle instruction, and no second sanitize is issued.
+- **A run that ended early left no durable evidence at all.** The signed
+  CSV/JSON set is only produced once a run reaches its *end*, so a crash, a
+  power cut or a pulled stick left nothing on disk: the log, the drive table and
+  the progress all lived in RAM and vanished with the machine. Runs now write an
+  append-only, synced `reports/<COCID>/run-journal.txt` as they progress
+  (start, host, each drive with its method, each terminal outcome), and an
+  `EXIT`/`INT`/`TERM` trap appends an `ABORTED` record with the exit code and
+  what every drive was doing. The journal is closed *before* the USB is
+  unmounted, and a clean run closes it with the report name instead, so a normal
+  session exit never leaves a spurious abort note.
+- **The heartbeat could not say which drive failed.** `drives_failed` was a
+  bare count, so the dashboard could only show "Failed" and leave the operator
+  hunting a bench of identical units. The appliance now sends
+  `failed_devices` (`"S3Z8NB0K123 (sanitize stalled); …"`) built from drives that
+  actually reached a failed terminal state — a drive whose serial could not be
+  read is named by its kernel name rather than `N/A` — and the dashboard shows
+  it in the status tooltip for both `wiping` and `failed`. Stored in a new
+  `device_presence.failed_devices` column (created by the idempotent migration)
+  and cleared when a run completes cleanly.
+
 ## [v1.11.79] - 2026-10-26
 
 Released artefacts: ISO `tscrub-v1.11.79_2025.11_30_x86-64_v0.41_20261026-e15f9aed.iso`

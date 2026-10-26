@@ -48,5 +48,25 @@ t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"phase\":\"wiping\"' "presenc
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"drives_total\":4' "presence: ping carries drives_total"
 t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"drives_done\":1' "presence: ping carries drives_done"
 
+# The heartbeat names WHICH drive failed, so the dashboard can say it.
+: > "$FAKE_MDM_CURL_LOG"
+status::write failed 4 3 1 'S3Z8NB0K123 (sanitize stalled)'
+presence::ping
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"failed_devices\"' \
+    "presence: ping carries failed_devices"
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" 'S3Z8NB0K123' \
+    "presence: ping names the failed drive"
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" 'stalled' \
+    "presence: ping carries the failure reason"
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"phase\":\"failed\"' \
+    "presence: a failed phase is reported"
+
+# A clean run clears the list rather than leaving a stale name on the server.
+: > "$FAKE_MDM_CURL_LOG"
+status::write done 4 4 0 ''
+presence::ping
+t::assert_contains "$(cat "$FAKE_MDM_CURL_LOG")" '\"failed_devices\":\"\"' \
+    "presence: a clean run sends an empty failed list"
+
 rm -rf "$tmpdir"
 t::summary

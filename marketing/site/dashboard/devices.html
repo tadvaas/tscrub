@@ -525,6 +525,10 @@
         if (!dev.online) return null;
         var e = dev.erasure;
         if (!e || !e.phase || e.phase === 'idle') return null;
+        // The appliance sends the failing drives by serial with a short reason
+        // ("S3Z8NB0K123 (sanitize stalled)"). A bare "1 failed" told the
+        // operator nothing about which unit on the bench to pull.
+        var failedNames = (typeof e.failed_devices === 'string') ? e.failed_devices : '';
         if (e.phase === 'wiping') {
           var total = e.drives_total || 0;
           var finished = (e.drives_done || 0) + (e.drives_failed || 0);
@@ -534,6 +538,7 @@
           // title below, so the row simply reads "Erasing".
           var label = 'Erasing';
           var title = 'Erasure in progress — ' + finished + ' of ' + total + ' drives finished' + (failed > 0 ? ' (' + failed + ' failed)' : '');
+          if (failed > 0 && failedNames) title += ' · failed: ' + failedNames;
           var pct = (typeof e.progress_pct === 'number') ? e.progress_pct : -1;
           var etaSec = (typeof e.progress_eta_sec === 'number') ? e.progress_eta_sec : -1;
           var etaText = '';
@@ -555,7 +560,7 @@
           return { dot: 'bg-emerald-500', txt: 'text-emerald-700 dark:text-emerald-400', label: 'Erased', title: 'Erasure completed successfully' };
         }
         if (e.phase === 'failed') {
-          return { dot: 'bg-red-500', txt: 'text-red-700 dark:text-red-400', label: 'Failed', title: 'Erasure failed or was blocked' };
+          return { dot: 'bg-red-500', txt: 'text-red-700 dark:text-red-400', label: 'Failed', title: failedNames ? ('Erasure failed — ' + failedNames) : 'Erasure failed or was blocked' };
         }
         return null;
       }

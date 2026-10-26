@@ -1317,8 +1317,16 @@ if ($method === 'POST' && $route === '/heartbeat') {
     $progressEtaSec = (int)($d['progress_eta_sec'] ?? -1);
     if ($progressEtaSec < -1) $progressEtaSec = -1;
 
+    // WHICH drive failed and why (e.g. "S3Z8NB0K123 (sanitize stalled)").
+    // Optional: older appliances never send it, and the column is bounded.
+    $failedDevices = trim((string)($d['failed_devices'] ?? ''));
+    if ($failedDevices !== '') {
+        $failedDevices = preg_replace('/[\x00-\x1f]/', ' ', $failedDevices) ?? '';
+        if (strlen($failedDevices) > 255) $failedDevices = substr($failedDevices, 0, 255);
+    }
+
     presence_ensure_schema();
-    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $progressPct, $progressEtaSec, $touchPhase);
+    presence_heartbeat((int)$owner['id'], $serial, $uuid, $lanIp, $phase, $drivesTotal, $drivesDone, $drivesFailed, $progressPct, $progressEtaSec, $touchPhase, $failedDevices);
     json_out(['ok' => true]);
 }
 

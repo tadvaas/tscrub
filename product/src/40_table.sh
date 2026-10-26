@@ -948,7 +948,12 @@ ui::loop() {
                 # Live progress: workers emit "STATUS NN%" (NVMe SPROG, nwipe
                 # parse). Store it for the aggregate heartbeat progress.
                 if [[ "$_value" =~ ^([0-9]+)%$ ]]; then
-                    devrow["$_dev.progress_pct"]="${BASH_REMATCH[1]}"
+                    # Normalise to decimal on the way IN. Workers emit a
+                    # zero-padded "08%" (nwipe formats "%05.2f"), and 08 is an
+                    # INVALID OCTAL literal: the first arithmetic on the stored
+                    # value kills the shell ("value too great for base"), which
+                    # ended every nwipe run at exactly 8%.
+                    devrow["$_dev.progress_pct"]="$(( 10#${BASH_REMATCH[1]} ))"
                     # When the last sample arrived. nwipe only speaks when
                     # signalled, so the age of this stamp is the difference
                     # between "slow" and "this worker has stopped talking".

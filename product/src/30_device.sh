@@ -854,6 +854,13 @@ device::emit_status() {  # <dev> <value>
     echo "$dev STATUS $val" >&3
     mkdir -p /tmp/tscrub-device-status 2>/dev/null
     printf '%s\n' "$val" > "/tmp/tscrub-device-status/$dev" 2>/dev/null || true
+    case "$val" in
+        COMPLETED|FAILED|BLOCKED|FROZEN|STALLED|UNKNOWN|DRY-RUN|SKIPPED)
+            # Durable: the certificate only exists if the WHOLE run reaches its
+            # end, so record each drive's outcome on disk as it happens.
+            report::journal DRIVE "$dev status=$val method=\"${devrow[$dev.method]:-?}\""
+            ;;
+    esac
 }
 
 # Fold the persisted per-drive terminal statuses back into devrow for any drive

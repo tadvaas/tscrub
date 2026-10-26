@@ -32,15 +32,38 @@ t::assert_eq "1" "$(status::field drives_done)" "status: one drive done"
 
 # second drive fails: every drive terminal + a failure -> phase failed.
 devrow[sdb.status]="FAILED"
+devrow[sdb.serial]="S3Z8NB0K123"
 status::drive_terminal
 t::assert_eq "failed" "$(status::field phase)" "status: any failure -> failed"
 t::assert_eq "1" "$(status::field drives_failed)" "status: failed count 1"
+# ...and the state NAMES it. A bare count sent the operator hunting a bench of
+# identical units for the one that broke.
+t::assert_eq "S3Z8NB0K123 (erase failed)" "$(status::field failed_devices)" \
+    "status: failed drive named with its reason"
+
+# A drive whose serial could not be read is named by its kernel name, never
+# "N/A failed".
+devrow[sdb.serial]="N/A"
+devrow[sdb.status]="STALLED"
+status::drive_terminal
+t::assert_eq "sdb (sanitize stalled)" "$(status::field failed_devices)" \
+    "status: unreadable serial falls back to the device node"
+
+# Two failures are both named, in device order.
+devrow[sda.status]="BLOCKED"
+devrow[sda.serial]="AAA111"
+status::drive_terminal
+t::assert_eq "AAA111 (blocked by system firmware); sdb (sanitize stalled)" \
+    "$(status::field failed_devices)" "status: every failed drive is named"
 
 # all complete -> done.
 devrow[sdb.status]="COMPLETED"
+devrow[sda.status]="COMPLETED"
 status::drive_terminal
 t::assert_eq "done" "$(status::field phase)" "status: all complete -> done"
 t::assert_eq "0" "$(status::field drives_failed)" "status: failed count back to 0"
+t::assert_eq "" "$(status::field failed_devices)" \
+    "status: a clean run clears the named failures"
 
 # a worker that died without reporting is normalised to UNKNOWN -> failed.
 devrow[sdb.status]="UNKNOWN"

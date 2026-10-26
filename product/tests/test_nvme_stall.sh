@@ -63,23 +63,46 @@ printf 'weird 65535\n' > "$SEQ"
 t::assert_eq "- 65535 weird" "$(device::nvme_sanitize_state nvme0n1)" \
     "sanitize_state: unparseable SSTAT reports '-' rather than guessing"
 
-# --- pre-flight: a sanitize already in progress must fail fast, not be re-issued
-printf '0x2 655\n' > "$SEQ"
+# --- pre-flight: a sanitize already in progress is WAITED FOR, not failed ----
+# Bench reality: the drive really was erasing (a prior run had been killed at
+# 8%), yet the old pre-flight marked it STALLED/FAILED the instant it looked,
+# throwing away a live erase and telling the operator to power-cycle a healthy
+# drive. Wait for the in-flight sanitize to clear, then run this run's erase.
+printf '0x2 655\n0x2 700\n0x1 65535\n0x2 100\n0x1 65535\n' > "$SEQ"
 : > "$FAKE_NVME_CMDLOG"
 : > "$LOG_FILE"
 run_exec
-t::assert_contains "$captured" "nvme0n1 STATUS STALLED" \
-    "pre-flight: an in-progress sanitize -> STALLED"
-t::assert_contains "$captured" "already in progress" \
-    "pre-flight: explains the drive was already sanitizing"
-t::assert_contains "$captured" "power-cycle" \
-    "pre-flight: tells the operator to power-cycle"
-t::check "pre-flight: no sanitize command was issued" \
-    '! grep -qE "^sanitize " "$FAKE_NVME_CMDLOG"'
-t::check "pre-flight: no 6-hour monitor loop entered" \
-    '[[ "$captured" != *"STATUS RUNNING"* ]]'
-t::assert_contains "$(cat "$LOG_FILE")" "PRE-FLIGHT STALLED" \
+t::assert_contains "$captured" "already being sanitized" \
+    "pre-flight: says the drive was already sanitizing"
+t::assert_contains "$captured" "waiting for that erase to finish" \
+    "pre-flight: says it is waiting for that erase"
+t::assert_contains "$captured" "nvme0n1 PHASE WAIT" \
+    "pre-flight: the on-screen phase says WAIT, not a failure"
+t::check "pre-flight: a drive that is actually erasing is not called a failure" \
+    '[[ "$captured" != *"STATUS STALLED"* && "$captured" != *"STATUS FAILED"* ]]'
+t::check "pre-flight: does not demand a power cycle for a healthy drive" \
+    '[[ "$captured" != *"power-cycle the drive"* ]]'
+t::check "pre-flight: once the in-flight erase clears, this run issues its own" \
+    'grep -qE "^sanitize " "$FAKE_NVME_CMDLOG"'
+t::assert_contains "$captured" "the in-flight sanitize has finished" \
+    "pre-flight: reports the transfer of control"
+t::assert_contains "$captured" "nvme0n1 STATUS COMPLETED" \
+    "pre-flight: this run's own erase is what gets certified"
+t::assert_contains "$(cat "$LOG_FILE")" "PRE-FLIGHT WAIT" \
     "pre-flight: recorded in the run log"
+
+# --- pre-flight: a genuinely wedged in-flight sanitize is still named ---------
+printf '0x2 655\n0x2 655\n0x2 655\n0x2 655\n0x2 655\n0x2 655\n' > "$SEQ"
+: > "$FAKE_NVME_CMDLOG"
+export NVME_STALL_POLLS=2                  # 2 polls x 2s = 4s virtual window
+run_exec
+unset NVME_STALL_POLLS
+t::assert_contains "$captured" "nvme0n1 STATUS STALLED" \
+    "wedged in-flight sanitize: still ends in STALLED"
+t::assert_contains "$captured" "power-cycle" \
+    "wedged in-flight sanitize: tells the operator to power-cycle"
+t::check "wedged in-flight sanitize: never issues a second sanitize" \
+    '! grep -qE "^sanitize " "$FAKE_NVME_CMDLOG"'
 
 # --- pre-flight: a previous sanitize FAILED is a warning, not a refusal ------
 printf '0x3 0\n' > "$SEQ"

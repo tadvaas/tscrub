@@ -18,7 +18,7 @@ presence::endpoint() {
 
 # Send one heartbeat (best-effort — a failed ping never fails the run).
 presence::ping() {
-    local url body resp phase _total _done _failed _pct _eta
+    local url body resp phase _total _done _failed _pct _eta _failedlist
     [[ -n "${TSCRUB_API_TOKEN:-}" ]] || return 0
     phase="$(status::field phase)"
     _total="$(status::field drives_total)";   [[ "$_total"  =~ ^[0-9]+$ ]] || _total=0
@@ -26,15 +26,20 @@ presence::ping() {
     _failed="$(status::field drives_failed)"; [[ "$_failed" =~ ^[0-9]+$ ]] || _failed=0
     _pct="$(status::progress_field progress_pct)";       [[ "$_pct" =~ ^-?[0-9]+$ ]] || _pct=-1
     _eta="$(status::progress_field progress_eta_sec)";   [[ "$_eta" =~ ^-?[0-9]+$ ]] || _eta=-1
+    # WHICH drive failed and why. Without this the dashboard could only say
+    # "Failed", leaving the operator to guess which unit on the bench to pull.
+    _failedlist="$(status::field failed_devices)"
+    _failedlist="${_failedlist:0:240}"
     # Progress is only meaningful while a wipe is actually running — never let a
     # stale value linger after the phase flips to done/failed.
     if [[ "$phase" != "wiping" ]]; then _pct=-1; _eta=-1; fi
-    body="$(printf '{"serial":"%s","uuid":"%s","ip":"%s","phase":"%s","drives_total":%s,"drives_done":%s,"drives_failed":%s,"progress_pct":%s,"progress_eta_sec":%s}' \
+    body="$(printf '{"serial":"%s","uuid":"%s","ip":"%s","phase":"%s","drives_total":%s,"drives_done":%s,"drives_failed":%s,"progress_pct":%s,"progress_eta_sec":%s,"failed_devices":"%s"}' \
         "$(report::_json_field "${SYS_SERIAL:-}")" \
         "$(report::_json_field "${SYS_UUID:-}")" \
         "$(report::_json_field "$(network::lan_ip)")" \
         "$(report::_json_field "$phase")" \
-        "$_total" "$_done" "$_failed" "$_pct" "$_eta")"
+        "$_total" "$_done" "$_failed" "$_pct" "$_eta" \
+        "$(report::_json_field "$_failedlist")")"
     url="$(presence::endpoint)"
     if ! resp="$(curl -fsS --connect-timeout 5 --max-time 10 \
         -H "X-Api-Token: ${TSCRUB_API_TOKEN}" \
@@ -85,13 +90,40 @@ status::progress_field() {  # <key> -> value from the live-progress file
     sed -n "s/^$1=//p" "$STATUS_PROGRESS_FILE" 2>/dev/null | head -1
 }
 
-status::write() {  # <phase> <total> <done> <failed>
+status::write() {  # <phase> <total> <done> <failed> [failed_devices]
     {
         printf 'phase=%s\n' "$1"
         printf 'drives_total=%s\n' "$2"
         printf 'drives_done=%s\n' "$3"
         printf 'drives_failed=%s\n' "$4"
+        printf 'failed_devices=%s\n' "${5:-}"
     } > "$STATUS_STATE_FILE" 2>/dev/null || true
+}
+
+# How a drive is named to a human. The serial is what the dashboard and the
+# certificate use; a drive whose serial could not be read falls back to its
+# kernel name rather than telling the operator "N/A failed".
+status::drive_label() {  # <dev>
+    local s="${devrow[$1.serial]:-}"
+    if [[ -n "$s" && "$s" != "N/A" ]]; then
+        printf '%s' "$s"
+    else
+        printf '%s' "$1"
+    fi
+}
+
+# One short sentence for a terminal failure state, so a heartbeat can say WHAT
+# went wrong beside the drive it went wrong on. A bare "3 failed" made the
+# operator hunt a bench of identical units for the one that actually broke.
+status::failure_reason() {  # <status>
+    case "$1" in
+        FAILED)  printf 'erase failed' ;;
+        STALLED) printf 'sanitize stalled' ;;
+        BLOCKED) printf 'blocked by system firmware' ;;
+        FROZEN)  printf 'frozen by BIOS lock' ;;
+        UNKNOWN) printf 'stopped without reporting' ;;
+        *)       printf 'did not complete' ;;
+    esac
 }
 
 status::clear() {
@@ -155,13 +187,16 @@ status::erase_start() {
 # (to catch a worker that died without reporting, which erasure::run marks
 # UNKNOWN).
 status::drive_terminal() {
-    local dev total=0 dcount=0 fcount=0 finished=1 phase=wiping
+    local dev total=0 dcount=0 fcount=0 finished=1 phase=wiping failed_list=""
     for dev in "${devices[@]}"; do
         [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue
         total=$((total+1))
         case "${devrow[$dev.status]:-}" in
             COMPLETED|DRY-RUN|SKIPPED) dcount=$((dcount+1)) ;;
-            FAILED|BLOCKED|FROZEN|STALLED|UNKNOWN) fcount=$((fcount+1)) ;;
+            FAILED|BLOCKED|FROZEN|STALLED|UNKNOWN)
+                fcount=$((fcount+1))
+                failed_list+="${failed_list:+; }$(status::drive_label "$dev") ($(status::failure_reason "${devrow[$dev.status]:-}"))"
+                ;;
             *) finished=0 ;;   # still RUNNING/PLANNED
         esac
     done
@@ -171,7 +206,7 @@ status::drive_terminal() {
     if [[ $finished -eq 1 ]]; then
         if [[ $fcount -gt 0 ]]; then phase=failed; else phase=done; fi
     fi
-    status::write "$phase" "$total" "$dcount" "$fcount"
+    status::write "$phase" "$total" "$dcount" "$fcount" "$failed_list"
     status::ping_now
 }
 
@@ -196,7 +231,11 @@ status::recompute_progress() {
             *)
                 running=$((running+1))
                 if [[ "$st" =~ ^([0-9]+)%$ ]]; then
-                    pct=${BASH_REMATCH[1]}
+                    # 10#: the status word can be zero-padded ("08%"), and a
+                    # bare 08 is an invalid OCTAL literal whose rejection is
+                    # FATAL to a non-interactive shell — it killed the run at
+                    # exactly 8% instead of merely mis-reporting progress.
+                    pct=$(( 10#${BASH_REMATCH[1]} ))
                     pct_sum=$((pct_sum + pct))
                 elif [[ "${devrow[$dev.progress_pct]:-}" =~ ^[0-9]+$ ]]; then
                     # A live worker emits "STATUS NN%", but ui::loop records the
@@ -205,7 +244,7 @@ status::recompute_progress() {
                     # a real job. Without this branch every software-overwrite
                     # run reported progress_pct=-1 (indeterminate) to the
                     # dashboard while it was visibly wiping.
-                    pct=${devrow[$dev.progress_pct]}
+                    pct=$(( 10#${devrow[$dev.progress_pct]} ))   # decimal (see above)
                     pct_sum=$((pct_sum + pct))
                 else
                     indeterminate=$((indeterminate+1))

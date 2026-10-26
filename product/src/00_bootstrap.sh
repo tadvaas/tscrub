@@ -5,9 +5,14 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.79"
+SCRIPT_VERSION="v1.11.80"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
+# Durable append-only record of the run in progress (see report::journal).
+REPORT_JOURNAL=""
+# 1 between "this run started erasing" and "the report (or refusal) is on
+# disk", so the EXIT trap knows a run needs an abort record.
+RUN_ACTIVE=0
 LICENSE_USB_DEV=""
 REPORT_OUTPUT=""
 TABLE_INDENT="    "

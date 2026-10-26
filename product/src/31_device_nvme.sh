@@ -17,8 +17,12 @@ device::nvme_sanitize_state() {
     sstat="$(awk '/SSTAT/ {print $NF}' <<<"$log")"
     sprog="$(awk '/SPROG/ {print $NF}' <<<"$log")"
 
-    if [[ "$sstat" =~ ^0x[0-9A-Fa-f]+$ || "$sstat" =~ ^[0-9]+$ ]]; then
+    if [[ "$sstat" =~ ^0x[0-9A-Fa-f]+$ ]]; then
         state=$(( sstat & 0x7 ))
+    elif [[ "$sstat" =~ ^[0-9]+$ ]]; then
+        # 10#: a zero-padded decimal ("08") is an ILLEGAL OCTAL literal and the
+        # failed expansion is fatal to a non-interactive shell.
+        state=$(( 10#$sstat & 0x7 ))
     fi
 
     printf '%s %s %s\n' "$state" "${sprog:--}" "${sstat:--}"
@@ -106,14 +110,28 @@ device::exec_nvme() {
     state="${pre%% *}"
 
     if [[ "$state" == "2" ]]; then
-        device::emit_status "$dev" STALLED
-        echo "$dev LOG a sanitize was already in progress on this drive (from an earlier run or an interrupted wipe); a new one cannot advance — power-cycle the drive (disconnect power ~10-30 s), then re-run" >&3
+        # A sanitize is ALREADY RUNNING on this drive: an earlier tScrub run, or
+        # a previous appliance, was interrupted while the controller was still
+        # erasing. The controller refuses to start a second one and answers
+        # every read with NVME_SC_SANITIZE_IN_PROGRESS, so the old code failed
+        # the drive instantly — wrong twice over: it threw away an erase that
+        # was still destroying the media, and it reported the drive as failed
+        # when nothing had failed. Wait for the in-flight sanitize to clear and
+        # THEN issue this run's operation, so the report only ever claims what
+        # this appliance actually did (an in-flight erase may be a different
+        # service action from the one selected here).
+        echo "$dev STATUS RUNNING" >&3
+        echo "$dev PHASE WAIT" >&3
+        echo "$dev LOG this drive was already being sanitized (SSTAT=$pre) — waiting for that erase to finish, then starting this run's; do not power-cycle" >&3
         {
-            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: NVMe sanitize PRE-FLIGHT STALLED (sanitize already in progress)"
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: NVMe sanitize PRE-FLIGHT WAIT (sanitize already in progress)"
             echo "sanitize-log: state/sporg/sstat = $pre"
-            echo "----------------------------------------------------------"
         } >> "$LOG_FILE"
-        return 1
+        if ! device::monitor_nvme "$dev" wait; then
+            return 1
+        fi
+        pre="$(device::nvme_sanitize_state "$dev")"
+        echo "$dev LOG the in-flight sanitize has finished (SSTAT=$pre); starting this run's erase" >&3
     fi
 
     if [[ "$state" == "3" ]]; then
@@ -240,8 +258,15 @@ device::exec_nvme() {
 #              long wipes are never killed for taking a long time.
 #   * CAP    — a 6-hour backstop for "still moving, still never finishing".
 # Both end in STALLED (drive needs operator intervention: a power cycle).
+#
+# MODE "wait" (pre-flight only): watch a sanitize that an EARLIER run left
+# running. No outcome is recorded — the wait returns as soon as the controller
+# is idle again (completed, failed or cleared), and the caller then issues the
+# operation this run selected. The stall detector is identical: a wedged
+# controller must still be named as wedged rather than waited on forever.
 device::monitor_nvme() {
     local dev="$1"
+    local mode="${2:-outcome}"
     local timeout=$((60 * 60 * 6))
     local stall_polls="${NVME_STALL_POLLS:-450}"
     local start=$(ts::now)
@@ -259,10 +284,20 @@ device::monitor_nvme() {
 
         case "$state" in
             1|4)
+                # In "wait" mode the sanitize that just finished was NOT started
+                # by this run, so it is not this run's outcome: return and let
+                # the caller issue its own operation.
+                [[ "$mode" == "wait" ]] && return 0
                 device::emit_status "$dev" COMPLETED
                 return 0
                 ;;
             3)
+                if [[ "$mode" == "wait" ]]; then
+                    # The in-flight sanitize ended badly. The controller is idle
+                    # again, which is all the wait needs; this run then issues
+                    # its own operation and reports on that.
+                    return 0
+                fi
                 device::emit_status "$dev" FAILED
                 echo "$dev LOG Controller reported sanitize failure (SSTAT=$sstat)" >&3
                 return 1
@@ -270,13 +305,14 @@ device::monitor_nvme() {
             2)
                 no_progress=0
                 if [[ "$sprog" =~ ^[0-9]+$ ]]; then
-                    pct=$(( sprog * 100 / 65535 ))
+                    pct=$(( 10#$sprog * 100 / 65535 ))   # 10#: never octal
                     echo "$dev STATUS ${pct}%" >&3
                 else
                     echo "$dev STATUS RUNNING" >&3
                 fi
                 ;;
             0|-|"")
+                [[ "$mode" == "wait" ]] && return 0   # idle again: wait is over
                 # Never sanitized (or unreadable SSTAT): fail fast after a short
                 # grace period instead of burning the full 6-hour timeout.
                 no_progress=$((no_progress + 1))
