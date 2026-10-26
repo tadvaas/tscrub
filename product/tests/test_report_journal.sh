@@ -96,4 +96,17 @@ exec 3>&-
 RUN_ACTIVE=0
 
 rm -rf "$tmpdir"
+# --- the session exit path ------------------------------------------------
+# session::on_exit is what every EXIT trap calls. On the bench the abort record
+# was silently lost because fn_main armed its own cursor/teardown trap, which
+# REPLACED the one armed in the entrypoint. These two checks pin the wiring.
+report::journal_begin
+devrow[sda.status]="RUNNING"
+devrow[sda.progress_pct]="35"
+session::on_exit 143
+t::check "session::on_exit writes the abort record" 'grep -q "ABORTED exit=143" "$j"'
+t::assert_eq "0" "$RUN_ACTIVE" "session::on_exit closes the run"
+t::check "no other EXIT trap can replace the abort hook" \
+    '[[ "$(grep -rhoE "trap .+ EXIT" "$ROOT_DIR"/src/*.sh | grep -vc "session::on_exit")" == "0" ]]'
+
 t::summary

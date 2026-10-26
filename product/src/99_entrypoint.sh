@@ -14,7 +14,10 @@ parse_args "$@"
 # parent — must leave a durable note when an erasure was in flight. Without
 # this, a run that died left NOTHING on disk: no certificate, no report, no
 # journal entry, just a RAM log that vanished with the machine.
-trap 'report::abort_record $?' EXIT
+#
+# fn_main arms the same trap for the session proper; both call the one function
+# so whichever is active the behaviour is identical.
+trap 'session::on_exit $?' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 

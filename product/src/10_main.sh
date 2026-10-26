@@ -52,15 +52,33 @@ signal_abort() {  # <name> <code>
     exit "$2"
 }
 
+# The ONE exit path for the session. Anything that ends the process funnels
+# here, in this order: first the durable abort record (it must be written while
+# the report destination is still mounted), then the terminal restore, then the
+# worker teardown.
+session::on_exit() {  # <exit-code>
+    report::abort_record "${1:-0}"
+    ui::spinner_stop
+    ui::cursor_show
+    session::teardown
+}
+
 fn_main() {
     # Restore the cursor on exit; make Ctrl+C / SIGTERM actually abort (after
     # showing the cursor) instead of being silently swallowed. The EXIT trap
-    # also tears down the long-lived session workers.
+    # also tears down the long-lived session workers — and, critically, writes
+    # the abort record for a run that was still erasing.
+    #
+    # Every EXIT trap must call session::on_exit. A second `trap ... EXIT`
+    # silently REPLACES the first, which is exactly how the abort record was
+    # lost on the bench: the hook armed in the entrypoint was overwritten here,
+    # so a killed run left nothing behind. A test asserts no other EXIT trap
+    # exists.
     trap 'signal_abort SIGINT 130' INT
     trap 'signal_abort SIGTERM 143' TERM
     trap 'signal_abort SIGHUP 129' HUP
     trap 'ui::sigwinch' WINCH
-    trap 'ui::spinner_stop; ui::cursor_show; session::teardown' EXIT
+    trap 'session::on_exit $?' EXIT
 
     # Reset per-run state. (The worker -> UI IPC channel is opened per erasure
     # inside erasure::run, since one session can run several erasures.)

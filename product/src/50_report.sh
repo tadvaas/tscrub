@@ -46,7 +46,7 @@ report::journal() {  # <EVENT> <text...>
 # Point the journal at the report destination and open this run.
 report::journal_open() {
     local dir dev n=0
-    dir="${REPORT_DIR:-/}reports"
+    dir="${REPORT_DIR%/}/reports"
     [[ -n "${COCID:-}" ]] && dir="$dir/$COCID"
     mkdir -p "$dir" 2>/dev/null || dir="${REPORT_DIR:-/}"
     REPORT_JOURNAL="${dir%/}/run-journal.txt"
