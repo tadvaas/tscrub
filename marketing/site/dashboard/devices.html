@@ -40,7 +40,7 @@
       <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">Machines seen by tScrub at boot — hardware, firmware and the media inside them, consolidated from your diagnostics uploads.</p>
     </div>
 
-    <div id="fleet-summary" class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"></div>
+    <div id="fleet-summary" class="mt-6 grid grid-cols-2 gap-3 transition-opacity duration-150 sm:grid-cols-4"></div>
 
     <div class="mt-4 flex flex-wrap items-center gap-2">
       <!-- Three-way record-source switch. Subtle on purpose: it narrows the list, it is not
@@ -50,6 +50,12 @@
         <button type="button" data-source="all" title="Everything on this account — wiped and operator-attested">All</button>
         <button type="button" data-source="verified" title="Erased by the tScrub appliance — instrument-verified">tScrub</button>
         <button type="button" data-source="attested" title="Recorded by an operator — not instrument-verified">Attested</button>
+        <!-- Busy slot. It is ALWAYS in the layout and only fades — a spinner that
+             is added and removed changes the width of the control it sits in, which
+             is the jump this is avoiding. -->
+        <span id="source-busy" class="ml-1 mr-0.5 inline-flex h-3 w-3 shrink-0 items-center justify-center opacity-0 transition-opacity duration-150" aria-hidden="true">
+          <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600 dark:border-slate-600 dark:border-t-brand-400"></span>
+        </span>
       </div>
       <div class="relative w-full min-w-0 sm:w-auto sm:flex-1">
         <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
@@ -68,7 +74,7 @@
     </div>
     <script src="/assets/manual-assets.js?v=17" defer></script>
 
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
+    <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
       <div id="device-list" class="min-h-[200px]">
         <!-- Loading placeholders. The shape matches what is about to replace
              it: table rows on desktop, cards on phones, so the panel does not
@@ -187,6 +193,20 @@
         </div>
       </div>
       <div id="device-pager" class="border-t border-slate-100 dark:border-ink-800 px-4 py-3"></div>
+
+      <!-- Reload indicators for the panel. Both are outside the flow — a fixed-height
+           strip whose inner block alone moves, and an absolutely positioned overlay —
+           so starting or finishing a load cannot change any element's size. -->
+      <div id="list-busy-bar" class="pointer-events-none absolute inset-x-0 top-0 z-20 hidden h-0.5 overflow-hidden bg-brand-100 dark:bg-brand-900/40">
+        <div class="h-full w-1/3 animate-indeterminate bg-brand-600 dark:bg-brand-400"></div>
+      </div>
+      <div id="list-busy" class="pointer-events-none absolute inset-0 z-20 hidden bg-white/70 dark:bg-ink-900/70">
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-ink-800 dark:ring-white/10" role="status" aria-label="Loading devices">
+            <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600 dark:border-slate-600 dark:border-t-brand-400"></span>
+          </span>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -836,10 +856,62 @@
           source = next;
           page = 1;
           paintSourceSwitch();
+          // The switch replaces every row on the page, so the panel has to say it is
+          // working. Nothing is cleared first: the rows on screen stay put under the
+          // overlay, because swapping them for a skeleton of a different height is a
+          // bigger jump than leaving them dimmed for a moment.
+          startListBusy();
           loadDevices();
         });
       });
       paintSourceSwitch();
+
+      // The list panel's own busy state. Only the record-source switch sets it: that
+      // click changes what every row on the page means, while a search keystroke only
+      // narrows the same rows (an overlay on every character would flicker), and the
+      // pager already carries a spinner of its own. The 10s auto-refresh never sets it
+      // either — a background poll must not animate the page under the operator.
+      //
+      // Every indicator painted here is either fixed-size or out of the flow — see the
+      // markup. That is the whole point: a loading indicator must not resize the thing
+      // it sits next to, or the page twitches every time it appears.
+      var listBusy = false;
+      var listBusyAt = 0;
+      function paintListBusy() {
+        var overlay = document.getElementById('list-busy');
+        if (overlay) overlay.classList.toggle('hidden', !listBusy);
+        var bar = document.getElementById('list-busy-bar');
+        if (bar) bar.classList.toggle('hidden', !listBusy);
+        // Opacity only — the slot keeps its 12px whether it holds a spinner or not.
+        var slot = document.getElementById('source-busy');
+        if (slot) {
+          slot.classList.toggle('opacity-100', listBusy);
+          slot.classList.toggle('opacity-0', !listBusy);
+        }
+        // The fleet cards are counts over the whole filtered set, so they are stale too
+        // until the response lands. Dimming them says so without moving them.
+        var summary = document.getElementById('fleet-summary');
+        if (summary) summary.classList.toggle('opacity-50', listBusy);
+        var list = document.getElementById('device-list');
+        if (list) list.setAttribute('aria-busy', listBusy ? 'true' : 'false');
+      }
+      function startListBusy() {
+        listBusy = true;
+        listBusyAt = Date.now();
+        paintListBusy();
+      }
+      // A response can land in ~40ms, which would flash the spinner for a single frame
+      // and read as a glitch rather than as progress. Hold it for a beat so the animation
+      // is legible. The sequence guard matters both ways: a superseded request must not
+      // clear the indicator a newer one is using.
+      function endListBusy(seq) {
+        if (seq !== devicesFetchSeq) return;
+        setTimeout(function () {
+          if (seq !== devicesFetchSeq || !listBusy) return;
+          listBusy = false;
+          paintListBusy();
+        }, Math.max(0, 320 - (Date.now() - listBusyAt)));
+      }
 
       // Paint the sort arrows from the CURRENT sort state. $root is the header being built
       // during a render — passing it matters: at that point the new table is not in the
@@ -1014,6 +1086,7 @@
             pagerLoading = null;
             renderPager();
           }
+          endListBusy(seq);
         });
       }
 

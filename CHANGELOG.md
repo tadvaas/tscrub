@@ -28,6 +28,26 @@ and this project uses date-based versioning (`v1.x`).
   no report to decode — and the "— N attested" pager suffix is dropped while a filter is
   active, since it would only repeat the total.
 
+### Changed
+
+- **Loading state while the record-source switch reloads the list.** Switching replaces every
+  row on the page, and on a full account that request takes about a second, so the panel now
+  says it is working: an indeterminate bar along the top edge of the card, a centred spinner
+  over the dimmed rows, a matching spinner in the switch, and `aria-busy` on the list. The
+  previous rows stay on screen underneath rather than being swapped for a skeleton of a
+  different height, which would be a bigger jump than the wait.
+
+  Every indicator is deliberately **fixed-size or out of the flow**, because a spinner that is
+  inserted into a toolbar changes the width of everything beside it and makes the page twitch
+  every time a request starts and again when it ends. The switch's spinner lives in a 12×12
+  slot that is always present and only fades (opacity, never `display`); the panel spinner is
+  absolutely positioned inside a fixed-size overlay; the bar only translates its inner block.
+  A response that lands in 40ms still holds the indicator for a beat so it reads as progress
+  rather than a flicker, and the 10s auto-refresh on Devices never animates the page.
+  `marketing/tests/dashboard_loading_test.cjs` (60 checks) asserts the invariant, and was
+  mutation-tested — re-adding `hidden` to the switch slot, dropping the pager's `min-w` or
+  removing the overlay's `absolute` each fail it.
+
 ## [v1.11.78] - 2026-10-22
 
 ### Fixed
