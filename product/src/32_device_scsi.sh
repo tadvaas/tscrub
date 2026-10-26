@@ -103,6 +103,20 @@ nwipe::eraser() {
     fi
 }
 
+# Seconds from nwipe's "eta hh:mm:ss" field, or nothing when the line has none.
+#
+# The fields are ZERO-PADDED and bash reads a leading zero as OCTAL, so
+# "eta 01:47:09" used to abort with "value too great for base (error token is
+# "09")" on the terminal the moment the seconds (or minutes) field was 08 or
+# 09 — i.e. once a wipe had been running 9 seconds past an hour boundary. The
+# 10# prefixes force base 10 for every field.
+nwipe::eta_seconds() {   # <log line> -> seconds on stdout, rc 1 when absent
+    local line="$1" h m s
+    [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]] || return 1
+    h="${BASH_REMATCH[1]}"; m="${BASH_REMATCH[2]}"; s="${BASH_REMATCH[3]}"
+    printf '%s' "$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))"
+}
+
 device::exec_nwipe() {
     local dev="$1"
     local nwipe_help logfile rc line pct eta_sec
@@ -197,8 +211,7 @@ device::exec_nwipe() {
                 fi
                 if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
                     pct="${BASH_REMATCH[1]}"
-                    if [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]]; then
-                        eta_sec=$(( ${BASH_REMATCH[1]} * 3600 + ${BASH_REMATCH[2]} * 60 + ${BASH_REMATCH[3]} ))
+                    if eta_sec="$(nwipe::eta_seconds "$line")"; then
                         echo "$dev ETA $eta_sec" >&3
                     fi
                     echo "$dev STATUS ${pct}%" >&3
@@ -219,8 +232,7 @@ device::exec_nwipe() {
         fi
         if [[ "$line" =~ ([0-9]+)(\.[0-9]+)?% ]]; then
             pct="${BASH_REMATCH[1]}"
-            if [[ "$line" =~ eta[[:space:]]+([0-9]+):([0-9]+):([0-9]+) ]]; then
-                eta_sec=$(( ${BASH_REMATCH[1]} * 3600 + ${BASH_REMATCH[2]} * 60 + ${BASH_REMATCH[3]} ))
+            if eta_sec="$(nwipe::eta_seconds "$line")"; then
                 echo "$dev ETA $eta_sec" >&3
             fi
             echo "$dev STATUS ${pct}%" >&3

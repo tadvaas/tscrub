@@ -57,4 +57,17 @@ t::assert_contains "$captured" "sda STATUS 45%" "nwipe % parsed -> STATUS 45%"
 t::assert_contains "$captured" "sda ETA 754" "nwipe eta 00:12:34 -> 754s"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "nwipe success -> COMPLETED"
 
+echo
+echo "== nwipe ETA parsing: zero-padded fields are DECIMAL, not octal =="
+# The real-world failure: a 32 GB stick reported "eta 01:47:09" and the whole
+# arithmetic expression aborted with "value too great for base (error token is
+# \"09\")" printed over the operator's screen. Any field of 08 or 09 did it.
+t::assert_eq "6429" "$(nwipe::eta_seconds ' 42.3% complete, eta 01:47:09')" \
+    "01:47:09 -> 6429 s"
+t::assert_eq "8" "$(nwipe::eta_seconds 'eta 00:00:08')" "08 seconds -> 8"
+t::assert_eq "7749" "$(nwipe::eta_seconds 'eta 02:09:09')" "09 minutes and seconds -> 7749 s"
+t::check "no arithmetic noise on stderr" \
+    '[[ -z "$(nwipe::eta_seconds "eta 01:47:09" 2>&1 >/dev/null)" ]]'
+t::check "a line with no ETA is rejected" '! nwipe::eta_seconds " 42.3% complete" >/dev/null'
+
 t::summary
