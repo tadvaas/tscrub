@@ -174,7 +174,7 @@ table::row_text() {
             CLASS)  val="${devrow[$dev.class]}" ;;
             METHOD) val="${devrow[$dev.method]}" ;;
             STATUS) if [[ "${devrow[$dev.status]}" == "RUNNING" ]]; then
-                        val="$(ui::wave_cell "$UI_WAVE_FRAME" "$w")"
+                        val="$(ui::live_status_cell "$dev" "$now" "$w")"
                     else
                         val="${devrow[$dev.status]}"
                     fi ;;
@@ -285,6 +285,38 @@ ui::spinner() {
     local frames
     frames=( '|' '/' '-' '\' )
     printf '%s' "${frames[UI_SPINNER_FRAME % 4]}"
+}
+
+# The STATUS cell while a drive is wiping.
+#
+# A software overwrite (nwipe) knows WHICH pass it is in — WRITE, VERIFY, SYNC —
+# and nwipe has no timer: it emits that line only when tScrub signals it, every
+# NWIPE_PUMP_SECONDS. Both facts belong on screen. The phase answers "is it
+# erasing or verifying?", which the percentage alone cannot. The trailing "!"
+# means the last sample is older than two pump intervals: this worker has gone
+# quiet, so the ETA beside it is stale rather than merely wrong. A firmware
+# erase (NVMe/ATA) reports no phase, so it keeps the marching wave.
+UI_STATUS_STALE_SECS="${UI_STATUS_STALE_SECS:-25}"
+
+ui::phase_cell() {   # <phase> <age_seconds|'""'> <width> ; rc 1 when no phase
+    local phase="$1" age="$2" w="${3:-9}" out
+    [[ -n "$phase" ]] || return 1
+    out="$phase"
+    if [[ "$age" =~ ^[0-9]+$ ]] && (( age > UI_STATUS_STALE_SECS )); then
+        out+='!'
+    fi
+    printf '%-*.*s' "$w" "$w" "$out"
+}
+
+ui::live_status_cell() {   # <dev> <now> <width>
+    local dev="$1" now="$2" w="${3:-9}" age=""
+    if [[ "${devrow[$dev.sample_ts]:-}" =~ ^[0-9]+$ ]]; then
+        age=$(( now - devrow[$dev.sample_ts] ))
+        (( age < 0 )) && age=0
+    fi
+    if ! ui::phase_cell "${devrow[$dev.phase]:-}" "$age" "$w"; then
+        ui::wave_cell "$UI_WAVE_FRAME" "$w"
+    fi
 }
 
 # Indeterminate "wipe wave" for the STATUS cell: a bracketed `#` progress bar
@@ -555,9 +587,10 @@ ui::tick_inplace() {
         eta_col="$(ui::eta_text_for "$dev" "$now")"
         printf "\033[%d;%dH%-*.*s" "$row" "$UI_ETA_COL" "$UI_ETA_W" "$UI_ETA_W" "$eta_col"
         if [[ "${devrow[$dev.status]}" == "RUNNING" ]]; then
-            # %s (no width/precision): the wave is already exactly UI_STATUS_W
+            # %s (no width/precision): the cell is already exactly UI_STATUS_W
             # columns; %-*.*s would pad/truncate it and shift the bar.
-            printf "\033[%d;%dH%s" "$row" "$UI_STATUS_COL" "$(ui::wave_cell "$UI_WAVE_FRAME" "$UI_STATUS_W")"
+            printf "\033[%d;%dH%s" "$row" "$UI_STATUS_COL" \
+                "$(ui::live_status_cell "$dev" "$now" "$UI_STATUS_W")"
         fi
     done
 
@@ -581,7 +614,7 @@ table::paint_row() {
 # full row string (btop's "data_same" short-circuit).
 ui::state_key() {
     local dev="$1"
-    printf '%s|%s|%s|%s|%s|%s|%s|%s|%s' \
+    printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' \
         "${devrow[$dev.status]:-}" \
         "${devrow[$dev.class]:-}" \
         "${devrow[$dev.method]:-}" \
@@ -590,7 +623,8 @@ ui::state_key() {
         "${devrow[$dev.model]:-}" \
         "${devrow[$dev.serial]:-}" \
         "${devrow[$dev.selected]:-0}" \
-        "${devrow[$dev.eta_mins]:-}"
+        "${devrow[$dev.eta_mins]:-}" \
+        "${devrow[$dev.phase]:-}"
 }
 
 # Pure diff (TTY-independent): echo the space-separated list of devices whose
@@ -915,6 +949,10 @@ ui::loop() {
                 # parse). Store it for the aggregate heartbeat progress.
                 if [[ "$_value" =~ ^([0-9]+)%$ ]]; then
                     devrow["$_dev.progress_pct"]="${BASH_REMATCH[1]}"
+                    # When the last sample arrived. nwipe only speaks when
+                    # signalled, so the age of this stamp is the difference
+                    # between "slow" and "this worker has stopped talking".
+                    devrow["$_dev.sample_ts"]="$(ts::now)"
                 fi
                 # Record when an ATA wipe starts (first RUNNING only)
                 if [[ "$_value" == "RUNNING" ]] && \
@@ -933,6 +971,10 @@ ui::loop() {
                             devrow["$_dev.end_ts"]="$(ts::now)"
                             devrow["$_dev.end_at"]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
                         fi
+                        # A finished drive must not keep wearing its last
+                        # pass phase: "VERIFY" on a COMPLETED row reads as if
+                        # verification were still running.
+                        devrow["$_dev.phase"]=""
                         # Publish the live erasure state (Wiping -> Complete /
                         # Failed) to the dashboard heartbeat on each terminal
                         # drive transition.
@@ -941,6 +983,12 @@ ui::loop() {
                 esac
                 # Refresh the aggregate % + ETA the heartbeat reports.
                 status::recompute_progress
+                ui::repaint_changed "$(ts::now)"
+            elif [[ "$_key" == "PHASE" ]]; then
+                # nwipe's current pass (WRITE/VERIFY/SYNC/...) for the STATUS
+                # cell. Not an outcome: it changes many times per job and is
+                # painted by the in-place tick, never written to the report.
+                devrow["$_dev.phase"]="$_value"
                 ui::repaint_changed "$(ts::now)"
             elif [[ "$_key" == "ETA" ]]; then
                 # nwipe reports an explicit eta (HH:MM:SS -> seconds); the

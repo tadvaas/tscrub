@@ -70,4 +70,24 @@ t::check "no arithmetic noise on stderr" \
     '[[ -z "$(nwipe::eta_seconds "eta 01:47:09" 2>&1 >/dev/null)" ]]'
 t::check "a line with no ETA is rejected" '! nwipe::eta_seconds " 42.3% complete" >/dev/null'
 
+echo
+echo "== nwipe pass phase is surfaced, and a stale sample is marked =="
+# nwipe has no timer: it writes "..., eta HH:MM:SS, [verifying]" only when
+# tScrub signals it. The phase tells WRITING from VERIFYING (the percentage
+# looks identical), and the "!" says the last sample is older than two pump
+# intervals, i.e. the ETA beside it is stale rather than merely wrong.
+t::assert_eq "VERIFY" "$(nwipe::phase_token '/dev/sdb: 42.31%, round 1 of 1, pass 1 of 1, eta 01:47:09, [verifying]')" \
+    "verifying -> VERIFY"
+t::assert_eq "WRITE"  "$(nwipe::phase_token '/dev/sdb: 42.31%, round 1 of 1, pass 1 of 1, eta 01:47:09, >[writing]>')" \
+    "writing -> WRITE"
+t::assert_eq "SYNC"   "$(nwipe::phase_token '/dev/sdb: 42.31%, round 1 of 1, pass 1 of 1, eta 00:00:09, [syncing]')" \
+    "syncing -> SYNC"
+t::check "a line with no phase yields nothing" \
+    '! nwipe::phase_token "/dev/sdb: 42.31%, round 1 of 1, pass 1 of 1, eta 01:47:09" >/dev/null'
+t::check "the phase cell falls back when there is no phase" \
+    '! ui::phase_cell "" 1 9 >/dev/null'
+t::assert_eq "VERIFY   " "$(ui::phase_cell VERIFY 2 9)"  "fresh sample: phase, no marker"
+t::assert_eq "VERIFY!  " "$(ui::phase_cell VERIFY 40 9)" "40s without a sample: marked stale"
+t::assert_eq "VERIFY   " "$(ui::phase_cell VERIFY 25 9)" "at exactly 25s it is still fresh"
+
 t::summary

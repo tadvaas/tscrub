@@ -103,6 +103,28 @@ nwipe::eraser() {
     fi
 }
 
+# How often nwipe is asked for a progress line, in seconds. nwipe has NO timer
+# of its own: --nogui writes "NN.NN%, round .., pass .., eta .., [phase]" only
+# when it receives SIGUSR1, so the appliance's sample rate IS this value.
+NWIPE_PUMP_SECONDS="${NWIPE_PUMP_SECONDS:-10}"
+
+# The pass phase nwipe is in, as a short token for the STATUS cell, or nothing
+# when the line carries none. This is the only place the operator can tell an
+# erase that is WRITING from one that is VERIFYING — the percentage looks the
+# same for both.
+nwipe::phase_token() {   # <log line> -> WRITE|VERIFY|SYNC|RETRY|BLANK|OPS2
+    local line="$1"
+    case "$line" in
+        *"[verifying]"*)  printf 'VERIFY' ;;
+        *"[writing]"*)    printf 'WRITE' ;;
+        *"[syncing]"*)    printf 'SYNC' ;;
+        *"[retrying]"*)   printf 'RETRY' ;;
+        *"[blanking]"*)   printf 'BLANK' ;;
+        *"[OPS-II final]"*) printf 'OPS2' ;;
+        *) return 1 ;;
+    esac
+}
+
 # Seconds from nwipe's "eta hh:mm:ss" field, or nothing when the line has none.
 #
 # The fields are ZERO-PADDED and bash reads a leading zero as OCTAL, so
@@ -187,7 +209,7 @@ device::exec_nwipe() {
     (
         sleep 3
         while kill -0 "$nwipe_pid" 2>/dev/null; do
-            sleep 10
+            sleep "$NWIPE_PUMP_SECONDS"
             kill -USR1 "$nwipe_pid" 2>/dev/null || true
         done
     ) 3>&- 4<&- &
@@ -214,6 +236,9 @@ device::exec_nwipe() {
                     if eta_sec="$(nwipe::eta_seconds "$line")"; then
                         echo "$dev ETA $eta_sec" >&3
                     fi
+                    if phase="$(nwipe::phase_token "$line")"; then
+                        echo "$dev PHASE $phase" >&3
+                    fi
                     echo "$dev STATUS ${pct}%" >&3
                 fi
             done < <(tail -c +$((offset + 1)) "$logfile" 2>/dev/null)
@@ -234,6 +259,9 @@ device::exec_nwipe() {
             pct="${BASH_REMATCH[1]}"
             if eta_sec="$(nwipe::eta_seconds "$line")"; then
                 echo "$dev ETA $eta_sec" >&3
+            fi
+            if phase="$(nwipe::phase_token "$line")"; then
+                echo "$dev PHASE $phase" >&3
             fi
             echo "$dev STATUS ${pct}%" >&3
         fi
