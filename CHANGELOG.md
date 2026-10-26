@@ -86,6 +86,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [v1.11.82] - 2026-10-26
 
+Released artefacts: ISO `tscrub-v1.11.82_2025.11_30_x86-64_v0.41_20261026-6093603e.iso`
+(176,496,640 B, SHA-256 `76487d9924f455f441e4b7d507607ea21f84f8b44487b34c986d4813e4fefb3a`,
+168 MiB); signed script SHA-256
+`e3856cf95a260ea842590cf2f8c98ca40c642177f0ffc5c8754eb38e39ba757` (overlay copy
+`05237ebe4c0a93ec91cf2db6e5b60da07568cdc818d94dd138860b33d3352e14`, verified byte
+for byte against the slim build); PXE `bzImage` 95,226,400 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`4b69b4aacf487a0b7fc4087107fb2b4463c4ed15804efd5f8abad0dcdf0c5ea4`; build-host
+commit `6093603e`.
+
 ### Fixed
 
 - **tScrub refused to erase a stick it had quietly claimed for itself.** A bench
