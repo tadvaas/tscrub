@@ -8,6 +8,20 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- **A drive reformatted for reuse is labelled `ERASED`, not `TSCRUB`.** The old
+  default stamped the appliance's own identity marker onto every drive it
+  prepared, and `device::protected_disks()` protects any disk carrying
+  `TSCRUB`/`TSCRUB-USB` — so a stick tScrub had just erased and formatted came
+  back **unerasable by tScrub**, and (since v1.11.82) was also claimed as a
+  report destination. Found on the bench: a Transcend prepared this way read
+  `PROTECTED — tScrub media (label TSCRUB)` while sitting there as a target.
+  Naming the appliance's own media is still possible, but now only deliberately
+  (`--label TSCRUB` / `tscrub_label=TSCRUB`). `--label` and `tscrub_label=` are
+  now documented on the docs page, including the sanitiser (uppercased, A-Z0-9
+  only, 11 chars).
+
 ## [v1.11.83] - 2026-10-26
 
 Released artefacts: ISO `tscrub-v1.11.83_2025.11_30_x86-64_v0.41_20261026-98925c40.iso`

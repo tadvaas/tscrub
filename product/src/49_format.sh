@@ -53,7 +53,13 @@ format::resolve_config() {
         auto|mbr|gpt) ;;
         *) FORMAT_SCHEME="auto" ;;
     esac
-    [[ -n "${FORMAT_LABEL:-}" ]] || FORMAT_LABEL="TSCRUB"
+    # ERASED, not TSCRUB: this label is stamped on every drive the appliance
+    # prepares for a customer, and TSCRUB/TSCRUB-USB are the appliance's OWN
+    # identity markers — device::protected_disks() protects any disk carrying
+    # them, so a stick formatted here would come back unerasable by the very
+    # appliance that prepared it. Naming the appliance's media stays a
+    # deliberate act (--label TSCRUB / tscrub_label=TSCRUB).
+    [[ -n "${FORMAT_LABEL:-}" ]] || FORMAT_LABEL="ERASED"
 }
 
 # Pure policy: <size_bytes> <sector_size> -> "scheme fs".
@@ -108,9 +114,9 @@ format::_start_sector() {  # <sector_size> -> first LBA (1 MiB alignment)
 }
 
 format::_sanitize_label() { # <label> -> FAT-safe 8.3 uppercase label (<=11 chars)
-    local l="${1:-TSCRUB}"
+    local l="${1:-ERASED}"
     l="$(printf '%s' "$l" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9' | cut -c1-11)"
-    [[ -n "$l" ]] || l="TSCRUB"
+    [[ -n "$l" ]] || l="ERASED"
     printf '%s' "$l"
 }
 
@@ -232,7 +238,7 @@ format::format_drive() {
     fi
 
     local label start part
-    label="$(format::_sanitize_label "${FORMAT_LABEL:-TSCRUB}")"
+    label="$(format::_sanitize_label "${FORMAT_LABEL:-ERASED}")"
     start="$(format::_start_sector "$sector_sz")"
     part="$(format::_part_node "$dev")"
 

@@ -26,10 +26,12 @@ t::assert_eq "256" "$(format::_start_sector 4096)" "start 256 @4Kn"
 
 # --- label sanitise ----------------------------------------------------------
 t::assert_eq "TSCRUB" "$(format::_sanitize_label 'tscrub')" "label uppercased"
-t::assert_eq "TSCRUB" "$(format::_sanitize_label '')" "empty label -> TSCRUB"
+t::assert_eq "ERASED" "$(format::_sanitize_label '')" "empty label -> ERASED (never the appliance's own marker)"
 t::assert_eq "TSCRUB123" "$(format::_sanitize_label 'tscrub-123')" "label strips punctuation"
 t::assert_eq "ABCDEFGHIJK" "$(format::_sanitize_label 'abcdefghijklmnop')" "label truncated to 11"
-t::assert_eq "TSCRUB" "$(format::_sanitize_label '***')" "all-punctuation label -> TSCRUB"
+t::assert_eq "ERASED" "$(format::_sanitize_label '***')" "all-punctuation label -> ERASED"
+# Naming the appliance's own media is still possible, but only on purpose.
+t::assert_eq "TSCRUB" "$(format::_sanitize_label 'TSCRUB')" "an explicit TSCRUB label is honoured"
 
 # --- tool availability (real cascade against fakes/bin) ----------------------
 t::assert_eq "sfdisk" "$(format::_partitioner)" "partitioner prefers sfdisk"
@@ -76,10 +78,10 @@ format::format_drive sda
 t::assert_eq "ok" "${devrow[sda.format_result]}" "completed drive formats ok"
 t::assert_eq "exfat" "${devrow[sda.format_fs]}" "fs exfat"
 t::assert_eq "mbr" "${devrow[sda.format_scheme]}" "scheme mbr"
-t::assert_eq "TSCRUB" "${devrow[sda.format_label]}" "label TSCRUB"
+t::assert_eq "ERASED" "${devrow[sda.format_label]}" "default label is ERASED"
 t::assert_eq "blkid:exfat" "${devrow[sda.format_confirm]}" "confirm blkid exfat"
 t::check "partition call carries mbr+exfat" '[[ "$PART_ARGS" == "sda mbr exfat 2048" ]]'
-t::check "mkfs call carries fs+label+part" '[[ "$MKFS_ARGS" == "exfat TSCRUB sda1" ]]'
+t::check "mkfs call carries fs+label+part" '[[ "$MKFS_ARGS" == "exfat ERASED sda1" ]]'
 
 # small drive -> fat32
 sectors[sda]=$(( 30*1024*1024*2 ))   # 30 GiB -> fat32
@@ -210,6 +212,6 @@ format::resolve_config
 t::assert_eq "auto" "$FORMAT_MODE" "bogus mode -> auto"
 t::assert_eq "auto" "$FORMAT_FS" "bogus fs -> auto"
 t::assert_eq "auto" "$FORMAT_SCHEME" "bogus scheme -> auto"
-t::assert_eq "TSCRUB" "$FORMAT_LABEL" "empty label -> TSCRUB"
+t::assert_eq "ERASED" "$FORMAT_LABEL" "empty label -> ERASED"
 
 t::summary
