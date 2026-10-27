@@ -10,6 +10,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [v1.11.84] - 2026-10-27
 
+Released artefacts: ISO `tscrub-v1.11.84_2025.11_30_x86-64_v0.41_20261027-2ef83e19.iso`
+(176,496,640 B, SHA-256 `b95d08fcd67611bb230c75f8316b6599baa054248dad87597644de052cda4f61`,
+168 MiB); signed script SHA-256
+`1b47f8feeeff952267ce0f580952993b11e336d32cdaac7f4153014d0af3053e` (overlay copy
+`2e321449f9b51ca481afac54c9d62bcb781800d0fa78583b0466c4180d22b95c`, verified byte
+for byte against the slim build); PXE `bzImage` 95,234,592 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`f31b67c9a43028ee1be02e91b1fb1c7eef019155e3ea4d0aaaaa824873760567`; build-host
+commit `2ef83e19`.
+
 ### Changed
 
 - **A drive reformatted for reuse is labelled `ERASED`, not `TSCRUB`.** The old
