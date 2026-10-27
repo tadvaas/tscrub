@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.11.83"
+SCRIPT_VERSION="v1.11.84"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 # Durable append-only record of the run in progress (see report::journal).

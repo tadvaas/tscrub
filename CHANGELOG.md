@@ -8,6 +8,8 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.84] - 2026-10-27
+
 ### Changed
 
 - **A drive reformatted for reuse is labelled `ERASED`, not `TSCRUB`.** The old
