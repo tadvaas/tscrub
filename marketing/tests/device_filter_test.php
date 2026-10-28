@@ -170,11 +170,56 @@ foreach (['bios' => ['locked', 'unlocked', 'unknown'], 'presence' => ['online', 
     }
 }
 
-echo "\n== 5. the vocabulary is closed ==\n";
+echo "\n== 5. COCID is a SET, not a value ==\n";
+
+$multi = dev(['_cocids' => "33380\n33219\n99995"]);
+t_check('a row holds every COCID it reported under',
+    device_facet_values($multi, 'cocid') === ['33380', '33219', '99995'], device_facet_values($multi, 'cocid'));
+t_check('an attested row falls back to its single cocid',
+    device_facet_values(dev(['_cocids' => '', 'cocid' => '77777']), 'cocid') === ['77777']);
+t_check('a row with no COCID has an empty set',
+    device_facet_values(dev([]), 'cocid') === []);
+t_check('the set is de-duplicated',
+    device_facet_values(dev(['_cocids' => "1\n1\n2"]), 'cocid') === ['1', '2']);
+
+t_check('matching ANY of the row\'s COCIDs is enough',
+    device_filters_match($multi, device_filters_parse('cocid:33219')));
+t_check('a COCID the row never reported does not match',
+    !device_filters_match($multi, device_filters_parse('cocid:11111')));
+t_check('several COCIDs are OR',
+    device_filters_match($multi, device_filters_parse('cocid:11111,cocid:99995')));
+t_check('a COCID combines with another facet as AND',
+    !device_filters_match($multi, device_filters_parse('cocid:33380,presence:offline')));
+
+// The open vocabulary is validated by shape, so a hand-edited URL cannot inject
+// anything that is not a COCID.
+t_check('a path-like value is rejected', device_filters_parse('cocid:a/b') === []);
+t_check('an over-long value is rejected', device_filters_parse('cocid:' . str_repeat('9', 65)) === []);
+t_check('an empty value is rejected', device_filters_parse('cocid:') === []);
+t_check('hyphens and underscores are allowed',
+    device_filters_parse('cocid:A-1_b9') === ['cocid' => ['A-1_b9' => true]], device_filters_parse('cocid:A-1_b9'));
+t_check('a COCID keeps its case (it is an identifier)',
+    device_filters_encode(device_filters_parse('cocid:AbC123')) === 'cocid:AbC123');
+
+$cocidCounts = device_facet_counts([$multi, dev(['_cocids' => '33380']), dev([])]);
+t_check('COCID counts are per job, not per row',
+    $cocidCounts['cocid'] == ['33380' => 2, '33219' => 1, '99995' => 1], $cocidCounts['cocid']);
+
+// Cross-check: the count for a COCID must equal what the filter then selects.
+foreach (['33380', '33219', '99995'] as $cid) {
+    $rowsWith = [$multi, dev(['_cocids' => '33380']), dev([])];
+    $sel = count(array_filter($rowsWith, static fn($r) => device_filters_match($r, device_filters_parse('cocid:' . $cid))));
+    t_check("count for cocid:$cid equals what the filter selects", ($cocidCounts['cocid'][$cid] ?? 0) === $sel);
+}
+
+echo "\n== 6. the vocabulary is closed ==";
 
 $defs = device_facet_defs();
-t_check('seven dimensions', count($defs) === 7, array_keys($defs));
+t_check('eight dimensions', count($defs) === 8, array_keys($defs));
+t_check('cocid is the only open-vocabulary facet',
+    array_keys(array_filter($defs, static fn($v) => $v === [])) === ['cocid']);
 foreach ($defs as $facet => $vals) {
+    if ($vals === []) { continue; }   // open vocabulary: validated by shape
     t_check("$facet offers at least two options", count($vals) >= 2, $vals);
     t_check("$facet values are lowercase wire tokens", $vals === array_map('strtolower', $vals), $vals);
 }

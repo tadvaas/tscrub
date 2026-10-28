@@ -1168,6 +1168,10 @@
       // (device_facet_defs) and returns per-option counts with every response;
       // the labels below are presentation only.
       var FACET_DEFS = [
+        // Open vocabulary: a machine belongs to EVERY job it has reported under, so
+        // this one is a set-membership test rather than a taxonomy. The server
+        // validates the shape (`[A-Za-z0-9_-]{1,64}`) instead of a fixed list.
+        { key: 'cocid', label: 'Chain of Custody', open: true },
         { key: 'presence', label: 'Presence', options: [['online', 'Online'], ['offline', 'Offline'], ['erasing', 'Erasing'], ['failed', 'Failed']] },
         { key: 'bios', label: 'BIOS lock', options: [['locked', 'Locked'], ['unlocked', 'Unlocked'], ['unknown', 'Unknown']] },
         { key: 'mdm', label: 'MDM / Autopilot', options: [['locked', 'Locked'], ['locked_this', 'Locked (this tenant)'], ['unlocked', 'Unlocked'], ['unchecked', 'Unchecked'], ['queued', 'Queued'], ['checking', 'Checking'], ['blocked', 'No credits / paid only'], ['na', 'Not applicable']] },
@@ -1212,6 +1216,8 @@
       function filterLabel(facet, value) {
         var d = FACET_DEFS.filter(function (x) { return x.key === facet; })[0];
         if (!d) { return facet + ': ' + value; }
+        // Open-vocabulary facets (COCID) have no option list: the value IS the label.
+        if (!d.options) { return d.label + ': ' + value; }
         var o = d.options.filter(function (p) { return p[0] === value; })[0];
         return d.label + ': ' + (o ? o[1] : value);
       }
@@ -1267,6 +1273,7 @@
         FACET_DEFS.forEach(function (d) {
           var group = el('div', '');
           group.appendChild(el('p', 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400', d.label));
+          if (d.open) { renderOpenFacet(group, d); host.appendChild(group); return; }
           var wrap = el('div', 'flex flex-wrap gap-1.5');
           d.options.forEach(function (o) {
             var value = o[0];
@@ -1303,6 +1310,81 @@
         var n = countFilters(pending);
         document.getElementById('filter-apply').textContent = n ? 'Apply (' + n + ')' : 'Apply';
         document.getElementById('filter-reset').classList.toggle('invisible', n === 0);
+      }
+
+      // An open-vocabulary facet (COCID): typed in, not picked from a list, because
+      // there is a new job every week. The chips are the COCIDs that actually occur
+      // in the current search + source set, most-used first — that is the useful
+      // shortlist, and it doubles as the datalist for the input.
+      function renderOpenFacet(group, d) {
+        var known = (deviceFacets && deviceFacets[d.key]) ? deviceFacets[d.key] : {};
+        var sel = pending[d.key] || {};
+
+        var row = el('div', 'flex items-center gap-2');
+        var input = el('input', 'ts-input max-w-[16rem]');
+        input.type = 'text';
+        input.placeholder = 'e.g. 33380';
+        input.autocomplete = 'off';
+        input.setAttribute('list', 'filter-cocid-list');
+        input.setAttribute('aria-label', 'Chain of Custody ID');
+        var dl = el('datalist', '');
+        dl.id = 'filter-cocid-list';
+        Object.keys(known).forEach(function (cid) {
+          var o = document.createElement('option');
+          o.value = cid;
+          dl.appendChild(o);
+        });
+        var add = el('button', 'ts-btn ts-btn--secondary ts-btn--sm', 'Add');
+        add.type = 'button';
+        function commit() {
+          var v = String(input.value || '').trim();
+          // Same shape the server accepts; anything else is not a COCID.
+          if (!/^[A-Za-z0-9_-]{1,64}$/.test(v)) { input.value = ''; return; }
+          pending[d.key] = pending[d.key] || {};
+          pending[d.key][v] = true;
+          input.value = '';
+          renderFilterGroups();
+        }
+        add.addEventListener('click', commit);
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        });
+        row.appendChild(input);
+        row.appendChild(add);
+        group.appendChild(row);
+        group.appendChild(dl);
+
+        var keys = {};
+        Object.keys(known).forEach(function (k) { keys[k] = true; });
+        Object.keys(sel).forEach(function (k) { keys[k] = true; });
+        var list = Object.keys(keys).sort(function (a, b) {
+          return ((known[b] || 0) - (known[a] || 0)) || a.localeCompare(b);
+        }).slice(0, 12);
+        // A selected COCID must stay visible even if it falls outside the shortlist,
+        // or it could not be removed.
+        Object.keys(sel).forEach(function (k) { if (list.indexOf(k) === -1) { list.push(k); } });
+
+        var chips = el('div', 'mt-2 flex flex-wrap gap-1.5');
+        list.forEach(function (cid) {
+          var on = !!sel[cid];
+          var n = known[cid];
+          var b = el('button', 'ts-chip cursor-pointer ' + (on ? 'bg-brand-700 text-white' : 'ts-chip--slate'),
+            cid + (typeof n === 'number' ? ' (' + n + ')' : ''));
+          b.type = 'button';
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          b.addEventListener('click', function () {
+            pending[d.key] = pending[d.key] || {};
+            if (pending[d.key][cid]) { delete pending[d.key][cid]; }
+            else { pending[d.key][cid] = true; }
+            if (!Object.keys(pending[d.key]).length) { delete pending[d.key]; }
+            renderFilterGroups();
+          });
+          chips.appendChild(b);
+        });
+        group.appendChild(chips);
+        if (!list.length) {
+          group.appendChild(el('p', 'mt-2 text-xs text-slate-400 dark:text-slate-500', 'No job IDs in the current search and source selection.'));
+        }
       }
 
       function openFilterModal() {

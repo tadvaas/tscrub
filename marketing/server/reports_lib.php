@@ -2769,7 +2769,12 @@ function devices_summary(array $list): array {
 function device_facet_defs(): array {
     // facet => allowed wire values. Labels live in the dashboard, so wording
     // changes stay a client concern and cannot alter what the server accepts.
+    //
+    // `cocid` has an EMPTY list on purpose: it is an open vocabulary (hundreds of
+    // jobs, and a new one every week), so it is validated by shape instead. Every
+    // other facet is a closed taxonomy where an unknown value is a bug.
     return [
+        'cocid'      => [],
         'presence'   => ['online', 'offline', 'erasing', 'failed'],
         'bios'       => ['locked', 'unlocked', 'unknown'],
         'mdm'        => ['unchecked', 'queued', 'checking', 'locked', 'locked_this', 'unlocked', 'blocked', 'na'],
@@ -2778,6 +2783,11 @@ function device_facet_defs(): array {
         'media'      => ['any', 'none'],
         'notes'      => ['any', 'none'],
     ];
+}
+
+/** COCIDs come from reports and are sanitised to this charset when parsed. */
+function device_cocid_valid(string $v): bool {
+    return (bool)preg_match('/^[A-Za-z0-9_-]{1,64}$/', $v);
 }
 
 /** `facet:value,facet:value` -> [facet => [value => true]]. Whitelisted. */
@@ -2789,8 +2799,18 @@ function device_filters_parse($raw): array {
         if ($token === '' || strpos($token, ':') === false) { continue; }
         $parts = explode(':', $token, 2);
         $facet = strtolower(trim($parts[0]));
-        $value = strtolower(trim($parts[1]));
-        if (!isset($defs[$facet]) || !in_array($value, $defs[$facet], true)) { continue; }
+        $value = trim($parts[1]);
+        if (!isset($defs[$facet])) { continue; }
+        if ($defs[$facet] === []) {
+            // Open vocabulary: keep the value's case, it is an identifier.
+            if ($facet === 'cocid') {
+                if (!device_cocid_valid($value)) { continue; }
+                $out[$facet][$value] = true;
+            }
+            continue;
+        }
+        $value = strtolower($value);
+        if (!in_array($value, $defs[$facet], true)) { continue; }
         $out[$facet][$value] = true;
     }
     ksort($out);
@@ -2864,11 +2884,53 @@ function device_facet_value(array $d, string $facet): string {
     return '';
 }
 
+/**
+ * Every value a row holds for a facet.
+ *
+ * Most facets are single-valued (a machine is Online or it is not). COCID is not:
+ * one machine belongs to every job it has ever reported under, so filtering by a
+ * COCID has to ask "is this job in the row's SET of jobs" rather than compare one
+ * string. Returning a list for all facets keeps the matcher and the counts honest
+ * without a special case in either of them.
+ */
+function device_facet_values(array $d, string $facet): array {
+    if ($facet === 'cocid') {
+        // `_cocids` is a newline-joined DISTINCT list from reports_lib's candidate
+        // query; an attested row carries its single COCID there.
+        $raw = (string)($d['_cocids'] ?? '');
+        if ($raw === '') { $raw = (string)($d['cocid'] ?? ''); }
+        // Prefix the seen-map keys: PHP silently turns "33380" into an int array
+        // key, and a COCID must stay a string in both directions or the JSON the
+        // dashboard receives changes type between responses.
+        $seen = [];
+        $out = [];
+        foreach (preg_split('/[\r\n,]+/', $raw) as $v) {
+            $v = trim($v);
+            if ($v === '' || !device_cocid_valid($v)) { continue; }
+            if (isset($seen['k' . $v])) { continue; }
+            $seen['k' . $v] = true;
+            $out[] = $v;
+        }
+        return $out;
+    }
+    $v = device_facet_value($d, $facet);
+    return $v === '' ? [] : [$v];
+}
+
 /** True when the row satisfies EVERY selected facet (a row must match one value
  *  within a facet, but all facets that are set). */
 function device_filters_match(array $d, array $filters): bool {
     foreach ($filters as $facet => $values) {
-        if (!isset($values[device_facet_value($d, $facet)])) { return false; }
+        $have = device_facet_values($d, $facet);
+        // Compare as STRINGS: the parsed key set may hold ints (PHP coerces a
+        // numeric string key), while a device's COCIDs are strings.
+        $want = [];
+        foreach (array_keys($values) as $k) { $want[(string)$k] = true; }
+        $hit = false;
+        foreach ($have as $v) {
+            if (isset($want[(string)$v])) { $hit = true; break; }
+        }
+        if (!$hit) { return false; }
     }
     return true;
 }
@@ -2888,9 +2950,10 @@ function device_facet_counts(array $list): array {
     foreach (array_keys(device_facet_defs()) as $facet) { $counts[$facet] = []; }
     foreach ($list as $d) {
         foreach (array_keys($counts) as $facet) {
-            $v = device_facet_value($d, $facet);
-            if ($v === '') { continue; }
-            $counts[$facet][$v] = ($counts[$facet][$v] ?? 0) + 1;
+            foreach (device_facet_values($d, $facet) as $v) {
+                if ($v === '') { continue; }
+                $counts[$facet][$v] = ($counts[$facet][$v] ?? 0) + 1;
+            }
         }
     }
     return $counts;

@@ -40,6 +40,21 @@ and this project uses date-based versioning (`v1.x`).
   then selects. Live: 207 devices → **173** with `bios:locked`, every visible BIOS cell
   `Locked`; `bios:unlocked` → 3.
 
+  **Chain of Custody is a filter too** — and it is the one facet that is not a taxonomy. A
+  machine belongs to *every* job it has ever reported under, so the filter is a set-membership
+  test (`device_facet_values()`) rather than a single-value comparison: `ff=cocid:33380`
+  selects the 29 machines that reported under that job, and `ff=cocid:33380,bios:locked`
+  narrows them to 1. Its vocabulary is open — a new COCID appears every week — so the server
+  validates the *shape* (`[A-Za-z0-9_-]{1,64}`) instead of a fixed list, and `cocid:a/b` is
+  dropped rather than trusted. The modal offers free text with a datalist plus the COCIDs that
+  actually occur in the current search, most-used first, each with its device count.
+  `device_filter_test.php` is 91 checks after covering multi-value matching, de-duplication,
+  and PHP's numeric-key coercion (a COCID stays a string in both directions).
+
+  `tests/device_filter_test.php` (now 91 checks, pure) covers the parser whitelist, every
+  facet's value, AND/OR semantics, empty-value handling, multi-value COCID matching and
+  de-duplication, and that the counts equal what the filter then selects.
+
   Plan and gotchas: `research/device-filters/README.md`.
 
 ### Changed
