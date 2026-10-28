@@ -67,6 +67,15 @@ check('checkable counts mdm === unchecked', /device_facet_value\(\$d, 'mdm'\) ==
 // ---- the button ---------------------------------------------------------
 check('the button exists and starts disabled', /id="mdm-batch-btn"[^>]*disabled/.test(page));
 check('its count comes from summary.checkable', /fleetSummary\.checkable/.test(page));
+// The subset must be attributable to the view, or "9" under a 207-device list
+// reads as nine devices from somewhere else.
+check('the label names the view total when the two differ',
+  /'Check MDM \(' \+ n \+ ' of ' \+ t \+ '\)'/.test(page));
+check('the dialog states the view total', /' of the ' \+ d\.total/.test(page));
+check('the server returns that total', /'total' => \(int\)\(\$res\['total'\]/.test(
+  fs.readFileSync(path.join(root, 'server', 'api.php'), 'utf8')));
+check('the count refreshes even when the rows do not',
+  /paintSortArrows\(\);\s*\n\s*paintMdmBatch\(\);/.test(page));
 check('it disables itself at zero', /btn\.disabled = n === 0/.test(page));
 check('it posts the current view', /q: currentQ, source: source, ff: encodeFilters\(filters\)/.test(page));
 check('the dialog dry-runs before offering the action', /mdmBatchPost\(true\)/.test(page));

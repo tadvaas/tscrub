@@ -1454,13 +1454,27 @@
       // run checks it cannot pay for). `force` is always 0: a cached verdict within
       // 24h is free.
       var mdmBatchModal = document.getElementById('mdm-batch-modal');
+      // The count is the queueable SUBSET of the view, which does not look like a
+      // property of the view when the view is everything. "Check MDM (9)" on a
+      // 207-device list reads as nine devices from somewhere else, so when the two
+      // numbers differ the label says both: "Check MDM (9 of 207)". When they are
+      // equal — you already filtered to the unchecked ones — the second number is
+      // noise and is dropped.
       function paintMdmBatch() {
         var n = (fleetSummary && typeof fleetSummary.checkable === 'number') ? fleetSummary.checkable : 0;
+        var t = (fleetSummary && typeof fleetSummary.total === 'number') ? fleetSummary.total : 0;
         var btn = document.getElementById('mdm-batch-btn');
-        btn.textContent = n ? 'Check MDM (' + n + ')' : 'Check MDM';
+        if (!n) {
+          btn.textContent = 'Check MDM';
+        } else if (n === t) {
+          btn.textContent = 'Check MDM (' + n + ')';
+        } else {
+          btn.textContent = 'Check MDM (' + n + ' of ' + t + ')';
+        }
         btn.disabled = n === 0;
         btn.title = n
-          ? 'Queue an Autopilot check for the ' + n + ' device' + (n === 1 ? '' : 's') + ' in this view that have never been checked'
+          ? n + ' of the ' + t + ' device' + (t === 1 ? '' : 's') + ' in this view have never been checked' +
+            ' — queue an Autopilot check for those ' + n + '. The rest already have a result.'
           : 'Nothing in this view needs a check — every device here with captured hardware info already has a result';
       }
       function closeMdmBatch() { window.TSDialog.close(mdmBatchModal); }
@@ -1482,8 +1496,13 @@
       }
       function renderMdmBatch(d) {
         var body = document.getElementById('mdm-batch-body');
-        var html = '<p class="font-semibold text-ink-900 dark:text-white">' + d.count
-          + ' device' + (d.count === 1 ? '' : 's') + ' will be queued.</p>'
+        var ofTotal = (typeof d.total === 'number' && d.total !== d.count)
+          ? ' of the ' + d.total + ' device' + (d.total === 1 ? '' : 's') + ' in this view'
+          : '';
+        // "9 of the 207 devices in this view" — not "9 devices of the 207 devices".
+        var lead = ofTotal ? String(d.count) : d.count + ' device' + (d.count === 1 ? '' : 's');
+        var html = '<p class="font-semibold text-ink-900 dark:text-white">' + lead + ofTotal
+          + ' will be queued.</p>'
           + '<p class="mt-2">' + d.credits + ' credit' + (d.credits === 1 ? '' : 's')
           + ' — balance ' + d.balance + ' \u2192 ' + d.balance_after + '.</p>';
         if (d.skipped && d.skipped.length) {
@@ -1560,6 +1579,11 @@
           // Facet counts + the canonical filter are taken BEFORE the unchanged-payload
           // short-circuit: the rows may be identical while the counts are not.
           deviceFacets = d.facets || null;
+          // The summary feeds the bulk-check button's count, so it belongs on the same
+          // side of the unchanged-payload short-circuit as the facets: two different
+          // filters can return the same rows while the checkable count differs.
+          fleetSummary = d.summary || null;
+          summaryLoaded = true;
           // Adopt the server's canonical view. It drops tokens it does not recognise,
           // so a stale or hand-edited URL is corrected instead of looking like a filter
           // that silently did nothing.
@@ -1572,8 +1596,10 @@
           if (json === lastDevicesJson) {
             // The rows are unchanged, but the sort state the header shows may not be —
             // the arrow must still follow the click, or the table reads as though it did
-            // nothing.
+            // nothing. The bulk-check count is repainted for the same reason: the
+            // summary above may have moved even though the rows did not.
             paintSortArrows();
+            paintMdmBatch();
             return;
           }
           lastDevicesJson = json;
@@ -1582,9 +1608,9 @@
           // Attested units are included in `total`, so say how many of them are
           // attestations: otherwise a destroyed phone quietly inflates the count of
           // machines the appliance actually saw.
+          // (fleetSummary is assigned earlier, above the unchanged-payload return —
+          // the checkable count can move while the rows do not.)
           attestedTotal = d.attested_total || 0;
-          fleetSummary = d.summary || null;
-          summaryLoaded = true;
           var maxPage = Math.max(1, Math.ceil(total / per));
           if (page > maxPage) { page = maxPage; loadDevices(); return; }
           render();

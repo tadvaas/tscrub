@@ -1785,6 +1785,7 @@ if ($method === 'POST' && $route === '/mdm/batch') {
 
     if ($dry) {
         json_out(['ok' => true, 'dry_run' => true, 'count' => $need, 'credits' => $need,
+            'total' => (int)($res['total'] ?? 0),
             'balance' => $balance, 'balance_after' => $balance - $need, 'skipped' => $skipped]);
     }
 
