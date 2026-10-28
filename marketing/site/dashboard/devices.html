@@ -1461,7 +1461,7 @@
       // equal — you already filtered to the unchecked ones — the second number is
       // noise and is dropped.
       function paintMdmBatch() {
-        var n = (fleetSummary && typeof fleetSummary.checkable === 'number') ? fleetSummary.checkable : 0;
+        var n = (fleetSummary && typeof fleetSummary.schedulable === 'number') ? fleetSummary.schedulable : 0;
         var t = (fleetSummary && typeof fleetSummary.total === 'number') ? fleetSummary.total : 0;
         var btn = document.getElementById('mdm-batch-btn');
         if (!n) {
@@ -1473,9 +1473,9 @@
         }
         btn.disabled = n === 0;
         btn.title = n
-          ? n + ' of the ' + t + ' device' + (t === 1 ? '' : 's') + ' in this view have never been checked' +
-            ' — queue an Autopilot check for those ' + n + '. The rest already have a result.'
-          : 'Nothing in this view needs a check — every device here with captured hardware info already has a result';
+          ? 'Queue an Autopilot check for the ' + n + ' device' + (n === 1 ? '' : 's') + ' in this view that have a captured hardware hash' +
+            (n < t ? ' (' + (t - n) + ' of the ' + t + ' cannot be checked)' : '') + '. Devices already checked are checked again.'
+          : 'Nothing in this view can be checked — no device here has a captured hardware hash';
       }
       function closeMdmBatch() { window.TSDialog.close(mdmBatchModal); }
       function mdmBatchPost(dry) {

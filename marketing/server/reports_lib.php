@@ -2959,6 +2959,25 @@ function device_facet_counts(array $list): array {
     return $counts;
 }
 
+/**
+ * Scheduling state for a bulk MDM check.
+ *
+ * ready     — has a captured hardware hash and no check in flight: queue it.
+ * no_hash   — the appliance never captured a hardware hash for it, so there is
+ *             nothing to import into Autopilot and the check cannot run.
+ * in_flight — already queued or being checked. Skipped so that clicking twice
+ *             cannot queue the same probe twice (two jobs = two credits).
+ *
+ * Deliberately NOT gated on prior verdict: a device that was checked last month is
+ * schedulable again, and the caller forces the re-probe.
+ */
+function device_mdm_schedule_state(array $d): string {
+    $st = strtolower(trim((string)($d['mdm_status'] ?? '')));
+    if ($st === '') { return 'no_hash'; }
+    if ($st === 'queued' || $st === 'checking') { return 'in_flight'; }
+    return 'ready';
+}
+
 function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
@@ -3089,15 +3108,17 @@ function load_devices(int $userId, ?array $query = null): array {
         // search box is showing rather than the account-wide total.
         $attestedTotal = count(array_filter($list, static fn($d) => !empty($d['attested'])));
         $summary = devices_summary($list);
-        // How many of the FILTERED rows can actually be queued for an MDM check.
-        // `mdm: unchecked` can only be true when a staged hash exists and no job has
-        // ever run, so it IS the queueable set — the bulk check needs no separate
-        // eligibility pass. Reported alongside the summary so the button can carry an
-        // exact number instead of the filtered total (which would read "check 207"
-        // on a view where only 9 are unchecked).
-        $summary['checkable'] = count(array_filter(
+        // How many of the FILTERED rows can be scheduled for an MDM check.
+        //
+        // The ONLY gate is the captured hardware hash — a device is schedulable
+        // whether or not it has been checked before, and whatever its last verdict
+        // was. `mdm_status` is only ever set for a device that appears in
+        // mdm_devices(), which lists staged hashes, so a non-empty status IS the
+        // hash signal. A row already queued or mid-check is not counted, so a
+        // double-click cannot queue the same probe twice.
+        $summary['schedulable'] = count(array_filter(
             $list,
-            static fn($d) => device_facet_value($d, 'mdm') === 'unchecked'
+            static fn($d) => device_mdm_schedule_state($d) === 'ready'
         ));
         $onlyKeys = [];
         // A caller that needs the whole filtered set (the bulk MDM check) passes

@@ -1761,8 +1761,19 @@ if ($method === 'POST' && $route === '/mdm/batch') {
     $eligible = [];
     $skipped = [];
     foreach (($res['devices'] ?? []) as $dev) {
-        // Already queued, checking or answered — not this button's business.
-        if (device_facet_value($dev, 'mdm') !== 'unchecked') { continue; }
+        // The only gate is the captured hardware hash. A device that has already
+        // been checked is still scheduled — the caller forces the re-probe — and so
+        // is one whose last verdict was Locked. A check already in flight is the one
+        // exception: queueing it again would buy the same probe twice.
+        $state = device_mdm_schedule_state($dev);
+        if ($state !== 'ready') {
+            $serial = trim((string)($dev['sysserial'] ?? ''));
+            $skipped[] = [
+                'serial' => $serial !== '' ? $serial : '(no serial)',
+                'reason' => $state === 'in_flight' ? 'already queued' : 'no captured hash',
+            ];
+            continue;
+        }
         $serial = trim((string)($dev['sysserial'] ?? ''));
         $uuid = trim((string)($dev['systemuuid'] ?? ''));
         if ($serial === '' || $serial === 'N/A' || $uuid === '' || $uuid === 'N/A') {
@@ -1792,7 +1803,11 @@ if ($method === 'POST' && $route === '/mdm/batch') {
     mdm_ensure_schema();
     $queued = 0;
     foreach ($eligible as $e) {
-        if (mdm_enqueue_job((int)$u['id'], $e['serial'], $e['uuid'], false) > 0) { $queued++; }
+        // force=true: an already-checked device must actually be re-probed. With
+        // force=false mdm_enqueue_job() returns the EXISTING job id and inserts
+        // nothing, so "schedule everything in the view" would silently do nothing
+        // for every device that had been checked before.
+        if (mdm_enqueue_job((int)$u['id'], $e['serial'], $e['uuid'], true) > 0) { $queued++; }
     }
     json_out(['ok' => true, 'queued' => $queued, 'credits' => $queued,
         'balance' => $balance, 'balance_after' => $balance - $queued, 'skipped' => $skipped]);

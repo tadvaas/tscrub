@@ -20,12 +20,22 @@ and this project uses date-based versioning (`v1.x`).
   full view that is 9, not 207, because a button reading "Check MDM (207)" would invite an
   action on devices that already have answers.
 
+  **The only gate is the captured hardware hash.** Every device in the view with one is
+  scheduled — whether or not it has been checked before, and whatever its last verdict was —
+  so a `mdm:locked` view queues all 118 of its devices instead of none. A check already
+  `queued` or `checking` is the one exception, because queueing it again would buy the same
+  probe twice.
+
+  That makes `force` a requirement rather than a choice: with `force = false`
+  `mdm_enqueue_job()` returns the existing job id and inserts nothing, so "schedule
+  everything" would silently do nothing for any device checked before. Every scheduled
+  device is therefore a live probe — 1 credit each, no 24 h verdict cache — and the dry run
+  says so before anything is queued (a full view is 182 credits at 1 credit per device).
+
   `POST /api/mdm/batch` takes the view (`q`, `source`, `ff`) and either dry-runs (no side
-  effects — the dialog shows "7 devices · 7 credits · balance 800 → 793") or enqueues. Three
-  safety rules: **the whole batch is refused when the balance cannot cover it** (the worker
-  debits after each probe, so a short balance would run checks it cannot pay for); **`force` is
-  always false**, so a cached verdict inside 24 h is free; and devices without a captured hash
-  are **reported as skipped rather than dropped**.
+  effects) or enqueues. It **refuses the whole batch when the balance cannot cover it** (the
+  worker debits after each probe, so a short balance would run checks it cannot pay for), and
+  devices without a captured hash are **reported as skipped rather than dropped**.
 
   Found by screenshotting the dialog rather than by any test: `rate_limit($scope, $seconds)` is
   a minimum *interval* per (scope, IP), not a per-minute quota — so the batch's dry run blocked
