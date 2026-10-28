@@ -8,6 +8,33 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- **The Devices and Media tabs keep their view — filter, search, sort, page — across a
+  refresh, a bookmark, a shared link and the trip to another tab and back.** Before, the
+  record-source switch reset to **All** on every page load, so an operator who had filtered to
+  Attested lost it the moment they refreshed or came back from another tab.
+
+  The view now lives in the URL (`?source=attested&q=CP-7970&sort=serial&dir=asc&page=2`),
+  which covers refresh, bookmarking, sharing and Back; `localStorage` is the fallback for the
+  one case a URL cannot cover, because the dashboard's tab links are plain `<a href>` and
+  arrive with no query string at all. Only values that differ from the page's default are
+  written, so a normal link stays clean.
+
+  Three details that are easy to get wrong and are now pinned by
+  `tests/dashboard_view_state_test.cjs` (36 checks):
+
+  - **An explicit query string suppresses the remembered view.** The Add modal returns to
+    `?q=<serial>`; if the remembered filter were mixed in, "here is the record you just added"
+    could arrive filtered to a source that record is not in.
+  - **`replaceState`, never `pushState`.** A history entry per keystroke would make Back
+    rewind the search one character at a time instead of leaving the page.
+  - **An unknown `source` means All**, mirroring `list_source()` on the server, so a
+    hand-edited URL cannot silently hide records.
+
+  Each tab remembers its own view (Devices and Media keep separate keys) — filtering Devices
+  to Attested does not force Media to Attested.
+
 ## [v1.11.84] - 2026-10-27
 
 Released artefacts: ISO `tscrub-v1.11.84_2025.11_30_x86-64_v0.41_20261027-2ef83e19.iso`

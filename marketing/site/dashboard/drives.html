@@ -489,19 +489,65 @@
         loadDrives();
       });
 
+      // ---- View state in the URL -------------------------------------------
+      // See devices.html for the full reasoning. Short version: the source filter,
+      // the search, the sort and the page live in the query string, so refresh,
+      // bookmark, shared link and Back all reproduce the view; localStorage only
+      // covers the tab-to-tab trip, whose links carry no query string.
+      var VIEW_KEY = 'tscrub.view.drives';
+      var VIEW_SORTS = ['date', 'model', 'serial', 'status', 'method', 'grade'];
+      var VIEW_DEFAULTS = { sort: 'date', dir: -1 };
+      var VIEW_URL = new URLSearchParams(window.location.search);
+      var VIEW_EXPLICIT = ['q', 'source', 'sort', 'dir', 'page'].some(function (k) { return VIEW_URL.has(k); });
+      var VIEW_SAVED = {};
+      try { VIEW_SAVED = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; } catch (e) { VIEW_SAVED = {}; }
+
+      function viewGet(name) {
+        var v = VIEW_URL.get(name);
+        if (v !== null && v !== '') { return String(v); }
+        if (VIEW_EXPLICIT) { return ''; }
+        return VIEW_SAVED[name] == null ? '' : String(VIEW_SAVED[name]);
+      }
+      // Mirrors list_source() on the server: anything unrecognised means All.
+      function viewSource(v) { return (v === 'verified' || v === 'attested') ? v : 'all'; }
+      function viewInt(v, dflt) { var n = parseInt(v, 10); return isFinite(n) && n > 0 ? n : dflt; }
+      function viewSort(v, dflt) { return VIEW_SORTS.indexOf(v) !== -1 ? v : dflt; }
+      function viewDir(v, dflt) { return v === 'asc' ? 1 : v === 'desc' ? -1 : dflt; }
+
+      // replaceState, never pushState — see devices.html.
+      function syncView() {
+        var p = new URLSearchParams();
+        if (currentQ) { p.set('q', currentQ); }
+        if (source !== 'all') { p.set('source', source); }
+        if (sortKey !== VIEW_DEFAULTS.sort) { p.set('sort', sortKey); }
+        if (sortDir !== VIEW_DEFAULTS.dir) { p.set('dir', sortDir === 1 ? 'asc' : 'desc'); }
+        if (page > 1) { p.set('page', String(page)); }
+        var qs = p.toString();
+        var url = window.location.pathname + (qs ? '?' + qs : '');
+        if (url !== window.location.pathname + window.location.search) {
+          try { window.history.replaceState(null, '', url); } catch (e) { /* unsupported */ }
+        }
+        try {
+          localStorage.setItem(VIEW_KEY, JSON.stringify({
+            q: currentQ, source: source, sort: sortKey,
+            dir: sortDir === 1 ? 'asc' : 'desc', page: String(page)
+          }));
+        } catch (e) { /* private mode or quota: the URL is still correct */ }
+      }
+
       var drives = [];
       var total = 0;
       // How many of `total` are operator attestations rather than erased media.
       var attestedTotal = 0;
-      var page = 1, per = 10;
+      var page = viewInt(viewGet('page'), 1), per = 10;
       var expanded = {};
       // Sorting is entirely server-side (see /api/drives), exactly as on the Devices tab:
       // the page holds one page of rows, so the order has to be decided before the slice.
       // Default is Submitted descending — newest report first — because the freshest fact
       // about a row is when it was last reported. Note that an operator-attested medium has
       // no submission time at all, so it groups at the end of that order.
-      var sortKey = 'date';
-      var sortDir = -1;
+      var sortKey = viewSort(viewGet('sort'), VIEW_DEFAULTS.sort);
+      var sortDir = viewDir(viewGet('dir'), VIEW_DEFAULTS.dir);
       var lastDrivesJson = '';
       var drivesFetchSeq = 0;   // guards against out-of-order /api/drives responses
       var pagerLoading = null;  // 'prev' | 'next' while a pager navigation is in flight
@@ -509,7 +555,7 @@
       // Three-way record-source switch: everything, only what the appliance erased, or only
       // what an operator attested by hand. Server-side (see /api/drives `source`), so the
       // total and the page boundaries narrow together.
-      var source = 'all';
+      var source = viewSource(viewGet('source'));
       var sourceButtons = Array.prototype.slice.call(document.querySelectorAll('#source-switch button'));
       // Only the attribute is written. `.ts-seg` styles the pressed state from
       // [aria-pressed='true'], so there is no class string here to drift from the
@@ -528,6 +574,7 @@
           page = 1;
           lastDrivesJson = '';   // force a re-render: the rows will differ, but say so
           paintSourceSwitch();
+          syncView();
           // The switch replaces every row on the page, so the panel has to say it is
           // working. Nothing is cleared first: the rows on screen stay put under the
           // overlay, because swapping them for a skeleton of a different height is a
@@ -596,11 +643,11 @@
 
       var searchInput = document.getElementById('search-input');
       var searchClear = document.getElementById('search-clear');
-      // See devices.html: the Add modal lands here with the serial it just recorded.
-      var initialQ = new URLSearchParams(window.location.search).get('q');
-      if (initialQ) {
-        searchInput.value = initialQ;
-        currentQ = initialQ;
+      // See devices.html: the search comes from the URL (or the remembered view),
+      // and the Add modal lands here with ?q=<serial>.
+      currentQ = viewGet('q');
+      if (currentQ) {
+        searchInput.value = currentQ;
         searchClear.classList.remove('hidden');
       }
       searchInput.addEventListener('input', function () {
@@ -608,6 +655,7 @@
         searchClear.classList.toggle('hidden', !currentQ);
         page = 1;
         expanded = {};
+        syncView();
         loadDrives();
       });
       searchClear.addEventListener('click', function () {
@@ -615,6 +663,24 @@
         currentQ = '';
         searchClear.classList.add('hidden');
         page = 1;
+        syncView();
+        loadDrives();
+      });
+
+      // Back/Forward: the URL is authoritative, localStorage is not consulted.
+      window.addEventListener('popstate', function () {
+        var p = new URLSearchParams(window.location.search);
+        var nQ = p.get('q') || '';
+        var nS = viewSource(p.get('source') || '');
+        var nK = viewSort(p.get('sort') || '', VIEW_DEFAULTS.sort);
+        var nD = viewDir(p.get('dir'), VIEW_DEFAULTS.dir);
+        var nP = viewInt(p.get('page') || '', 1);
+        if (nQ === currentQ && nS === source && nK === sortKey && nD === sortDir && nP === page) { return; }
+        currentQ = nQ; source = nS; sortKey = nK; sortDir = nD; page = nP;
+        searchInput.value = currentQ;
+        searchClear.classList.toggle('hidden', !currentQ);
+        paintSourceSwitch();
+        lastDrivesJson = '';   // the rows differ even if the payload happens to match
         loadDrives();
       });
 
@@ -991,6 +1057,9 @@
       }
 
       function render() {
+        // The view may have moved since the last paint (a clamped page number, a
+        // filter, a sort) — write it back so a refresh reproduces the screen.
+        syncView();
         var box = document.getElementById('drive-list');
         box.innerHTML = '';
         if (!total) {
@@ -1041,6 +1110,7 @@
               if (sortKey === c[2]) sortDir = -sortDir;
               else { sortKey = c[2]; sortDir = 1; }
               page = 1;
+              syncView();
               // Follow the click immediately; the fetch only supplies rows.
               paintSortArrows();
               loadDrives();
@@ -1182,7 +1252,7 @@
           prev.disabled = page <= 1 || pagerLoading !== null;
         }
         prev.addEventListener('click', function () {
-          if (page > 1 && pagerLoading === null) { page--; pagerLoading = 'prev'; renderPager(); loadDrives(); }
+          if (page > 1 && pagerLoading === null) { page--; pagerLoading = 'prev'; syncView(); renderPager(); loadDrives(); }
         });
 
         var next = el('button', navCls, '');
@@ -1195,7 +1265,7 @@
           next.disabled = page >= totalPages || pagerLoading !== null;
         }
         next.addEventListener('click', function () {
-          if (page < totalPages && pagerLoading === null) { page++; pagerLoading = 'next'; renderPager(); loadDrives(); }
+          if (page < totalPages && pagerLoading === null) { page++; pagerLoading = 'next'; syncView(); renderPager(); loadDrives(); }
         });
 
         wrap.appendChild(prev);

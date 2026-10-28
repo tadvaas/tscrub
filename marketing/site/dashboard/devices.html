@@ -810,6 +810,68 @@
         return (key.length > 5 ? '·····-' : '') + key.slice(-5);
       }
 
+      // ---- View state in the URL -------------------------------------------
+      // The record-source filter, the search, the sort and the page all live in the
+      // query string, so a refresh, a bookmark, a shared link and the browser's Back
+      // button all reproduce exactly the view that was on screen.
+      //
+      // localStorage is the fallback for the one case a URL cannot cover: the
+      // dashboard's tab links are plain <a href>, so leaving Devices for Media and
+      // coming back arrives with no query string at all — without this the filter
+      // would silently reset to All and the operator would think they had lost
+      // their place.
+      //
+      // Priority: the URL wins. If the URL carries ANY view parameter it is taken as
+      // the WHOLE view — a link (or the Add-modal redirect, which lands with ?q=)
+      // that fixes one thing must not have the rest re-injected from a previous
+      // session, or “here is the record you just added” could arrive filtered to a
+      // source that record is not in.
+      var VIEW_KEY = 'tscrub.view.devices';
+      var VIEW_SORTS = ['system', 'serial', 'bios', 'mdm', 'status'];
+      var VIEW_DEFAULTS = { sort: 'status', dir: -1 };
+      var VIEW_URL = new URLSearchParams(window.location.search);
+      var VIEW_EXPLICIT = ['q', 'source', 'sort', 'dir', 'page'].some(function (k) { return VIEW_URL.has(k); });
+      var VIEW_SAVED = {};
+      try { VIEW_SAVED = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; } catch (e) { VIEW_SAVED = {}; }
+
+      function viewGet(name) {
+        var v = VIEW_URL.get(name);
+        if (v !== null && v !== '') { return String(v); }
+        if (VIEW_EXPLICIT) { return ''; }
+        return VIEW_SAVED[name] == null ? '' : String(VIEW_SAVED[name]);
+      }
+      // Mirrors list_source() on the server: anything unrecognised means All, so a
+      // hand-edited URL cannot silently hide records.
+      function viewSource(v) { return (v === 'verified' || v === 'attested') ? v : 'all'; }
+      function viewInt(v, dflt) { var n = parseInt(v, 10); return isFinite(n) && n > 0 ? n : dflt; }
+      function viewSort(v, dflt) { return VIEW_SORTS.indexOf(v) !== -1 ? v : dflt; }
+      function viewDir(v, dflt) { return v === 'asc' ? 1 : v === 'desc' ? -1 : dflt; }
+
+      // Write the current view back. replaceState, never pushState: one history entry
+      // per keystroke would make Back rewind the search a character at a time instead
+      // of leaving the page.
+      function syncView() {
+        var p = new URLSearchParams();
+        if (currentQ) { p.set('q', currentQ); }
+        if (source !== 'all') { p.set('source', source); }
+        // Spell out only what differs from the default: a shared link reading
+        // "?sort=status&dir=desc&page=1" is noise.
+        if (sortKey !== VIEW_DEFAULTS.sort) { p.set('sort', sortKey); }
+        if (sortDir !== VIEW_DEFAULTS.dir) { p.set('dir', sortDir === 1 ? 'asc' : 'desc'); }
+        if (page > 1) { p.set('page', String(page)); }
+        var qs = p.toString();
+        var url = window.location.pathname + (qs ? '?' + qs : '');
+        if (url !== window.location.pathname + window.location.search) {
+          try { window.history.replaceState(null, '', url); } catch (e) { /* unsupported */ }
+        }
+        try {
+          localStorage.setItem(VIEW_KEY, JSON.stringify({
+            q: currentQ, source: source, sort: sortKey,
+            dir: sortDir === 1 ? 'asc' : 'desc', page: String(page)
+          }));
+        } catch (e) { /* private mode or quota: the URL is still correct */ }
+      }
+
       var devices = [];
       var total = 0;
       // How many of `total` are operator attestations rather than scanned machines.
@@ -819,7 +881,7 @@
       // from "the endpoint has no summary" (hide the strip).
       var fleetSummary = null;
       var summaryLoaded = false;
-      var page = 1, per = 10;
+      var page = viewInt(viewGet('page'), 1), per = 10;
       // The Log expansion: every recorded event for a machine, merged from the
       // report history this table already holds (submissions) and the server's
       // event list (remote commands, Autopilot checks, registrations, drives).
@@ -836,14 +898,14 @@
       // is animated from the old height to the new one.
       var logAnim = {};
       var logBodies = {};   // device key -> the panel node the fetch swaps into
-      var sortKey = 'status';   // initial sort: Status column
-      var sortDir = -1;         // descending (Online first)
+      var sortKey = viewSort(viewGet('sort'), VIEW_DEFAULTS.sort);   // Status by default
+      var sortDir = viewDir(viewGet('dir'), VIEW_DEFAULTS.dir);      // descending (Online first)
       var lastDevicesJson = '';
 
       // Three-way record-source switch: everything, only what the appliance erased, or only
       // what an operator attested by hand. Server-side (see /api/devices `source`), so the
       // total, the fleet summary and the page boundaries all narrow together.
-      var source = 'all';
+      var source = viewSource(viewGet('source'));
       var sourceButtons = Array.prototype.slice.call(document.querySelectorAll('#source-switch button'));
       // Only the attribute is written. `.ts-seg` styles the pressed state from
       // [aria-pressed='true'], so there is no class string here to drift from the
@@ -861,6 +923,7 @@
           source = next;
           page = 1;
           paintSourceSwitch();
+          syncView();
           // The switch replaces every row on the page, so the panel has to say it is
           // working. Nothing is cleared first: the rows on screen stay put under the
           // overlay, because swapping them for a skeleton of a different height is a
@@ -963,19 +1026,19 @@
 
       var searchInput = document.getElementById('search-input');
       var searchClear = document.getElementById('search-clear');
-      // A ?q= landing opens with that search already applied. The Add modal returns
-      // here with the serial it just recorded, so the operator sees their new record
-      // instead of an apparently unchanged list (a shared link works too).
-      var initialQ = new URLSearchParams(window.location.search).get('q');
-      if (initialQ) {
-        searchInput.value = initialQ;
-        currentQ = initialQ;
+      // The search comes from the URL, or from the remembered view. The Add modal
+      // returns here with ?q=<serial>, which is also why an explicit query string
+      // suppresses the remembered filter (see the view-state block above).
+      currentQ = viewGet('q');
+      if (currentQ) {
+        searchInput.value = currentQ;
         searchClear.classList.remove('hidden');
       }
       searchInput.addEventListener('input', function () {
         currentQ = searchInput.value;
         searchClear.classList.toggle('hidden', !currentQ);
         page = 1;
+        syncView();
         loadDevices();
       });
       searchClear.addEventListener('click', function () {
@@ -983,6 +1046,26 @@
         currentQ = '';
         searchClear.classList.add('hidden');
         page = 1;
+        syncView();
+        loadDevices();
+      });
+
+      // Back/Forward between two views of this page. The URL is authoritative here and
+      // localStorage is deliberately not consulted: a remembered value must never
+      // override the history entry the operator just navigated to.
+      window.addEventListener('popstate', function () {
+        var p = new URLSearchParams(window.location.search);
+        var nQ = p.get('q') || '';
+        var nS = viewSource(p.get('source') || '');
+        var nK = viewSort(p.get('sort') || '', VIEW_DEFAULTS.sort);
+        var nD = viewDir(p.get('dir'), VIEW_DEFAULTS.dir);
+        var nP = viewInt(p.get('page') || '', 1);
+        if (nQ === currentQ && nS === source && nK === sortKey && nD === sortDir && nP === page) { return; }
+        currentQ = nQ; source = nS; sortKey = nK; sortDir = nD; page = nP;
+        searchInput.value = currentQ;
+        searchClear.classList.toggle('hidden', !currentQ);
+        paintSourceSwitch();
+        lastDevicesJson = '';   // the rows differ even if the payload happens to match
         loadDevices();
       });
 
@@ -1246,6 +1329,9 @@
       }
 
       function render() {
+        // The view may have moved since the last paint (a clamped page number, a
+        // filter, a sort) — write it back so a refresh reproduces the screen.
+        syncView();
         closeMdmPop();
         renderSummary();
         var list = document.getElementById('device-list');
@@ -1303,6 +1389,7 @@
               if (sortKey === c[2]) sortDir = -sortDir;
               else { sortKey = c[2]; sortDir = 1; }
               page = 1;
+              syncView();
               // Follow the click immediately; the fetch only supplies rows.
               paintSortArrows();
               loadDevices();
@@ -1417,7 +1504,7 @@
           prev.disabled = page <= 1 || pagerLoading !== null;
         }
         prev.addEventListener('click', function () {
-          if (page > 1 && pagerLoading === null) { page--; pagerLoading = 'prev'; renderPager(); loadDevices(); }
+          if (page > 1 && pagerLoading === null) { page--; pagerLoading = 'prev'; syncView(); renderPager(); loadDevices(); }
         });
 
         var next = el('button', navCls, '');
@@ -1430,7 +1517,7 @@
           next.disabled = page >= totalPages || pagerLoading !== null;
         }
         next.addEventListener('click', function () {
-          if (page < totalPages && pagerLoading === null) { page++; pagerLoading = 'next'; renderPager(); loadDevices(); }
+          if (page < totalPages && pagerLoading === null) { page++; pagerLoading = 'next'; syncView(); renderPager(); loadDevices(); }
         });
 
         wrap.appendChild(prev);
