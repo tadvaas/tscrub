@@ -1762,9 +1762,13 @@ if ($method === 'GET' && $route === '/devices') {
     $dir = query_dir($_GET['dir'] ?? '');
     // all | verified | attested — the three-way switch on the tab.
     $source = list_source($_GET['source'] ?? '');
+    // Advanced filters from the Filters modal: `facet:value,facet:value`. Parsed
+    // and whitelisted inside load_devices() (device_filters_parse), which also
+    // returns the canonical form so the page can rewrite a hand-edited URL.
+    $ff = (string)($_GET['ff'] ?? '');
 
     $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per,
-        'sort' => $sort, 'dir' => $dir, 'source' => $source]);
+        'sort' => $sort, 'dir' => $dir, 'source' => $source, 'ff' => $ff]);
 
     json_out([
         'ok'      => true,
@@ -1778,6 +1782,12 @@ if ($method === 'GET' && $route === '/devices') {
         // Fleet counts for the Devices summary strip. Forwarded explicitly for
         // the same reason as attested_total: this array is rebuilt here.
         'summary' => is_array($res['summary'] ?? null) ? $res['summary'] : null,
+        // Per-option counts for the Filters modal, over the source+search set.
+        'facets'  => is_array($res['facets'] ?? null) ? $res['facets'] : null,
+        // Canonical echo of what the server actually applied — anything it did
+        // not recognise is absent from this string, and the page adopts it so a
+        // stale or hand-edited URL is corrected rather than silently ignored.
+        'ff'      => (string)($res['ff'] ?? ''),
         'page'    => $page,
         'per'     => $per,
         'source'  => $source,

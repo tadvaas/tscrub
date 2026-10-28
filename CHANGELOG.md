@@ -8,6 +8,40 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **Advanced filters on the Devices tab — seven dimensions, not just the search box.** A
+  Filters button opens a modal with presence (online / offline / erasing / failed), BIOS
+  lock, MDM / Autopilot state, Secure Boot, TPM, media and notes, each option carrying the
+  number of devices that match it. Picked filters show as removable chips under the toolbar,
+  so a short list is never unexplained.
+
+  Applied **server-side** (`GET /api/devices?ff=presence:offline,bios:locked`) for the same
+  reason the source switch is: the list is paged server-side, so a client-side filter would
+  narrow the ten visible rows and leave `total`, the fleet strip and the pager describing the
+  unfiltered account. Filters run after the search and before the sort, so every derived
+  figure describes what is actually shown.
+
+  `device_facet_value()` is the single source of truth for both matching and the counts, so
+  the BIOS column and the BIOS filter cannot disagree. An empty value matches nothing — an
+  unknown BIOS is never swept into "Unlocked", and an attested unit has no presence.
+  Unrecognised `facet:value` tokens are **dropped** rather than rejected (a stale bookmark
+  must show more records, not an error page), and the API echoes the canonical string back so
+  a hand-edited URL self-corrects. `ff` also rides the view-state URL, so a filtered list is
+  refreshable, shareable and bookmarkable.
+
+  Facet counts are computed over the search+source set *before* the filters narrow it —
+  counting after would show 0 beside every other option once one was picked. The limitation
+  is documented: the numbers are hints for choosing, and the Apply button plus the pager
+  state the true total.
+
+  `tests/device_filter_test.php` (73 checks, pure) covers the parser whitelist, every facet's
+  value, AND/OR semantics, empty-value handling and that the counts equal what the filter
+  then selects. Live: 207 devices → **173** with `bios:locked`, every visible BIOS cell
+  `Locked`; `bios:unlocked` → 3.
+
+  Plan and gotchas: `research/device-filters/README.md`.
+
 ### Changed
 
 - **The Devices and Media tabs keep their view — filter, search, sort, page — across a

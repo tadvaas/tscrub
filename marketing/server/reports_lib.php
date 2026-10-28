@@ -2751,6 +2751,151 @@ function devices_summary(array $list): array {
     return $summary;
 }
 
+/**
+ * Advanced device filters (the Devices "Filters" modal).
+ *
+ * These MUST run on the server. The list is paged server-side, so filtering the
+ * ten visible rows would narrow the wrong set and leave `total`, the fleet strip
+ * and the pager describing the unfiltered account — the same class of bug the
+ * source switch had. They are applied in load_devices() in exactly the same
+ * place as the source switch: after the search, before the sort.
+ *
+ * Wire format is a flat list of `facet:value` tokens:
+ *   ff=presence:offline,bios:locked,mdm:locked
+ * Chosen over JSON because it survives a hand-edit, reads in a URL bar and needs
+ * no decoder. Anything unrecognised is DROPPED rather than rejected: a stale
+ * bookmark must show MORE records, never an error page.
+ */
+function device_facet_defs(): array {
+    // facet => allowed wire values. Labels live in the dashboard, so wording
+    // changes stay a client concern and cannot alter what the server accepts.
+    return [
+        'presence'   => ['online', 'offline', 'erasing', 'failed'],
+        'bios'       => ['locked', 'unlocked', 'unknown'],
+        'mdm'        => ['unchecked', 'queued', 'checking', 'locked', 'locked_this', 'unlocked', 'blocked', 'na'],
+        'secureboot' => ['on', 'off', 'unknown'],
+        'tpm'        => ['present', 'absent'],
+        'media'      => ['any', 'none'],
+        'notes'      => ['any', 'none'],
+    ];
+}
+
+/** `facet:value,facet:value` -> [facet => [value => true]]. Whitelisted. */
+function device_filters_parse($raw): array {
+    $defs = device_facet_defs();
+    $out = [];
+    foreach (explode(',', (string)$raw) as $token) {
+        $token = trim($token);
+        if ($token === '' || strpos($token, ':') === false) { continue; }
+        $parts = explode(':', $token, 2);
+        $facet = strtolower(trim($parts[0]));
+        $value = strtolower(trim($parts[1]));
+        if (!isset($defs[$facet]) || !in_array($value, $defs[$facet], true)) { continue; }
+        $out[$facet][$value] = true;
+    }
+    ksort($out);
+    return $out;
+}
+
+/** Canonical wire form of a parsed filter set (sorted, so a URL is stable). */
+function device_filters_encode(array $filters): string {
+    $parts = [];
+    ksort($filters);
+    foreach ($filters as $facet => $values) {
+        $vals = array_keys($values);
+        sort($vals);
+        foreach ($vals as $v) { $parts[] = $facet . ':' . $v; }
+    }
+    return implode(',', $parts);
+}
+
+/**
+ * One row's value for a facet — the single source of truth for both matching and
+ * the counts shown beside each option, so the two can never disagree.
+ *
+ * '' means "this facet does not apply to this row" (an attested unit has no
+ * presence; a scanner-reported BIOS that never said whether it was locked).
+ * An empty value matches nothing, which is deliberate: an unknown must not be
+ * swept into "Unlocked".
+ */
+function device_facet_value(array $d, string $facet): string {
+    switch ($facet) {
+        case 'presence':
+            if (!empty($d['attested'])) { return ''; }
+            if (empty($d['online'])) { return 'offline'; }
+            $phase = is_array($d['erasure'] ?? null) ? (string)($d['erasure']['phase'] ?? '') : '';
+            if ($phase === 'failed') { return 'failed'; }
+            if ($phase === 'wiping') { return 'erasing'; }
+            return 'online';
+        case 'bios':
+            $v = strtolower(trim((string)($d['bioslock'] ?? '')));
+            return in_array($v, ['locked', 'unlocked', 'unknown'], true) ? $v : '';
+        case 'mdm':
+            // Same precedence as the MDM sort rank in load_devices(), so "the
+            // column says Locked" and "the filter finds Locked" cannot drift.
+            $st = strtolower((string)($d['mdm_status'] ?? ''));
+            $v  = strtolower((string)($d['mdm_verdict'] ?? ''));
+            if ($st === 'checking') { return 'checking'; }
+            if ($st === 'queued')   { return 'queued'; }
+            if ($st === 'unchecked') { return 'unchecked'; }
+            if ($v === 'locked_other') { return 'locked'; }
+            if ($v === 'locked_this')  { return 'locked_this'; }
+            if ($v === 'unlocked')     { return 'unlocked'; }
+            if ($v === 'paid_only' || $v === 'insufficient_credits') { return 'blocked'; }
+            if ($v === 'na' || $st === 'na') { return 'na'; }
+            return '';
+        case 'secureboot':
+            $v = strtolower(trim((string)($d['secure_boot'] ?? '')));
+            if ($v === '') { return ''; }
+            if (strpos($v, 'off') !== false || strpos($v, 'disabled') !== false) { return 'off'; }
+            if (strpos($v, 'on') !== false || strpos($v, 'enabled') !== false)   { return 'on'; }
+            return 'unknown';
+        case 'tpm':
+            $v = strtolower(trim((string)($d['tpm'] ?? '')));
+            if ($v === '' || $v === 'none' || $v === 'no' || strpos($v, 'not present') !== false) {
+                return 'absent';
+            }
+            return 'present';
+        case 'media':
+            return ((int)($d['drive_count'] ?? 0) > 0) ? 'any' : 'none';
+        case 'notes':
+            return trim((string)($d['notes'] ?? '')) !== '' ? 'any' : 'none';
+    }
+    return '';
+}
+
+/** True when the row satisfies EVERY selected facet (a row must match one value
+ *  within a facet, but all facets that are set). */
+function device_filters_match(array $d, array $filters): bool {
+    foreach ($filters as $facet => $values) {
+        if (!isset($values[device_facet_value($d, $facet)])) { return false; }
+    }
+    return true;
+}
+
+/**
+ * Counts per facet option for the modal's "Locked (12)" hints.
+ *
+ * Computed over the source+search set BEFORE the filters narrow it. If they were
+ * counted after, selecting "Locked" would show 0 beside every other BIOS option
+ * and the modal would look broken (the classic faceted-search trap). The honest
+ * limitation: the numbers ignore the operator's other selections, so a
+ * combination can yield fewer rows than any single count suggests — which is why
+ * the Apply button shows the true filtered total it got back from the server.
+ */
+function device_facet_counts(array $list): array {
+    $counts = [];
+    foreach (array_keys(device_facet_defs()) as $facet) { $counts[$facet] = []; }
+    foreach ($list as $d) {
+        foreach (array_keys($counts) as $facet) {
+            $v = device_facet_value($d, $facet);
+            if ($v === '') { continue; }
+            $counts[$facet][$v] = ($counts[$facet][$v] ?? 0) + 1;
+        }
+    }
+    return $counts;
+}
+
 function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
@@ -2816,6 +2961,18 @@ function load_devices(int $userId, ?array $query = null): array {
             $list = array_values(array_filter(
                 $list,
                 static fn($d) => !empty($d['attested']) === $wantAttested
+            ));
+        }
+
+        // Facet counts describe the source+search set the operator is looking at,
+        // BEFORE the advanced filters narrow it — otherwise picking "Locked" would
+        // report 0 beside every other BIOS option. See device_facet_counts().
+        $facets = device_facet_counts($list);
+        $ff = device_filters_parse($query['ff'] ?? '');
+        if ($ff) {
+            $list = array_values(array_filter(
+                $list,
+                static fn($d) => device_filters_match($d, $ff)
             ));
         }
 
@@ -3288,7 +3445,8 @@ function load_devices(int $userId, ?array $query = null): array {
     // `total` already counts attested units (they are candidates). The separate
     // figure lets the page say how many of the rows are attestations rather than
     // letting a destroyed phone quietly inflate the scanned-fleet count.
-    return ['devices' => $ordered, 'total' => $total, 'attested_total' => $attestedTotal, 'summary' => $summary];
+    return ['devices' => $ordered, 'total' => $total, 'attested_total' => $attestedTotal,
+            'summary' => $summary, 'facets' => $facets, 'ff' => device_filters_encode($ff)];
 }
 
 /**

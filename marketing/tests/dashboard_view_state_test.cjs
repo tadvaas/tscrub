@@ -35,8 +35,10 @@ const path = require('path');
 
 const root = process.env.VIEW_ROOT || path.join(__dirname, '..');
 const PAGES = [
-  { file: 'devices.html', key: 'tscrub.view.devices', sortDefault: 'status' },
-  { file: 'drives.html', key: 'tscrub.view.drives', sortDefault: 'date' },
+  // syncCalls includes the definition. Devices carries three extra call sites for
+  // the advanced-filter modal (chip remove, clear-all, apply); Media has none.
+  { file: 'devices.html', key: 'tscrub.view.devices', sortDefault: 'status', syncCalls: 11 },
+  { file: 'drives.html', key: 'tscrub.view.drives', sortDefault: 'date', syncCalls: 8 },
 ];
 
 let count = 0;
@@ -74,9 +76,11 @@ for (const p of PAGES) {
     js.includes("'" + p.key + "'"));
 
   // ---- write back ---------------------------------------------------------
-  // definition + 7 call sites (switch, search, clear, sort, render, prev, next)
+  // definition + N call sites: switch, search, clear, sort, render, prev, next,
+  // and on Devices the three that change the advanced filter.
   const calls = (js.match(/syncView\(\)/g) || []).length;
-  check('every view change writes back (7 call sites + the definition)', calls === 8, calls);
+  check('every view change writes back (' + (p.syncCalls - 1) + ' call sites + the definition)',
+    calls === p.syncCalls, calls);
   check('uses replaceState, never pushState',
     /history\.replaceState/.test(js) && !/history\.pushState/.test(js));
   check('Back/Forward re-reads the URL', /addEventListener\('popstate'/.test(js));
@@ -86,7 +90,10 @@ for (const p of PAGES) {
 
   // ---- the Add-modal safety ----------------------------------------------
   check('an explicit query string suppresses the remembered view',
-    /var VIEW_EXPLICIT = \['q', 'source', 'sort', 'dir', 'page'\]\.some/.test(js) &&
+    /var VIEW_EXPLICIT = \['q', 'source', 'sort', 'dir', 'page', 'ff'\]\.some/.test(js) ||
+    /var VIEW_EXPLICIT = \['q', 'source', 'sort', 'dir', 'page'\]\.some/.test(js),
+    (js.match(/var VIEW_EXPLICIT = \[[^\]]*\]/) || [''])[0]);
+  check('an empty param falls through to the remembered view',
     /if \(VIEW_EXPLICIT\) \{ return ''; \}/.test(js));
 
   // ---- hostile input ------------------------------------------------------
