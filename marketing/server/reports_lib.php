@@ -3089,8 +3089,21 @@ function load_devices(int $userId, ?array $query = null): array {
         // search box is showing rather than the account-wide total.
         $attestedTotal = count(array_filter($list, static fn($d) => !empty($d['attested'])));
         $summary = devices_summary($list);
+        // How many of the FILTERED rows can actually be queued for an MDM check.
+        // `mdm: unchecked` can only be true when a staged hash exists and no job has
+        // ever run, so it IS the queueable set — the bulk check needs no separate
+        // eligibility pass. Reported alongside the summary so the button can carry an
+        // exact number instead of the filtered total (which would read "check 207"
+        // on a view where only 9 are unchecked).
+        $summary['checkable'] = count(array_filter(
+            $list,
+            static fn($d) => device_facet_value($d, 'mdm') === 'unchecked'
+        ));
         $onlyKeys = [];
-        foreach (array_slice($list, ($page - 1) * $per, $per) as $d) {
+        // A caller that needs the whole filtered set (the bulk MDM check) passes
+        // all=true; the paged path slices as usual.
+        $slice = !empty($query['all']) ? $list : array_slice($list, ($page - 1) * $per, $per);
+        foreach ($slice as $d) {
             $onlyKeys[] = $d['_key'];
         }
     }

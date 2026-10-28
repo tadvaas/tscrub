@@ -1722,6 +1722,81 @@ if ($method === 'POST' && $route === '/mdm/recheck') {
     json_out(['ok' => true, 'queued' => $jobId > 0, 'job_id' => $jobId]);
 }
 
+// POST /api/mdm/batch — queue an MDM (Autopilot) check for every device matching
+// the dashboard's current view (q + source + ff). The view IS the selection:
+// `ff=…,mdm:unchecked` can only match a device that has a staged hash and no job
+// at all, so there is nothing to filter out afterwards. Session auth.
+//
+// The WHOLE batch is refused when the balance cannot cover it. The worker debits
+// one credit per live probe AFTER the probe, so a batch larger than the balance
+// would run checks it cannot pay for and only log the shortfall. `force` is
+// always 0 here: a cached verdict within 24h is free and never touches Graph.
+if ($method === 'POST' && $route === '/mdm/batch') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $q = trim((string)($d['q'] ?? ''));
+    $source = list_source($d['source'] ?? '');
+    $ff = (string)($d['ff'] ?? '');
+    $dry = !empty($d['dry_run']);
+    // Its OWN bucket, and a 2-second gap rather than the 30 used for device probes.
+    // rate_limit() is a minimum INTERVAL per (scope, IP), not a per-minute quota, so
+    // sharing the 'mdm' scope meant the dry run blocked its own confirmation for 30
+    // seconds — and it also shared a budget with the appliance's /mdm/autopilot, so a
+    // machine checking in could lock the operator out of the dashboard.
+    rate_limit('mdm_batch', 2);
+
+    $gate = mdm_gate((int)$u['id']);
+    if (!$gate['allowed']) {
+        fail(402, $gate['reason'] === 'free_tier'
+            ? 'MDM check is a paid feature — upgrade your licence on the Billing page.'
+            : 'Insufficient credits — top up on the Billing page.');
+    }
+
+    // Derive the set exactly as the list does, so the batch can never drift from
+    // what was on screen (or from what the pager said was there).
+    $res = load_devices((int)$u['id'], ['q' => $q, 'page' => 1, 'per' => 10,
+        'sort' => 'status', 'dir' => -1, 'source' => $source, 'ff' => $ff, 'all' => true]);
+
+    $eligible = [];
+    $skipped = [];
+    foreach (($res['devices'] ?? []) as $dev) {
+        // Already queued, checking or answered — not this button's business.
+        if (device_facet_value($dev, 'mdm') !== 'unchecked') { continue; }
+        $serial = trim((string)($dev['sysserial'] ?? ''));
+        $uuid = trim((string)($dev['systemuuid'] ?? ''));
+        if ($serial === '' || $serial === 'N/A' || $uuid === '' || $uuid === 'N/A') {
+            $skipped[] = ['serial' => $serial !== '' ? $serial : '(no serial)', 'reason' => 'no serial/UUID'];
+            continue;
+        }
+        if (mdm_staged_hash((int)$u['id'], $serial, $uuid) === null) {
+            $skipped[] = ['serial' => $serial, 'reason' => 'no captured hash'];
+            continue;
+        }
+        $eligible[] = ['serial' => $serial, 'uuid' => $uuid];
+    }
+
+    $need = count($eligible);
+    $balance = (int)$gate['balance'];
+    if ($need > $balance) {
+        fail(402, 'This batch needs ' . $need . ' credit' . ($need === 1 ? '' : 's')
+            . ' but the balance is ' . $balance . '. Nothing has been queued — top up on the Billing page.');
+    }
+
+    if ($dry) {
+        json_out(['ok' => true, 'dry_run' => true, 'count' => $need, 'credits' => $need,
+            'balance' => $balance, 'balance_after' => $balance - $need, 'skipped' => $skipped]);
+    }
+
+    mdm_ensure_schema();
+    $queued = 0;
+    foreach ($eligible as $e) {
+        if (mdm_enqueue_job((int)$u['id'], $e['serial'], $e['uuid'], false) > 0) { $queued++; }
+    }
+    json_out(['ok' => true, 'queued' => $queued, 'credits' => $queued,
+        'balance' => $balance, 'balance_after' => $balance - $queued, 'skipped' => $skipped]);
+}
+
 // GET /api/reports — the current user's uploaded reports (raw evidence).
 // Optional `q` searches drive/system serials and other stored data.
 if ($method === 'GET' && $route === '/reports') {

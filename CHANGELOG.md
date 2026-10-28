@@ -10,6 +10,34 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
+- **A "Check MDM (N)" button that queues an Autopilot check for every device in the current
+  view.** The view *is* the selection: `ff=…,mdm:unchecked` can only match a device that has a
+  staged hardware hash and **no job at all**, so there is nothing to pick and nothing to filter
+  out afterwards. The server re-derives the set with the same loader the list uses, so the
+  batch cannot drift from what the pager said was there.
+
+  `N` is the number of *checkable* devices in the filtered set, not the filtered total — on a
+  full view that is 9, not 207, because a button reading "Check MDM (207)" would invite an
+  action on devices that already have answers.
+
+  `POST /api/mdm/batch` takes the view (`q`, `source`, `ff`) and either dry-runs (no side
+  effects — the dialog shows "7 devices · 7 credits · balance 800 → 793") or enqueues. Three
+  safety rules: **the whole batch is refused when the balance cannot cover it** (the worker
+  debits after each probe, so a short balance would run checks it cannot pay for); **`force` is
+  always false**, so a cached verdict inside 24 h is free; and devices without a captured hash
+  are **reported as skipped rather than dropped**.
+
+  Found by screenshotting the dialog rather than by any test: `rate_limit($scope, $seconds)` is
+  a minimum *interval* per (scope, IP), not a per-minute quota — so the batch's dry run blocked
+  its own confirmation for 30 seconds, and shared a budget with the appliance's
+  `/api/mdm/autopilot`, meaning a machine checking in could lock the operator out. The batch
+  now has its own `mdm_batch` scope at 2 s.
+
+  Live: the user's view (`source=verified&ff=cocid:33219,mdm:unchecked`) shows 7 devices and a
+  button reading **Check MDM (7)**; the dry run reports 7 credits against a balance of 800; a
+  view where nothing is checkable disables the button. `tests/mdm_batch_test.cjs` (21 checks,
+  mutation-tested) pins the guards. Plan: `research/mdm-batch/README.md`.
+
 - **Advanced filters on the Devices tab — seven dimensions, not just the search box.** A
   Filters button opens a modal with presence (online / offline / erasing / failed), BIOS
   lock, MDM / Autopilot state, Secure Boot, TPM, media and notes, each option carrying the

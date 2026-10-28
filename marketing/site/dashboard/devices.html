@@ -64,6 +64,10 @@
       </div>
       <button type="button" id="search-clear" class="ts-btn ts-btn--secondary hidden">Clear</button>
       <button type="button" id="filter-btn" class="ts-btn ts-btn--secondary" title="Filter the list by presence, BIOS lock, MDM, Secure Boot, TPM, media and notes">Filters</button>
+      <!-- The count comes from the FILTERED set, not the account: only devices with a
+           captured hash and no job at all can be queued, so on a full view this reads
+           "Check MDM (9)", not "(207)". -->
+      <button type="button" id="mdm-batch-btn" class="ts-btn ts-btn--secondary" disabled title="Nothing in this view needs a check">Check MDM</button>
       <button type="button" id="export-btn" class="ts-btn ts-btn--secondary" title="Export the device inventory">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
         Export
@@ -319,6 +323,28 @@
         <div class="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-3">
           <button id="filter-reset" type="button" class="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Clear all</button>
           <button id="filter-apply" type="button" class="ts-btn ts-btn--primary">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk MDM check. The current view IS the selection: the server re-derives the set
+       from q + source + ff, so the batch can never drift from what the pager said was
+       there. Nothing here claims to change a device — an Autopilot check is a lookup. -->
+  <div id="mdm-batch-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="mdm-batch-title">
+    <div id="mdm-batch-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+      <div class="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white dark:bg-ink-900 shadow-2xl ring-1 ring-slate-900/10">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 dark:border-ink-700 px-5 py-4">
+          <h2 id="mdm-batch-title" class="text-lg font-bold text-ink-900 dark:text-white">Queue MDM checks</h2>
+          <button id="mdm-batch-close" type="button" class="ts-btn ts-btn--secondary">Close</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div id="mdm-batch-body" class="text-sm text-slate-700 dark:text-slate-300"></div>
+        </div>
+        <div class="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 dark:border-ink-700 px-5 py-3">
+          <span id="mdm-batch-status" class="text-xs font-semibold"></span>
+          <button id="mdm-batch-confirm" type="button" class="ts-btn ts-btn--primary" disabled>Queue</button>
         </div>
       </div>
     </div>
@@ -1417,6 +1443,101 @@
       filters = parseFilters(viewGet('ff'));
       paintFilters();
 
+      // ---- Bulk MDM check ---------------------------------------------------
+      // The current view IS the selection. The server re-derives it from q + source
+      // + ff, so the batch cannot drift from what the pager said was there, and
+      // `mdm: unchecked` already means "has a captured hash and no job at all" — so
+      // there is nothing to pick, and nothing to filter out afterwards.
+      //
+      // The whole batch is refused when the balance cannot cover it (the worker
+      // debits per live probe AFTER the probe, so a short balance would otherwise
+      // run checks it cannot pay for). `force` is always 0: a cached verdict within
+      // 24h is free.
+      var mdmBatchModal = document.getElementById('mdm-batch-modal');
+      function paintMdmBatch() {
+        var n = (fleetSummary && typeof fleetSummary.checkable === 'number') ? fleetSummary.checkable : 0;
+        var btn = document.getElementById('mdm-batch-btn');
+        btn.textContent = n ? 'Check MDM (' + n + ')' : 'Check MDM';
+        btn.disabled = n === 0;
+        btn.title = n
+          ? 'Queue an Autopilot check for the ' + n + ' device' + (n === 1 ? '' : 's') + ' in this view that have never been checked'
+          : 'Nothing in this view needs a check — every device here with captured hardware info already has a result';
+      }
+      function closeMdmBatch() { window.TSDialog.close(mdmBatchModal); }
+      function mdmBatchPost(dry) {
+        return getCsrf().then(function (csrf) {
+          return fetch('/api/mdm/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify({
+              q: currentQ, source: source, ff: encodeFilters(filters), dry_run: !!dry
+            })
+          });
+        }).then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok || !j.ok) { throw new Error(j.error || 'Request failed'); }
+            return j;
+          });
+        });
+      }
+      function renderMdmBatch(d) {
+        var body = document.getElementById('mdm-batch-body');
+        var html = '<p class="font-semibold text-ink-900 dark:text-white">' + d.count
+          + ' device' + (d.count === 1 ? '' : 's') + ' will be queued.</p>'
+          + '<p class="mt-2">' + d.credits + ' credit' + (d.credits === 1 ? '' : 's')
+          + ' — balance ' + d.balance + ' \u2192 ' + d.balance_after + '.</p>';
+        if (d.skipped && d.skipped.length) {
+          html += '<p class="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-400">'
+            + d.skipped.length + ' skipped</p><ul class="mt-1 list-disc pl-5 text-xs">'
+            + d.skipped.map(function (s) { return '<li>' + s.serial + ' \u2014 ' + s.reason + '</li>'; }).join('')
+            + '</ul>';
+        }
+        html += '<p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Checks run in the background, one at a time, about 30 seconds apart. A queued check can still come back Offline if Microsoft Graph is unreachable, and this only looks the device up — it does not change it.</p>';
+        body.innerHTML = html;
+        var btn = document.getElementById('mdm-batch-confirm');
+        btn.textContent = d.count ? 'Queue ' + d.count + ' check' + (d.count === 1 ? '' : 's') : 'Nothing to queue';
+        btn.disabled = !d.count;
+      }
+      function openMdmBatch() {
+        document.getElementById('mdm-batch-body').innerHTML = '<p class="text-slate-500 dark:text-slate-400">Checking what can be queued\u2026</p>';
+        var st = document.getElementById('mdm-batch-status');
+        st.className = 'text-xs font-semibold';
+        st.textContent = '';
+        document.getElementById('mdm-batch-confirm').disabled = true;
+        window.TSDialog.open(mdmBatchModal);
+        mdmBatchPost(true).then(renderMdmBatch).catch(function (e) {
+          // Put the reason where the operator is looking, not only in the footer.
+          document.getElementById('mdm-batch-body').innerHTML =
+            '<p class="text-sm text-red-600 dark:text-red-400">' + e.message + '</p>';
+          st.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
+          st.textContent = '';
+        });
+      }
+      document.getElementById('mdm-batch-btn').addEventListener('click', openMdmBatch);
+      document.getElementById('mdm-batch-close').addEventListener('click', closeMdmBatch);
+      document.getElementById('mdm-batch-backdrop').addEventListener('click', closeMdmBatch);
+      document.getElementById('mdm-batch-confirm').addEventListener('click', function () {
+        var btn = document.getElementById('mdm-batch-confirm');
+        var st = document.getElementById('mdm-batch-status');
+        btn.disabled = true;
+        st.className = 'text-xs font-semibold text-slate-500 dark:text-slate-400';
+        st.textContent = 'Queueing\u2026';
+        mdmBatchPost(false).then(function (d) {
+          st.className = 'text-xs font-semibold text-emerald-700 dark:text-emerald-400';
+          st.textContent = d.queued + ' queued';
+          lastDevicesJson = '';   // the MDM column now shows Queued
+          loadDevices();
+          setTimeout(closeMdmBatch, 1400);
+        }).catch(function (e) {
+          st.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
+          st.textContent = e.message;
+          btn.disabled = false;
+        });
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !mdmBatchModal.classList.contains('hidden')) closeMdmBatch();
+      });
+
       function loadDevices() {
         lastFullRefresh = Date.now();
         var seq = ++devicesFetchSeq;
@@ -1599,6 +1720,9 @@
       // render, with a spinner in place of each number, so the strip has shape
       // immediately and does not pop in after the list.
       function renderSummary() {
+        // The bulk-check button's count is a property of the same filtered set these
+        // tiles describe, so it is repainted here and cannot fall out of step.
+        paintMdmBatch();
         var host = document.getElementById('fleet-summary');
         if (!host) return;
         host.innerHTML = '';
