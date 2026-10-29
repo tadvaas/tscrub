@@ -774,6 +774,18 @@ with the release that carried them (per `CHANGELOG.md`).
       `[+]/[-]` notice and re-pushes the diagnostics snapshot. Gated to the idle
       triage screen (never mid-wipe); USB-attached drives stay excluded.
       Plan: `research/hot-plug-drive-detection/plan.md`.
+- [ ] **A machine with nothing attached must say so, not loop.** On a boot with
+      no supported drives tScrub demands a COCID, discovers nothing, renders one
+      frame and `exit 1`s — and the getty respawns it, so the operator is asked
+      for a COCID again, indefinitely, with the reason wiped off the screen. The
+      hot-plug watcher cannot rescue it because it only runs on the triage
+      screen, which this path never reaches. Wanted: look before asking (discover
+      before the COCID prompt), a real **NO STORAGE DETECTED** state with
+      cause-aware guidance (RAID mode, unseated drive, empty card reader,
+      protected-only media), `[R]` rescan + live hot-plug while it is up, and a
+      report gate that treats "nothing to erase" as neither success nor an empty
+      certificate. Bench evidence 2026-10-29.
+      → Plan: `research/no-media-ux/README.md`.
 
 ## 5. Dashboard & scale
 
