@@ -24,11 +24,10 @@ and this project uses date-based versioning (`v1.x`).
   - an audit line on the report (from → to, when, why), and refusal while an
     issued certificate cites the job.
 
-  The fix is offered **where the record is**, not only in the panel: *Correct
-  CoC…* sits beside each report row in a medium's Reports view and beside each
-  report in a machine's log on the Devices page — the latter covering
-  diagnostics reports from a boot that erased nothing, which the erasure-only
-  uploads panel can never list.
+  The fix is offered **inside the record view**, not beside every row: open the
+  report — a medium's *View* on the Media page, or *Rep* / the log's *View* on
+  the Devices page — and use *Correct COCID…* in its footer. That is also how a
+  **diagnostics** report is corrected, since the uploads panel is erasure-only.
 
   Nothing is deleted. Reassignment rewrites all three places the COCID lives and
   marks the row, and every read path now shares one visibility rule

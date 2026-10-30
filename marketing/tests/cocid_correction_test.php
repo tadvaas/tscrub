@@ -138,8 +138,9 @@ t_check('user_ingested_shas does not filter, so a hidden file cannot be re-charg
 
 echo "\n== the fix is offered where the record is, not only in the uploads panel ==";
 // A diagnostics report has no row in the Media uploads panel (that list is
-// erasure-only), so the correction must be reachable from the Devices log as
-// well. These checks pin the wiring rather than the rendering.
+// erasure-only), so the correction must be reachable from the record views.
+// The action lives in the VIEW modal only: a row of View/PDF is a list control,
+// and repeating the correction beside every row was noise once the modal had it.
 $siteDir = dirname($serverDir) . '/site';
 $asset = @file_get_contents($siteDir . '/public/assets/report-corrections.js');
 $drivesPage = @file_get_contents($siteDir . '/dashboard/drives.html');
@@ -150,26 +151,19 @@ t_check('it exposes a per-report correction for any page',
     && strpos($asset, 'function correctReport(') !== false);
 t_check('and a removal for any page',
     is_string($asset) && strpos($asset, 'removeReport: removeUpload') !== false);
-t_check('the Media report rows offer it',
-    is_string($drivesPage) && strpos($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') !== false);
-// BOTH renderers: the desktop table and the mobile card list are separate code
-// paths, and this test first passed on the mobile one alone — the exact "fixed
-// one surface, not the other" failure the feature exists to prevent.
-t_check('on BOTH the desktop table and the mobile card list',
-    is_string($drivesPage)
-    && substr_count($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') >= 2);
-t_check('the Devices log offers it too (the diagnostics case)',
-    is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: h.id') !== false);
+// The rows keep View / PDF; the correction lives one level in, in the record.
+t_check('the Media report rows no longer carry it',
+    is_string($drivesPage) && substr_count($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') === 0);
+t_check('nor do the Devices log rows',
+    is_string($devicesPage) && substr_count($devicesPage, 'ReportCorrections.correctReport({ id: h.id') === 1);
 // The report VIEW (the "Rep" modal) is where an operator reads the diagnostics
 // report, and it is the third place they look. Offer it there as well.
 t_check('the diagnostics report view offers it',
     is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: dev.pdf_id') !== false);
 // The ERASURE record is viewed in two places — its own modal on the Devices
-// side and the medium's record view on the Media page — and both must offer it,
-// for exactly the reason the desktop/mobile split bit us on the Media list.
+// side and the medium's record view on the Media page — and both must offer it.
 t_check('the erasure report view on Devices offers it',
-    is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: h.id') !== false
-    && strpos($devicesPage, "id='erasure-modal-footer'") === false
+    is_string($devicesPage) && substr_count($devicesPage, 'ReportCorrections.correctReport({ id: h.id') === 1
     && strpos($devicesPage, 'id="erasure-modal-footer"') !== false);
 t_check('the medium record view on Media offers it',
     is_string($drivesPage) && strpos($drivesPage, 'ReportCorrections.correctReport({ id: d.report_id') !== false);
