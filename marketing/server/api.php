@@ -1303,7 +1303,7 @@ if ($method === 'POST' && $route === '/heartbeat') {
     // untouched; when present (even empty) we apply it — empty clears it.
     $touchPhase = array_key_exists('phase', $d);
     $phase = (string)($d['phase'] ?? '');
-    if ($phase !== '' && !in_array($phase, ['idle', 'wiping', 'done', 'failed'], true)) {
+    if ($phase !== '' && !in_array($phase, ['idle', 'wiping', 'done', 'failed', 'no_media'], true)) {
         $phase = '';
     }
     $drivesTotal  = max(0, (int)($d['drives_total'] ?? 0));

@@ -307,6 +307,21 @@ device::usb_candidates() {
     done
 }
 
+# Classify the last discovery result, so the caller can decide what to show:
+#   ok             at least one device can actually be selected for erasure
+#   all_protected  devices exist but every one is protected (typically just the
+#                  appliance's own boot/licence medium) — NOT the same as "none"
+#   none           no supported block devices at all
+# Pure read of the discovery state: no probing, safe to call in a UI loop.
+device::media_state() {
+    local dev
+    [[ ${#devices[@]} -gt 0 ]] || { printf 'none'; return 0; }
+    for dev in "${devices[@]}"; do
+        [[ "${devrow[$dev.selectable]:-1}" -eq 1 ]] && { printf 'ok'; return 0; }
+    done
+    printf 'all_protected'
+}
+
 device::discover() {
     devices=()
     NO_SUPPORTED_DRIVES=0

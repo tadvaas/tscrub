@@ -620,6 +620,12 @@
         if (e.phase === 'failed') {
           return { dot: 'bg-red-500', txt: 'text-red-700 dark:text-red-400', label: 'Failed', title: failedNames ? ('Erasure failed — ' + failedNames) : 'Erasure failed or was blocked' };
         }
+        if (e.phase === 'no_media') {
+          // The appliance booted, looked, and found nothing to erase. Distinct
+          // from "Erased" (nothing was), from "Failed" (nothing failed) and from
+          // an idle box (it is deliberately sitting on the no-media screen).
+          return { dot: 'bg-slate-400', txt: 'text-slate-600 dark:text-slate-300', label: 'No storage', title: 'Appliance is online but found no storage to erase' };
+        }
         return null;
       }
 

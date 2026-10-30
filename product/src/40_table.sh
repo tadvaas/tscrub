@@ -774,7 +774,7 @@ table::render() {
         "$runtime_label_w" "Elapsed:" "$runtime_value_w" "$runtime_value_w" "$runtime_str"
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "System SN:" "$sys_value_w" "$sys_value_w" "$SYS_SERIAL" \
-        "$runtime_label_w" "COCID:" "$runtime_value_w" "$runtime_value_w" "${COCID:-N/A}"
+        "$runtime_label_w" "COCID:" "$runtime_value_w" "$runtime_value_w" "${COCID:-(pending)}"
     printf "%s| %-*s %-*.*s |  | %-*s %-*.*s |\n" \
         "$TABLE_INDENT" "$sys_label_w" "Board SN:" "$sys_value_w" "$sys_value_w" "$SYS_BASEBOARD_SERIAL" \
         "$runtime_label_w" "Licence:" "$runtime_value_w" "$runtime_value_w" "${LICENSE_CUSTOMER:-N/A}"
@@ -1411,7 +1411,11 @@ triage::legend() {
     std="$(triage::standard_text)"
     brief="$(triage::standard_brief)"
     w="$(table::detect_terminal_width)"
-    full="Overwrite (fallback): ${std}   m=std p=rounds   T=erase D=diag R/S=power Esc"
+    # `F=scan` costs 7 columns, so the separators are two spaces and "power" is
+    # abbreviated: the widest standard must still land at or under the 100-column
+    # budget test_standard_picker.sh enforces (the short tier is unchanged, and
+    # `triage::legend` only ever returns this line when it fits the terminal).
+    full="Overwrite (fallback): ${std}  m=std p=rounds  T=erase F=scan D=diag R/S=pwr Esc"
     short="Overwrite: ${brief}  m p  T=erase D=diag R/S=power Esc"
     if (( ${#full} <= w )); then
         printf '%s' "$full"
@@ -1439,6 +1443,126 @@ triage::paint_legend() {
 # workflow; R/S power off; Esc/q exits (the getty respawns tScrub). The
 # presence / BIOS-unlock / MDM workers keep running the whole time, so the
 # machine stays "online" while it idles here.
+# --- No media -----------------------------------------------------------------
+# A boot that finds nothing to erase used to `exit 1`, which makes the appliance's
+# getty respawn tScrub: the one frame naming the reason was wiped and the operator
+# was asked for a COCID again, forever. This holds the screen instead, explains
+# WHY (including "everything attached is protected"), and lets the operator
+# rescan. See research/no-media-ux/README.md.
+
+# The guidance block under the table. Kept out of table::render on purpose: that
+# renderer computes in-place row positions, and adding lines to it would shift the
+# rows it later repaints.
+triage::no_media_panel() {  # [extra status line]
+    local state notice
+    state="$(device::media_state)"
+    notice="${DISCOVERY_NOTICE:-}"
+    if [[ "$state" == "all_protected" ]]; then
+        printf "\033[K%sOnly protected media is attached - nothing here can be selected.\n" "$TABLE_INDENT"
+    else
+        printf "\033[K%sNo supported storage is attached - there is nothing to erase.\n" "$TABLE_INDENT"
+    fi
+    [[ -n "$notice" ]] && printf "\033[K%s  %s\n" "$TABLE_INDENT" "$notice"
+    printf "\033[K%s  Check: drive seated and cabled | RAID mode in BIOS hides disks | USB fully inserted\n" "$TABLE_INDENT"
+    printf "\033[K%s  Protected media is not a fault - the row's METHOD says which rule applied\n" "$TABLE_INDENT"
+    printf "\033[K%s  last scan: %s   [F] rescan   [D] diagnostics   [Q] restart appliance\n" \
+        "$TABLE_INDENT" "$(date -u +%H:%M:%SZ)"
+    [[ -n "${1:-}" ]] && printf "\033[K%s  %s\n" "$TABLE_INDENT" "$1"
+}
+
+# Hold the "nothing to erase" state.
+#   0  a rescan produced a selectable drive - the caller continues the normal flow
+#   1  the operator chose to restart the appliance
+# Headless (no terminal) records the outcome and exits non-zero: there is no
+# screen to hold, and idling would look like a hang.
+triage::no_media_run() {
+    local key rc
+
+    TRIAGE_MODE=1
+    SELECT_MODE=0
+    UI_INPLACE=1
+    UI_COMPLETE_THEME=4
+    ui::cursor_hide
+
+    # Publish the state: this box is up and has nothing to erase. Its own phase -
+    # not "done" (nothing was erased) and not "failed" (nothing failed).
+    status::write no_media 0 0 0
+    status::ping_now
+    report::journal_open
+    report::journal NOTE "no storage detected - nothing to erase (COCID not requested)"
+
+    if ! ui::terminal_controls_supported; then
+        printf "%s[!] No storage detected - nothing to erase.\n" "$TABLE_INDENT" >&2
+        report::journal END "nothing-to-wipe (headless)"
+        report::sync_out
+        exit 1
+    fi
+
+    table::build
+    table::render
+    triage::no_media_panel
+
+    while :; do
+        IFS= read -t 0.5 -rsn1 key < /dev/tty 2>/dev/null; rc=$?
+        if (( rc > 128 )); then
+            if [[ "${UI_RESIZED:-0}" -eq 1 ]]; then
+                UI_RESIZED=0
+                table::render
+                triage::no_media_panel
+            fi
+            continue
+        fi
+        case "$key" in
+            F|f)
+                device::rediscover
+                hotplug::baseline
+                table::build
+                table::render
+                if [[ "$(device::media_state)" == "ok" ]]; then
+                    # Deliberately no auto-transition: the operator reads the new
+                    # rows and continues with the normal key.
+                    triage::no_media_panel "drives detected - press T to erase, F to rescan again"
+                    report::journal NOTE "storage detected after rescan - returning to the normal flow"
+                    TRIAGE_MODE=0
+                    return 0
+                fi
+                triage::no_media_panel "scan: no change"
+                report::journal NOTE "rescan: still $(device::media_state)"
+                ;;
+            D|d)
+                diag::guided
+                { register::push; } 3>&- &
+                table::render
+                triage::no_media_panel
+                ;;
+            $'\e'|q|Q)
+                report::journal END "nothing-to-wipe (operator restarted the appliance)"
+                report::sync_out
+                TRIAGE_MODE=0
+                return 1
+                ;;
+        esac
+    done
+}
+
+# Manual rescan from the triage screen. The automatic poll already does this work;
+# the key exists so the operator can PROVE the appliance looked - a silent poll
+# cannot answer "did it see the drive I just plugged in?".
+triage::rescan_now() {
+    local before after
+    before="${#devices[@]}"
+    device::rediscover
+    hotplug::baseline
+    { register::push; } 3>&- &
+    table::render
+    after="${#devices[@]}"
+    if [[ "$after" -gt "$before" ]]; then
+        printf "\033[K%s[+] %d new drive(s) - %s\n" "$TABLE_INDENT" "$(( after - before ))" "$(date -u +%H:%M:%SZ)"
+    else
+        printf "\033[K%sscan: no change (%d drive(s)) - %s\n" "$TABLE_INDENT" "$after" "$(date -u +%H:%M:%SZ)"
+    fi
+}
+
 triage::run() {
     local key k2 rc prev_status on_finish=0 marker cmd_id dry_run scope drv _saved_dry_run
 
@@ -1573,6 +1697,15 @@ triage::run() {
 
         case "$key" in
             T|t)
+                # The Chain of Custody ID is captured HERE, not at boot: it only
+                # means something once the operator has decided to erase, and a
+                # machine with no drives must never be asked for one. A cancelled
+                # prompt drops straight back to the triage screen.
+                if ! cocid::ensure; then
+                    table::render
+                    continue
+                fi
+                { register::push; } 3>&- &   # the snapshot now carries the COCID
                 # Enter the erasure workflow; return seamlessly afterwards. The
                 # finish screen stays up as the result view (erasure::run sets
                 # TRIAGE_MODE so its footer carries the triage key legend) with
@@ -1605,6 +1738,7 @@ triage::run() {
             # the software fallback and repaints just the footer legend.
             m|M) triage::cycle_method ;;
             p|P) triage::cycle_passes ;;
+            F|f) triage::rescan_now ;;
             R|r) TRIAGE_MODE=0; select::reboot; return 0 ;;
             S|s) TRIAGE_MODE=0; select::shutdown; return 0 ;;
             $'\e'|q|Q) break ;;

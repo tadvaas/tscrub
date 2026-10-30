@@ -122,6 +122,29 @@ and this project uses date-based versioning (`v1.x`).
   Each tab remembers its own view (Devices and Media keep separate keys) — filtering Devices
   to Attested does not force Media to Attested.
 
+### Changed
+
+- **A machine with no storage says so, instead of looping.** On a boot with
+  nothing attached, tScrub asked for a COCID, found no drives, rendered one frame
+  and `exit 1`'d — and the getty respawned it, so the operator was asked for the
+  COCID again with the reason wiped off the screen. Two changes:
+  - the **COCID prompt moved to the moment an erase is requested**
+    (`cocid::ensure` on `Shift+T`, and before an autonuke run). A supplied COCID
+    (`--cocid` / `tscrub_cocid=`) is still validated at boot so a bad flag fails
+    fast, and the session timer now starts at discovery.
+  - no media is a **state, not an exit**: `device::media_state()` distinguishes
+    `ok` / `all_protected` / `none`, and a **NO STORAGE DETECTED** screen holds
+    with the reason, the guidance and `[F]` rescan / `[D]` diagnostics /
+    `[Q]` restart. `[F]` also works on the triage screen, because a silent poll
+    cannot answer "did it see the drive I just plugged in?".
+- **"Nothing to wipe" is recorded as its own outcome.** `phase=no_media` on the
+  heartbeat (new phase in the API whitelist, and a *No storage* badge on the
+  dashboard rather than *Failed*), `NOTE`/`END nothing-to-wipe` in the run
+  journal, and a report-gate guard (`report::has_targets()`) so an empty device
+  set can never produce a certificate — `ui::all_drives_terminal` is vacuously
+  true for zero devices, which would otherwise have certified a run that erased
+  nothing.
+
 ## [v1.11.84] - 2026-10-27
 
 Released artefacts: ISO `tscrub-v1.11.84_2025.11_30_x86-64_v0.41_20261027-2ef83e19.iso`

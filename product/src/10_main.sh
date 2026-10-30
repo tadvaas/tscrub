@@ -187,17 +187,21 @@ fn_main() {
     # to the stick immediately. The final report reuses the same mount.
     report::detect_output
 
-    cocid::detect
-    if ! cocid::is_valid "$COCID"; then
+    # A COCID supplied by --cocid / tscrub_cocid= is validated here, because a bad
+    # flag should fail fast. The interactive prompt moved to cocid::ensure at the
+    # moment an erase is requested, so a machine with nothing to erase is never
+    # asked for one. See research/no-media-ux/README.md §3.1.
+    cocid::resolve_supplied
+    if [[ -n "${COCID:-}" ]] && ! cocid::is_valid "$COCID"; then
         printf "%s[!] Invalid COCID '%s'. Must be exactly 5 digits.\n" "$TABLE_INDENT" "$COCID" >&2
         exit 1
     fi
-    # Clear the centered COCID prompt so its text doesn't linger while the
-    # discovery -> SMART -> unfreeze sequence runs below.
+    # Clear any banner so its text doesn't linger while the discovery -> SMART ->
+    # unfreeze sequence runs below.
     ui::terminal_controls_supported && clear
 
-    # The session timer starts once the COCID has been resolved (the "app
-    # start" moment), so the Elapsed panel does not count COCID entry time.
+    # The session timer now starts at discovery, not at a COCID prompt: the COCID
+    # is asked just before an erase, which may be minutes after boot.
     START_TS="$(ts::now)"
 
     # Connect to the network explicitly, so the presence heartbeat, remote
@@ -239,9 +243,19 @@ fn_main() {
     ui::spinner_start "Discovering devices..."
     if ! device::discover; then
         ui::spinner_stop
-        table::build
-        table::render
-        exit 1
+        # No media is a STATE, not an exit. Exiting makes the appliance's getty
+        # respawn tScrub, which wipes the reason off the screen — and, when the
+        # COCID was asked at boot, asked for it again, forever. The screen holds
+        # until a rescan finds something (return 0) or the operator restarts.
+        triage::no_media_run || exit 0
+        ui::spinner_start "Preparing..."
+    elif [[ "$(device::media_state)" != "ok" ]]; then
+        # Devices exist but every one is protected (typically only the medium the
+        # appliance is running from). Same screen: it explains why nothing can be
+        # selected instead of silently offering an empty job.
+        ui::spinner_stop
+        triage::no_media_run || exit 0
+        ui::spinner_start "Preparing..."
     fi
     smart::capture_all pre
     ui::spinner_stop
@@ -296,7 +310,9 @@ fn_main() {
 
     if [[ "$AUTONUKE" -eq 1 ]]; then
         # PXE fleet / --autonuke: wipe every drive immediately, report, then
-        # exit (no triage screen, no post-run prompt).
+        # exit (no triage screen, no post-run prompt). The COCID is asked here
+        # too when it was not supplied — an autonuke run must be attributable.
+        cocid::ensure || exit 1
         erasure::run
         ui::cursor_show
     else
@@ -490,7 +506,15 @@ erasure::run() {
     # non-terminal; flag it and withhold the report (a half-done run is not an
     # erasure report).
     local erasure_complete=1
-    if ! ui::all_drives_terminal; then
+    # Nothing selected is NOT a completed run. ui::all_drives_terminal succeeds
+    # for an EMPTY device set (its loop body never runs), so without this guard a
+    # machine with no drives would mint a certificate for having erased nothing.
+    if ! report::has_targets; then
+        erasure_complete=0
+        status::write no_media 0 0 0
+        status::ping_now
+        report::journal NOTE "nothing to wipe - no drive was selected for erasure"
+    elif ! ui::all_drives_terminal; then
         erasure_complete=0
         for dev in "${devices[@]}"; do
             case "${devrow[$dev.status]:-}" in
@@ -582,15 +606,23 @@ erasure::run() {
             report::upload "$report_file"
         fi
     else
-        printf "%sErasure report withheld: not all drives reached a terminal state (erasure incomplete).\n" "$TABLE_INDENT" >&5
-        REPORT_USB_STATUS="fail"
-        REPORT_USB_REASON="erasure incomplete — report withheld"
+        if ! report::has_targets; then
+            printf "%sNothing to wipe: no drive was selected, so no report was produced.\n" "$TABLE_INDENT" >&5
+            REPORT_USB_STATUS="fail"
+            REPORT_USB_REASON="nothing to wipe - no report"
+        else
+            printf "%sErasure report withheld: not all drives reached a terminal state (erasure incomplete).\n" "$TABLE_INDENT" >&5
+            REPORT_USB_STATUS="fail"
+            REPORT_USB_REASON="erasure incomplete — report withheld"
+        fi
     fi
     debug::save
     # Close the journal BEFORE sync_out: sync_out unmounts the stick the journal
     # lives on, so a later append would land nowhere.
     if [[ "$erasure_complete" -eq 1 ]]; then
         report::journal_end "report=${report_file:-none} save=${REPORT_USB_STATUS:-ok}"
+    elif ! report::has_targets; then
+        report::journal_end "nothing-to-wipe (no drive selected)"
     else
         report::journal_end "report withheld (erasure incomplete); ${REPORT_USB_REASON:-no report written}"
     fi

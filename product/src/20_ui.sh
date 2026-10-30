@@ -55,26 +55,35 @@ cocid::is_valid() {
     [[ "$1" =~ ^[0-9]{5}$ ]]
 }
 
-# Resolve the Chain of Custody ID. Priority:
+# Resolve a SUPPLIED Chain of Custody ID — never prompts:
 #   1. --cocid (set by parse_args)
-#   2. tscrub_cocid= on the kernel command line (autonuke — no prompt)
-#   3. the interactive prompt
-cocid::detect() {
+#   2. tscrub_cocid= on the kernel command line
+# The interactive prompt moved to the moment an erase is requested
+# (cocid::ensure), so a machine with no drives is never asked for a COCID whose
+# answer it cannot use — that prompt used to be the first thing an operator saw,
+# on a boot that had nothing to erase. See research/no-media-ux/README.md §3.1.
+cocid::resolve_supplied() {
     local param
 
-    if [[ -n "${COCID:-}" ]]; then
-        return 0
-    fi
+    [[ -n "${COCID:-}" ]] && return 0
 
-    param="$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | sed -nE 's/^tscrub_cocid=//p' | head -n 1)"
+    # CMDLINE_FILE is the same fixture seam device::protected_disks uses.
+    param="$(tr ' ' '\n' < "${CMDLINE_FILE:-/proc/cmdline}" 2>/dev/null | sed -nE 's/^tscrub_cocid=//p' | head -n 1)"
     if [[ -n "$param" ]]; then
         param="${param#\"}"
         param="${param%\"}"
         COCID="$(printf "%s" "$param" | xargs)"
-        return 0
     fi
+    return 0
+}
 
-    ui::coc_prompt
+# Make sure a valid COCID is set, prompting at the point of use (an erase).
+# Returns non-zero when no COCID can be obtained, so the caller must NOT proceed.
+cocid::ensure() {
+    cocid::resolve_supplied
+    cocid::is_valid "${COCID:-}" && return 0
+    ui::coc_prompt          # loops until valid; exits when there is no terminal
+    cocid::is_valid "${COCID:-}"
 }
 
 ui::coc_prompt() {

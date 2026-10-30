@@ -312,6 +312,13 @@ report::selected_count() {
     printf '%d' "$n"
 }
 
+# Is there anything to certify? An EMPTY device set must never produce a report:
+# ui::all_drives_terminal succeeds when it has nothing to iterate, so without this
+# a machine with no drives would mint a certificate for having erased nothing.
+report::has_targets() {
+    [[ "$(report::selected_count)" -gt 0 ]]
+}
+
 report::skipped_count() {
     local dev n=0
     for dev in "${devices[@]}"; do
