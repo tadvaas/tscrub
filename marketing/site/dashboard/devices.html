@@ -1172,8 +1172,19 @@
         return Array.prototype.slice.call(document.querySelectorAll('#export-fields input[type=checkbox]:checked')).map(function (c) { return c.value; });
       }
       function doExport(format, ext) {
+        // The export is the view: same search, source switch, facet filters and
+        // order as the list the operator is looking at, over every page.
+        var qs = new URLSearchParams({
+          format: format,
+          q: currentQ,
+          source: source,
+          sort: sortKey,
+          dir: String(sortDir),
+          ff: encodeFilters(filters),
+          fields: exportFieldKeys().join(',')
+        });
         var a = document.createElement('a');
-        a.href = '/api/devices/export?format=' + format + '&q=' + encodeURIComponent(currentQ) + '&fields=' + encodeURIComponent(exportFieldKeys().join(','));
+        a.href = '/api/devices/export?' + qs.toString();
         a.download = 'tscrub-devices.' + ext;
         document.body.appendChild(a);
         a.click();

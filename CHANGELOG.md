@@ -32,6 +32,19 @@ and this project uses date-based versioning (`v1.x`).
   would leave the mistake visible exactly where nobody looked.
   Plan: `research/cocid-correction/README.md`.
 
+### Fixed
+
+- **Export on the Devices and Media tabs is the view, not the account.** Both
+  export routes loaded everything and then re-implemented the search by hand — a
+  second copy with its own field list that knew nothing about the source switch
+  or the facet filters. Filtering the list to 178 locked machines and exporting
+  gave 218. Both routes now call the same loader as the list (`all: true`) with
+  the same `q`, `ff`, `source`, `sort` and `dir`, so the file matches what is on
+  screen by construction; the duplicated filter is gone.
+  Verified against the live account: 218/218 unfiltered, 178/178 for
+  `bios:locked`, 129/129 for a search, 126/126 for search + filter combined,
+  27/27 attested and 27/27 on the Media source switch.
+
 ## [v1.11.86] - 2026-10-30
 
 Released artefacts: ISO `tscrub-v1.11.86_2025.11_30_x86-64_v0.41_20261030-a2e7293a.iso`

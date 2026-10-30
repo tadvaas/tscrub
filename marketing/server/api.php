@@ -1974,9 +1974,11 @@ if ($method === 'GET' && $route === '/devices') {
     ]);
 }
 
-// GET /api/devices/export — download the full device inventory as CSV, JSON or
-// XLS, restricted to the requested `fields`. Accepts the same `q` search as
-// GET /api/devices but is unpaginated. Session auth.
+// GET /api/devices/export — download the device inventory as CSV, JSON or XLS,
+// restricted to the requested `fields`. It is the VIEW, unpaginated: the same
+// search, source switch, facet filters and order as GET /api/devices, because
+// an export that ignores the filters on screen is a different answer to the
+// question the operator asked. Session auth.
 if ($method === 'GET' && $route === '/devices/export') {
     $u = auth_require();
     $q = trim((string)($_GET['q'] ?? ''));
@@ -2001,28 +2003,24 @@ if ($method === 'GET' && $route === '/devices/export') {
     ];
     $selected = export_field_keys($cols, $_GET['fields'] ?? null);
 
-    $devices = load_devices((int)$u['id']);
-
-    if ($q !== '') {
-        $needle = strtolower($q);
-        $fields = ['system', 'sysserial', 'bbserial', 'chassisserial', 'systemuuid', 'lan_ip', 'bioslock', 'mdm', 'mdm_status', 'mdm_verdict', 'mdm_label', 'sku', 'asset_tag', 'cpu', 'cpu_spec', 'gpu', 'display', 'wifi', 'ram', 'tpm', 'macs', 'storage_controllers', 'battery', 'dimms', 'product_key', 'product_key_id'];
-        $devices = array_values(array_filter($devices, function ($d) use ($needle, $fields) {
-            foreach ($fields as $f) {
-                if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
-            }
-            foreach (($d['history'] ?? []) as $h) {
-                if (strpos(strtolower((string)($h['cocid'] ?? '')), $needle) !== false) return true;
-            }
-            return false;
-        }));
+    // One loader, one answer: the same query parameters the list uses, with
+    // all:true. The hand-rolled search that used to live here was a second
+    // implementation of `q` (with its own field list) and knew nothing about
+    // `ff` or the source switch.
+    $exportQuery = [
+        'q'      => $q,
+        'ff'     => (string)($_GET['ff'] ?? ''),
+        'source' => list_source($_GET['source'] ?? ''),
+        'all'    => true,
+        'page'   => 1,
+        'per'    => 100,
+    ];
+    $sort = trim((string)($_GET['sort'] ?? ''));
+    if ($sort !== '') {
+        $exportQuery['sort'] = $sort;
+        $exportQuery['dir']  = query_dir($_GET['dir'] ?? '');
     }
-
-    // Stable, readable order for the export (the JSON endpoint re-sorts per the dashboard's client request).
-    usort($devices, function ($a, $b) {
-        $c = strcasecmp((string)($a['system'] ?? $a['sysserial'] ?? ''), (string)($b['system'] ?? $b['sysserial'] ?? ''));
-        if ($c !== 0) return $c;
-        return strcasecmp((string)($a['sysserial'] ?? ''), (string)($b['sysserial'] ?? ''));
-    });
+    $devices = load_devices((int)$u['id'], $exportQuery)['devices'];
 
     $labels = [];
     foreach ($selected as $key) $labels[] = $cols[$key];
@@ -2147,9 +2145,9 @@ if ($method === 'GET' && $route === '/drives') {
     ]);
 }
 
-// GET /api/drives/export — download the full drive inventory as CSV, JSON or
-// XLS, restricted to the requested `fields`. Accepts the same `q` search as
-// GET /api/drives but is unpaginated. Session auth.
+// GET /api/drives/export — download the drive inventory as CSV, JSON or XLS,
+// restricted to the requested `fields`. It is the VIEW, unpaginated: the same
+// search, source switch and order as GET /api/drives. Session auth.
 if ($method === 'GET' && $route === '/drives/export') {
     $u = auth_require();
     $q = trim((string)($_GET['q'] ?? ''));
@@ -2184,17 +2182,22 @@ if ($method === 'GET' && $route === '/drives/export') {
     ];
     $selected = export_field_keys($cols, $_GET['fields'] ?? null);
 
-    $drives = load_drives((int)$u['id']);
-    if ($q !== '') {
-        $needle = strtolower($q);
-        $fields = ['serial', 'model', 'size', 'type', 'status', 'method', 'bus', 'cocid', 'system', 'sysserial'];
-        $drives = array_values(array_filter($drives, function ($d) use ($needle, $fields) {
-            foreach ($fields as $f) {
-                if (strpos(strtolower((string)($d[$f] ?? '')), $needle) !== false) return true;
-            }
-            return false;
-        }));
+    // One loader, one answer: the same query parameters the list uses, with
+    // all:true. The hand-rolled search that used to live here was a second
+    // implementation of `q` and knew nothing about the source switch.
+    $exportQuery = [
+        'q'      => $q,
+        'source' => list_source($_GET['source'] ?? ''),
+        'all'    => true,
+        'page'   => 1,
+        'per'    => 100,
+    ];
+    $sort = trim((string)($_GET['sort'] ?? ''));
+    if ($sort !== '') {
+        $exportQuery['sort'] = $sort;
+        $exportQuery['dir']  = query_dir($_GET['dir'] ?? '');
     }
+    $drives = load_drives((int)$u['id'], $exportQuery)['drives'];
 
     $labels = [];
     foreach ($selected as $key) $labels[] = $cols[$key];

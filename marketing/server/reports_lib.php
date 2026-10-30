@@ -4022,12 +4022,14 @@ function load_drives(int $userId, ?array $query = null): array {
     $dir  = query_dir($query['dir'] ?? '');
     $source = list_source($query['source'] ?? '');
 
-    // Fast path: no search and no chosen column → paginate over the small
-    // `drive_serials` cache without decoding every erasure payload. A chosen sort cannot
-    // take it, because the column it sorts on (type, status, method, grade) lives in the
-    // payload that cache does not carry — so a sorted request uses the full path and sorts
-    // before it slices, which is what makes the page boundaries follow the sort.
-    if ($query !== null && $q === '' && $sort === '') {
+    // Fast path: no search, no chosen column and no "everything" request →
+    // paginate over the small `drive_serials` cache without decoding every
+    // erasure payload. A chosen sort cannot take it, because the column it sorts
+    // on (type, status, method, grade) lives in the payload that cache does not
+    // carry — so a sorted request uses the full path and sorts before it slices,
+    // which is what makes the page boundaries follow the sort. An export asks for
+    // all:true and must take the full path too, since it filters first.
+    if ($query !== null && $q === '' && $sort === '' && empty($query['all'])) {
         return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source);
     }
 
@@ -4132,7 +4134,7 @@ function load_drives(int $userId, ?array $query = null): array {
     if ($sort !== '') { $out = media_sort_rows($out, $sort, $dir); }
 
     return [
-        'drives'         => array_slice($out, ($page - 1) * $per, $per),
+        'drives'         => !empty($query['all']) ? $out : array_slice($out, ($page - 1) * $per, $per),
         'total'          => $total,
         'attested_total' => $attestedTotal,
     ];
