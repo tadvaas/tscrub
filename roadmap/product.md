@@ -443,6 +443,15 @@ with the release that carried them (per `CHANGELOG.md`).
       no product changes made).
 - [ ] Chromebook erase — dev mode / SeaBIOS boot → wipe eMMC/NVMe; capture
       ChromeOS GBB/VPD enrolment flags. (§9.1)
+- [ ] **eMMC/SD (`mmcblk*`) and virtio (`vd*`) are invisible to discovery.**
+      `device::discover` only ever adds `nvme*` and `sd*`, so an eMMC/SD laptop
+      reports "no storage" and no rescan can change that — a rescan re-runs the
+      same filter. Blocks the Chromebook item above and any virtio VM test.
+      Widening the filter **must** widen `hotplug::snapshot()` in the same
+      commit: the two regexes are deliberately identical, and they have drifted
+      apart before (the P2 USB filter, fixed in `045d3e8`).
+      Found 2026-10-30 while planning the no-media screen —
+      `research/no-media-ux/README.md` §3.4.
 - [ ] Broader media coverage — USB/SD targets and RAID/FC/iSCSI volumes (the
       long tail beyond eMMC). (§6)
       → **Status 2026-10-26:** protection and USB erasure shipped in v1.11.79
