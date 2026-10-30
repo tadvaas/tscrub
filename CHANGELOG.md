@@ -8,6 +8,18 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.85] - 2026-10-30
+
+Released artefacts: ISO `tscrub-v1.11.85_2025.11_30_x86-64_v0.41_20261030-14e1ee04.iso`
+(176,496,640 B, SHA-256 `1d4e70061f41b88ff00cb98c010c1455778b51f3a8a956067a543152ef2b55e2`,
+168 MiB); signed script SHA-256
+`2a07a8cafad7e962abc9e34fef23b6ede9a69c1756c65a44e29ed6f2ca1e67c2` (overlay copy
+`0d032adbf78a3caa7247b49819b49b43d5b1e3c63a0f1f757a7df2fee9a4728c`, verified byte
+for byte against the slim build); PXE `bzImage` 95,226,400 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`36a7480f966e28df3c07a5d26e671f80f636b944940fa782e1e59ec92acdbf9a`; build-host
+commit `14e1ee04`.
+
 ### Added
 
 - **A "Check MDM (N)" button that queues an Autopilot check for every device in the current
@@ -121,8 +133,6 @@ and this project uses date-based versioning (`v1.x`).
 
   Each tab remembers its own view (Devices and Media keep separate keys) — filtering Devices
   to Attested does not force Media to Attested.
-
-### Changed
 
 - **A machine with no storage says so, instead of looping.** On a boot with
   nothing attached, tScrub asked for a COCID, found no drives, rendered one frame
