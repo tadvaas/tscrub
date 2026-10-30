@@ -160,6 +160,14 @@ t_check('on BOTH the desktop table and the mobile card list',
     && substr_count($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') >= 2);
 t_check('the Devices log offers it too (the diagnostics case)',
     is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: h.id') !== false);
+// The report VIEW (the "Rep" modal) is where an operator reads the diagnostics
+// report, and it is the third place they look. Offer it there as well.
+t_check('the diagnostics report view offers it',
+    is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: dev.pdf_id') !== false);
+// A row that cannot say which COCID it belongs to cannot prefill the dialog.
+$libRow = is_string($lib) ? $lib : '';
+t_check('a device row carries the COCID of the report it was built from',
+    strpos($libRow, "'cocid'         => (string)\$r['cocid'],") !== false);
 t_check('both pages load the module',
     is_string($drivesPage) && strpos($drivesPage, 'report-corrections.js') !== false
     && is_string($devicesPage) && strpos($devicesPage, 'report-corrections.js') !== false);

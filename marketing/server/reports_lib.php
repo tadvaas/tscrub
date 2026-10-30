@@ -3558,6 +3558,10 @@ function load_devices(int $userId, ?array $query = null): array {
                 'macs'          => (string)($g['macs'] ?? ''),
                 'storage_controllers' => (string)($g['storage_controllers'] ?? ''),
                 'tool_version'  => (string)($g['tool_version'] ?? ''),
+                // The COCID of the report this row was built from (newest first),
+                // so the report view can prefill a correction without re-deriving
+                // it from the machine's whole job set.
+                'cocid'         => (string)$r['cocid'],
                 'operator'      => (string)($g['operator'] ?? ''),
                 'validator'     => (string)($g['validator'] ?? ''),
                 'media_source'  => (string)($g['media_source'] ?? ''),

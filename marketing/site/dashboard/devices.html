@@ -2541,6 +2541,16 @@
         // exactly one way a PDF gets produced; hidden when the device has no
         // diagnostics report to render.
         if (dev.pdf_id) {
+          // The report IS the device record's evidence, so a mistyped COCID is
+          // corrected here too, where the operator is looking at it.
+          if (window.ReportCorrections) {
+            var fix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID…');
+            fix.title = 'Change this report’s Chain of Custody ID';
+            fix.addEventListener('click', function () {
+              window.ReportCorrections.correctReport({ id: dev.pdf_id, cocid: dev.cocid || '' });
+            });
+            foot.appendChild(fix);
+          }
           var pdfBtn = el('a', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download PDF');
           pdfBtn.href = '/api/reports/' + dev.pdf_id + '/download';
           pdfBtn.title = 'Generate and download this report as a PDF';
