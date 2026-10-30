@@ -136,7 +136,7 @@ function reports_ensure_schema(): void {
                created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
                PRIMARY KEY (id),
                KEY idx_corr_user (user_id, created_at),
-               KEY idx_corr_report (report_id, id),
+               KEY idx_corr_report (report_id, id)
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
     } catch (Throwable $e) {
@@ -2236,10 +2236,10 @@ function report_fetch_owned(int $userId, int $reportId): ?array {
 
 /**
  * An ISSUED certificate for this COCID, or null. A correction is refused while
- * one exists: the certificate's annex names the drives, and its PDF hash is
- * published, so moving evidence out from under it would make a published claim
- * false with no way to say so. Drafts (is_draft = 1) carry no claim and move
- * with the evidence.
+ * one exists AND that certificate actually cites the evidence being moved — see
+ * report_cited_by_issued_cert(), which is what the callers use. A report
+ * uploaded AFTER the certificate was issued is not part of it, and moving it
+ * leaves the certificate's claim intact.
  */
 function cocid_issued_cert(int $userId, string $cocid): ?array {
     if ($cocid === '') {
@@ -2339,6 +2339,82 @@ function report_rewrite_cocid(array $row, string $newCocid): array {
     return [$json, report_correction_rename_file((string)($row['filename'] ?? ''), $old, $newCocid)];
 }
 
+/** The report-file SHAs a stored report row carries (lower-cased). */
+function report_shas(array $row): array {
+    $payload = json_decode((string)($row['payload'] ?? ''), true);
+    $out = [];
+    foreach ((is_array($payload) ? ($payload['reports'] ?? []) : []) as $f) {
+        if (!is_array($f)) {
+            continue;
+        }
+        $sha = strtolower(trim((string)($f['sha'] ?? '')));
+        if (preg_match('/^[0-9a-f]{64}$/', $sha)) {
+            $out[$sha] = true;
+        }
+    }
+    return array_keys($out);
+}
+
+/**
+ * The issued certificate that would be made FALSE by moving this report's
+ * evidence — or null when the move is safe.
+ *
+ * "Was this job certified?" is the wrong question. A certificate cites the
+ * files it was generated from (`certificate_reports.sha256`, one row per
+ * uploaded file), and anything uploaded after issuance is simply not in it: a
+ * report from a later visit to the same machine is not part of the certified
+ * evidence, so correcting its COCID leaves the certificate's claim intact.
+ *
+ * Conservative where it cannot prove the negative: a certificate with no
+ * recorded files (a legacy row) or an erasure payload with no usable SHAs blocks
+ * the move, because "probably not cited" is not good enough for a published
+ * claim.
+ *
+ * A **diagnostics** report is never cited by any certificate: certificates are
+ * assembled from erasure reports only (`load_report_payloads()` selects
+ * `report_type <> 'diagnostics'`), so a machine's boot snapshot cannot appear in
+ * one. Moving it therefore cannot make a certificate false, and the guard does
+ * not apply.
+ */
+function report_cited_by_issued_cert(int $userId, string $cocid, array $row): ?array {
+    if (($row['report_type'] ?? 'erasure') === 'diagnostics') {
+        return null;
+    }
+    $reportShas = report_shas($row);
+    $cert = cocid_issued_cert($userId, $cocid);
+    if ($cert === null) {
+        return null;
+    }
+    try {
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM certificate_reports cr
+               JOIN certificates c ON c.id = cr.certificate_id
+              WHERE c.cert_id = ? AND cr.sha256 <> ''"
+        );
+        $stmt->execute([$cert['cert_id']]);
+        if ((int)$stmt->fetchColumn() === 0) {
+            return $cert;   // nothing recorded to compare against
+        }
+        if ($reportShas === []) {
+            return $cert;   // no SHAs in the report: cannot prove it is not cited
+        }
+        $ph = implode(',', array_fill(0, count($reportShas), '?'));
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM certificate_reports cr
+               JOIN certificates c ON c.id = cr.certificate_id
+              WHERE c.cert_id = ? AND LOWER(cr.sha256) IN ($ph)"
+        );
+        $stmt->execute(array_merge([$cert['cert_id']], $reportShas));
+        if ((int)$stmt->fetchColumn() > 0) {
+            return $cert;
+        }
+    } catch (Throwable $e) {
+        error_log('certificate citation check error: ' . $e->getMessage());
+        return $cert;   // a failed check must block, not wave the move through
+    }
+    return null;
+}
+
 /**
  * Reassign ONE report to another COCID.
  *
@@ -2357,10 +2433,12 @@ function report_cocid_set(int $userId, int $reportId, string $cocid, string $rea
     if ($from === $cocid) {
         return ['ok' => true, 'from' => $from, 'to' => $cocid, 'changed' => 0];
     }
-    if (($cert = cocid_issued_cert($userId, $from)) !== null) {
+    // Only refuse when THIS report is part of what the certificate cites (a
+    // diagnostics snapshot never is).
+    if (($cert = report_cited_by_issued_cert($userId, $from, $row)) !== null) {
         return [
             'ok' => false, 'status' => 409,
-            'error' => 'Job ' . $from . ' was certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so its evidence cannot be moved. Issue a corrected certificate instead.',
+            'error' => 'This report is part of job ' . $from . ', certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so its evidence cannot be moved. Issue a corrected certificate instead.',
         ];
     }
     [$json, $filename] = report_rewrite_cocid($row, $cocid);
@@ -2469,10 +2547,10 @@ function report_void_set(int $userId, int $reportId, bool $void, string $reason,
     }
     if ($void) {
         $cocid = (string)$row['cocid'];
-        if (($cert = cocid_issued_cert($userId, $cocid)) !== null) {
+        if (($cert = report_cited_by_issued_cert($userId, $cocid, $row)) !== null) {
             return [
                 'ok' => false, 'status' => 409,
-                'error' => 'Job ' . $cocid . ' was certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so its evidence cannot be removed from the lists.',
+                'error' => 'This report is part of job ' . $cocid . ', certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so its evidence cannot be removed from the lists.',
             ];
         }
     }

@@ -184,6 +184,53 @@ t_check('and both record views close after a correction (their heading is stale)
 $libRow = is_string($lib) ? $lib : '';
 t_check('a device row carries the COCID of the report it was built from',
     strpos($libRow, "'cocid'         => (string)\$r['cocid'],") !== false);
+echo "\n== the certificate guard asks the right question ==";
+// "Was this job certified?" is the wrong question: a report uploaded AFTER the
+// certificate was issued is not part of its evidence, so moving it cannot make
+// the certificate false. The single-report path must therefore check the file
+// SHAs the certificate cites, not merely the existence of a certificate.
+$shaA = str_repeat('a', 64);
+$shaB = str_repeat('b', 64);
+$rowWithTwoFiles = [
+    'payload' => json_encode(['cocid' => '33219', 'reports' => [
+        ['name' => 'tscrub_33219_1.csv', 'sha' => strtoupper($shaA)],
+        ['name' => 'tscrub_33219_2.csv', 'sha' => $shaB],
+    ]]),
+];
+t_check('report_shas reads the file SHAs (lower-cased)',
+    report_shas($rowWithTwoFiles) === [$shaA, $shaB], report_shas($rowWithTwoFiles));
+t_check('and ignores a junk value',
+    report_shas(['payload' => json_encode(['reports' => [['sha' => 'not-a-sha'], ['sha' => '']]])]) === []);
+t_check('an undecodable payload yields no SHAs (so the guard refuses)',
+    report_shas(['payload' => 'not json']) === []);
+t_check('the single-report path checks the CITATION, not the job',
+    strpos($lib, 'report_cited_by_issued_cert($userId, $from, $row)') !== false);
+t_check('a diagnostics snapshot is never treated as certified evidence',
+    strpos($lib, "if ((\$row['report_type'] ?? 'erasure') === 'diagnostics') {") !== false
+    && strpos($lib, "load_report_payloads()\` selects") === false);
+t_check('because certificates are built from erasure reports only',
+    strpos($lib, "AND report_type <> 'diagnostics' AND " . '" . reports_visible_sql()') !== false);
+t_check('a citation with no recorded files still refuses (legacy certificate)',
+    strpos($lib, "return \$cert;   // nothing recorded to compare against") !== false);
+t_check('a failed check blocks the move rather than waving it through',
+    strpos($lib, "return \$cert;   // a failed check must block, not wave the move through") !== false);
+t_check('the refusal names THIS report, not the whole job',
+    strpos($lib, "This report is part of job ") !== false);
+// The BULK rename still moves every report under the job, so it keeps the
+// blanket refusal: there is no "this one is not in the certificate" case there.
+t_check('the bulk job rename keeps the blanket refusal',
+    substr_count($lib, 'cocid_issued_cert($userId, $from)') === 1);
+// The migration DDL only ever runs against MySQL, which no local test reaches:
+// a trailing comma before `) ENGINE` fails there and is swallowed by the
+// try/catch around the schema helper, so the audit table silently never appears
+// (it did, on the live server, the first time this shipped).
+foreach (['reports_lib.php' => $lib, 'schema.sql' => (string)@file_get_contents($serverDir . '/schema.sql')] as $fname => $src) {
+    $start = strpos($src, 'CREATE TABLE IF NOT EXISTS report_corrections');
+    $block = $start === false ? '' : substr($src, $start, 1200);
+    t_check($fname . ': the corrections DDL has no trailing comma before ENGINE',
+        $block !== '' && !preg_match('/,\s*\)\s*ENGINE/', $block));
+}
+
 t_check('both pages load the module',
     is_string($drivesPage) && strpos($drivesPage, 'report-corrections.js') !== false
     && is_string($devicesPage) && strpos($devicesPage, 'report-corrections.js') !== false);
