@@ -200,6 +200,12 @@ CREATE TABLE IF NOT EXISTS reports (
   report_type ENUM('erasure','diagnostics') NOT NULL DEFAULT 'erasure',
   grade       VARCHAR(8)      NOT NULL DEFAULT '',
   notes       TEXT            NULL,
+  -- An operator's mistyped COCID is corrected or hidden, never deleted: these
+  -- three columns hide a junk upload from every working list while the row, its
+  -- payload and its hashes stay on the record (research/cocid-correction).
+  voided_at   DATETIME        NULL DEFAULT NULL,
+  voided_by   BIGINT UNSIGNED NULL DEFAULT NULL,
+  void_reason VARCHAR(255)    NOT NULL DEFAULT '',
   devices     INT UNSIGNED    NOT NULL DEFAULT 0,
   runs        INT UNSIGNED    NOT NULL DEFAULT 0,
   payload     JSON            NOT NULL,
@@ -214,6 +220,21 @@ CREATE TABLE IF NOT EXISTS reports (
   KEY idx_reports_user_type_ts (user_id, report_type, uploaded_at, id),
   KEY idx_reports_user_type_key (user_id, report_type, device_key, id),
   CONSTRAINT fk_reports_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS report_corrections (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  report_id  BIGINT UNSIGNED NOT NULL,
+  action     ENUM('reassign','void','unvoid') NOT NULL,
+  from_cocid VARCHAR(64)     NOT NULL DEFAULT '',
+  to_cocid   VARCHAR(64)     NOT NULL DEFAULT '',
+  reason     VARCHAR(255)    NOT NULL DEFAULT '',
+  ip         VARCHAR(64)     NOT NULL DEFAULT '',
+  created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_corr_user (user_id, created_at),
+  KEY idx_corr_report (report_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS api_tokens (

@@ -8,6 +8,29 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **Correct a mistyped COCID from the dashboard, without deleting evidence.** A
+  COCID typed at boot is checked for shape, not for truth, so `12354` for
+  `12345` either invents a job or joins an unrelated one — and the ID is stamped
+  into the report's column, its stored payload, its file names, the device
+  registration and the run journal, with no way to put it right afterwards.
+  The Media page's **Recent uploads** panel now offers:
+  - **Correct a job COCID** (the common case: one typo at boot misfiled the whole
+    session) and **Correct…** for a single hand-uploaded report;
+  - **Remove** / **Show removed**: a junk upload is hidden from every list, the
+    COCID picker and the certificate generator, reversibly, with no credit
+    refund and without leaving the "already ingested" set;
+  - an audit line on the report (from → to, when, why), and refusal while an
+    issued certificate cites the job.
+
+  Nothing is deleted. Reassignment rewrites all three places the COCID lives and
+  marks the row, and every read path now shares one visibility rule
+  (`reports_visible_sql()`), guarded by a test that fails the build when a report
+  query bypasses it — a correction applied to eleven lists and not the twelfth
+  would leave the mistake visible exactly where nobody looked.
+  Plan: `research/cocid-correction/README.md`.
+
 ## [v1.11.86] - 2026-10-30
 
 Released artefacts: ISO `tscrub-v1.11.86_2025.11_30_x86-64_v0.41_20261030-a2e7293a.iso`

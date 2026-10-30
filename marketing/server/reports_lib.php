@@ -82,6 +82,11 @@ function reports_ensure_schema(): void {
             'device_key'    => "VARCHAR(255) NOT NULL DEFAULT '' AFTER payload",
             'summary_json'  => "JSON NULL AFTER device_key",
             'drive_serials' => "JSON NULL AFTER summary_json",
+            // A junk upload is HIDDEN, never deleted: the row keeps its payload and
+            // hashes and can be restored (research/cocid-correction).
+            'voided_at'     => "DATETIME NULL DEFAULT NULL AFTER notes",
+            'voided_by'     => "BIGINT UNSIGNED NULL DEFAULT NULL AFTER voided_at",
+            'void_reason'   => "VARCHAR(255) NOT NULL DEFAULT '' AFTER voided_by",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -116,11 +121,44 @@ function reports_ensure_schema(): void {
         if ($keyIdx === 0) {
             db()->exec('ALTER TABLE reports ADD KEY idx_reports_user_type_key (user_id, report_type, device_key, id)');
         }
+        // Audit trail for COCID corrections: customer-facing activity, so it is
+        // shown on the report row rather than buried in admin_audit_log.
+        db()->exec(
+            "CREATE TABLE IF NOT EXISTS report_corrections (
+               id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+               user_id    BIGINT UNSIGNED NOT NULL,
+               report_id  BIGINT UNSIGNED NOT NULL,
+               action     ENUM('reassign','void','unvoid') NOT NULL,
+               from_cocid VARCHAR(64)     NOT NULL DEFAULT '',
+               to_cocid   VARCHAR(64)     NOT NULL DEFAULT '',
+               reason     VARCHAR(255)    NOT NULL DEFAULT '',
+               ip         VARCHAR(64)     NOT NULL DEFAULT '',
+               created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               PRIMARY KEY (id),
+               KEY idx_corr_user (user_id, created_at),
+               KEY idx_corr_report (report_id, id),
+             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
     } catch (Throwable $e) {
         // Non-fatal: report_type is a typed-report optimisation; pdf_sha and
         // pdf_path are only needed for the diagnostics PDF download.
         error_log('reports ensure schema: ' . $e->getMessage());
     }
+}
+
+/**
+ * THE rule for "does this report count": a voided (hidden) report counts for
+ * nothing that is shown, counted, filtered or certified — but its row, payload
+ * and hashes stay on the record. Every query that reads `reports` for a human
+ * surface must use this; `tests/report_visibility_test.php` fails the build when
+ * one does not, because a correction that is applied to eleven lists and not the
+ * twelfth leaves the mistake visible exactly where nobody looked.
+ *
+ * Deliberately NOT applied to `user_ingested_shas()`: a voided upload must stay
+ * "already seen", or the same file could be re-uploaded and charged again.
+ */
+function reports_visible_sql(string $alias = ''): string {
+    return ($alias !== '' ? $alias . '.' : '') . 'voided_at IS NULL';
 }
 
 /**
@@ -1326,6 +1364,8 @@ function user_ingested_shas(int $userId): array {
     $set = [];
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
+    // visible-ok: dedupe must count a HIDDEN upload as already seen, or the same
+    // file could be re-uploaded and charged again.
     $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id IN ($ph)");
     $stmt->execute($ids);
     while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
@@ -1445,6 +1485,8 @@ function diagnostics_carry_annotations(int $reportId, int $userId, array $payloa
         // is a convenience, not a guarantee, so a machine absent from the last
         // 200 reports simply starts blank again.
         $stmt = db()->prepare(
+            // visible-ok: carry-forward reads the PREVIOUS report to annotate a
+            // new one; a hidden report is still this machine's history.
             "SELECT grade, notes, payload FROM reports
              WHERE id <> ? AND user_id IN ($ph) AND report_type = 'diagnostics'
              ORDER BY uploaded_at DESC, id DESC LIMIT 200"
@@ -1638,6 +1680,9 @@ function report_row(array $r, ?array $payload): array {
         'report_type' => (string)($r['report_type'] ?? 'erasure'),
         'devices'     => (int)$r['devices'],
         'runs'        => (int)$r['runs'],
+        'voided_at'   => (string)($r['voided_at'] ?? '') === '' ? null : ts_local((string)$r['voided_at']),
+        'voided_by'   => (int)($r['voided_by'] ?? 0),
+        'void_reason' => (string)($r['void_reason'] ?? ''),
         'uploaded_at' => ts_local((string)$r['uploaded_at']),
         'first'       => is_array($payload) ? ts_local((string)($payload['first'] ?? '')) : '',
         'last'        => is_array($payload) ? ts_local((string)($payload['last'] ?? '')) : '',
@@ -1690,7 +1735,7 @@ function report_row(array $r, ?array $payload): array {
  * or anything in the stored payload — including drive serials, system serial,
  * model, CPU, GPU, RAM).
  */
-function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, int $per): array {
+function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, int $per, bool $showVoided = false): array {
     $per = max(1, min(100, $per));
     $page = max(1, $page);
     $offset = ($page - 1) * $per;
@@ -1698,6 +1743,11 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $where = 'user_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ") AND report_type <> 'diagnostics'";
+    // "Show removed" is the one view that asks for the hidden rows back; every
+    // other read path obeys reports_visible_sql().
+    if (!$showVoided) {
+        $where .= ' AND ' . reports_visible_sql();
+    }
     $params = $ids;
     $types = array_fill(0, count($ids), PDO::PARAM_INT);
 
@@ -1717,6 +1767,8 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
         $types[] = PDO::PARAM_STR;
     }
 
+    // visible-ok: $where already carries reports_visible_sql() unless the caller
+    // asked for the "Show removed" view.
     $count = db()->prepare("SELECT COUNT(*) FROM reports WHERE $where");
     $count->execute($params);
     $total = (int)$count->fetchColumn();
@@ -1734,6 +1786,13 @@ function load_user_reports(int $userId, ?string $cocid, ?string $q, int $page, i
         $payload = json_decode((string)$r['payload'], true);
         $rows[] = report_row($r, is_array($payload) ? $payload : null);
     }
+    // One extra query for the page, so every row can show who corrected it and
+    // why without a request per row.
+    $corr = report_corrections_for(array_column($rows, 'id'));
+    foreach ($rows as &$row) {
+        $row['correction'] = $corr[(int)$row['id']] ?? null;
+    }
+    unset($row);
     return ['reports' => $rows, 'total' => $total, 'page' => $page, 'per' => $per];
 }
 
@@ -1750,6 +1809,7 @@ function distinct_cocids(int $userId): array {
                 (SELECT c.cert_id FROM certificates c WHERE c.user_id = r.user_id AND c.cocid = r.cocid ORDER BY c.id DESC LIMIT 1) AS cert_id
          FROM reports r
          WHERE r.user_id IN (' . $ph . ') AND r.report_type <> \'diagnostics\'
+           AND ' . reports_visible_sql('r') . '
          GROUP BY r.cocid
          ORDER BY latest DESC'
     );
@@ -1774,7 +1834,7 @@ function load_report_payloads(int $userId, string $cocid): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id IN ($ph) AND cocid = ? AND report_type <> 'diagnostics' ORDER BY id");
+    $stmt = db()->prepare("SELECT payload FROM reports WHERE user_id IN ($ph) AND cocid = ? AND report_type <> 'diagnostics' AND " . reports_visible_sql() . ' ORDER BY id');
     $stmt->execute(array_merge($ids, [$cocid]));
     $groups = [];
     foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $p) {
@@ -2040,6 +2100,8 @@ function devices_list_version(int $userId): string {
         }
     };
 
+    // visible-ok: a change FINGERPRINT, not a list — it must move when a row is
+    // hidden, and MAX(updated_at) does that.
     $sig['reports']       = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt, MAX(updated_at) AS max_upd FROM reports WHERE user_id IN ($ph)");
     $sig['registrations'] = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt FROM device_registrations WHERE user_id IN ($ph)");
     $sig['mdm_jobs']      = $agg("SELECT MAX(id) AS max_id, COUNT(*) AS cnt FROM mdm_jobs WHERE user_id IN ($ph)");
@@ -2065,7 +2127,7 @@ function report_grade_set(int $userId, int $reportId, string $grade): bool {
         // Verify ownership first — rowCount() on an UPDATE is 0 when the value
         // is unchanged (re-picking the same grade), which must still succeed.
         $chk = db()->prepare(
-            "SELECT COUNT(*) FROM reports WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
+            "SELECT COUNT(*) FROM reports WHERE id = ? AND report_type = 'diagnostics' AND " . reports_visible_sql() . " AND user_id IN ($ph)"
         );
         $chk->execute(array_merge([$reportId], $ids));
         if ((int)$chk->fetchColumn() === 0) {
@@ -2104,7 +2166,7 @@ function report_notes_set(int $userId, int $reportId, string $notes): bool {
         // Verify ownership first — UPDATE rowCount() is 0 when the value is
         // unchanged (re-saving identical notes), which must still succeed.
         $chk = db()->prepare(
-            "SELECT COUNT(*) FROM reports WHERE id = ? AND report_type = 'diagnostics' AND user_id IN ($ph)"
+            "SELECT COUNT(*) FROM reports WHERE id = ? AND report_type = 'diagnostics' AND " . reports_visible_sql() . " AND user_id IN ($ph)"
         );
         $chk->execute(array_merge([$reportId], $ids));
         if ((int)$chk->fetchColumn() === 0) {
@@ -2119,6 +2181,316 @@ function report_notes_set(int $userId, int $reportId, string $notes): bool {
         error_log('report notes set error: ' . $e->getMessage());
         return false;
     }
+}
+
+// ---- COCID corrections -----------------------------------------------------
+// A mistyped COCID (the appliance accepts any five digits) either invents a job
+// or joins an unrelated one, and it is stamped into the report's column, its
+// stored payload and its filename. The correction is a RENAME, never a delete:
+// the evidence, its hashes and its audit trail stay on the record.
+// See research/cocid-correction/README.md.
+
+/** The shape the appliance can produce: exactly five digits. */
+function report_cocid_valid(string $cocid): bool {
+    return (bool)preg_match('/^[0-9]{5}$/', $cocid);
+}
+
+/**
+ * Who may correct evidence: the account owner and org admins. A SOLO account has
+ * no organisation row at all (org_role() = 'none') and is its own owner, so it
+ * must pass; a read-only org member may upload and read reports, not re-label
+ * or hide them.
+ */
+function reports_may_correct(int $userId): bool {
+    $role = org_role($userId);
+    return $role === 'none' || $role === 'owner' || $role === 'admin';
+}
+
+/** Swap the COCID inside an uploaded file name (tscrub_<cocid>_<ts>.csv). */
+function report_correction_rename_file(string $name, string $old, string $new): string {
+    if ($old === '' || $new === '' || $old === $new) {
+        return $name;
+    }
+    // Only the digits change, so the name keeps whatever case it was stored with;
+    // the negative lookahead stops a longer id starting with the old one from
+    // being half-rewritten.
+    $out = preg_replace('/(tscrub_)' . preg_quote($old, '/') . '(?![0-9])/i', '${1}' . $new, $name);
+    return $out === null ? $name : $out;
+}
+
+/** The report row, if the caller's organisation owns it. */
+function report_fetch_owned(int $userId, int $reportId): ?array {
+    reports_ensure_schema();
+    if ($reportId <= 0) {
+        return null;
+    }
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    // visible-ok: fetching ONE owned row for a correction must see it even after
+    // it was hidden, or "restore" could never find it.
+    $stmt = db()->prepare("SELECT * FROM reports WHERE id = ? AND user_id IN ($ph)");
+    $stmt->execute(array_merge([$reportId], $ids));
+    $row = $stmt->fetch();
+    return $row === false ? null : $row;
+}
+
+/**
+ * An ISSUED certificate for this COCID, or null. A correction is refused while
+ * one exists: the certificate's annex names the drives, and its PDF hash is
+ * published, so moving evidence out from under it would make a published claim
+ * false with no way to say so. Drafts (is_draft = 1) carry no claim and move
+ * with the evidence.
+ */
+function cocid_issued_cert(int $userId, string $cocid): ?array {
+    if ($cocid === '') {
+        return null;
+    }
+    reports_ensure_schema();
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare(
+        "SELECT cert_id, issued_at FROM certificates
+          WHERE user_id IN ($ph) AND cocid = ? AND is_draft = 0
+          ORDER BY id DESC LIMIT 1"
+    );
+    $stmt->execute(array_merge($ids, [$cocid]));
+    $row = $stmt->fetch();
+    return $row === false ? null : ['cert_id' => (string)$row['cert_id'], 'issued_at' => (string)$row['issued_at']];
+}
+
+/** Record one correction. The row is the audit trail the dashboard shows. */
+function report_correction_log(int $userId, int $reportId, string $action, string $from, string $to, string $reason, string $ip): void {
+    try {
+        db()->prepare(
+            'INSERT INTO report_corrections (user_id, report_id, action, from_cocid, to_cocid, reason, ip)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )->execute([$userId, $reportId, $action, clip_str($from, 64), clip_str($to, 64), clip_str($reason, 255), clip_str($ip, 64)]);
+    } catch (Throwable $e) {
+        // The correction itself must not fail because its audit row could not be
+        // written (a missing table on an un-migrated server); the log is the
+        // record, so shout about it.
+        error_log('report correction log error: ' . $e->getMessage());
+    }
+}
+
+/** Latest correction per report id, for the rows on one page. */
+function report_corrections_for(array $reportIds): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $reportIds))));
+    if ($ids === []) {
+        return [];
+    }
+    try {
+        reports_ensure_schema();
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = db()->prepare(
+            "SELECT report_id, action, from_cocid, to_cocid, reason, created_at
+               FROM report_corrections WHERE report_id IN ($ph) ORDER BY id DESC"
+        );
+        $stmt->execute($ids);
+    } catch (Throwable $e) {
+        return [];
+    }
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $id = (int)$r['report_id'];
+        if (isset($out[$id])) {
+            continue;   // newest first: keep only the latest per report
+        }
+        $out[$id] = [
+            'action'     => (string)$r['action'],
+            'from_cocid' => (string)$r['from_cocid'],
+            'to_cocid'   => (string)$r['to_cocid'],
+            'reason'     => (string)$r['reason'],
+            'at'         => ts_local((string)$r['created_at']),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Rewrite one stored report's COCID in all THREE places it lives: the column,
+ * the JSON payload (which the certificate generator reads) and the uploaded file
+ * name. Updating only the column leaves the document still claiming the old job.
+ *
+ * @return array{0:string,1:string} [new payload JSON, new filename]
+ */
+function report_rewrite_cocid(array $row, string $newCocid): array {
+    $old = (string)($row['cocid'] ?? '');
+    $payload = json_decode((string)($row['payload'] ?? ''), true);
+    if (is_array($payload)) {
+        $payload['cocid'] = $newCocid;
+        if (isset($payload['reports']) && is_array($payload['reports'])) {
+            foreach ($payload['reports'] as $i => $rf) {
+                if (!is_array($rf)) {
+                    continue;
+                }
+                if (array_key_exists('cocid', $rf)) {
+                    $payload['reports'][$i]['cocid'] = $newCocid;
+                }
+                if (isset($rf['name'])) {
+                    $payload['reports'][$i]['name'] = report_correction_rename_file((string)$rf['name'], $old, $newCocid);
+                }
+            }
+        }
+    }
+    $json = is_array($payload)
+        ? (string)json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        : (string)($row['payload'] ?? '');
+    return [$json, report_correction_rename_file((string)($row['filename'] ?? ''), $old, $newCocid)];
+}
+
+/**
+ * Reassign ONE report to another COCID.
+ *
+ * @return array{ok:bool,status?:int,error?:string,from?:string,to?:string,changed?:int}
+ */
+function report_cocid_set(int $userId, int $reportId, string $cocid, string $reason, string $ip = '', int $actorId = 0): array {
+    $cocid = trim($cocid);
+    if (!report_cocid_valid($cocid)) {
+        return ['ok' => false, 'status' => 400, 'error' => 'The new COCID must be exactly 5 digits.'];
+    }
+    $row = report_fetch_owned($userId, $reportId);
+    if ($row === null) {
+        return ['ok' => false, 'status' => 404, 'error' => 'Report not found.'];
+    }
+    $from = (string)$row['cocid'];
+    if ($from === $cocid) {
+        return ['ok' => true, 'from' => $from, 'to' => $cocid, 'changed' => 0];
+    }
+    if (($cert = cocid_issued_cert($userId, $from)) !== null) {
+        return [
+            'ok' => false, 'status' => 409,
+            'error' => 'Job ' . $from . ' was certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so its evidence cannot be moved. Issue a corrected certificate instead.',
+        ];
+    }
+    [$json, $filename] = report_rewrite_cocid($row, $cocid);
+    try {
+        db()->beginTransaction();
+        db()->prepare('UPDATE reports SET cocid = ?, filename = ?, payload = ? WHERE id = ?')
+            ->execute([$cocid, clip_str($filename, 500), $json, (int)$row['id']]);
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('report cocid set error: ' . $e->getMessage());
+        return ['ok' => false, 'status' => 500, 'error' => 'Could not correct the COCID.'];
+    }
+    report_correction_log($actorId > 0 ? $actorId : $userId, (int)$row['id'], 'reassign', $from, $cocid, $reason, $ip);
+    return ['ok' => true, 'from' => $from, 'to' => $cocid, 'changed' => 1];
+}
+
+/**
+ * Rename a WHOLE job: every report (and every attested item, and any draft
+ * certificate) under `$from` moves to `$to`. This is the common case — one typo
+ * at boot misfiles the entire session.
+ *
+ * @return array{ok:bool,status?:int,error?:string,from?:string,to?:string,changed?:int,attested?:int}
+ */
+function job_cocid_rename(int $userId, string $from, string $to, string $reason, string $ip = '', int $actorId = 0): array {
+    $from = trim($from);
+    $to = trim($to);
+    if (!report_cocid_valid($to)) {
+        return ['ok' => false, 'status' => 400, 'error' => 'The new COCID must be exactly 5 digits.'];
+    }
+    if (!report_cocid_valid($from)) {
+        return ['ok' => false, 'status' => 400, 'error' => 'Give the job COCID to correct (exactly 5 digits).'];
+    }
+    if ($from === $to) {
+        return ['ok' => true, 'from' => $from, 'to' => $to, 'changed' => 0, 'attested' => 0];
+    }
+    if (($cert = cocid_issued_cert($userId, $from)) !== null) {
+        return [
+            'ok' => false, 'status' => 409,
+            'error' => 'Job ' . $from . ' was certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so it cannot be renamed. Issue a corrected certificate instead.',
+        ];
+    }
+    reports_ensure_schema();
+    $ids = org_member_ids($userId);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    // visible-ok: renaming a job moves its hidden rows too — they are the same
+    // job's history.
+    $stmt = db()->prepare("SELECT * FROM reports WHERE user_id IN ($ph) AND cocid = ? ORDER BY id");
+    $stmt->execute(array_merge($ids, [$from]));
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($rows === []) {
+        return ['ok' => false, 'status' => 404, 'error' => 'No reports found under COCID ' . $from . '.'];
+    }
+    $attested = 0;
+    try {
+        db()->beginTransaction();
+        foreach ($rows as $row) {
+            [$json, $filename] = report_rewrite_cocid($row, $to);
+            db()->prepare('UPDATE reports SET cocid = ?, filename = ?, payload = ? WHERE id = ?')
+                ->execute([$to, clip_str($filename, 500), $json, (int)$row['id']]);
+        }
+        // Attested items and the draft certificate that carries them, so the job
+        // does not split in half.
+        $certIds = db()->prepare("SELECT id FROM certificates WHERE user_id IN ($ph) AND cocid = ? AND is_draft = 1");
+        $certIds->execute(array_merge($ids, [$from]));
+        $certList = array_map('intval', $certIds->fetchAll(PDO::FETCH_COLUMN));
+        if ($certList !== []) {
+            $cPh = implode(',', array_fill(0, count($certList), '?'));
+            $upd = db()->prepare("UPDATE certificate_devices SET cocid = ? WHERE certificate_id IN ($cPh) AND cocid = ?");
+            $upd->execute(array_merge([$to], $certList, [$from]));
+            $attested = $upd->rowCount();
+            db()->prepare("UPDATE certificates SET cocid = ? WHERE id IN ($cPh)")
+                ->execute(array_merge([$to], $certList));
+        }
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('job cocid rename error: ' . $e->getMessage());
+        return ['ok' => false, 'status' => 500, 'error' => 'Could not rename the job.'];
+    }
+    foreach ($rows as $row) {
+        report_correction_log($actorId > 0 ? $actorId : $userId, (int)$row['id'], 'reassign', $from, $to, $reason, $ip);
+    }
+    return ['ok' => true, 'from' => $from, 'to' => $to, 'changed' => count($rows), 'attested' => $attested];
+}
+
+/**
+ * Hide (void) or restore (unvoid) one report.
+ *
+ * Voiding refunds no credit and keeps the upload's SHA in the "already seen"
+ * set, so the same file cannot be re-ingested and charged again.
+ *
+ * @return array{ok:bool,status?:int,error?:string,voided?:bool}
+ */
+function report_void_set(int $userId, int $reportId, bool $void, string $reason, string $ip = '', int $actorId = 0): array {
+    $row = report_fetch_owned($userId, $reportId);
+    if ($row === null) {
+        return ['ok' => false, 'status' => 404, 'error' => 'Report not found.'];
+    }
+    $already = (string)($row['voided_at'] ?? '') !== '';
+    if ($void && $already) {
+        return ['ok' => true, 'voided' => true];
+    }
+    if (!$void && !$already) {
+        return ['ok' => true, 'voided' => false];
+    }
+    if ($void) {
+        $cocid = (string)$row['cocid'];
+        if (($cert = cocid_issued_cert($userId, $cocid)) !== null) {
+            return [
+                'ok' => false, 'status' => 409,
+                'error' => 'Job ' . $cocid . ' was certified on ' . $cert['issued_at'] . ' (' . $cert['cert_id'] . '), so its evidence cannot be removed from the lists.',
+            ];
+        }
+    }
+    try {
+        if ($void) {
+            db()->prepare('UPDATE reports SET voided_at = UTC_TIMESTAMP(), voided_by = ?, void_reason = ? WHERE id = ?')
+                ->execute([$actorId > 0 ? $actorId : $userId, clip_str($reason, 255), (int)$row['id']]);
+        } else {
+            db()->prepare("UPDATE reports SET voided_at = NULL, voided_by = NULL, void_reason = '' WHERE id = ?")
+                ->execute([(int)$row['id']]);
+        }
+    } catch (Throwable $e) {
+        error_log('report void set error: ' . $e->getMessage());
+        return ['ok' => false, 'status' => 500, 'error' => 'Could not update the report.'];
+    }
+    report_correction_log($actorId > 0 ? $actorId : $userId, (int)$row['id'], $void ? 'void' : 'unvoid',
+        (string)$row['cocid'], $void ? '' : (string)$row['cocid'], $reason, $ip);
+    return ['ok' => true, 'voided' => $void];
 }
 
 /**
@@ -2383,7 +2755,7 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
     $devices = [];
 
     // Newest diagnostics report per device (MAX(id) wins).
-    $stmt = db()->prepare("SELECT device_key, MAX(id) AS latest_id FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' AND device_key <> '' GROUP BY device_key");
+    $stmt = db()->prepare("SELECT device_key, MAX(id) AS latest_id FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' AND device_key <> '' AND " . reports_visible_sql() . ' GROUP BY device_key');
     $stmt->execute($ids);
     $latest = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -2395,6 +2767,8 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         // Don't pull the full `payload` blob here — summary_json covers the
         // list/search/sort fields. Payloads are fetched lazily below only for
         // the rare rows that predate summary_json (NULL cache).
+        // visible-ok: the id list came from the filtered "latest report" query
+        // above, so a hidden report cannot reach this fetch.
         $stmt = db()->prepare("SELECT id, device_key, uploaded_at, summary_json, grade, notes FROM reports WHERE id IN ($idPh) ORDER BY uploaded_at DESC, id DESC");
         $stmt->execute(array_values($latest));
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -2406,6 +2780,7 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         $payloads = [];
         if ($missingIds !== []) {
             $mp = implode(',', array_fill(0, count($missingIds), '?'));
+            // visible-ok: same filtered id list (payload backfill).
             $ps = db()->prepare("SELECT id, payload FROM reports WHERE id IN ($mp)");
             $ps->execute($missingIds);
             foreach ($ps->fetchAll(PDO::FETCH_ASSOC) as $pr) $payloads[(int)$pr['id']] = (string)$pr['payload'];
@@ -2431,7 +2806,7 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         }
 
         // first/last across ALL reports (diagnostics + erasure) for the device.
-        $stmt = db()->prepare("SELECT device_key, MIN(uploaded_at) AS first_up, MAX(uploaded_at) AS last_up FROM reports WHERE user_id IN ($ph) AND device_key <> '' GROUP BY device_key");
+        $stmt = db()->prepare("SELECT device_key, MIN(uploaded_at) AS first_up, MAX(uploaded_at) AS last_up FROM reports WHERE user_id IN ($ph) AND device_key <> '' AND " . reports_visible_sql() . ' GROUP BY device_key');
         $stmt->execute($ids);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $key = (string)$r['device_key'];
@@ -2442,7 +2817,7 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         }
 
         // Distinct COCIDs across all reports (search by CoC surfaces the machine).
-        $stmt = db()->prepare("SELECT device_key, GROUP_CONCAT(DISTINCT cocid SEPARATOR '\n') AS cocids FROM reports WHERE user_id IN ($ph) AND device_key <> '' AND cocid <> '' GROUP BY device_key");
+        $stmt = db()->prepare("SELECT device_key, GROUP_CONCAT(DISTINCT cocid SEPARATOR '\n') AS cocids FROM reports WHERE user_id IN ($ph) AND device_key <> '' AND cocid <> '' AND " . reports_visible_sql() . ' GROUP BY device_key');
         $stmt->execute($ids);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $key = (string)$r['device_key'];
@@ -3138,7 +3513,7 @@ function load_devices(int $userId, ?array $query = null): array {
             ? ' AND 1 = 0'
             : ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')';
     }
-    $stmt = db()->prepare("SELECT id, uploaded_at, grade, notes, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics'" . $keySql . " ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, uploaded_at, grade, notes, cocid, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics' AND " . reports_visible_sql() . $keySql . ' ORDER BY uploaded_at DESC, id DESC');
     $stmt->execute($onlyKeys !== null ? array_merge($ids, $onlyKeys) : $ids);
 
     $devices = [];
@@ -3320,7 +3695,7 @@ function load_devices(int $userId, ?array $query = null): array {
             ? ' AND 1 = 0'
             : ' AND device_key IN (' . implode(',', array_fill(0, count($onlyKeys), '?')) . ')';
     }
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure'" . $keySql . " ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' AND " . reports_visible_sql() . $keySql . " ORDER BY uploaded_at DESC, id DESC");
     $stmt->execute($onlyKeys !== null ? array_merge($ids, $onlyKeys) : $ids);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $g = json_decode((string)$r['payload'], true);
@@ -3574,7 +3949,7 @@ function load_drives(int $userId, ?array $query = null): array {
         return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source);
     }
 
-    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' AND " . reports_visible_sql() . ' ORDER BY uploaded_at DESC, id DESC');
     $stmt->execute($ids);
 
     $drives = [];
@@ -3687,7 +4062,7 @@ function load_drives(int $userId, ?array $query = null): array {
  * the reports those drives appear in.
  */
 function drives_paged(array $ids, string $ph, int $page, int $per, array $attested = [], string $source = 'all'): array {
-    $stmt = db()->prepare("SELECT id, uploaded_at, drive_serials FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' ORDER BY uploaded_at DESC, id DESC");
+    $stmt = db()->prepare("SELECT id, uploaded_at, drive_serials FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' AND " . reports_visible_sql() . ' ORDER BY uploaded_at DESC, id DESC');
     $stmt->execute($ids);
     $newest = [];
     $reportSerials = [];
@@ -3750,6 +4125,7 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
     $drives = [];
     if ($needIds !== []) {
         $idPh = implode(',', array_fill(0, count($needIds), '?'));
+        // visible-ok: the id list came from the filtered drive_serials pass.
         $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE id IN ($idPh) ORDER BY uploaded_at DESC, id DESC");
         $stmt->execute(array_keys($needIds));
 

@@ -961,6 +961,8 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'reports' && $seg[2] =
     if ($id <= 0) {
         fail(404, 'Report not found.');
     }
+    // visible-ok: fetching ONE owned row to render its PDF — a hidden upload is
+    // still the owner's evidence and is reachable from "Show removed".
     $stmt = db()->prepare('SELECT * FROM reports WHERE id = ?');
     $stmt->execute([$id]);
     $r = $stmt->fetch();
@@ -1017,6 +1019,7 @@ if ($method === 'GET' && count($seg) === 3 && $seg[0] === 'drives' && $seg[2] ==
     if ($id <= 0) {
         fail(404, 'Drive report not found.');
     }
+    // visible-ok: same as the diagnostics PDF — one owned row, by id.
     $stmt = db()->prepare('SELECT * FROM reports WHERE id = ?');
     $stmt->execute([$id]);
     $r = $stmt->fetch();
@@ -1820,8 +1823,93 @@ if ($method === 'GET' && $route === '/reports') {
     $page = max(1, (int)($_GET['page'] ?? 1));
     $cocid = (string)($_GET['cocid'] ?? '');
     $q = trim((string)($_GET['q'] ?? ''));
-    $res = load_user_reports((int)$u['id'], $cocid !== '' ? $cocid : null, $q !== '' ? $q : null, $page, 10);
-    json_out(['ok' => true, 'reports' => $res['reports'], 'total' => $res['total'], 'page' => $res['page'], 'per' => $res['per'], 'q' => $q]);
+    // "Show removed" asks for the hidden (voided) rows back; every other view is
+    // served the visible set only.
+    $showVoided = (string)($_GET['voided'] ?? '') === '1';
+    $res = load_user_reports((int)$u['id'], $cocid !== '' ? $cocid : null, $q !== '' ? $q : null, $page, 10, $showVoided);
+    json_out(['ok' => true, 'reports' => $res['reports'], 'total' => $res['total'], 'page' => $res['page'], 'per' => $res['per'], 'q' => $q,
+        'show_voided' => $showVoided]);
+}
+
+// POST /api/reports/cocid — correct a mistyped Chain of Custody ID. One report
+// (`report_id`), or a whole job (`from` + `to`). Session + CSRF auth, org-scoped
+// by report ownership, and only for the owner and org admins: a read-only member
+// may upload evidence but not re-label it.
+//
+// This is a RENAME, never a delete: the payload, the file names and the audit
+// trail all move together (research/cocid-correction). Refused while an issued
+// certificate cites the job.
+if ($method === 'POST' && $route === '/reports/cocid') {
+    auth_csrf_verify();
+    $u = auth_require();
+    if (!reports_may_correct((int)$u['id'])) {
+        fail(403, 'Only the account owner or an organisation admin can correct a Chain of Custody ID.');
+    }
+    $d = json_body();
+    $newCocid = trim((string)($d['cocid'] ?? ''));
+    $reason = trim((string)($d['reason'] ?? ''));
+    if ($reason === '') {
+        fail(400, 'Say why the COCID is being corrected.');
+    }
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    $from = trim((string)($d['from'] ?? ''));
+    if ($from !== '') {
+        $res = job_cocid_rename((int)$u['id'], $from, $newCocid, $reason, $ip, (int)$u['id']);
+    } else {
+        $reportId = (int)($d['report_id'] ?? 0);
+        if ($reportId <= 0) {
+            fail(400, 'Provide the report id, or the job COCID to rename.');
+        }
+        $res = report_cocid_set((int)$u['id'], $reportId, $newCocid, $reason, $ip, (int)$u['id']);
+    }
+    if (empty($res['ok'])) {
+        fail((int)($res['status'] ?? 400), (string)($res['error'] ?? 'Could not correct the COCID.'));
+    }
+    json_out(['ok' => true, 'from' => $res['from'] ?? '', 'to' => $res['to'] ?? '',
+        'changed' => (int)($res['changed'] ?? 0), 'attested' => (int)($res['attested'] ?? 0)]);
+}
+
+// POST /api/reports/void — hide a junk upload from every list, picker and
+// certificate (reversible, audited, and it refunds no credit).
+if ($method === 'POST' && $route === '/reports/void') {
+    auth_csrf_verify();
+    $u = auth_require();
+    if (!reports_may_correct((int)$u['id'])) {
+        fail(403, 'Only the account owner or an organisation admin can remove an upload.');
+    }
+    $d = json_body();
+    $reportId = (int)($d['report_id'] ?? 0);
+    $reason = trim((string)($d['reason'] ?? ''));
+    if ($reportId <= 0) {
+        fail(400, 'Provide the report id.');
+    }
+    if ($reason === '') {
+        fail(400, 'Say why the upload is being removed.');
+    }
+    $res = report_void_set((int)$u['id'], $reportId, true, $reason, (string)($_SERVER['REMOTE_ADDR'] ?? ''), (int)$u['id']);
+    if (empty($res['ok'])) {
+        fail((int)($res['status'] ?? 400), (string)($res['error'] ?? 'Could not remove the upload.'));
+    }
+    json_out(['ok' => true, 'voided' => true, 'report_id' => $reportId]);
+}
+
+// POST /api/reports/unvoid — put a removed upload back in the lists.
+if ($method === 'POST' && $route === '/reports/unvoid') {
+    auth_csrf_verify();
+    $u = auth_require();
+    if (!reports_may_correct((int)$u['id'])) {
+        fail(403, 'Only the account owner or an organisation admin can restore an upload.');
+    }
+    $d = json_body();
+    $reportId = (int)($d['report_id'] ?? 0);
+    if ($reportId <= 0) {
+        fail(400, 'Provide the report id.');
+    }
+    $res = report_void_set((int)$u['id'], $reportId, false, '', (string)($_SERVER['REMOTE_ADDR'] ?? ''), (int)$u['id']);
+    if (empty($res['ok'])) {
+        fail((int)($res['status'] ?? 400), (string)($res['error'] ?? 'Could not restore the upload.'));
+    }
+    json_out(['ok' => true, 'voided' => false, 'report_id' => $reportId]);
 }
 
 // GET /api/reports/cocids — distinct COCIDs for the cert generator's search/select.

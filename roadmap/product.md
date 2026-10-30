@@ -157,6 +157,11 @@ point back to that master's section numbering. Competitive-gap sources:
 sheets), `research/dsecuretech/README.md`. Items already shipped are ticked
 with the release that carried them (per `CHANGELOG.md`).
 
+- [ ] **Read-only audit API + MCP** — token-scoped `read` API over the existing
+      devices/drives/reports/certs routes + an OpenAPI spec + a zero-dep MCP
+      server, so customers can query their erasure/audit history from
+      Copilot/Claude/ChatGPT. Read half of Blancco Blue; skip the agentic half.
+      → Plan: `research/audit-api/README.md`.
 - [x] Fleet wipe job queue — dashboard queues a wipe per serial; appliance polls.
       (§9.3)
       → **Shipped 2026-10-07 (v1.11.19)**: wipe jobs are durable (pending 7 days,
@@ -797,6 +802,24 @@ with the release that carried them (per `CHANGELOG.md`).
       → Plan: `research/no-media-ux/README.md`.
 
 ## 5. Dashboard & scale
+
+- [ ] **Correct or remove an operator's COCID mistake, dashboard only.** A typo
+      at boot (`12354` for `12345`) is accepted by the appliance, cached for the
+      whole boot, and copied verbatim into the device registration, the run
+      journal and every CSV — inventing a phantom job or joining an unrelated
+      one. There is no correction path on either side: the only `DELETE` routes
+      are tokens, org members and attested items, and no `PUT`/`PATCH` exists.
+      Wanted: **reassign** a report or a whole job (fixes the label, keeps the
+      evidence), **void/unvoid** a junk upload (reversible, audited, no refund),
+      and a rule that every report-reading query shares one visibility fragment
+      so a correction cannot survive in the list you did not fix. Refused while
+      an issued certificate cites the job.
+      → **Shipped 2026-10-30** (dashboard; no appliance change): Media page
+      **Recent uploads** panel with *Correct a job COCID…*, per-upload
+      *Correct…*, and *Remove* / *Show removed* (reversible, audited, no credit
+      refund); `reports.voided_at/by/reason` + `report_corrections` audit table;
+      `reports_visible_sql()` in every report query with a build-failing test
+      when one bypasses it. Plan: `research/cocid-correction/README.md`.
 
 - [x] **Devices tab SQL-side pagination** — `load_devices()` currently
       JSON-decodes every report payload on every load; denormalize a small

@@ -49,6 +49,11 @@
       <p id="upload-status" class="hidden w-full text-xs font-semibold" aria-live="polite"></p>
     </form>
 
+    <!-- Recent uploads + COCID corrections. Filled by /assets/report-corrections.js,
+         which owns its own DOM (research/cocid-correction/README.md). -->
+    <div id="recent-uploads"></div>
+    <script src="/assets/report-corrections.js?v=1" defer></script>
+
     <div class="mt-4 flex flex-wrap items-center gap-2">
       <!-- Three-way record-source switch. Subtle on purpose: it narrows the list, it is not
            a primary action. Server-side (`source`), so total and the page boundaries follow
@@ -79,7 +84,7 @@
         Add
       </button>
     </div>
-    <script src="/assets/manual-assets.js?v=17" defer></script>
+    <script src="/assets/manual-assets.js?v=18" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
       <div id="drive-list" class="min-h-[200px]">
@@ -476,6 +481,7 @@
             status.textContent = msg;
             fileInput.value = '';
             document.getElementById('reports-name').textContent = 'No files chosen';
+            if (window.ReportCorrections) window.ReportCorrections.reload();
             loadDrives();
           } else {
             status.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
