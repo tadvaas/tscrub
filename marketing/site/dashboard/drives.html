@@ -765,8 +765,12 @@
       });
 
       // After a COCID correction the rows above carry the new ID, so refetch
-      // rather than leaving stale evidence on screen (report-corrections.js).
-      window.onReportCorrected = function () { if (typeof loadDrives === 'function') loadDrives(); };
+      // rather than leaving stale evidence on screen, and close the record view
+      // whose heading now names the old job (report-corrections.js).
+      window.onReportCorrected = function () {
+        if (typeof closeDrive === 'function') closeDrive();
+        if (typeof loadDrives === 'function') loadDrives();
+      };
 
       function loadDrives() {
         var seq = ++drivesFetchSeq;
@@ -1434,6 +1438,16 @@
         var dl = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Download SMART CSV');
         dl.addEventListener('click', function () { download('smart-' + (d.serial || 'drive') + '.csv', smartCsv(d)); });
         foot.appendChild(dl);
+        // The erasure record carries its own COCID, so the fix is offered here
+        // as well as on the report row and the Devices side.
+        if (d.report_id && window.ReportCorrections) {
+          var dfix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID…');
+          dfix.title = 'Change this report’s Chain of Custody ID';
+          dfix.addEventListener('click', function () {
+            window.ReportCorrections.correctReport({ id: d.report_id, cocid: d.cocid || '' });
+          });
+          foot.appendChild(dfix);
+        }
         var dpdf = el('button', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download PDF');
         dpdf.addEventListener('click', function () {
           downloadPdf('/api/drives/' + d.report_id + '/pdf?serial=' + encodeURIComponent(d.serial || ''), 'Drive-Health-' + (d.serial || 'drive') + '.pdf');

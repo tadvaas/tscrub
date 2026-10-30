@@ -164,6 +164,18 @@ t_check('the Devices log offers it too (the diagnostics case)',
 // report, and it is the third place they look. Offer it there as well.
 t_check('the diagnostics report view offers it',
     is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: dev.pdf_id') !== false);
+// The ERASURE record is viewed in two places — its own modal on the Devices
+// side and the medium's record view on the Media page — and both must offer it,
+// for exactly the reason the desktop/mobile split bit us on the Media list.
+t_check('the erasure report view on Devices offers it',
+    is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: h.id') !== false
+    && strpos($devicesPage, "id='erasure-modal-footer'") === false
+    && strpos($devicesPage, 'id="erasure-modal-footer"') !== false);
+t_check('the medium record view on Media offers it',
+    is_string($drivesPage) && strpos($drivesPage, 'ReportCorrections.correctReport({ id: d.report_id') !== false);
+t_check('and both record views close after a correction (their heading is stale)',
+    is_string($drivesPage) && strpos($drivesPage, 'closeDrive();') !== false
+    && is_string($devicesPage) && strpos($devicesPage, 'closeErasure();') !== false);
 // A row that cannot say which COCID it belongs to cannot prefill the dialog.
 $libRow = is_string($lib) ? $lib : '';
 t_check('a device row carries the COCID of the report it was built from',

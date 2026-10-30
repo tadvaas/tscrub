@@ -265,6 +265,7 @@
           <button id="erasure-modal-close" type="button" class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-ink-800">Close</button>
         </div>
         <div id="erasure-modal-body" class="flex-1 overflow-y-auto p-5"></div>
+        <div id="erasure-modal-footer" class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 px-5 py-3"></div>
       </div>
     </div>
   </div>
@@ -1565,8 +1566,13 @@
       });
 
       // A corrected report changes this machine's COCID set, so refetch after a
-      // correction rather than showing the old job (report-corrections.js).
-      window.onReportCorrected = function () { if (typeof loadDevices === 'function') loadDevices(); };
+      // correction rather than showing the old job (report-corrections.js). The
+      // report view is closed too: its COCID heading is now stale.
+      window.onReportCorrected = function () {
+        if (typeof closeDevice === 'function') closeDevice();
+        if (typeof closeErasure === 'function') closeErasure();
+        if (typeof loadDevices === 'function') loadDevices();
+      };
 
       function loadDevices() {
         lastFullRefresh = Date.now();
@@ -2903,6 +2909,19 @@
           tbl.appendChild(tb);
           body.appendChild(tbl);
         }
+        // The erasure record carries its own COCID, so the same fix is offered
+        // here as on the diagnostics report view.
+        var efoot = document.getElementById('erasure-modal-footer');
+        efoot.innerHTML = '';
+        if (h.id && window.ReportCorrections) {
+          var efix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID…');
+          efix.title = 'Change this report’s Chain of Custody ID';
+          efix.addEventListener('click', function () {
+            window.ReportCorrections.correctReport({ id: h.id, cocid: h.cocid || '' });
+          });
+          efoot.appendChild(efix);
+        }
+        efoot.classList.toggle('hidden', !efoot.hasChildNodes());
         window.TSDialog.open(document.getElementById('erasure-modal'));
         document.getElementById('erasure-modal-close').focus();
       }
