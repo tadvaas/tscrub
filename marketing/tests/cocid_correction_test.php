@@ -176,6 +176,16 @@ t_check('both pages refetch after a correction',
     && is_string($devicesPage) && strpos($devicesPage, 'window.onReportCorrected') !== false);
 t_check('a page with neither the panel nor the hook reloads rather than going stale',
     is_string($asset) && strpos($asset, 'window.location.reload()') !== false);
+// Escape must close the correction dialog, not the modal it was opened over.
+// The host pages close their own modals on a document-level Escape, so ours has
+// to run in the capture phase and stop the event. Regression: pressed from the
+// diagnostics report view, Escape used to dismiss the report underneath.
+t_check('Escape is handled in the capture phase',
+    is_string($asset) && strpos($asset, "addEventListener('keydown', onKeyDown, true)") !== false);
+t_check('and it stops the event reaching the host page',
+    is_string($asset) && strpos($asset, 'stopImmediatePropagation') !== false);
+t_check('the handler is removed when the dialog closes',
+    is_string($asset) && strpos($asset, "removeEventListener('keydown', onKeyDown, true)") !== false);
 
 echo "\n";
 if ($fails === 0) {

@@ -50,14 +50,34 @@
 
   // ---- modal -----------------------------------------------------------------
   var modal = null;
+  var opener = null;
+
+  // Escape must dismiss THIS dialog, not whatever modal it was opened over. The
+  // host pages (devices.html) have their own document-level Escape handler that
+  // closes the report modal, so ours runs in the CAPTURE phase and stops the
+  // event dead: otherwise the report closes underneath and the correction dialog
+  // is left floating over the list.
+  function onKeyDown(e) {
+    if (!modal || (e.key !== 'Escape' && e.key !== 'Esc')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    closeModal();
+  }
 
   function closeModal() {
     if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
     modal = null;
+    document.removeEventListener('keydown', onKeyDown, true);
+    if (opener && typeof opener.focus === 'function') {
+      try { opener.focus(); } catch (e) { /* the opener may be gone */ }
+    }
+    opener = null;
   }
 
   function openModal(title, fields, submitLabel, onSubmit) {
     closeModal();
+    opener = document.activeElement;
     modal = el('div', 'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-10');
     var card = el('div', 'w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-ink-700 dark:bg-ink-900');
     card.appendChild(el('h2', 'text-lg font-bold text-ink-900 dark:text-white', title));
@@ -113,6 +133,7 @@
     modal.appendChild(card);
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
     document.body.appendChild(modal);
+    document.addEventListener('keydown', onKeyDown, true);
     var first = Object.keys(inputs)[0];
     if (first) inputs[first].focus();
   }
