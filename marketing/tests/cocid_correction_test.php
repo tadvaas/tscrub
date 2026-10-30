@@ -136,6 +136,39 @@ $dedupe = ($dedupeStart !== false && $dedupeEnd !== false) ? substr($lib, $dedup
 t_check('user_ingested_shas does not filter, so a hidden file cannot be re-charged',
     $dedupe !== '' && strpos($dedupe, 'reports_visible_sql') === false);
 
+echo "\n== the fix is offered where the record is, not only in the uploads panel ==";
+// A diagnostics report has no row in the Media uploads panel (that list is
+// erasure-only), so the correction must be reachable from the Devices log as
+// well. These checks pin the wiring rather than the rendering.
+$siteDir = dirname($serverDir) . '/site';
+$asset = @file_get_contents($siteDir . '/public/assets/report-corrections.js');
+$drivesPage = @file_get_contents($siteDir . '/dashboard/drives.html');
+$devicesPage = @file_get_contents($siteDir . '/dashboard/devices.html');
+t_check('the corrections module exists', is_string($asset) && $asset !== '');
+t_check('it exposes a per-report correction for any page',
+    is_string($asset) && strpos($asset, 'correctReport: correctReport') !== false
+    && strpos($asset, 'function correctReport(') !== false);
+t_check('and a removal for any page',
+    is_string($asset) && strpos($asset, 'removeReport: removeUpload') !== false);
+t_check('the Media report rows offer it',
+    is_string($drivesPage) && strpos($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') !== false);
+// BOTH renderers: the desktop table and the mobile card list are separate code
+// paths, and this test first passed on the mobile one alone — the exact "fixed
+// one surface, not the other" failure the feature exists to prevent.
+t_check('on BOTH the desktop table and the mobile card list',
+    is_string($drivesPage)
+    && substr_count($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') >= 2);
+t_check('the Devices log offers it too (the diagnostics case)',
+    is_string($devicesPage) && strpos($devicesPage, 'ReportCorrections.correctReport({ id: h.id') !== false);
+t_check('both pages load the module',
+    is_string($drivesPage) && strpos($drivesPage, 'report-corrections.js') !== false
+    && is_string($devicesPage) && strpos($devicesPage, 'report-corrections.js') !== false);
+t_check('both pages refetch after a correction',
+    is_string($drivesPage) && strpos($drivesPage, 'window.onReportCorrected') !== false
+    && is_string($devicesPage) && strpos($devicesPage, 'window.onReportCorrected') !== false);
+t_check('a page with neither the panel nor the hook reloads rather than going stale',
+    is_string($asset) && strpos($asset, 'window.location.reload()') !== false);
+
 echo "\n";
 if ($fails === 0) {
     echo "ALL TESTS PASSED ($count checks)\n";

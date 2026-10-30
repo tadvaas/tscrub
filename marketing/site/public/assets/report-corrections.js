@@ -101,7 +101,7 @@
       // than escaping the click handler (and leaving the button disabled).
       Promise.resolve().then(function () { return onSubmit(vals); }).then(function () {
         closeModal();
-        load();
+        afterChange();
       }).catch(function (e) {
         err.textContent = e && e.message ? e.message : 'Something went wrong.';
         err.classList.remove('hidden');
@@ -132,20 +132,20 @@
   }
 
   function correctReport(row) {
-    openModal('Correct this upload’s COCID',
+    openModal('Correct this report’s COCID',
       [
-        { name: 'to', label: 'Correct COCID', value: row.cocid, maxlength: 5, inputmode: 'numeric', hint: 'Moves this upload only. Use “Correct a job COCID” to move the whole job.' },
+        { name: 'to', label: 'Correct COCID', value: row.cocid, maxlength: 5, inputmode: 'numeric', hint: 'Moves this report only. Use “Correct a job COCID” on the Media page to move the whole job.' },
         { name: 'reason', label: 'Why?', type: 'textarea', maxlength: 255 }
-      ], 'Correct upload', function (v) {
+      ], 'Correct report', function (v) {
         if (!v.to || !v.reason) throw new Error('Give the new COCID and a reason.');
         return apiPost('/api/reports/cocid', { report_id: row.id, cocid: v.to, reason: v.reason });
       });
   }
 
   function removeUpload(row) {
-    openModal('Remove this upload from the lists',
+    openModal('Remove this report from the lists',
       [
-        { name: 'reason', label: 'Why?', type: 'textarea', maxlength: 255, hint: 'The upload is hidden, not deleted: it keeps its data, hashes and audit trail, and can be restored. No credit is refunded.' }
+        { name: 'reason', label: 'Why?', type: 'textarea', maxlength: 255, hint: 'The report is hidden, not deleted: it keeps its data, hashes and audit trail, and can be restored. No credit is refunded.' }
       ], 'Remove from lists', function (v) {
         if (!v.reason) throw new Error('Give a reason.');
         return apiPost('/api/reports/void', { report_id: row.id, reason: v.reason });
@@ -153,8 +153,8 @@
   }
 
   function restoreUpload(row) {
-    apiPost('/api/reports/unvoid', { report_id: row.id }).then(load).catch(function (e) {
-      window.alert(e && e.message ? e.message : 'Could not restore the upload.');
+    apiPost('/api/reports/unvoid', { report_id: row.id }).then(afterChange).catch(function (e) {
+      window.alert(e && e.message ? e.message : 'Could not restore the report.');
     });
   }
 
@@ -274,18 +274,36 @@
       .catch(function () { /* the card simply stays empty; the page above still works */ });
   }
 
+  // After any correction: refresh the panel if this page has one, and tell the
+  // host page to refetch its own list (the COCID is printed on its rows). A page
+  // with neither reloads, so the operator never sees stale evidence.
+  function afterChange() {
+    if (mount) load();
+    if (typeof window.onReportCorrected === 'function') {
+      try { window.onReportCorrected(); } catch (e) { /* host hook must not break us */ }
+      return;
+    }
+    if (!mount) window.location.reload();
+  }
+
   function start() {
-    mount = document.getElementById('recent-uploads');
-    if (!mount) return;
-    // The page may open this card for the operator (e.g. after an upload).
+    // The API is available on ANY dashboard page that loads this script — the
+    // callers are the per-report rows in the Media drive view and the Devices
+    // log, which need the dialog without the panel (research/cocid-correction).
     window.ReportCorrections = {
       reload: load,
       correctJob: correctJob,
+      correctReport: correctReport,
+      removeReport: removeUpload,
+      restoreReport: restoreUpload,
       open: function () {
-        var d = mount.querySelector('details');
+        var d = mount ? mount.querySelector('details') : null;
         if (d) d.open = true;
       }
     };
+
+    mount = document.getElementById('recent-uploads');
+    if (!mount) return;   // dialog-only page: nothing more to do
     load();
   }
 
