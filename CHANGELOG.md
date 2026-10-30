@@ -8,6 +8,18 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.86] - 2026-10-30
+
+Released artefacts: ISO `tscrub-v1.11.86_2025.11_30_x86-64_v0.41_20261030-a2e7293a.iso`
+(176,496,640 B, SHA-256 `4b22bcdf136e7b169699c8f97ee3d30b963b20f56c0392d6bb102a3df5cd669a`,
+168 MiB); signed script SHA-256
+`6731fdd50c028f714e42a1391f41a1c3456094be6d8748a7260060d54398c770` (overlay copy
+`1d2e306162c8b96f92479b926b65e98d8734f183e6c56c3236bfc1e5246def15`, verified byte
+for byte against the slim build); PXE `bzImage` 95,226,400 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`1ecb12f5e592fd4153f7b9cb3ba3af5198ab2e56f929356d9fc203995d4223b1`; build-host
+commit `a2e7293a`.
+
 ### Changed
 
 - **The COCID is a session identity, not an erasure parameter — so it is asked
