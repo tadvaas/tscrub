@@ -1489,7 +1489,7 @@ triage::no_media_run() {
     status::write no_media 0 0 0
     status::ping_now
     report::journal_open
-    report::journal NOTE "no storage detected - nothing to erase (COCID not requested)"
+    report::journal NOTE "no storage detected - nothing to erase (cocid=${COCID:-none})"
 
     if ! ui::terminal_controls_supported; then
         printf "%s[!] No storage detected - nothing to erase.\n" "$TABLE_INDENT" >&2
@@ -1697,10 +1697,9 @@ triage::run() {
 
         case "$key" in
             T|t)
-                # The Chain of Custody ID is captured HERE, not at boot: it only
-                # means something once the operator has decided to erase, and a
-                # machine with no drives must never be asked for one. A cancelled
-                # prompt drops straight back to the triage screen.
+                # The COCID is captured at boot, where it also files the device
+                # registration and its diagnostics snapshot. This is a guard, not
+                # the primary capture: it only fires if some path cleared it.
                 if ! cocid::ensure; then
                     table::render
                     continue

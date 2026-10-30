@@ -3,8 +3,10 @@
 #
 # The behaviour being pinned: discovery finding nothing must be a STATE, not an
 # `exit 1`. Exiting makes the appliance's getty respawn tScrub, which wipes the
-# reason off the screen and re-runs boot — the loop the operator reported, and
-# which used to re-ask for a COCID that could not be used for anything.
+# reason off the screen and re-runs boot — the loop the operator reported. The
+# COCID is still resolved at boot (it identifies the session, and files the
+# diagnostics snapshot), and it is cached for the rest of that boot so a respawn
+# does not ask for the same job's ID again.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 t::setup_env
 t::source_src
@@ -74,20 +76,47 @@ devices=()
 devrow=()
 
 echo
-echo "== the COCID is resolved from config, never prompted, at boot =="
-# cocid::resolve_supplied must NOT reach the prompt: on a headless boot the
-# prompt exits 1, and on a driveless box it is a question with no usable answer.
+echo "== the COCID is resolved at boot, from config or this boot's answer =="
+# The COCID identifies the SESSION (device registration + diagnostics snapshot +
+# run journal), so it is resolved before discovery. resolve_supplied never
+# prompts: it reads --cocid, then tscrub_cocid=, then the answer a previous
+# process cached earlier in this same boot.
 CMDLINE_FILE="$TMP/cmdline"
 export CMDLINE_FILE
+COCID_CACHE_FILE="$TMP/cocid-cache"
+export COCID_CACHE_FILE
+rm -f "$COCID_CACHE_FILE"
 printf 'console=tty3 tscrub_cocid=54321\n' > "$CMDLINE_FILE"
 COCID=""
 cocid::resolve_supplied
 t::assert_eq "54321" "$COCID" "a cmdline COCID is picked up"
+t::assert_eq "54321" "$(cat "$COCID_CACHE_FILE" 2>/dev/null)" \
+    "and remembered so a respawn need not ask again"
 
 printf 'console=tty3\n' > "$CMDLINE_FILE"
+rm -f "$COCID_CACHE_FILE"
 COCID=""
 cocid::resolve_supplied
-t::assert_eq "" "$COCID" "with none supplied it stays empty (and does not prompt)"
+t::assert_eq "" "$COCID" \
+    "with nothing supplied and no cached answer it stays empty (and does not prompt)"
+
+printf '54321\n' > "$COCID_CACHE_FILE"
+COCID=""
+cocid::resolve_supplied
+t::assert_eq "54321" "$COCID" \
+    "a getty respawn reuses this boot's answer"
+
+printf '54321\n' > "$COCID_CACHE_FILE"
+COCID="22222"
+cocid::resolve_supplied
+t::assert_eq "22222" "$COCID" "an in-memory answer still wins over the cache"
+
+printf 'not-a-cocid\n' > "$COCID_CACHE_FILE"
+COCID=""
+cocid::resolve_supplied
+t::assert_eq "" "$COCID" \
+    "a junk cache is ignored, so the operator is asked again rather than run unattributed"
+rm -f "$COCID_CACHE_FILE"
 
 COCID="11111"
 cocid::resolve_supplied
@@ -96,6 +125,8 @@ t::assert_eq "11111" "$COCID" "--cocid wins over the cmdline"
 COCID="12345"
 t::assert_eq "0" "$(cocid::ensure >/dev/null 2>&1; echo $?)" \
     "cocid::ensure returns success for an already-valid COCID without prompting"
+
+rm -f "$COCID_CACHE_FILE"
 
 echo
 echo "== the journal records 'nothing to wipe' =="

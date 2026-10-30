@@ -21,6 +21,11 @@ LICENSE_USB_DEV=""
 REPORT_OUTPUT=""
 TABLE_INDENT="    "
 COCID=""
+# Where the answer is remembered for the rest of this boot: the getty respawns
+# tScrub after Esc/Q or a hard exit, and a respawn is the same machine on the
+# same job, so the operator must not be asked twice in one boot. /tmp is tmpfs,
+# so a power cycle clears it and the next boot asks again.
+COCID_CACHE_FILE="${COCID_CACHE_FILE:-/tmp/tscrub-cocid}"
 CONFIG_USB_DEBUG=""
 AUTONUKE=0
 SELFTEST=0

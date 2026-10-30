@@ -187,21 +187,33 @@ fn_main() {
     # to the stick immediately. The final report reuses the same mount.
     report::detect_output
 
-    # A COCID supplied by --cocid / tscrub_cocid= is validated here, because a bad
-    # flag should fail fast. The interactive prompt moved to cocid::ensure at the
-    # moment an erase is requested, so a machine with nothing to erase is never
-    # asked for one. See research/no-media-ux/README.md §3.1.
+    # The Chain of Custody ID is the SESSION's identity, not an erasure parameter:
+    # the boot-time device registration and its diagnostics snapshot, the
+    # heartbeat's job and the run journal are all filed under it, so a machine
+    # that reports diagnostics and erases nothing still reports them under a job.
+    # It is therefore resolved HERE, before discovery. (v1.11.85 asked at the
+    # erase instead, on the reasoning that a driveless box should not be asked;
+    # that conflated the erase with the session — the loop the operator reported
+    # was caused by `exit 1` on no media, not by the prompt.)
+    #
+    # A supplied COCID (--cocid / tscrub_cocid= / this boot's earlier answer) is
+    # validated and fails fast; only a missing one is prompted for.
     cocid::resolve_supplied
-    if [[ -n "${COCID:-}" ]] && ! cocid::is_valid "$COCID"; then
+    COCID="${COCID:-}"
+    if [[ -n "$COCID" ]] && ! cocid::is_valid "$COCID"; then
         printf "%s[!] Invalid COCID '%s'. Must be exactly 5 digits.\n" "$TABLE_INDENT" "$COCID" >&2
         exit 1
     fi
-    # Clear any banner so its text doesn't linger while the discovery -> SMART ->
-    # unfreeze sequence runs below.
+    if ! cocid::ensure; then
+        printf "%s[!] tScrub needs a 5-digit Chain of Custody ID to run.\n" "$TABLE_INDENT" >&2
+        exit 1
+    fi
+    # Clear the centred prompt so its text doesn't linger while the discovery ->
+    # SMART -> unfreeze sequence runs below.
     ui::terminal_controls_supported && clear
 
-    # The session timer now starts at discovery, not at a COCID prompt: the COCID
-    # is asked just before an erase, which may be minutes after boot.
+    # The session timer starts once the COCID is known (the "app start" moment),
+    # so the Elapsed panel does not count COCID entry time.
     START_TS="$(ts::now)"
 
     # Connect to the network explicitly, so the presence heartbeat, remote
@@ -244,9 +256,10 @@ fn_main() {
     if ! device::discover; then
         ui::spinner_stop
         # No media is a STATE, not an exit. Exiting makes the appliance's getty
-        # respawn tScrub, which wipes the reason off the screen — and, when the
-        # COCID was asked at boot, asked for it again, forever. The screen holds
-        # until a rescan finds something (return 0) or the operator restarts.
+        # respawn tScrub, which wipes the reason off the screen — and re-runs the
+        # boot, which is the loop the operator reported. The screen holds until a
+        # rescan finds something (return 0) or the operator restarts, and the
+        # COCID survives that respawn (cocid::remember caches it for this boot).
         triage::no_media_run || exit 0
         ui::spinner_start "Preparing..."
     elif [[ "$(device::media_state)" != "ok" ]]; then
@@ -310,8 +323,8 @@ fn_main() {
 
     if [[ "$AUTONUKE" -eq 1 ]]; then
         # PXE fleet / --autonuke: wipe every drive immediately, report, then
-        # exit (no triage screen, no post-run prompt). The COCID is asked here
-        # too when it was not supplied — an autonuke run must be attributable.
+        # exit (no triage screen, no post-run prompt). The COCID was resolved at
+        # boot; this is a guard, so a run can never start unattributed.
         cocid::ensure || exit 1
         erasure::run
         ui::cursor_show

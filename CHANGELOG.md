@@ -8,6 +8,26 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- **The COCID is a session identity, not an erasure parameter — so it is asked
+  at boot again.** v1.11.85 moved the prompt to `Shift+T` on the reasoning that a
+  machine with nothing to erase should not be asked for one. That conflated the
+  erase with the session: the boot-time device registration and its diagnostics
+  snapshot, the heartbeat's job and the run journal are all filed under the
+  COCID, so a box that reports diagnostics and erases nothing still reports them
+  under a job. The prompt is back at boot, a supplied `--cocid` / `tscrub_cocid=`
+  still skips it (and still fails fast when malformed), and `START_TS` starts
+  once it is known so the Elapsed panel does not count prompt time. The no-media
+  fix is unchanged and remains the actual cure for the loop: nothing to erase
+  holds the NO STORAGE screen instead of `exit 1`; the prompt never caused it.
+- **One COCID per boot, not per process.** The appliance's getty respawns tScrub
+  after Esc/Q or a hard exit, so the answer is now cached in `/tmp` for the rest
+  of that boot — a respawn is the same machine on the same job and is not asked
+  again. A power cycle clears it, and a junk cache is ignored rather than trusted
+  (the operator is asked again instead of running unattributed). `cocid::ensure`
+  at the erase remains as a guard, so a run can never start unattributed.
+
 ## [v1.11.85] - 2026-10-30
 
 Released artefacts: ISO `tscrub-v1.11.85_2025.11_30_x86-64_v0.41_20261030-14e1ee04.iso`

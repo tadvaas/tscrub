@@ -55,17 +55,28 @@ cocid::is_valid() {
     [[ "$1" =~ ^[0-9]{5}$ ]]
 }
 
-# Resolve a SUPPLIED Chain of Custody ID — never prompts:
-#   1. --cocid (set by parse_args)
+# Resolve a Chain of Custody ID without prompting. In order:
+#   1. --cocid (set by parse_args) or an answer already in memory
 #   2. tscrub_cocid= on the kernel command line
-# The interactive prompt moved to the moment an erase is requested
-# (cocid::ensure), so a machine with no drives is never asked for a COCID whose
-# answer it cannot use — that prompt used to be the first thing an operator saw,
-# on a boot that had nothing to erase. See research/no-media-ux/README.md §3.1.
-cocid::resolve_supplied() {
-    local param
+#   3. the answer a previous tScrub process cached earlier in THIS boot
+# The prompt itself lives in cocid::ensure, which fn_main calls before discovery:
+# the COCID identifies the SESSION (the boot-time device registration and its
+# diagnostics snapshot, the heartbeat's job, the run journal), not just the
+# erase, so it is resolved at boot. A box with nothing to erase is asked once and
+# then held on the NO STORAGE screen - the loop was caused by `exit 1` there, not
+# by the prompt. See research/no-media-ux/README.md §3.1.
+cocid::remember() {
+    [[ -n "${COCID:-}" ]] || return 0
+    printf '%s\n' "$COCID" > "$COCID_CACHE_FILE" 2>/dev/null || true
+}
 
-    [[ -n "${COCID:-}" ]] && return 0
+cocid::resolve_supplied() {
+    local param cached
+
+    if [[ -n "${COCID:-}" ]]; then
+        cocid::remember
+        return 0
+    fi
 
     # CMDLINE_FILE is the same fixture seam device::protected_disks uses.
     param="$(tr ' ' '\n' < "${CMDLINE_FILE:-/proc/cmdline}" 2>/dev/null | sed -nE 's/^tscrub_cocid=//p' | head -n 1)"
@@ -73,11 +84,23 @@ cocid::resolve_supplied() {
         param="${param#\"}"
         param="${param%\"}"
         COCID="$(printf "%s" "$param" | xargs)"
+        cocid::remember
+        return 0
+    fi
+
+    # A getty respawn must not re-ask for the job's COCID. A junk cache (a
+    # truncated write, an old format) is ignored so the operator is asked again
+    # rather than running under a COCID that was never entered.
+    if [[ -r "$COCID_CACHE_FILE" ]]; then
+        cached="$({ tr -d '[:space:]' < "$COCID_CACHE_FILE"; } 2>/dev/null)"
+        if cocid::is_valid "${cached:-}"; then
+            COCID="$cached"
+        fi
     fi
     return 0
 }
 
-# Make sure a valid COCID is set, prompting at the point of use (an erase).
+# Make sure a valid COCID is set, prompting at the point of first use (boot).
 # Returns non-zero when no COCID can be obtained, so the caller must NOT proceed.
 cocid::ensure() {
     cocid::resolve_supplied
@@ -118,6 +141,7 @@ ui::coc_prompt() {
 
         if cocid::is_valid "$COCID"; then
             export COCID
+            cocid::remember
             ui::cursor_hide
             printf "\n"
             return
