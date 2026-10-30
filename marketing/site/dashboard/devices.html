@@ -1722,6 +1722,14 @@
         tr.title = 'Recorded by an operator as ' + (retained ? 'factory reset' : 'physically destroyed')
           + ' — ' + (dev.attested_qualifier || 'attested');
 
+        // An attestation is the record, so its date IS the latest event for this
+        // unit — there is nothing else recorded, and an empty cell would read as
+        // "we do not know when" rather than "this is a manual record".
+        var evCell = el('td', 'px-4 py-2.5 tabular-nums text-xs text-amber-800 dark:text-amber-400');
+        evCell.appendChild(el('span', 'block truncate', String(dev.activity_at || '').slice(0, 16) || '—'));
+        evCell.title = 'Operator attestation recorded ' + (dev.activity_at || '—') + ' — this unit has no appliance reports or heartbeat';
+        tr.appendChild(evCell);
+
         var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
         var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
         // min-w-0 on the truncating span too: without it a flex item keeps its
@@ -1757,14 +1765,6 @@
           + ' · attested by ' + (dev.attested_by || '—')
           + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
         tr.appendChild(stCell);
-
-        // An attestation is the record, so its date IS the latest event for this
-        // unit — there is nothing else recorded, and an empty cell would read as
-        // "we do not know when" rather than "this is a manual record".
-        var evCell = el('td', 'px-4 py-2.5 tabular-nums text-xs text-amber-800 dark:text-amber-400');
-        evCell.appendChild(el('span', 'block truncate', String(dev.activity_at || '').slice(0, 16) || '—'));
-        evCell.title = 'Operator attestation recorded ' + (dev.activity_at || '—') + ' — this unit has no appliance reports or heartbeat';
-        tr.appendChild(evCell);
 
         // Built by the shared module: the same two controls appear in the Media table,
         // and icon-only buttons are narrow enough that the cell no longer risks pushing
@@ -1890,9 +1890,13 @@
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-50 dark:bg-ink-800');
         var cols = [
-          // Seven columns, summing to 100%. The actions column holds only Log +
-          // Ops now (the report is reached through the log's diagnostics entry),
-          // so it no longer needs the 22% that three word buttons required.
+          // Seven columns, summing to 100%. Latest event leads: it is the
+          // recency of the machine — the answer to "what was touched last?" —
+          // and the column an operator scans down first.
+          ['Latest event', 'w-[15%]', 'activity'],
+          // The actions column holds only Log + Ops now (the report is reached
+          // through the log's diagnostics entry), so it no longer needs the 22%
+          // that three word buttons required.
           ['System', 'w-[20%]', 'system'],
           // 14%: a 13-character service tag is 133px, which did not fit 13%.
           ['Serial', 'w-[14%]', 'serial'],
@@ -1902,9 +1906,6 @@
           ['MDM', 'w-[12%]', 'mdm'],
           // 14%: a status chip plus a LAN IP (the online case) needs ~135px.
           ['Status', 'w-[14%]', 'status'],
-          // Newest report/Autopilot check or heartbeat: the recency of the
-          // machine, and the answer to "what was touched last?".
-          ['Latest event', 'w-[15%]', 'activity'],
           ['', 'w-[14%]', null]
         ];
         cols.forEach(function (c) {
@@ -1946,6 +1947,19 @@
           if (dev.attested) { body.appendChild(attestedRow(dev)); return; }
           var key = String(dev.systemuuid || dev.sysserial || dev.bbserial || ('d' + idx));
           var tr = el('tr', 'border-b border-slate-100 transition-colors dark:border-ink-800 hover:bg-slate-50 dark:hover:bg-ink-800');
+
+          // Latest event, first column: the newest report submission or
+          // heartbeat, as a plain local timestamp. Seconds are dropped for
+          // width — the column is read for "when", not for frame-accurate
+          // auditing, and the hover title carries the full value.
+          var evCell = el('td', 'px-4 py-2.5 tabular-nums text-xs text-slate-600 dark:text-slate-400');
+          var evText = String(dev.activity_at || '').slice(0, 16);
+          evCell.appendChild(el('span', 'block truncate', evText || '—'));
+          evCell.title = dev.activity_at
+            ? 'Newest recorded event: a report submission or an appliance heartbeat — ' + dev.activity_at
+            : 'Nothing recorded for this device yet';
+          tr.appendChild(evCell);
+
           var sysCell = el('td', 'px-4 py-2.5 font-medium text-ink-900 dark:text-white');
           var sysWrap = el('div', 'flex items-center gap-2 min-w-0');
           sysWrap.appendChild(el('span', 'min-w-0 truncate', dev.system || dev.sysserial || 'Unknown'));
@@ -1998,18 +2012,6 @@
           if (hasProgress && dev.online && dev.lan_ip) cellTitle += ' · LAN IP ' + dev.lan_ip;
           stCell.title = cellTitle;
           tr.appendChild(stCell);
-
-          // Latest event: the newest report/Autopilot check or heartbeat, as a
-          // plain local timestamp. Seconds are dropped for width — the column is
-          // read for "when", not for frame-accurate auditing, and the hover
-          // title carries the full value plus what it means.
-          var evCell = el('td', 'px-4 py-2.5 tabular-nums text-xs text-slate-600 dark:text-slate-400');
-          var evText = String(dev.activity_at || '').slice(0, 16);
-          evCell.appendChild(el('span', 'block truncate', evText || '—'));
-          evCell.title = dev.activity_at
-            ? 'Newest recorded event: report submission, Autopilot check or appliance heartbeat — ' + dev.activity_at
-            : 'Nothing recorded for this device yet';
-          tr.appendChild(evCell);
 
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
           tdv.appendChild(actionControls(dev, key));

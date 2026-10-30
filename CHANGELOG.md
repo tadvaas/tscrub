@@ -32,9 +32,10 @@ and this project uses date-based versioning (`v1.x`).
   would leave the mistake visible exactly where nobody looked.
   Plan: `research/cocid-correction/README.md`.
 
-- **A sortable *Latest event* column on the Devices tab.** The newest thing
+- **A sortable *Latest event* column leads the Devices tab.** The newest thing
   recorded for a machine — its last report submission or its last appliance
-  heartbeat — in one column, so the fleet can be ordered by recency. A unit you
+  heartbeat — in the first column, so the fleet can be ordered by recency and the
+  recency is the first thing read. A unit you
   have just booted sorts to the top instead of having to be found by opening
   logs one by one, which was the only way to answer "what was touched last?".
 

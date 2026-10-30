@@ -109,6 +109,8 @@ t_check('the table declares seven columns', count($widths) === 7, 'got ' . count
 t_check('the widths add up to the full width', array_sum($widths) === 100, 'sum: ' . array_sum($widths));
 t_check('one column is the sortable latest event',
     strpos($colBlock, "['Latest event', 'w-[") !== false && strpos($colBlock, "'activity']") !== false);
+t_check('the latest event is the FIRST column',
+    (bool)preg_match("~var cols = \[\s*(//[^\n]*\n\s*)*\['Latest event', 'w-\[~", $html));
 t_check('the log row spans every column',
     (bool)preg_match('~ltd\.colSpan = 7;~', $html));
 
@@ -116,10 +118,31 @@ t_check('the log row spans every column',
 // record. The attested rows are built by a different function, so a column added
 // to only one of them leaves those rows one cell short — and a short row in a
 // fixed-layout table silently shifts every cell after it.
-$scanRows = (string)(preg_match('~slice\.forEach\(function \(dev, idx\) \{(.*?)table\.appendChild\(body\);~s', $html, $m) ? $m[1] : '');
-$attested = (string)(preg_match('~function attestedRow\(dev\) \{(.*?)\n      \}\n~s', $html, $m) ? $m[1] : '');
+//
+// Each capture is anchored on markup unique to ITS renderer. The first attempt
+// anchored the "scanned row" on `slice.forEach(function (dev, idx)` — which also
+// matches the phone card renderer much earlier in the file, so the regex ran from
+// there to the desktop table and the two order assertions below were really
+// inspecting the attested row. They passed on a file that had the cell in the
+// wrong place, which is how the anchoring was found.
+$scanRows = (string)(preg_match('~var tr = el\(.tr., .border-b border-slate-100 transition-colors.*?table\.appendChild\(body\);~s', $html, $m) ? $m[0] : '');
+$attested = (string)(preg_match('~function attestedRow\(dev\) \{(.*?)return tr;~s', $html, $m) ? $m[1] : '');
+t_check('the scanned-row capture found the scanned rows',
+    strpos($scanRows, 'biosCellFor(dev)') !== false && strpos($scanRows, 'actionControls(dev, key)') !== false);
+t_check('the attested-row capture found the attested rows',
+    strpos($attested, 'not scanned') !== false && strpos($attested, 'ManualAssets.actions') !== false);
 t_check('the scanned row renders a latest-event cell', strpos($scanRows, 'dev.activity_at') !== false);
 t_check('the attested row renders one too', strpos($attested, 'dev.activity_at') !== false);
+
+// Column order is asserted in the ROWS as well as the header: a cell appended in
+// the wrong place is a column of dates sitting under a different heading, which
+// reads as corruption rather than as a layout slip.
+t_check('the scanned row puts it first',
+    strpos($scanRows, 'tr.appendChild(evCell)') !== false
+    && strpos($scanRows, 'tr.appendChild(evCell)') < strpos($scanRows, 'tr.appendChild(sysCell)'));
+t_check('the attested row puts it first',
+    strpos($attested, 'tr.appendChild(evCell)') !== false
+    && strpos($attested, 'tr.appendChild(evCell)') < strpos($attested, 'tr.appendChild(sysCell)'));
 t_check('the cell pushes a date, never a raw ISO string with millis',
     strpos($html, "String(dev.activity_at || '').slice(0, 16)") !== false);
 t_check('the header sort key is in the page\'s allow-list',
