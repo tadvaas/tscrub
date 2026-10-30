@@ -66,6 +66,13 @@ function export_field_keys(array $cols, $input): array {
 
 // Dispatch a tabular export to JSON, Excel XML or CSV.
 function export_send(string $format, string $basename, array $labels, array $rows): void {
+    // A timestamp makes every download its own file: the browser (and the folder
+    // it lands in) otherwise keeps tscrub-devices.csv and silently becomes
+    // tscrub-devices(1).csv, (2).csv — and an export is a snapshot of a moment,
+    // so the moment belongs in the name. UTC, matching every other timestamp in
+    // the product.
+    $stamp = gmdate('Ymd-His');
+    $basename .= '-' . $stamp;
     if ($format === 'json') {
         $out = [];
         foreach ($rows as $r) {

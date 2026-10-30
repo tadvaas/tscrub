@@ -1171,6 +1171,13 @@
       function exportFieldKeys() {
         return Array.prototype.slice.call(document.querySelectorAll('#export-fields input[type=checkbox]:checked')).map(function (c) { return c.value; });
       }
+      // YYYYMMDD-HHMMSS in UTC, matching the server's Content-Disposition name.
+      function exportStamp() {
+        var d = new Date();
+        var p = function (n) { return (n < 10 ? '0' : '') + n; };
+        return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + '-'
+          + p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds());
+      }
       function doExport(format, ext) {
         // The export is the view: same search, source switch, facet filters and
         // order as the list the operator is looking at, over every page.
@@ -1185,7 +1192,7 @@
         });
         var a = document.createElement('a');
         a.href = '/api/devices/export?' + qs.toString();
-        a.download = 'tscrub-devices.' + ext;
+        a.download = 'tscrub-devices-' + exportStamp() + '.' + ext;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

@@ -99,6 +99,21 @@ t_check('neither page builds the URL by string concatenation any more',
     && strpos($drivesPage, "'/api/drives/export?format=' + format") === false);
 
 echo "\n";
+echo "\n== every download gets its own name ==\n";
+// A fixed name means the browser silently becomes tscrub-devices(1).csv, and an
+// export is a snapshot of a moment, so the moment belongs in the name.
+$http = (string)file_get_contents($serverDir . '/http.php');
+t_check('the server stamps the filename',
+    strpos($http, "\$stamp = gmdate('Ymd-His');") !== false
+    && strpos($http, "\$basename .= '-' . \$stamp;") !== false);
+t_check('the Devices page stamps the download name',
+    strpos($devicesPage, "'tscrub-devices-' + exportStamp() + '.' + ext") !== false);
+t_check('the Media page stamps the download name',
+    strpos($drivesPage, "'tscrub-drives-' + exportStamp() + '.' + ext") !== false);
+t_check('neither page falls back to a fixed name',
+    strpos($devicesPage, "'tscrub-devices.' + ext") === false
+    && strpos($drivesPage, "'tscrub-drives.' + ext") === false);
+
 if ($fails === 0) {
     echo "ALL TESTS PASSED ($count checks)\n";
     exit(0);
