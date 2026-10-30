@@ -17,8 +17,8 @@ and this project uses date-based versioning (`v1.x`).
   registration and the run journal, with no way to put it right afterwards.
 
   The correction lives **in the report view**: open a medium's *View* on the
-  Media page, or *Rep* / the log's *View* on the Devices page, and use *Correct
-  COCID…* in its footer. That covers a machine's **diagnostics** report as well
+  Media page, or *Log* and then the entry's *View* on the Devices page, and use
+  *Correct COCID…* in its footer. That covers a machine's **diagnostics** report as well
   as its erasure reports. Every correction records who, when, from, to and why
   against the report, and is refused while an issued certificate cites the job.
   The record view closes and the list refetches afterwards, so the old ID is
@@ -31,6 +31,25 @@ and this project uses date-based versioning (`v1.x`).
   query bypasses it — a correction applied to eleven lists and not the twelfth
   would leave the mistake visible exactly where nobody looked.
   Plan: `research/cocid-correction/README.md`.
+
+- **A sortable *Latest event* column on the Devices tab.** The newest thing
+  recorded for a machine — its last report submission or its last appliance
+  heartbeat — in one column, so the fleet can be ordered by recency. A unit you
+  have just booted sorts to the top instead of having to be found by opening
+  logs one by one, which was the only way to answer "what was touched last?".
+
+  The row's *Rep* button is gone with it: the report is opened from the *Log*,
+  whose entries already list every diagnostics report and carry its *View* and
+  PDF. That leaves *Log* and *Ops* in the actions column, which is why the table
+  now fits seven columns at the same total width.
+
+  The value is computed on the candidate rows the sort runs over, not on the
+  assembled page. That is not an optimisation: computed late, every row ties at
+  sort time and the identity tie-break orders both directions, so ascending and
+  descending look broken in different ways. Caught live — `sort=activity&dir=asc`
+  came back in serial order while `dir=desc` only looked right by coincidence.
+  `marketing/tests/devices_activity_test.php` guards the value, where it is
+  computed, the seven-column span and the removal of *Rep*.
 
 ### Fixed
 

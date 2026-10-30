@@ -36,8 +36,9 @@ const path = require('path');
 const root = process.env.VIEW_ROOT || path.join(__dirname, '..');
 const PAGES = [
   // syncCalls includes the definition. Devices carries three extra call sites for
-  // the advanced-filter modal (chip remove, clear-all, apply); Media has none.
-  { file: 'devices.html', key: 'tscrub.view.devices', sortDefault: 'status', syncCalls: 11 },
+  // the advanced-filter modal (chip remove, clear-all, apply) and one more for the
+  // "Clear filters" button in the empty state; Media has neither.
+  { file: 'devices.html', key: 'tscrub.view.devices', sortDefault: 'status', syncCalls: 12 },
   { file: 'drives.html', key: 'tscrub.view.drives', sortDefault: 'date', syncCalls: 8 },
 ];
 
@@ -77,7 +78,7 @@ for (const p of PAGES) {
 
   // ---- write back ---------------------------------------------------------
   // definition + N call sites: switch, search, clear, sort, render, prev, next,
-  // and on Devices the three that change the advanced filter.
+  // and on Devices the three that change the advanced filter plus Clear filters.
   const calls = (js.match(/syncView\(\)/g) || []).length;
   check('every view change writes back (' + (p.syncCalls - 1) + ' call sites + the definition)',
     calls === p.syncCalls, calls);

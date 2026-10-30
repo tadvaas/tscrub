@@ -2762,6 +2762,7 @@ function manual_list_devices(int $userId): array
                 'last_seen_at' => null,
                 'first'     => $seen,
                 'last'      => $seen,
+                'activity_at' => $seen,
                 'drive_count' => count($drives),
                 'drives'    => $drives,
                 'history'   => [[
@@ -2978,6 +2979,30 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         if ($key !== '' && !isset($devices[$key])) { $devices[$key] = $row; }
     }
 
+    // Latest event: the newest report of any type, or the appliance's last
+    // heartbeat. Computed HERE as well as on the final rows because it is a SORT
+    // key and the sort runs over these candidates, before the per-page payload
+    // work. A column that only existed on the assembled rows would tie on every
+    // row at sort time, and the usort would fall through to the serial
+    // tie-break in BOTH directions — which looks like "sorting does nothing".
+    // Reproduced live before this was moved: sort=activity&dir=asc came back in
+    // serial order while dir=desc looked right by coincidence.
+    //
+    // `$d['last']` is already localised by this point, and the heartbeat is
+    // localised the same way, so the maximum is a plain string comparison.
+    $presence = presence_map($userId);
+    foreach ($devices as $k => $d) {
+        $seenTs = presence_last_seen(
+            (string)($d['sysserial'] ?? ''),
+            (string)($d['systemuuid'] ?? ''),
+            $presence
+        );
+        $devices[$k]['activity_at'] = device_activity_at(
+            (string)($d['activity_at'] ?? $d['last'] ?? ''),
+            $seenTs !== null ? ts_local(gmdate('Y-m-d H:i:s', $seenTs)) : null
+        );
+    }
+
     return $devices;
 }
 
@@ -3022,6 +3047,31 @@ function query_dir($value): int
  * applied (see the caller) so that ascending and descending remain genuinely different — the
  * bug that made clicking Status twice do nothing at all.
  */
+/**
+ * The "latest event" timestamp shown in the Devices table's Latest event column
+ * and used by its sort: the newest thing recorded for a machine.
+ *
+ * Both inputs are `Y-m-d H:i:s` strings already localised to Europe/London — a
+ * report submission time and the last appliance heartbeat. That shape sorts
+ * lexicographically in the same order as chronologically, so the maximum of the
+ * two strings IS the newest event; no second date shape, no timezone maths here.
+ *
+ * Autopilot checks and remote commands are deliberately NOT included. Commands
+ * live in device_commands and are merged per device by the drawer's log, and the
+ * Autopilot fold happens per page after the sort — including either would let the
+ * column show a time later than the one the row was ordered by. The column's
+ * tooltip says what it covers rather than implying a complete audit trail.
+ *
+ * An empty result means "nothing recorded", which the table renders as an em
+ * dash rather than inventing a date.
+ */
+function device_activity_at(?string $reportLocal, ?string $lastSeenLocal): string
+{
+    $a = (string)($reportLocal ?? '');
+    $b = (string)($lastSeenLocal ?? '');
+    return $a > $b ? $a : $b;
+}
+
 function device_sort_keys(array $d, $columnValue): array
 {
     $serial = strtolower((string)($d['sysserial'] ?? ''));
@@ -3530,6 +3580,7 @@ function load_devices(int $userId, ?array $query = null): array {
                 case 'bios':   return strtolower((string)($d['bioslock'] ?? ''));
                 case 'mdm':    return $mdmRank($d);
                 case 'status': return !empty($d['online']) ? 1 : 0;
+                case 'activity': return (string)($d['activity_at'] ?? '');
             }
             return '';
         };
@@ -3862,6 +3913,14 @@ function load_devices(int $userId, ?array $query = null): array {
         $out[$k]['first']     = ts_local((string)$dv['first']);
         $out[$k]['last']      = ts_local((string)$dv['last']);
 
+        // "Latest event": the value the candidate carried — the same one the
+        // sort used — upgraded with the heartbeat. Deliberately NOT recomputed
+        // from `history`: the Autopilot fold appends entries to it after the
+        // sort has already happened, so a recomputed display value could show a
+        // later time than the row was ordered by, which reads as a broken sort.
+        $seenAt = $lastSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $lastSeen)) : null;
+        $out[$k]['activity_at'] = device_activity_at((string)($dv['activity_at'] ?? ''), $seenAt);
+
         // Refurb grading: the I-A–I-F grade lives on the newest diagnostics
         // report (set in the loop above), plus an automatic per-drive SMART
         // grade computed on demand.
@@ -3957,6 +4016,13 @@ function load_devices(int $userId, ?array $query = null): array {
             'erasure'     => presence_erasure((string)($p['serial'] ?? $reg['serial']), (string)($p['uuid'] ?? $reg['uuid']), $presence),
             'last_seen'   => $regSeen !== null ? ts_rel($regSeen) : null,
             'last_seen_at' => $regSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $regSeen)) : null,
+            // The registration is this row's only "report", so it is the
+            // report side of the latest-event comparison; a later heartbeat can
+            // still win.
+            'activity_at' => device_activity_at(
+                $seen,
+                $regSeen !== null ? ts_local(gmdate('Y-m-d H:i:s', $regSeen)) : null
+            ),
             'drive_count' => count($drives),
             'drives'      => $drives,
             'history'     => [

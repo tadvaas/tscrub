@@ -714,15 +714,17 @@
       // Text controls: the row reads better with words, and the caret tells
       // the operator the log is a disclosure. Colour is doing a job here, not
       // decoration: sky = information (the log), brand = the actions that
-      // change the machine (Ops), emerald = the compliance artefact (Rep).
-      // All three are the same kit size (--sm), because the row height is the
+      // change the machine (Ops). The report itself is opened from the log's
+      // diagnostics entry, so a third word button here only pushed the row
+      // wider for a destination the log already offers.
+      // Both are the same kit size (--sm), because the row height is the
       // tallest control in it: mixed button heights used to make scanned and
       // attested rows differ (51px vs 49px).
       function actionControls(dev, key) {
         var wrap = el('div', 'flex items-center justify-end gap-1');
         var logBtn = el('button', 'ts-btn ts-btn--sm ts-btn--info', 'Log' + (logOpen[key] ? ' ▴' : ' ▾'));
         logBtn.setAttribute('aria-expanded', logOpen[key] ? 'true' : 'false');
-        logBtn.title = 'Everything recorded for this machine — report submissions, remote commands and their results, Autopilot checks, registrations and media';
+        logBtn.title = 'Everything recorded for this machine — report submissions (open the latest to view or download it), remote commands and their results, Autopilot checks, registrations and media';
         logBtn.addEventListener('click', function () { toggleLog(dev, key); });
         wrap.appendChild(logBtn);
 
@@ -732,13 +734,6 @@
         if (rdot) opBtn.appendChild(rdot);
         opBtn.addEventListener('click', function () { openOperations(dev, !!dev.online); });
         wrap.appendChild(opBtn);
-
-        // Reports keep a word rather than a menu: the button opens the latest
-        // diagnostics report, and that modal's footer carries the PDF.
-        var repBtn = el('button', 'ts-btn ts-btn--sm ts-btn--success', 'Rep');
-        repBtn.title = 'Open the latest diagnostics report for this device';
-        repBtn.addEventListener('click', function () { openDevice(dev, !!dev.online); });
-        wrap.appendChild(repBtn);
         return wrap;
       }
 
@@ -893,7 +888,7 @@
       // session, or “here is the record you just added” could arrive filtered to a
       // source that record is not in.
       var VIEW_KEY = 'tscrub.view.devices';
-      var VIEW_SORTS = ['system', 'serial', 'bios', 'mdm', 'status'];
+      var VIEW_SORTS = ['system', 'serial', 'bios', 'mdm', 'status', 'activity'];
       var VIEW_DEFAULTS = { sort: 'status', dir: -1 };
       var VIEW_URL = new URLSearchParams(window.location.search);
       var VIEW_EXPLICIT = ['q', 'source', 'sort', 'dir', 'page', 'ff'].some(function (k) { return VIEW_URL.has(k); });
@@ -1150,7 +1145,8 @@
         ['bioslock','BIOS lock'], ['bioslockmethod','BIOS lock method'], ['tpm','TPM'], ['macs','MAC address'], ['storage_controllers','Storage controllers'],
         ['battery','Battery'], ['secure_boot','Secure boot'], ['dimms','DIMMs'], ['product_key','Windows product key'], ['product_key_id','Product key ID'],
         ['mdm_status','MDM status'], ['mdm_verdict','MDM verdict'], ['mdm_label','MDM label'], ['refurb_grade','Refurb grade'], ['notes','Notes'],
-        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['drive_count','Media'], ['first','First report'], ['last','Last report'],
+        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['activity_at','Latest event'],
+        ['drive_count','Media'], ['first','First report'], ['last','Last report'],
         ['report_id','Report ID'], ['digital_identifier','Digital identifier']
       ];
       function buildExportFields() {
@@ -1762,6 +1758,14 @@
           + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
         tr.appendChild(stCell);
 
+        // An attestation is the record, so its date IS the latest event for this
+        // unit — there is nothing else recorded, and an empty cell would read as
+        // "we do not know when" rather than "this is a manual record".
+        var evCell = el('td', 'px-4 py-2.5 tabular-nums text-xs text-amber-800 dark:text-amber-400');
+        evCell.appendChild(el('span', 'block truncate', String(dev.activity_at || '').slice(0, 16) || '—'));
+        evCell.title = 'Operator attestation recorded ' + (dev.activity_at || '—') + ' — this unit has no appliance reports or heartbeat';
+        tr.appendChild(evCell);
+
         // Built by the shared module: the same two controls appear in the Media table,
         // and icon-only buttons are narrow enough that the cell no longer risks pushing
         // a control past the table edge. Each carries an aria-label as well as a title.
@@ -1886,19 +1890,22 @@
         var thead = el('thead');
         var hr = el('tr', 'bg-slate-50 dark:bg-ink-800');
         var cols = [
-          // The actions column cannot shrink to suit the attested icon buttons: it is shared
-          // with the scanned rows, whose Log/Ops/Rep word buttons need 184px (plus padding).
-          // Shrinking it to 11% for the icons cut those by 75px — so it stays at 22% and the
-          // icon buttons simply sit comfortably inside it.
-          ['System', 'w-[24%]', 'system'],
+          // Seven columns, summing to 100%. The actions column holds only Log +
+          // Ops now (the report is reached through the log's diagnostics entry),
+          // so it no longer needs the 22% that three word buttons required.
+          ['System', 'w-[20%]', 'system'],
           // 14%: a 13-character service tag is 133px, which did not fit 13%.
           ['Serial', 'w-[14%]', 'serial'],
           // 11%, not 9%: the attested rows put "not scanned" here, which needs 102px —
           // at 9% the cell was 89px and the word was being ellipsised to "not scan…".
           ['BIOS', 'w-[11%]', 'bios'],
-          ['MDM', 'w-[14%]', 'mdm'],
-          ['Status', 'w-[15%]', 'status'],
-          ['', 'w-[22%]', null]
+          ['MDM', 'w-[12%]', 'mdm'],
+          // 14%: a status chip plus a LAN IP (the online case) needs ~135px.
+          ['Status', 'w-[14%]', 'status'],
+          // Newest report/Autopilot check or heartbeat: the recency of the
+          // machine, and the answer to "what was touched last?".
+          ['Latest event', 'w-[15%]', 'activity'],
+          ['', 'w-[14%]', null]
         ];
         cols.forEach(function (c) {
           var th = el('th', c[1] + ' truncate ts-th px-4 py-2.5');
@@ -1953,7 +1960,10 @@
           tr.appendChild(biosCellFor(dev));
           tr.appendChild(mdmCellFor(dev));
           var stCell = el('td', 'px-4 py-2.5 tabular-nums');
-          var stLine = el('div', 'flex items-center gap-1.5 whitespace-nowrap');
+          // min-w-0 + truncate on the secondary text: the chip is fixed-size, so
+          // in the narrower Status column the LAN IP (or "Seen 3d ago") used to
+          // hang past the cell edge. The full value stays in the hover title.
+          var stLine = el('div', 'flex min-w-0 items-center gap-1.5 whitespace-nowrap');
           var st = statusChipFor(dev);
           var sb = st.sb;
           stLine.appendChild(st.chip);
@@ -1977,17 +1987,30 @@
             stLine.appendChild(barTrack);
             if (sb.etaText) stLine.appendChild(el('span', 'text-[10px] text-slate-400 dark:text-slate-500', sb.etaText));
           } else if (dev.online && dev.lan_ip) {
-            var ipSpan = el('span', 'text-xs text-slate-400 dark:text-slate-500', dev.lan_ip);
+            var ipSpan = el('span', 'min-w-0 truncate text-xs text-slate-400 dark:text-slate-500', dev.lan_ip);
             ipSpan.title = 'LAN IP reported by the appliance heartbeat — telnet/SSH target';
             stLine.appendChild(ipSpan);
           } else if (!dev.online && dev.last_seen) {
-            stLine.appendChild(el('span', 'text-xs text-slate-400 dark:text-slate-500', 'Seen ' + dev.last_seen));
+            stLine.appendChild(el('span', 'min-w-0 truncate text-xs text-slate-400 dark:text-slate-500', 'Seen ' + dev.last_seen));
           }
           stCell.appendChild(stLine);
           var cellTitle = sb ? sb.title : (dev.online ? 'Appliance heartbeat seen within the last 90s' : (dev.last_seen_at ? 'Last seen ' + dev.last_seen_at : 'No recent heartbeat'));
           if (hasProgress && dev.online && dev.lan_ip) cellTitle += ' · LAN IP ' + dev.lan_ip;
           stCell.title = cellTitle;
           tr.appendChild(stCell);
+
+          // Latest event: the newest report/Autopilot check or heartbeat, as a
+          // plain local timestamp. Seconds are dropped for width — the column is
+          // read for "when", not for frame-accurate auditing, and the hover
+          // title carries the full value plus what it means.
+          var evCell = el('td', 'px-4 py-2.5 tabular-nums text-xs text-slate-600 dark:text-slate-400');
+          var evText = String(dev.activity_at || '').slice(0, 16);
+          evCell.appendChild(el('span', 'block truncate', evText || '—'));
+          evCell.title = dev.activity_at
+            ? 'Newest recorded event: report submission, Autopilot check or appliance heartbeat — ' + dev.activity_at
+            : 'Nothing recorded for this device yet';
+          tr.appendChild(evCell);
+
           var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
           tdv.appendChild(actionControls(dev, key));
           tr.appendChild(tdv);
@@ -1996,7 +2019,7 @@
           if (logOpen[key]) {
             var lsub = el('tr', 'bg-slate-50 dark:bg-ink-800');
             var ltd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-4 py-3', '');
-            ltd.colSpan = 6;
+            ltd.colSpan = 7;
             ltd.appendChild(logPanel(dev, key));
             lsub.appendChild(ltd);
             body.appendChild(lsub);
