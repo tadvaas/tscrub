@@ -150,7 +150,17 @@ t_check('it exposes a per-report correction for any page',
     is_string($asset) && strpos($asset, 'correctReport: correctReport') !== false
     && strpos($asset, 'function correctReport(') !== false);
 t_check('and a removal for any page',
-    is_string($asset) && strpos($asset, 'removeReport: removeUpload') !== false);
+    is_string($asset) && strpos($asset, 'removeReport: removeReport') !== false);
+// The Media page's "Recent uploads" panel is gone: the record views carry the
+// correction, so the fold was a second, noisier way to do the same thing.
+t_check('the Media uploads panel is gone',
+    is_string($drivesPage) && strpos($drivesPage, 'recent-uploads') === false
+    && is_string($asset) && strpos($asset, "getElementById('recent-uploads')") === false);
+// Rows are list controls: View only. The PDF lives in the record view.
+t_check('report rows carry no PDF button (Media)',
+    is_string($drivesPage) && substr_count($drivesPage, "'PDF'") === 0);
+t_check('report rows carry no PDF link (Devices log)',
+    is_string($devicesPage) && substr_count($devicesPage, "'PDF'") === 0);
 // The rows keep View / PDF; the correction lives one level in, in the record.
 t_check('the Media report rows no longer carry it',
     is_string($drivesPage) && substr_count($drivesPage, 'ReportCorrections.correctReport({ id: h.report_id') === 0);

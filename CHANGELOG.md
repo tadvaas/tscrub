@@ -15,19 +15,15 @@ and this project uses date-based versioning (`v1.x`).
   `12345` either invents a job or joins an unrelated one — and the ID is stamped
   into the report's column, its stored payload, its file names, the device
   registration and the run journal, with no way to put it right afterwards.
-  The Media page's **Recent uploads** panel now offers:
-  - **Correct a job COCID** (the common case: one typo at boot misfiled the whole
-    session) and **Correct…** for a single hand-uploaded report;
-  - **Remove** / **Show removed**: a junk upload is hidden from every list, the
-    COCID picker and the certificate generator, reversibly, with no credit
-    refund and without leaving the "already ingested" set;
-  - an audit line on the report (from → to, when, why), and refusal while an
-    issued certificate cites the job.
 
-  The fix is offered **inside the record view**, not beside every row: open the
-  report — a medium's *View* on the Media page, or *Rep* / the log's *View* on
-  the Devices page — and use *Correct COCID…* in its footer. That is also how a
-  **diagnostics** report is corrected, since the uploads panel is erasure-only.
+  The correction lives **in the report view**: open a medium's *View* on the
+  Media page, or *Rep* / the log's *View* on the Devices page, and use *Correct
+  COCID…* in its footer. That covers a machine's **diagnostics** report as well
+  as its erasure reports. Every correction records who, when, from, to and why
+  against the report, and is refused while an issued certificate cites the job.
+  The record view closes and the list refetches afterwards, so the old ID is
+  never left on screen; report rows keep *View* only, because the PDF lives in
+  the record view too.
 
   Nothing is deleted. Reassignment rewrites all three places the COCID lives and
   marks the row, and every read path now shares one visibility rule
