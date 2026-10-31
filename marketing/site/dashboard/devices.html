@@ -2933,6 +2933,10 @@
         card.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Processing host'));
         card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400',
           'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets, so it is left out of the fleet and from certificate asset counts. Its evidence is still used.'));
+        if (on) {
+          card.appendChild(el('p', 'mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300',
+            'Unmarking keeps every report and declared link, but past jobs that used this machine as a bench will resolve their origin differently: its media will be treated as sanitised in the machine that reported them, and the report’s host can outrank a declared origin. Keep this set if it was your bench for customer work.'));
+        }
         var state = el('p', 'mt-3 text-xs font-semibold ' + (on ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'),
           on ? 'Marked as a processing host.' : 'Not a processing host.');
         card.appendChild(state);

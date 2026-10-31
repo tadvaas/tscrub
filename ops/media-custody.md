@@ -184,6 +184,11 @@ was sanitised; the chassis was not.
   rather list the medium standalone than attribute it to the wrong asset.
 - A non-booting asset is named by its declared serial only; model and asset tag
   are not printed on the certificate.
+- The processing-host flag is **live, not historical**. Removing it keeps every
+  report and declared link, but future provenance resolution treats the host as
+  an ordinary machine: its media are assumed sanitised in place, and the report's
+  host can outrank a declared origin. Leave it set when decommissioning a bench;
+  only unmark a mistake. The media index's `Bench` tag follows the current flag.
 - Do not record a non-booting asset's already-sanitised drive as **physically
   destroyed** in a manual attestation to make the chassis appear. The drive was
   sanitised, not destroyed; the two fates need separate records.

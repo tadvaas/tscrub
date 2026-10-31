@@ -125,6 +125,26 @@ check(
   'drives: the bench state is amber',
   /host_processing[\s\S]*?text-amber-700/.test(originState) && /Bench processed/.test(originState)
 );
+check(
+  'drives: the media index tags a bench-reported medium',
+  /function benchChip/.test(js.drives)
+    && /if \(d\.host_processing\) model\.appendChild\(benchChip\(\)\)/.test(js.drives)
+    && /if \(d\.host_processing\) modelRow\.appendChild\(benchChip\(\)\)/.test(js.drives)
+);
+check(
+  'drives: the report history is sorted by submission',
+  /function historySorted/.test(js.drives)
+    && /uploaded_at/.test(bodyOf(js.drives, 'historySorted'))
+    && /historySorted\(d\)\.forEach/.test(js.drives)
+);
+check(
+  'drives: the history shows Submitted and Erased',
+  /'CoC', 'Submitted', 'Erased'/.test(js.drives) && /Submitted ' \+ submitted/.test(js.drives)
+);
+check(
+  'drives: the record header shows the submission time',
+  /when\.push\('submitted '/.test(bodyOf(js.drives, 'openDrive'))
+);
 check('drives: the report history no longer carries the origin action', !/function originBox/.test(js.drives) && !/inner\.appendChild\(originBox/.test(js.drives));
 check('drives: the old labels are gone', !/Assign origin/.test(pages.drives) && !/Change origin/.test(pages.drives));
 check('drives: action labels do not carry a dialog ellipsis', !/Correct COCID\u2026/.test(pages.drives) && !/Reassign origin\u2026/.test(pages.drives));
@@ -151,6 +171,11 @@ const openOps = bodyOf(js.devices, 'openOperations');
 check('devices: the Log no longer carries the bench action', !/benchToggle/.test(logPanel));
 check('devices: the Operations panel carries the bench action', /benchToggle\(dev\)/.test(openOps));
 check('devices: the empty-bench hint points at the Ops panel', /Ops panel/.test(hint));
+check(
+  'devices: the Ops card warns that unmarking changes past provenance',
+  /Unmarking keeps every report/.test(bodyOf(js.devices, 'benchToggle'))
+    && /outrank a declared origin/.test(bodyOf(js.devices, 'benchToggle'))
+);
 
 const open = bodyOf(js.devices, 'openFilterModal');
 check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*benchView/.test(open));

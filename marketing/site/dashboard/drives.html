@@ -956,19 +956,44 @@
         return 'bg-slate-400';
       }
 
+      // A tag on the media index: the LAST report for this medium was submitted
+      // by a machine marked as a processing (bench) host. It is the same
+      // classification the record's origin state uses.
+      function benchChip() {
+        var chip = el('span', 'shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'Bench');
+        chip.title = 'Last report submitted by a processing host (bench machine)';
+        return chip;
+      }
+
+      // Newest submission first. The API already returns this order, but the list
+      // is rendered by hand and a re-merged array must not silently reorder itself.
+      // Submission time is the sort key the Submitted column shows; the report id
+      // breaks a same-second tie so the order is stable.
+      function historySorted(d) {
+        return (d.history || []).slice().sort(function (a, b) {
+          var c = String(b.uploaded_at || '').localeCompare(String(a.uploaded_at || ''));
+          if (c !== 0) return c;
+          return String(b.report_id || b.id || '').localeCompare(String(a.report_id || a.id || ''));
+        });
+      }
+
       function historyList(d) {
         var wrap = el('div', 'mt-3 space-y-2');
         if (!(d.history || []).length) {
           wrap.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'No reports recorded for this medium yet.'));
           return wrap;
         }
-        (d.history || []).forEach(function (h) {
+        historySorted(d).forEach(function (h) {
           var row = el('div', 'rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-ink-700 dark:bg-ink-800');
           var top = el('div', 'flex items-center justify-between gap-2');
           top.appendChild(el('span', 'truncate font-mono font-semibold text-brand-700 dark:text-brand-400', h.cocid || '—'));
           top.appendChild(el('span', 'shrink-0 ' + statusChipClass(h.status), h.status || '—'));
           row.appendChild(top);
-          row.appendChild(el('p', 'mt-1 text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
+          var submitted = fmtTsTime(h.uploaded_at);
+          var erased = fmtTsTime(h.ts || h.uploaded_at);
+          row.appendChild(el('p', 'mt-1 text-slate-500 dark:text-slate-400',
+            (submitted ? 'Submitted ' + submitted : 'No submission time')
+            + (erased && erased !== submitted ? ' · erased ' + erased : '')));
           var detail = [h.method, h.cls].filter(Boolean).join(' · ');
           if (detail) row.appendChild(el('p', 'mt-0.5 truncate text-slate-500 dark:text-slate-400', detail));
           row.appendChild(el('p', 'mt-1 text-[11px] text-slate-400 dark:text-slate-500',
@@ -996,6 +1021,7 @@
         var grade = el('span', 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ' + gradeBadgeClass(d.grade), d.grade || '—');
         if (d.grade_reason) grade.title = d.grade_reason;
         model.appendChild(grade);
+        if (d.host_processing) model.appendChild(benchChip());
         id.appendChild(model);
         id.appendChild(el('p', 'mt-0.5 truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400', d.serial || '—'));
         top.appendChild(id);
@@ -1277,7 +1303,11 @@
           var subTd = el('td', 'whitespace-nowrap px-3 py-2 text-xs text-slate-600 dark:text-slate-400', submitted || '—');
           if (submitted) { subTd.title = 'Last report submitted ' + submitted; }
           tr.appendChild(subTd);
-          var modelCell = el('td', 'max-w-[14rem] truncate px-3 py-2 font-medium text-ink-900 dark:text-white', d.model || '—');
+          var modelCell = el('td', 'max-w-[14rem] px-3 py-2 font-medium text-ink-900 dark:text-white');
+          var modelRow = el('div', 'flex min-w-0 items-center gap-1.5');
+          modelRow.appendChild(el('span', 'truncate', d.model || '—'));
+          if (d.host_processing) modelRow.appendChild(benchChip());
+          modelCell.appendChild(modelRow);
           modelCell.title = d.model || '';
           tr.appendChild(modelCell);
           var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
@@ -1330,11 +1360,11 @@
             subtd.colSpan = 7;
             var st = el('table', 'w-full border-collapse text-xs');
             var shr = el('tr', 'bg-slate-100 dark:bg-ink-800');
-            ['CoC', 'Erased', 'Status', 'Method', 'Class', 'SMART (post)', 'Verify', 'Format', ''].forEach(function (h) {
+            ['CoC', 'Submitted', 'Erased', 'Status', 'Method', 'Class', 'SMART (post)', 'Verify', 'Format', ''].forEach(function (h) {
               shr.appendChild(el('th', 'border-b border-slate-200 dark:border-ink-700 px-2 py-1.5 text-left font-semibold uppercase text-slate-500 dark:text-slate-400', h));
             });
             st.appendChild(shr);
-            (d.history || []).forEach(function (h) {
+            historySorted(d).forEach(function (h) {
               var htr = el('tr', 'border-b border-slate-100 dark:border-ink-800');
               var hcoc = el('td', 'px-2 py-1.5');
               var cocidLink = el('a', 'font-mono font-semibold text-brand-700 dark:text-brand-400 hover:underline', h.cocid || '—');
@@ -1345,6 +1375,7 @@
                 hcoc.appendChild(el('span', 'block text-[10px] text-slate-400 dark:text-slate-500', h.report_devices + ' media items in report'));
               }
               htr.appendChild(hcoc);
+              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.method || '—'));
@@ -1437,7 +1468,12 @@
         head.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400', 'tScrub erasure report'));
         var meta = el('div', 'mt-2 text-sm text-slate-600 dark:text-slate-400');
         meta.appendChild(el('span', 'font-semibold text-slate-800 dark:text-slate-200', 'Chain of Custody ' + (d.cocid || '—')));
-        meta.appendChild(document.createTextNode(' · erased ' + (fmtTsTime(d.ts || d.uploaded_at) || '—')));
+        var submitted = fmtTsTime(d.uploaded_at);
+        var erased = fmtTsTime(d.ts);
+        var when = [];
+        if (submitted) when.push('submitted ' + submitted);
+        if (erased && erased !== submitted) when.push('erased ' + erased);
+        meta.appendChild(document.createTextNode(' · ' + (when.length ? when.join(' · ') : '—')));
         head.appendChild(meta);
         doc.appendChild(head);
 

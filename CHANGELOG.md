@@ -48,6 +48,23 @@ and this project uses date-based versioning (`v1.x`).
   assumed in-place origin or a declared one, **amber** for a bench-processed
   medium or a report with no host serial.
 
+- **The media index tags a medium whose last report came from the bench.** A
+  small `Bench` chip in the Model column, and on the mobile card, marks a row
+  whose latest report was submitted by a processing host. It follows the
+  machine's current flag; see the Ops panel note before unmarking a bench.
+
+- **Report history shows and sorts by submission time.** The record header now
+  reads `submitted … · erased …`, the report history has a `Submitted` column
+  beside `Erased`, and the rows are sorted newest submission first. This keeps a
+  report's upload time separate from the erasure clock, which can be years out on
+  a machine with a bad RTC.
+
+- **Unmarking a bench explains its effect.** The Ops card now warns that the
+  reports and declared links stay, but past jobs resolve their origin
+  differently: their media are treated as sanitised in the machine that reported
+  them, and the report's host can outrank a declared origin. Keep the flag set
+  when decommissioning a bench.
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema
