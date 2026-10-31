@@ -143,7 +143,7 @@ was sanitised; the chassis was not.
 | The declared origin does not appear on the Media row | Only **declared** links are attached to the list. Observed origins are derived at certificate time. | Generate or regenerate the certificate and read Annex A, or open the medium's Reports expansion after a declaration. |
 | `asset serial is empty or a firmware placeholder` | The asset reported `N/A` or a placeholder. | The customer cannot track an asset by a serial the machine does not have; agree an identifier and record it before the job. |
 | The same drive appears twice | Two cheap drives report the same serial, or a drive was erased twice. | Do not link it. Resolve the duplicate physically (label and re-check). A re-installed drive is re-sanitisation, not a second medium. |
-| Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use the **Bench hosts** toggle, or `?bench=1`. The toggle is disabled while nothing is marked and its tooltip says where to mark one. A marked row carries a **Bench** badge in that view. |
+| Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use **Filters → Show our bench hosts**, or `?bench=1`. When nothing is marked the checkbox's hint says where to mark one. A marked row carries a **Bench** badge in that view. |
 
 ---
 
@@ -157,7 +157,7 @@ was sanitised; the chassis was not.
   standard claim.
 - Blank, `N/A` or duplicated serials refuse to link. The certificate would
   rather list the medium standalone than attribute it to the wrong asset.
-- The Bench hosts view is part of the remembered view (query string and local
+- The bench view is part of the remembered view (query string and local
   storage), so a refresh keeps it. The processing-host flag itself is stored
   server-side.
 
@@ -181,7 +181,7 @@ no observed link and needs a declaration.
 | Declare an origin | Media → medium's row → Reports ▸ → Assign origin… |
 | Remove a declaration | same panel, or `DELETE /api/media/link/{id}` |
 | Mark/unmark a bench host | Devices → row → Log → Mark as our bench machine |
-| Show bench hosts | Devices toolbar → Bench hosts (or `?bench=1`) |
+| Show bench hosts | Devices → Filters → Show our bench hosts (or `?bench=1`) |
 | List declared links | `GET /api/media/links?cocid=<COCID>` |
 | Asset figures on a certificate | PDF Annex A, JSON-LD `assetAccounting`, `/verify` |
 | Re-issue after a new link | Certificates → generate/regenerate the job |

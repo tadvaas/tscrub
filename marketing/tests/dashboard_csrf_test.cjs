@@ -12,11 +12,11 @@
  *   - both pages define getCsrf() and neither declares a global csrf variable;
  *   - the two provenance POSTs (benchToggle, openOriginForm) call getCsrf()
  *     and never reference a bare `csrf`;
- *   - the Bench hosts button is in the markup from the start (not `hidden`),
- *     disabled with an explanation, so the feature is discoverable before
- *     anything is marked;
- *   - paintBench() removes `hidden` unconditionally — the control must remain
- *     visible in the empty state.
+ *   - the bench-host control lives in the Filters modal as a checkbox, is not a
+ *     separate toolbar button, and is seeded, applied and cleared with the rest
+ *     of the filter state;
+ *   - the bench choice is counted and chipped like a filter, so the Filters
+ *     button never under-states the view.
  *
  * Run: node marketing/tests/dashboard_csrf_test.cjs
  */
@@ -93,20 +93,41 @@ for (const p of posts) {
   );
 }
 
-// The control itself: present, not hidden, disabled with an explanation.
-const benchBtn = (pages.devices.match(/<button[^>]*id="bench-btn"[^>]*>/) || [''])[0];
-check('devices: Bench hosts button is in the markup', benchBtn.length > 0);
-check('devices: Bench hosts button is not hidden', !/\bclass="[^"]*\bhidden\b/.test(benchBtn));
-check('devices: Bench hosts button starts disabled', /\bdisabled\b/.test(benchBtn));
+// The control itself: a checkbox in the Filters modal, not a toolbar button.
+const benchInput = (pages.devices.match(/<input[^>]*id="filter-bench"[^>]*>/) || [''])[0];
+check('devices: Filters modal has the bench checkbox', benchInput.length > 0);
+check('devices: the bench checkbox is a checkbox', /type="checkbox"/.test(benchInput));
+check('devices: no separate Bench hosts toolbar button', !/id="bench-btn"/.test(pages.devices));
+check('devices: the bench checkbox names the choice', /Show our bench hosts/.test(pages.devices));
+
+const hint = bodyOf(js.devices, 'paintBenchHint');
+check('devices: paintBenchHint() exists', hint.length > 0);
 check(
-  'devices: Bench hosts button explains the empty state',
-  /No machines are marked as processing hosts yet/.test(benchBtn)
+  'devices: paintBenchHint() says how to mark one when none exist',
+  /No machines are marked yet/.test(hint)
 );
-const paint = bodyOf(js.devices, 'paintBench');
-check('devices: paintBench() exists', paint.length > 0);
+
+const open = bodyOf(js.devices, 'openFilterModal');
+check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*benchView/.test(open));
+const apply = bodyOf(js.devices, 'applyFilterModal');
+check('devices: applying Filters writes the bench choice', /benchView\s*=\s*!!?\s*pendingBench/.test(apply));
 check(
-  'devices: paintBench() always un-hides the control',
-  /classList\.remove\(\s*'hidden'\s*\)/.test(paint) && !/classList\.toggle\(\s*'hidden'/.test(paint)
+  'devices: Clear all in the modal clears the bench choice',
+  /pendingBench\s*=\s*false/.test(js.devices)
+);
+const paintFilters = bodyOf(js.devices, 'paintFilters');
+check(
+  'devices: the filter count includes the bench choice',
+  /countFilters\(filters\)\s*\+\s*\(benchView\s*\?\s*1\s*:\s*0\)/.test(paintFilters)
+);
+check(
+  'devices: the chip row can turn the bench choice off',
+  /benchView\s*=\s*false/.test(paintFilters) && /Bench hosts/.test(paintFilters)
+);
+const hintCount = bodyOf(js.devices, 'paintFilterHint');
+check(
+  'devices: Apply (N) counts the bench choice',
+  /pendingBench\s*\?\s*1\s*:\s*0/.test(hintCount)
 );
 
 console.log('\n' + (fails ? fails + ' of ' + count + ' checks FAILED' : count + ' checks passed'));

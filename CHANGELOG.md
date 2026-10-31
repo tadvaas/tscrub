@@ -8,6 +8,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- **The bench-host visibility control moved into the Filters modal.** It was a
+  toolbar toggle beside Filters, which is not where an operator looks to ask
+  "what is in this list", and it stayed invisible until a host existed. It is now
+  **Filters → Show our bench hosts**, counted in the `Filters (N)` badge, shown as
+  a removable `Bench hosts` chip and cleared by Clear all. The hint inside the
+  modal says how to mark a machine when none is marked. The view is still part of
+  the remembered view (`?bench=1` plus local storage).
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema
@@ -26,14 +36,14 @@ and this project uses date-based versioning (`v1.x`).
 
 - **The Bench hosts control was hidden until a host existed**, which made the
   feature undiscoverable (and unreachable while the two bugs above kept the list
-  empty). It is now always visible, disabled with a tooltip that says where to
-  mark a machine, and it returns to that state when the last host is unmarked.
+  empty). It now lives in the Filters modal, where the hint says where to mark a
+  machine when none is marked.
 
 - **A machine marked as a bench host showed no flag anywhere.** Marking it removed
   it from the Devices list, which reads as deletion, and the only clue was a
-  toolbar toggle that reverted on refresh. The row now keeps a `Bench` badge, the
-  toolbar shows `Hide bench hosts`, and the bench view is part of the remembered
-  view (`?bench=1` plus local storage) rather than a session-only toggle. The flag
+  toggle that reverted on refresh. The row now keeps a `Bench` badge, the bench
+  view is switched on from Filters and its chip says it is on, and the choice is
+  remembered (`?bench=1` plus local storage) rather than session-only. The flag
   is also available as a `Processing host` column in the Devices export.
 
 ## [v1.11.87] - 2026-10-31

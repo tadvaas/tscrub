@@ -64,9 +64,6 @@
       </div>
       <button type="button" id="search-clear" class="ts-btn ts-btn--secondary hidden">Clear</button>
       <button type="button" id="filter-btn" class="ts-btn ts-btn--secondary" title="Filter the list by presence, BIOS lock, MDM, Secure Boot, TPM, media and notes">Filters</button>
-      <!-- Bench / processing hosts. Visible from the start, disabled until one
-           exists: hiding the control made the feature undiscoverable. -->
-      <button type="button" id="bench-btn" class="ts-btn ts-btn--secondary" aria-pressed="false" disabled title="No machines are marked as processing hosts yet. Open a machine’s Log and choose “Mark as our bench machine”.">Bench hosts</button>
       <!-- The count comes from the FILTERED set, not the account: only devices with a
            captured hash and no job at all can be queued, so on a full view this reads
            "Check MDM (9)", not "(207)". -->
@@ -322,6 +319,18 @@
           <button id="filter-modal-close" type="button" class="ts-btn ts-btn--secondary">Close</button>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <!-- A bench host is our own machine, not the customer's asset, so the
+               server leaves it out of the fleet and every count. Showing them is a
+               base-set choice rather than a narrowing facet, which is why it sits
+               above the groups instead of among them. This is also where the
+               feature is discovered: the hint says how to mark a machine. -->
+          <label class="mb-5 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-ink-700 dark:bg-ink-800">
+            <input id="filter-bench" type="checkbox" class="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700" />
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-ink-900 dark:text-white">Show our bench hosts</span>
+              <span id="filter-bench-hint" class="block text-xs text-slate-500 dark:text-slate-400">Processing hosts are our own bench machines: left out of the fleet and asset counts, their evidence still used.</span>
+            </span>
+          </label>
           <div id="filter-groups" class="space-y-5"></div>
           <p class="mt-4 text-xs text-slate-400 dark:text-slate-500">Options with no matches stay selectable, so a filter can be set up to watch a state — “Erasing (0)” today shows the device the moment it starts erasing.</p>
         </div>
@@ -1250,6 +1259,13 @@
       var deviceFacets = null;   // per-option counts from the last /api/devices response
       var filters = {};          // facet -> {value:true}: the APPLIED filter
       var pending = {};          // the set being edited in the modal
+      // The bench view is a base-set choice, not a facet: the server leaves
+      // processing hosts out of the fleet unless ?bench=1 is present, so it cannot
+      // be expressed as an `ff` token. It is still counted and chipped with the
+      // filters, so one button and one chip row describe the whole view.
+      var benchView = viewGet('bench') === '1';
+      var benchHosts = {};
+      var pendingBench = false;
       var filterModal = document.getElementById('filter-modal');
 
       function parseFilters(ff) {
@@ -1292,7 +1308,7 @@
       // The button and the chip row are the only standing evidence that a filter is
       // on, so they are painted from one place and always agree.
       function paintFilters() {
-        var n = countFilters(filters);
+        var n = countFilters(filters) + (benchView ? 1 : 0);
         var btn = document.getElementById('filter-btn');
         btn.textContent = n ? 'Filters (' + n + ')' : 'Filters';
         btn.classList.toggle('ts-btn--primary', n > 0);
@@ -1302,6 +1318,21 @@
         if (!n) { row.classList.add('hidden'); row.classList.remove('flex'); return; }
         row.classList.remove('hidden');
         row.classList.add('flex');
+        // The base-set choice first: it decides which records the facets are
+        // counting, so it reads as the outermost filter in the row.
+        if (benchView) {
+          var benchChip = el('button', 'ts-chip ts-chip--sky cursor-pointer', 'Bench hosts ×');
+          benchChip.type = 'button';
+          benchChip.title = 'Stop showing the machines marked as processing hosts';
+          benchChip.addEventListener('click', function () {
+            benchView = false;
+            page = 1;
+            paintFilters();
+            syncView();
+            loadDevices();
+          });
+          row.appendChild(benchChip);
+        }
         Object.keys(filters).sort().forEach(function (f) {
           Object.keys(filters[f]).sort().forEach(function (v) {
             if (!filters[f][v]) { return; }
@@ -1323,6 +1354,7 @@
         clear.type = 'button';
         clear.addEventListener('click', function () {
           filters = {};
+          benchView = false;
           page = 1;
           paintFilters();
           syncView();
@@ -1339,6 +1371,9 @@
       function renderFilterGroups() {
         var host = document.getElementById('filter-groups');
         host.innerHTML = '';
+        var bench = document.getElementById('filter-bench');
+        if (bench) { bench.checked = !!pendingBench; }
+        paintBenchHint();
         FACET_DEFS.forEach(function (d) {
           var group = el('div', '');
           group.appendChild(el('p', 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400', d.label));
@@ -1375,9 +1410,21 @@
         paintFilterHint();
       }
       function paintFilterHint() {
-        var n = countFilters(pending);
+        var n = countFilters(pending) + (pendingBench ? 1 : 0);
         document.getElementById('filter-apply').textContent = n ? 'Apply (' + n + ')' : 'Apply';
         document.getElementById('filter-reset').classList.toggle('invisible', n === 0);
+      }
+
+      // The checkbox is the discoverable home of the bench-host feature, so it has
+      // to say how to create one when there is nothing to show.
+      function paintBenchHint() {
+        var hint = document.getElementById('filter-bench-hint');
+        if (!hint) return;
+        var n = Object.keys(benchHosts).length;
+        hint.textContent = n === 0
+          ? 'No machines are marked yet. Open a machine’s Log and choose “Mark as our bench machine”.'
+          : n + (n === 1 ? ' machine is' : ' machines are')
+            + ' marked. Processing hosts are left out of the fleet and asset counts; their evidence is still used.';
       }
 
       // An open-vocabulary facet (COCID): typed in, not picked from a list, because
@@ -1458,12 +1505,14 @@
       function openFilterModal() {
         // Deep copy: Cancel must leave the applied filter untouched.
         pending = JSON.parse(JSON.stringify(filters));
+        pendingBench = benchView;
         renderFilterGroups();
         window.TSDialog.open(filterModal);
       }
       function closeFilterModal() { window.TSDialog.close(filterModal); }
       function applyFilterModal() {
         filters = JSON.parse(JSON.stringify(pending));
+        benchView = !!pendingBench;
         page = 1;
         paintFilters();
         syncView();
@@ -1476,9 +1525,14 @@
       document.getElementById('filter-modal-backdrop').addEventListener('click', closeFilterModal);
       document.getElementById('filter-reset').addEventListener('click', function () {
         pending = {};
+        pendingBench = false;
         renderFilterGroups();
       });
       document.getElementById('filter-apply').addEventListener('click', applyFilterModal);
+      document.getElementById('filter-bench').addEventListener('change', function () {
+        pendingBench = this.checked;
+        paintFilterHint();
+      });
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !filterModal.classList.contains('hidden')) closeFilterModal();
       });
@@ -2861,36 +2915,18 @@
       // ---- Bench / processing hosts ------------------------------------------
       // A bench machine produces evidence but is not one of the customer's assets.
       // Marking one removes it from the fleet (the server excludes it from the list
-      // and every count) and from certificate asset accounting.
-      var benchHosts = {};
-      var benchView = viewGet('bench') === '1';
-
-      function paintBench() {
-        var btn = document.getElementById('bench-btn');
-        if (!btn) return;
-        var n = Object.keys(benchHosts).length;
-        // Always visible: the control is also how an operator discovers the
-        // feature. With nothing marked it is disabled and says so, rather than
-        // leaving them hunting for a button that does not exist.
-        btn.classList.remove('hidden');
-        btn.disabled = (!benchView && n === 0);
-        btn.setAttribute('aria-pressed', benchView ? 'true' : 'false');
-        btn.textContent = benchView ? 'Hide bench hosts' : 'Bench hosts' + (n ? ' (' + n + ')' : '');
-        btn.title = n === 0
-          ? 'No machines are marked as processing hosts yet. Open a machine’s Log and choose “Mark as our bench machine”.'
-          : (benchView
-              ? 'Hide the machines marked as processing hosts'
-              : 'Show the machines marked as processing hosts (bench machines). They are excluded from the fleet and from asset counts.');
-      }
+      // and every count) and from certificate asset accounting. benchView and
+      // benchHosts are declared with the filters, where the base-set choice lives.
 
       function loadBenchHosts() {
         fetch('/api/devices/processing-hosts').then(function (r) { return r.json(); })
           .then(function (d) {
             benchHosts = {};
             ((d && d.hosts) || []).forEach(function (h) { benchHosts[String(h.device_key || '')] = h; });
-            paintBench();
+            paintBenchHint();
+            paintFilters();
           })
-          .catch(function () { paintBench(); });
+          .catch(function () { paintBenchHint(); paintFilters(); });
       }
 
       function benchToggle(dev) {
@@ -2925,13 +2961,13 @@
             if (on) { delete benchHosts[key]; } else { benchHosts[key] = { device_key: key }; }
             // Keep the row on screen after MARKING it. Reloading with the default
             // view would make it vanish, which reads as deletion; staying in the
-            // bench view shows the Bench badge and the Hide bench hosts control,
-            // which is how the operator can confirm the flag is set.
+            // bench view shows the Bench badge and the Filters chip, which is how
+            // the operator can confirm the flag is set.
             // Unmarking the last one leaves the bench view: there is nothing left
-            // to show, and the control returns to its disabled empty state.
+            // to show.
             if (!on) benchView = true;
             else if (!Object.keys(benchHosts).length) benchView = false;
-            paintBench();
+            paintFilters();
             lastDevicesJson = '';
             loadDevices();
           }).catch(function () {
@@ -2944,14 +2980,6 @@
           'Excluded from the fleet and from certificate asset counts. Evidence it produced is still used.'));
         return box;
       }
-
-      document.getElementById('bench-btn').addEventListener('click', function () {
-        benchView = !benchView;
-        paintBench();
-        page = 1;
-        lastDevicesJson = '';
-        loadDevices();
-      });
 
       // Rebuilds the panel's contents in place — on the first paint (fetch out),
       // when the events arrive, and on Load more. Never by re-rendering the table.
