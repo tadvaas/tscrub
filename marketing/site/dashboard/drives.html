@@ -1082,19 +1082,24 @@
 
       // Declared origin for a medium that was pulled and erased elsewhere. The
       // origin is operator-declared provenance; the erasure itself stays verified.
-      function originBox(d) {
-        var box = el('div', 'mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-ink-700 pt-2 text-xs');
-        var known = !!d.origin_asset;
-        var label = known
-          ? 'Origin asset: ' + d.origin_asset + ' (' + (d.origin_provenance === 'declared' ? 'declared by operator' : d.origin_provenance) + '). Erased on ' + (d.sysserial || 'a different host') + '.'
-          : 'Origin asset not recorded — set it when this medium came out of another machine.';
-        box.appendChild(el('span', 'text-slate-500 dark:text-slate-400', label));
-        var btn = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', known ? 'Change origin…' : 'Assign origin…');
-        btn.type = 'button';
-        btn.title = 'Record which asset this medium came from. Provenance is operator-declared; the erasure evidence is not changed.';
-        btn.addEventListener('click', function () { openOriginForm(d, box); });
-        box.appendChild(btn);
-        return box;
+      //
+      // This paints the READ-ONLY state in the record view. The action that opens
+      // the form is the footer's Reassign origin…, beside Correct COCID…; the
+      // action belongs with the record, not behind the report history.
+      function originState(d, box) {
+        box.innerHTML = '';
+        var host = d.sysserial || 'a different host';
+        if (d.origin_asset) {
+          var prov = d.origin_provenance === 'declared' ? 'declared by operator' : (d.origin_provenance || '');
+          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
+            'Origin asset: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + host + '.'));
+        } else {
+          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
+            'Origin asset not separately recorded. This medium is attributed to the machine that reported it, '
+            + host + '. If it was pulled from another asset, reassign the origin.'));
+        }
+        box.appendChild(el('p', 'mt-1 text-[11px] text-slate-500 dark:text-slate-400',
+          'Provenance is operator-declared; the erasure evidence is unchanged.'));
       }
 
       function openOriginForm(d, box) {
@@ -1147,8 +1152,13 @@
               save.disabled = false;
               return;
             }
+            d.origin_asset = asset.value.trim();
+            d.origin_provenance = 'declared';
             box.innerHTML = '';
-            box.appendChild(el('span', 'text-xs font-semibold text-emerald-700 dark:text-emerald-400', 'Origin recorded. It appears on the certificate after it is generated.'));
+            box.appendChild(el('p', 'text-xs font-semibold text-emerald-700 dark:text-emerald-400', 'Origin recorded. It appears on the certificate after it is generated.'));
+            var again = el('div', 'mt-2');
+            originState(d, again);
+            box.appendChild(again);
             lastDrivesJson = '';
             loadDrives();
           }).catch(function () {
@@ -1157,8 +1167,7 @@
           });
         });
         cancel.addEventListener('click', function () {
-          lastDrivesJson = '';
-          loadDrives();
+          originState(d, box);
         });
         form.appendChild(save);
         form.appendChild(cancel);
@@ -1332,7 +1341,6 @@
             });
             var inner = el('div', animRow ? 'row-expand' : '');
             inner.appendChild(st);
-            inner.appendChild(originBox(d));
             subtd.appendChild(inner);
             sub.appendChild(subtd);
             body.appendChild(sub);
@@ -1423,6 +1431,16 @@
           strip.appendChild(chip);
         });
         doc.appendChild(strip);
+
+        // Origin asset: the customer asset this medium came from, when it is not
+        // the machine that ran the erase. Shown with the record so the state is
+        // visible; the action is in the footer beside Correct COCID….
+        var originSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
+        originSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Origin asset'));
+        var originBody = el('div', 'mt-2');
+        originState(d, originBody);
+        originSec.appendChild(originBody);
+        doc.appendChild(originSec);
 
         // Device + drive identity (and the richer v1.9.0 capture when present).
         function section(title, pairs) {
@@ -1528,6 +1546,18 @@
             window.ReportCorrections.correctReport({ id: d.report_id, cocid: d.cocid || '' });
           });
           foot.appendChild(dfix);
+        }
+        // The origin belongs to the medium, not to one report, so it is changed
+        // here rather than behind the history table. An attested medium has no
+        // erasure report to attribute.
+        if (!d.attested) {
+          var obtn = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Reassign origin…');
+          obtn.title = 'Record which customer asset this medium came from. Provenance is operator-declared; the erasure evidence is not changed.';
+          obtn.addEventListener('click', function () {
+            openOriginForm(d, originBody);
+            if (originSec.scrollIntoView) originSec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+          foot.appendChild(obtn);
         }
         var dpdf = el('button', 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700', 'Download PDF');
         dpdf.addEventListener('click', function () {

@@ -12,6 +12,8 @@
  *   - both pages define getCsrf() and neither declares a global csrf variable;
  *   - the two provenance POSTs (benchToggle, openOriginForm) call getCsrf()
  *     and never reference a bare `csrf`;
+ *   - the origin action lives in the media record view beside Correct COCID…,
+ *     labelled Reassign origin…, and the report history no longer carries it;
  *   - the bench-host control lives in the Filters modal as a checkbox, is not a
  *     separate toolbar button, and is seeded, applied and cleared with the rest
  *     of the filter state;
@@ -92,6 +94,23 @@ for (const p of posts) {
     !/'X-CSRF-Token'\s*:\s*csrf\b/.test(body)
   );
 }
+
+// The origin action belongs to the record, beside Correct COCID…, not to the
+// report-history table. "Assign" was the wrong verb: the medium already has an
+// origin (the host that reported it), so the operator is re-attributing it.
+const driveView = bodyOf(js.drives, 'openDrive');
+const originState = bodyOf(js.drives, 'originState');
+check('drives: the record view shows the origin state', driveView.indexOf('originState(d, originBody)') >= 0);
+check('drives: the record view offers Reassign origin…', /Reassign origin\u2026/.test(driveView));
+check('drives: it opens the origin form in the record', /openOriginForm\(d, originBody\)/.test(driveView));
+check(
+  'drives: it sits beside Correct COCID… in the footer',
+  driveView.indexOf('Correct COCID\u2026') >= 0
+    && driveView.indexOf('Correct COCID\u2026') < driveView.indexOf('Reassign origin\u2026')
+);
+check('drives: the origin state itself is read-only', originState.length > 0 && !/Reassign origin\u2026/.test(originState));
+check('drives: the report history no longer carries the origin action', !/function originBox/.test(js.drives) && !/inner\.appendChild\(originBox/.test(js.drives));
+check('drives: the old labels are gone', !/Assign origin\u2026/.test(pages.drives) && !/Change origin\u2026/.test(pages.drives));
 
 // The control itself: a checkbox in the Filters modal, not a toolbar button.
 const benchInput = (pages.devices.match(/<input[^>]*id="filter-bench"[^>]*>/) || [''])[0];

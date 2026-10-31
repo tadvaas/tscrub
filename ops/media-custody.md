@@ -81,8 +81,8 @@ state both. The job (COCID) is the container for that evidence.
    derived automatically when the medium appeared in the asset's boot snapshot
    or in a failed row on that asset. If the asset could not boot, or the drive
    arrived loose, declare it:
-   **Media → the medium's row → Reports ▸ → Assign origin…**, then enter the
-   asset serial, the COCID, the reason and an optional note. The origin is
+   **Media → the medium's row → Reports ▸ → View → Reassign origin…**, then enter
+   the asset serial, the COCID, the reason and an optional note. The origin is
    recorded as **declared by operator** and is never shown as
    instrument-verified.
 5. **Check the job before issuing.** On Certificates, the job shows
@@ -113,7 +113,7 @@ state both. The job (COCID) is the container for that evidence.
   destroyed device and not as a device with no certificate.
 - An asset that never booted has no system name on file. Its **ASSET
   ACCOUNTING** line carries the serial you declared and nothing else: no model
-  and no asset tag. Put those in the declaration note (Media ▸ Reports ▸ Assign
+  and no asset tag. Put those in the declaration note (Media ▸ View ▸ Reassign
   origin), which is kept in the device log, and on the job paperwork.
 - Page 1's machine profile is the **bench** that ran the erasure, not the asset.
   The asset appears under ASSET ACCOUNTING and in the per-drive `Origin asset`
@@ -157,7 +157,7 @@ was sanitised; the chassis was not.
 | `origin ambiguous between assets` | Two non-processing hosts both reported the medium. | Decide which is the asset and mark the other as a processing host, or correct the COCID/report. The certificate will not pick one. |
 | `no completed erasure evidence` | The link exists but no erasure report for that medium is in this COCID yet. | Run or upload the bench report under the same COCID. |
 | A no-media asset says `boot snapshot <time>` only | The appliance never saw a drive. | If media existed, declare the link. If not, this is the correct record. |
-| The declared origin does not appear on the Media row | Only **declared** links are attached to the list. Observed origins are derived at certificate time. | Generate or regenerate the certificate and read Annex A, or open the medium's Reports expansion after a declaration. |
+| The declared origin does not appear on the Media row | Only **declared** links are attached to the list, and the list shows them as the `elsewhere` chip rather than in a column. Observed origins are derived at certificate time. | Open the medium's record (Reports ▸ → View) and read **Origin asset**; generate or regenerate the certificate and read Annex A. |
 | `asset serial is empty or a firmware placeholder` | The asset reported `N/A` or a placeholder. | The customer cannot track an asset by a serial the machine does not have; agree an identifier and record it before the job. |
 | The same drive appears twice | Two cheap drives report the same serial, or a drive was erased twice. | Do not link it. Resolve the duplicate physically (label and re-check). A re-installed drive is re-sanitisation, not a second medium. |
 | Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use **Filters → Show our bench hosts**, or `?bench=1`. When nothing is marked the checkbox's hint says where to mark one. A marked row carries a **Bench** badge in that view. |
@@ -200,7 +200,7 @@ no observed link and needs a declaration.
 
 | task | where |
 |---|---|
-| Declare an origin | Media → medium's row → Reports ▸ → Assign origin… |
+| Declare an origin | Media → medium's row → Reports ▸ → View → Reassign origin… |
 | Remove a declaration | same panel, or `DELETE /api/media/link/{id}` |
 | Mark/unmark a bench host | Devices → row → Log → Mark as our bench machine |
 | Show bench hosts | Devices → Filters → Show our bench hosts (or `?bench=1`) |

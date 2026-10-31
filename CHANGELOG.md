@@ -18,6 +18,15 @@ and this project uses date-based versioning (`v1.x`).
   modal says how to mark a machine when none is marked. The view is still part of
   the remembered view (`?bench=1` plus local storage).
 
+- **The origin action moved into the medium's record view and was renamed.** It
+  was behind the report-history expansion as `Assign origin…` (and `Change
+  origin…` once set). The verb was wrong: the medium already has an origin, the
+  host that reported it, so the operator is re-attributing it. `Reassign
+  origin…` now sits in the record view beside `Correct COCID…`, and the record
+  states the current origin. A declaration belongs to one job, so each
+  report-history row now resolves its own COCID instead of inheriting the latest
+  job's origin.
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema

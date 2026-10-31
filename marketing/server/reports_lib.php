@@ -4492,14 +4492,42 @@ function media_links_attach(array $rows, int $userId): array {
         error_log('media_links_attach: ' . $e->getMessage());
         return $rows;
     }
+    return media_links_apply($rows, $map);
+}
+
+/**
+ * Apply a (cocid → media key → asset serial) map to one media row.
+ *
+ * Pure, so the history walk below can be tested without a database.
+ */
+function media_link_apply(array $row, array $map): array {
+    if ($map === []) return $row;
+    $cocid = (string)($row['cocid'] ?? '');
+    $ms = mp_key((string)($row['serial'] ?? ''));
+    if ($cocid !== '' && $ms !== '' && isset($map[$cocid][$ms])) {
+        $row['origin_asset'] = $map[$cocid][$ms];
+        $row['origin_provenance'] = 'declared';
+    }
+    return $row;
+}
+
+/**
+ * Apply declarations to the consolidated rows AND to every report-history row.
+ *
+ * A medium can appear in reports from several jobs, and a declaration belongs to
+ * one COCID, so each history row is resolved against its OWN COCID. Resolving
+ * only the parent would show the latest job's origin (or none) when the record
+ * view was opened from an older report.
+ */
+function media_links_apply(array $rows, array $map): array {
     if ($map === []) return $rows;
     foreach ($rows as &$r) {
         if (!is_array($r) || !empty($r['attested'])) continue;
-        $cocid = (string)($r['cocid'] ?? '');
-        $ms = mp_key((string)($r['serial'] ?? ''));
-        if ($cocid !== '' && $ms !== '' && isset($map[$cocid][$ms])) {
-            $r['origin_asset'] = $map[$cocid][$ms];
-            $r['origin_provenance'] = 'declared';
+        $r = media_link_apply($r, $map);
+        if (!empty($r['history']) && is_array($r['history'])) {
+            foreach ($r['history'] as $i => $h) {
+                if (is_array($h)) $r['history'][$i] = media_link_apply($h, $map);
+            }
         }
     }
     unset($r);
