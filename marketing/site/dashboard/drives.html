@@ -1084,7 +1084,7 @@
       // origin is operator-declared provenance; the erasure itself stays verified.
       //
       // This paints the READ-ONLY state in the record view. The action that opens
-      // the form is the footer's Reassign origin…, beside Correct COCID…; the
+      // the form is the footer's Reassign origin, beside Correct COCID; the
       // action belongs with the record, not behind the report history.
       function originState(d, box) {
         box.innerHTML = '';
@@ -1434,7 +1434,7 @@
 
         // Origin asset: the customer asset this medium came from, when it is not
         // the machine that ran the erase. Shown with the record so the state is
-        // visible; the action is in the footer beside Correct COCID….
+        // visible; the action is in the footer beside Correct COCID.
         var originSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
         originSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Origin asset'));
         var originBody = el('div', 'mt-2');
@@ -1540,7 +1540,7 @@
         // The erasure record carries its own COCID, so the fix is offered here
         // as well as on the report row and the Devices side.
         if (d.report_id && window.ReportCorrections) {
-          var dfix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID…');
+          var dfix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID');
           dfix.title = 'Change this report’s Chain of Custody ID';
           dfix.addEventListener('click', function () {
             window.ReportCorrections.correctReport({ id: d.report_id, cocid: d.cocid || '' });
@@ -1551,7 +1551,7 @@
         // here rather than behind the history table. An attested medium has no
         // erasure report to attribute.
         if (!d.attested) {
-          var obtn = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Reassign origin…');
+          var obtn = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Reassign origin');
           obtn.title = 'Record which customer asset this medium came from. Provenance is operator-declared; the erasure evidence is not changed.';
           obtn.addEventListener('click', function () {
             openOriginForm(d, originBody);

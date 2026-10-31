@@ -22,10 +22,21 @@ and this project uses date-based versioning (`v1.x`).
   was behind the report-history expansion as `Assign origin…` (and `Change
   origin…` once set). The verb was wrong: the medium already has an origin, the
   host that reported it, so the operator is re-attributing it. `Reassign
-  origin…` now sits in the record view beside `Correct COCID…`, and the record
+  origin` now sits in the record view beside `Correct COCID`, and the record
   states the current origin. A declaration belongs to one job, so each
   report-history row now resolves its own COCID instead of inheriting the latest
   job's origin.
+
+- **The bench-host action moved from the Log to the Ops panel.** Marking a machine
+  as our own bench is a property of the machine, not of its history, and the Log
+  is rebuilt as reports arrive. The Ops panel now has a **Processing host** card
+  that states the current mark and carries **Mark as our bench machine** /
+  **Stop treating this as a bench machine**. The Filters hint points there.
+
+- **Action labels no longer end in an ellipsis.** `Correct COCID…` and `Reassign
+  origin…` are now `Correct COCID` and `Reassign origin`. The ellipsis convention
+  (this opens a dialog) was applied inconsistently: Add and Filters open dialogs
+  without one. In-progress labels such as `Saving…` keep theirs.
 
 ### Fixed
 

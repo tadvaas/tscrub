@@ -12,8 +12,8 @@
  *   - both pages define getCsrf() and neither declares a global csrf variable;
  *   - the two provenance POSTs (benchToggle, openOriginForm) call getCsrf()
  *     and never reference a bare `csrf`;
- *   - the origin action lives in the media record view beside Correct COCID…,
- *     labelled Reassign origin…, and the report history no longer carries it;
+ *   - the origin action lives in the media record view beside Correct COCID,
+ *     labelled Reassign origin, and the report history no longer carries it;
  *   - the bench-host control lives in the Filters modal as a checkbox, is not a
  *     separate toolbar button, and is seeded, applied and cleared with the rest
  *     of the filter state;
@@ -95,22 +95,23 @@ for (const p of posts) {
   );
 }
 
-// The origin action belongs to the record, beside Correct COCID…, not to the
+// The origin action belongs to the record, beside Correct COCID, not to the
 // report-history table. "Assign" was the wrong verb: the medium already has an
 // origin (the host that reported it), so the operator is re-attributing it.
 const driveView = bodyOf(js.drives, 'openDrive');
 const originState = bodyOf(js.drives, 'originState');
 check('drives: the record view shows the origin state', driveView.indexOf('originState(d, originBody)') >= 0);
-check('drives: the record view offers Reassign origin…', /Reassign origin\u2026/.test(driveView));
+check('drives: the record view offers Reassign origin', /Reassign origin/.test(driveView));
 check('drives: it opens the origin form in the record', /openOriginForm\(d, originBody\)/.test(driveView));
 check(
-  'drives: it sits beside Correct COCID… in the footer',
-  driveView.indexOf('Correct COCID\u2026') >= 0
-    && driveView.indexOf('Correct COCID\u2026') < driveView.indexOf('Reassign origin\u2026')
+  'drives: it sits beside Correct COCID in the footer',
+  driveView.indexOf('Correct COCID') >= 0
+    && driveView.indexOf('Correct COCID') < driveView.indexOf('Reassign origin')
 );
-check('drives: the origin state itself is read-only', originState.length > 0 && !/Reassign origin\u2026/.test(originState));
+check('drives: the origin state itself is read-only', originState.length > 0 && !/Reassign origin/.test(originState));
 check('drives: the report history no longer carries the origin action', !/function originBox/.test(js.drives) && !/inner\.appendChild\(originBox/.test(js.drives));
-check('drives: the old labels are gone', !/Assign origin\u2026/.test(pages.drives) && !/Change origin\u2026/.test(pages.drives));
+check('drives: the old labels are gone', !/Assign origin/.test(pages.drives) && !/Change origin/.test(pages.drives));
+check('drives: action labels do not carry a dialog ellipsis', !/Correct COCID\u2026/.test(pages.drives) && !/Reassign origin\u2026/.test(pages.drives));
 
 // The control itself: a checkbox in the Filters modal, not a toolbar button.
 const benchInput = (pages.devices.match(/<input[^>]*id="filter-bench"[^>]*>/) || [''])[0];
@@ -125,6 +126,15 @@ check(
   'devices: paintBenchHint() says how to mark one when none exist',
   /No machines are marked yet/.test(hint)
 );
+
+// Marking a bench machine belongs with the machine's operations, not in its log
+// history. The Log panel is rebuilt constantly; the Ops panel is the action
+// surface and stays open across the reload.
+const logPanel = bodyOf(js.devices, 'logPanel');
+const openOps = bodyOf(js.devices, 'openOperations');
+check('devices: the Log no longer carries the bench action', !/benchToggle/.test(logPanel));
+check('devices: the Operations panel carries the bench action', /benchToggle\(dev\)/.test(openOps));
+check('devices: the empty-bench hint points at the Ops panel', /Ops panel/.test(hint));
 
 const open = bodyOf(js.devices, 'openFilterModal');
 check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*benchView/.test(open));

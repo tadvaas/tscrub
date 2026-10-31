@@ -1422,7 +1422,7 @@
         if (!hint) return;
         var n = Object.keys(benchHosts).length;
         hint.textContent = n === 0
-          ? 'No machines are marked yet. Open a machine’s Log and choose “Mark as our bench machine”.'
+          ? 'No machines are marked yet. Open a machine’s Ops panel and choose “Mark as our bench machine”.'
           : n + (n === 1 ? ' machine is' : ' machines are')
             + ' marked. Processing hosts are left out of the fleet and asset counts; their evidence is still used.';
       }
@@ -2711,7 +2711,7 @@
           // The report IS the device record's evidence, so a mistyped COCID is
           // corrected here too, where the operator is looking at it.
           if (window.ReportCorrections) {
-            var fix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID…');
+            var fix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID');
             fix.title = 'Change this report’s Chain of Custody ID';
             fix.addEventListener('click', function () {
               window.ReportCorrections.correctReport({ id: dev.pdf_id, cocid: dev.cocid || '' });
@@ -2906,9 +2906,6 @@
         wrap.appendChild(inner);
         logBodies[key] = inner;
         logFill(dev, key, inner);
-        // Always present (even with no events): whether this machine is OUR bench
-        // host is a property of the machine, not of its history.
-        wrap.appendChild(benchToggle(dev));
         return wrap;
       }
 
@@ -2932,8 +2929,14 @@
       function benchToggle(dev) {
         var key = String(dev._key || dev.sysserial || '').toLowerCase();
         var on = !!benchHosts[key];
-        var box = el('div', 'mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-ink-700 pt-2');
-        var btn = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', on ? 'Stop treating this as a bench machine' : 'Mark as our bench machine');
+        var card = el('div', 'mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
+        card.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Processing host'));
+        card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400',
+          'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets, so it is left out of the fleet and from certificate asset counts. Its evidence is still used.'));
+        var state = el('p', 'mt-3 text-xs font-semibold ' + (on ? 'text-brand-700 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'),
+          on ? 'Marked as a processing host.' : 'Not a processing host.');
+        card.appendChild(state);
+        var btn = el('button', 'mt-2 ts-btn ts-btn--sm ts-btn--secondary', on ? 'Stop treating this as a bench machine' : 'Mark as our bench machine');
         btn.type = 'button';
         btn.title = 'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets.';
         btn.addEventListener('click', function () {
@@ -2959,6 +2962,12 @@
               return;
             }
             if (on) { delete benchHosts[key]; } else { benchHosts[key] = { device_key: key }; }
+            // Update the card in place: the Operations panel stays open across
+            // the reload, so its state must not be left showing the old value.
+            btn.textContent = on ? 'Mark as our bench machine' : 'Stop treating this as a bench machine';
+            state.textContent = on ? 'Not a processing host.' : 'Marked as a processing host.';
+            state.className = 'mt-3 text-xs font-semibold ' + (on ? 'text-slate-500 dark:text-slate-400' : 'text-brand-700 dark:text-brand-400');
+            btn.disabled = false;
             // Keep the row on screen after MARKING it. Reloading with the default
             // view would make it vanish, which reads as deletion; staying in the
             // bench view shows the Bench badge and the Filters chip, which is how
@@ -2975,10 +2984,8 @@
             btn.disabled = false;
           });
         });
-        box.appendChild(btn);
-        box.appendChild(el('span', 'text-[11px] text-slate-500 dark:text-slate-400',
-          'Excluded from the fleet and from certificate asset counts. Evidence it produced is still used.'));
-        return box;
+        card.appendChild(btn);
+        return card;
       }
 
       // Rebuilds the panel's contents in place — on the first paint (fetch out),
@@ -3131,7 +3138,7 @@
         var efoot = document.getElementById('erasure-modal-footer');
         efoot.innerHTML = '';
         if (h.id && window.ReportCorrections) {
-          var efix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID…');
+          var efix = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Correct COCID');
           efix.title = 'Change this report’s Chain of Custody ID';
           efix.addEventListener('click', function () {
             window.ReportCorrections.correctReport({ id: h.id, cocid: h.cocid || '' });
@@ -3762,6 +3769,9 @@
           opsHosts = { remote: remoteHost };
           renderRemoteCard(dev, online, { kind: 'idle', data: null }, remoteHost);
           loadRemoteState(dev, online, remoteHost);
+          // Marking a bench machine is a property of the machine, not of its log
+          // history, so it lives with the machine's operations.
+          opsBody.appendChild(benchToggle(dev));
         }
         window.TSDialog.open(opsModal);
         document.getElementById('ops-modal-close').focus();

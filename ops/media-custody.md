@@ -40,10 +40,11 @@ state both. The job (COCID) is the container for that evidence.
 1. Confirm the COCID. Do not bench-batch several customers under one boot; the
    COCID is cached for the whole boot.
 2. Mark your own bench machine as a **processing host** once:
-   **Devices → the bench machine's row → Log → Mark as our bench machine**.
-   The row then carries a **Bench** badge when shown, and the machine is excluded
-   from the customer's fleet and from certificate asset counts, while the evidence
-   it produces is still used. To see it, open **Devices → Filters → Show our bench
+   **Devices → the bench machine's row → Ops → Mark as our bench machine**.
+   The card states whether the machine is currently a processing host, and the
+   row carries a **Bench** badge when shown. The machine is excluded from the
+   customer's fleet and from certificate asset counts, while the evidence it
+   produces is still used. To see it, open **Devices → Filters → Show our bench
    hosts**; the bench view is remembered, so a refresh keeps it.
 3. Have a marker or label for the drive. Write the **asset serial** and the
    **COCID** on it before it leaves the asset.
@@ -81,7 +82,7 @@ state both. The job (COCID) is the container for that evidence.
    derived automatically when the medium appeared in the asset's boot snapshot
    or in a failed row on that asset. If the asset could not boot, or the drive
    arrived loose, declare it:
-   **Media → the medium's row → Reports ▸ → View → Reassign origin…**, then enter
+   **Media → the medium's row → Reports ▸ → View → Reassign origin**, then enter
    the asset serial, the COCID, the reason and an optional note. The origin is
    recorded as **declared by operator** and is never shown as
    instrument-verified.
@@ -200,9 +201,9 @@ no observed link and needs a declaration.
 
 | task | where |
 |---|---|
-| Declare an origin | Media → medium's row → Reports ▸ → View → Reassign origin… |
+| Declare an origin | Media → medium's row → Reports ▸ → View → Reassign origin |
 | Remove a declaration | same panel, or `DELETE /api/media/link/{id}` |
-| Mark/unmark a bench host | Devices → row → Log → Mark as our bench machine |
+| Mark/unmark a bench host | Devices → row → Ops → Mark as our bench machine |
 | Show bench hosts | Devices → Filters → Show our bench hosts (or `?bench=1`) |
 | List declared links | `GET /api/media/links?cocid=<COCID>` |
 | Asset figures on a certificate | PDF Annex A, JSON-LD `assetAccounting`, `/verify` |
