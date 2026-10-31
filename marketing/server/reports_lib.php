@@ -3856,6 +3856,10 @@ function load_devices(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
+    // One lookup for the whole call: used to exclude the rows AND to tag the ones
+    // that remain when the bench view is requested. A tagged row is how the
+    // operator can see that a machine has already been marked.
+    $benchSet = processing_host_keys($userId);
 
     // ---- Phase A (paginated only): pick the page's device keys from the small
     // summary cache, then restrict the full-payload loops below to those keys. ----
@@ -3878,12 +3882,13 @@ function load_devices(int $userId, ?array $query = null): array {
         // Bench/processing hosts are evidence, not customer assets. Excluded
         // before search/facets/summary so every count narrows with the rows.
         if (empty($query['bench'])) {
-            foreach (array_keys(processing_host_keys($userId)) as $pk) {
+            foreach (array_keys($benchSet) as $pk) {
                 unset($cand[$pk]);
             }
         }
         $presence = presence_map($userId);
         foreach ($cand as $key => &$c) {
+            $c['bench'] = isset($benchSet[$key]);
             $lastSeen = presence_last_seen((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
             $c['online']       = presence_is_online((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
             $c['lan_ip']       = presence_lan_ip((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
@@ -4059,6 +4064,7 @@ function load_devices(int $userId, ?array $query = null): array {
                 'ram'           => (string)($g['ram'] ?? ''),
                 'sku'           => (string)($g['sku'] ?? ''),
                 'asset_tag'     => (string)($g['asset_tag'] ?? ''),
+                'bench'         => isset($benchSet[$key]),
                 'bios_vendor'   => (string)($g['bios_vendor'] ?? ''),
                 'board'         => (string)($g['board'] ?? ''),
                 'tpm'           => (string)($g['tpm'] ?? ''),
@@ -4202,7 +4208,7 @@ function load_devices(int $userId, ?array $query = null): array {
     // Bench/processing hosts are evidence, not customer assets. Skipped here
     // (and therefore in the history folded below) unless explicitly requested.
     if (!is_array($query) || empty($query['bench'])) {
-        foreach (array_keys(processing_host_keys($userId)) as $pk) {
+        foreach (array_keys($benchSet) as $pk) {
             unset($devices[$pk]);
         }
     }

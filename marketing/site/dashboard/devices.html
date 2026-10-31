@@ -762,6 +762,15 @@
         return meta;
       }
 
+      // A machine flagged as one of OUR bench hosts. The badge appears only in
+      // the bench view (the row is hidden otherwise), and is the visible record
+      // that the flag is already set.
+      function benchBadge() {
+        var b = el('span', 'shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'Bench');
+        b.title = 'Marked as our processing host: hidden from the fleet and from certificate asset counts, while the evidence it produced is still used.';
+        return b;
+      }
+
       function deviceCard(dev, key) {
         var card = el('div', 'p-4');
         card.title = dev.system || '';
@@ -772,6 +781,7 @@
         sys.appendChild(el('span', 'truncate text-sm font-semibold text-ink-900 dark:text-white', dev.system || dev.sysserial || 'Unknown'));
         var grade = refurbBadge(dev);
         if (grade) sys.appendChild(grade);
+        if (dev.bench) sys.appendChild(benchBadge());
         id.appendChild(sys);
         id.appendChild(el('p', 'mt-0.5 truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400', dev.sysserial || '—'));
         top.appendChild(id);
@@ -895,7 +905,7 @@
       var VIEW_SORTS = ['system', 'serial', 'bios', 'mdm', 'status', 'activity'];
       var VIEW_DEFAULTS = { sort: 'status', dir: -1 };
       var VIEW_URL = new URLSearchParams(window.location.search);
-      var VIEW_EXPLICIT = ['q', 'source', 'sort', 'dir', 'page', 'ff'].some(function (k) { return VIEW_URL.has(k); });
+      var VIEW_EXPLICIT = ['q', 'source', 'sort', 'dir', 'page', 'ff', 'bench'].some(function (k) { return VIEW_URL.has(k); });
       var VIEW_SAVED = {};
       try { VIEW_SAVED = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; } catch (e) { VIEW_SAVED = {}; }
 
@@ -924,6 +934,9 @@
         if (sortKey !== VIEW_DEFAULTS.sort) { p.set('sort', sortKey); }
         if (sortDir !== VIEW_DEFAULTS.dir) { p.set('dir', sortDir === 1 ? 'asc' : 'desc'); }
         if (page > 1) { p.set('page', String(page)); }
+        // Show-bench-hosts is part of the view: after marking a machine, a refresh
+        // must not leave the operator unable to find the row they just flagged.
+        if (benchView) { p.set('bench', '1'); }
         // The advanced filter rides the same query string, so a filtered list is
         // still a shareable, refreshable, bookmarkable view.
         var ffOut = encodeFilters(filters);
@@ -936,7 +949,8 @@
         try {
           localStorage.setItem(VIEW_KEY, JSON.stringify({
             q: currentQ, source: source, sort: sortKey,
-            dir: sortDir === 1 ? 'asc' : 'desc', page: String(page), ff: ffOut
+            dir: sortDir === 1 ? 'asc' : 'desc', page: String(page), ff: ffOut,
+            bench: benchView ? '1' : ''
           }));
         } catch (e) { /* private mode or quota: the URL is still correct */ }
       }
@@ -1149,7 +1163,7 @@
         ['bioslock','BIOS lock'], ['bioslockmethod','BIOS lock method'], ['tpm','TPM'], ['macs','MAC address'], ['storage_controllers','Storage controllers'],
         ['battery','Battery'], ['secure_boot','Secure boot'], ['dimms','DIMMs'], ['product_key','Windows product key'], ['product_key_id','Product key ID'],
         ['mdm_status','MDM status'], ['mdm_verdict','MDM verdict'], ['mdm_label','MDM label'], ['refurb_grade','Refurb grade'], ['notes','Notes'],
-        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['activity_at','Latest event'],
+        ['status','Status'], ['lan_ip','LAN IP'], ['last_seen_at','Last seen'], ['activity_at','Latest event'], ['bench','Processing host'],
         ['drive_count','Media'], ['first','First report'], ['last','Last report'],
         ['report_id','Report ID'], ['digital_identifier','Digital identifier']
       ];
@@ -1987,6 +2001,7 @@
           sysWrap.appendChild(el('span', 'min-w-0 truncate', dev.system || dev.sysserial || 'Unknown'));
           var grade = refurbBadge(dev);
           if (grade) sysWrap.appendChild(grade);
+          if (dev.bench) sysWrap.appendChild(benchBadge());
           sysCell.appendChild(sysWrap);
           sysCell.title = dev.system || '';
           tr.appendChild(sysCell);
@@ -2894,6 +2909,11 @@
               return;
             }
             if (on) { delete benchHosts[key]; } else { benchHosts[key] = { device_key: key }; }
+            // Keep the row on screen after MARKING it. Reloading with the default
+            // view would make it vanish, which reads as deletion; staying in the
+            // bench view shows the Bench badge and the Hide bench hosts control,
+            // which is how the operator can confirm the flag is set.
+            if (!on) { benchView = true; }
             paintBench();
             lastDevicesJson = '';
             loadDevices();

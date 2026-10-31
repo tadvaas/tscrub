@@ -2035,7 +2035,7 @@ if ($method === 'GET' && $route === '/devices/export') {
         'mdm_status' => 'MDM status', 'mdm_verdict' => 'MDM verdict', 'mdm_label' => 'MDM label',
         'refurb_grade' => 'Refurb grade', 'notes' => 'Notes',
         'status' => 'Status', 'lan_ip' => 'LAN IP', 'last_seen_at' => 'Last seen',
-        'activity_at' => 'Latest event',
+        'activity_at' => 'Latest event', 'bench' => 'Processing host',
         'drive_count' => 'Drives', 'first' => 'First report', 'last' => 'Last report',
         'report_id' => 'Report ID', 'digital_identifier' => 'Digital identifier',
     ];
@@ -2067,6 +2067,7 @@ if ($method === 'GET' && $route === '/devices/export') {
     $value = static function (string $key, array $d) {
         if ($key === 'status') return !empty($d['online']) ? 'Online' : 'Offline';
         if ($key === 'drive_count') return (int)($d['drive_count'] ?? 0);
+        if ($key === 'bench') return !empty($d['bench']) ? 'Yes' : 'No';
         return (string)($d[$key] ?? '');
     };
 

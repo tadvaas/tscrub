@@ -8,6 +8,15 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A machine marked as a bench host showed no flag anywhere.** Marking it removed
+  it from the Devices list, which reads as deletion, and the only clue was a
+  toolbar toggle that reverted on refresh. The row now keeps a `Bench` badge, the
+  toolbar shows `Hide bench hosts`, and the bench view is part of the remembered
+  view (`?bench=1` plus local storage) rather than a session-only toggle. The flag
+  is also available as a `Processing host` column in the Devices export.
+
 ## [v1.11.87] - 2026-10-31
 
 Released artefacts: ISO `tscrub-v1.11.87_2025.11_30_x86-64_v0.41_20261031-cb0efa69.iso`

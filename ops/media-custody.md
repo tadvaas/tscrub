@@ -41,9 +41,10 @@ state both. The job (COCID) is the container for that evidence.
    COCID is cached for the whole boot.
 2. Mark your own bench machine as a **processing host** once:
    **Devices → the bench machine's row → Log → Mark as our bench machine**.
-   It then disappears from the customer's fleet and from certificate asset
-   counts, while the evidence it produces is still used. To see it again, use
-   the **Bench hosts** toggle in the Devices toolbar (or `?bench=1`).
+   The row then carries a **Bench** badge, the toolbar shows **Hide bench hosts**,
+   and the machine is excluded from the customer's fleet and from certificate
+   asset counts, while the evidence it produces is still used. Click **Hide bench
+   hosts** to return to the fleet; the view is remembered, so a refresh keeps it.
 3. Have a marker or label for the drive. Write the **asset serial** and the
    **COCID** on it before it leaves the asset.
 
@@ -142,7 +143,7 @@ was sanitised; the chassis was not.
 | The declared origin does not appear on the Media row | Only **declared** links are attached to the list. Observed origins are derived at certificate time. | Generate or regenerate the certificate and read Annex A, or open the medium's Reports expansion after a declaration. |
 | `asset serial is empty or a firmware placeholder` | The asset reported `N/A` or a placeholder. | The customer cannot track an asset by a serial the machine does not have; agree an identifier and record it before the job. |
 | The same drive appears twice | Two cheap drives report the same serial, or a drive was erased twice. | Do not link it. Resolve the duplicate physically (label and re-check). A re-installed drive is re-sanitisation, not a second medium. |
-| Bench rows vanish after marking | Expected: processing hosts are excluded from the default fleet view. | Use the **Bench hosts** toggle, or `?bench=1`. |
+| Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use the **Bench hosts** toggle, or `?bench=1`. A marked row carries a **Bench** badge in that view. |
 
 ---
 
@@ -156,9 +157,9 @@ was sanitised; the chassis was not.
   standard claim.
 - Blank, `N/A` or duplicated serials refuse to link. The certificate would
   rather list the medium standalone than attribute it to the wrong asset.
-- The Bench hosts toolbar toggle is session-only (it is read from `?bench=1`
-  but not written back into the remembered view). The processing-host flag
-  itself is persisted server-side.
+- The Bench hosts view is part of the remembered view (query string and local
+  storage), so a refresh keeps it. The processing-host flag itself is stored
+  server-side.
 
 ---
 

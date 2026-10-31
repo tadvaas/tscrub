@@ -91,8 +91,7 @@ for (const p of PAGES) {
 
   // ---- the Add-modal safety ----------------------------------------------
   check('an explicit query string suppresses the remembered view',
-    /var VIEW_EXPLICIT = \['q', 'source', 'sort', 'dir', 'page', 'ff'\]\.some/.test(js) ||
-    /var VIEW_EXPLICIT = \['q', 'source', 'sort', 'dir', 'page'\]\.some/.test(js),
+    /var VIEW_EXPLICIT = \['q', 'source', 'sort', 'dir', 'page'(?:, 'ff')?(?:, 'bench')?\]\.some/.test(js),
     (js.match(/var VIEW_EXPLICIT = \[[^\]]*\]/) || [''])[0]);
   check('an empty param falls through to the remembered view',
     /if \(VIEW_EXPLICIT\) \{ return ''; \}/.test(js));
