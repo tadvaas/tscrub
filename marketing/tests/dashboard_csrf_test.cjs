@@ -14,9 +14,11 @@
  *     and never reference a bare `csrf`;
  *   - the origin action lives in the media record view beside Correct COCID,
  *     labelled Reassign origin, and the report history no longer carries it;
- *   - the bench-host control lives in the Filters modal as a checkbox, is not a
- *     separate toolbar button, and is seeded, applied and cleared with the rest
- *     of the filter state;
+ *   - the bench-host control lives in the Filters modal as a facet-style chip,
+ *     not a separate toolbar button, and is seeded, applied and cleared with
+ *     the rest of the filter state;
+ *   - benches are SHOWN by default: the chip is an exclusion choice, and only
+ *     an explicit choice may send `bench=hide` to the server;
  *   - the bench choice is counted and chipped like a filter, so the Filters
  *     button never under-states the view.
  *
@@ -177,7 +179,12 @@ check(
   'devices: the bench choice uses the facet chip classes',
   /ts-chip/.test(benchGroup) && /pendingBench \? 'bg-brand-700 text-white'/.test(benchGroup)
 );
-check('devices: the bench choice is labelled Show bench hosts', /Show bench hosts/.test(benchGroup));
+check('devices: the bench choice is labelled Hide bench hosts', /Hide bench hosts/.test(benchGroup));
+check(
+  'devices: machines are shown by default',
+  /var hideBench = viewGet\('bench'\) === 'hide'/.test(js.devices)
+    && /if \(hideBench\) \{ params\.set\('bench', 'hide'\)/.test(js.devices)
+);
 check(
   'devices: no hosts marked explains where to mark one',
   /No machines are marked yet/.test(benchGroup) && /Ops panel/.test(benchGroup)
@@ -197,9 +204,9 @@ check(
 );
 
 const open = bodyOf(js.devices, 'openFilterModal');
-check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*benchView/.test(open));
+check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*hideBench/.test(open));
 const apply = bodyOf(js.devices, 'applyFilterModal');
-check('devices: applying Filters writes the bench choice', /benchView\s*=\s*!!?\s*pendingBench/.test(apply));
+check('devices: applying Filters writes the bench choice', /hideBench\s*=\s*!!?\s*pendingBench/.test(apply));
 check(
   'devices: Clear all in the modal clears the bench choice',
   /pendingBench\s*=\s*false/.test(js.devices)
@@ -207,11 +214,11 @@ check(
 const paintFilters = bodyOf(js.devices, 'paintFilters');
 check(
   'devices: the filter count includes the bench choice',
-  /countFilters\(filters\)\s*\+\s*\(benchView\s*\?\s*1\s*:\s*0\)/.test(paintFilters)
+  /countFilters\(filters\)\s*\+\s*\(hideBench\s*\?\s*1\s*:\s*0\)/.test(paintFilters)
 );
 check(
   'devices: the chip row can turn the bench choice off',
-  /benchView\s*=\s*false/.test(paintFilters) && /Bench hosts/.test(paintFilters)
+  /hideBench\s*=\s*false/.test(paintFilters) && /Bench hosts hidden/.test(paintFilters)
 );
 const hintCount = bodyOf(js.devices, 'paintFilterHint');
 check(

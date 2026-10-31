@@ -759,12 +759,12 @@
         return meta;
       }
 
-      // A machine flagged as one of OUR bench hosts. The badge appears only in
-      // the bench view (the row is hidden otherwise), and is the visible record
-      // that the flag is already set.
+      // A machine flagged as one of OUR bench hosts. The badge is the standing
+      // evidence that the flag is set, and the row is now shown by default —
+      // hiding it is the operator's explicit filter choice.
       function benchBadge() {
         var b = el('span', 'shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'Bench');
-        b.title = 'Marked as our processing host: hidden from the fleet and from certificate asset counts, while the evidence it produced is still used.';
+        b.title = 'Marked as our processing host: excluded from certificate asset counts, while the evidence it produced is still used.';
         return b;
       }
 
@@ -931,9 +931,10 @@
         if (sortKey !== VIEW_DEFAULTS.sort) { p.set('sort', sortKey); }
         if (sortDir !== VIEW_DEFAULTS.dir) { p.set('dir', sortDir === 1 ? 'asc' : 'desc'); }
         if (page > 1) { p.set('page', String(page)); }
-        // Show-bench-hosts is part of the view: after marking a machine, a refresh
-        // must not leave the operator unable to find the row they just flagged.
-        if (benchView) { p.set('bench', '1'); }
+        // Hiding the bench hosts is part of the view: an operator who hid them
+        // to read the customer fleet gets the same list back on refresh, and
+        // marking a machine clears it so the row being flagged stays visible.
+        if (hideBench) { p.set('bench', 'hide'); }
         // The advanced filter rides the same query string, so a filtered list is
         // still a shareable, refreshable, bookmarkable view.
         var ffOut = encodeFilters(filters);
@@ -947,7 +948,7 @@
           localStorage.setItem(VIEW_KEY, JSON.stringify({
             q: currentQ, source: source, sort: sortKey,
             dir: sortDir === 1 ? 'asc' : 'desc', page: String(page), ff: ffOut,
-            bench: benchView ? '1' : ''
+            bench: hideBench ? 'hide' : ''
           }));
         } catch (e) { /* private mode or quota: the URL is still correct */ }
       }
@@ -1201,7 +1202,7 @@
           ff: encodeFilters(filters),
           fields: exportFieldKeys().join(',')
         });
-        if (benchView) { qs.set('bench', '1'); }
+        if (hideBench) { qs.set('bench', 'hide'); }
         var a = document.createElement('a');
         a.href = '/api/devices/export?' + qs.toString();
         a.download = 'tscrub-devices-' + exportStamp() + '.' + ext;
@@ -1247,11 +1248,12 @@
       var deviceFacets = null;   // per-option counts from the last /api/devices response
       var filters = {};          // facet -> {value:true}: the APPLIED filter
       var pending = {};          // the set being edited in the modal
-      // The bench view is a base-set choice, not a facet: the server leaves
-      // processing hosts out of the fleet unless ?bench=1 is present, so it cannot
-      // be expressed as an `ff` token. It is still counted and chipped with the
-      // filters, so one button and one chip row describe the whole view.
-      var benchView = viewGet('bench') === '1';
+      // The bench choice is a base-set choice, not a facet: the server shows
+      // processing hosts like any other machine and drops them only when
+      // `bench=hide` is present, so it cannot be expressed as an `ff` token. It
+      // is still counted and chipped with the filters, so one button and one
+      // chip row describe the whole view. Default: benches are SHOWN.
+      var hideBench = viewGet('bench') === 'hide';
       var benchHosts = {};
       var pendingBench = false;
       var filterModal = document.getElementById('filter-modal');
@@ -1296,7 +1298,7 @@
       // The button and the chip row are the only standing evidence that a filter is
       // on, so they are painted from one place and always agree.
       function paintFilters() {
-        var n = countFilters(filters) + (benchView ? 1 : 0);
+        var n = countFilters(filters) + (hideBench ? 1 : 0);
         var btn = document.getElementById('filter-btn');
         btn.textContent = n ? 'Filters (' + n + ')' : 'Filters';
         btn.classList.toggle('ts-btn--primary', n > 0);
@@ -1308,12 +1310,12 @@
         row.classList.add('flex');
         // The base-set choice first: it decides which records the facets are
         // counting, so it reads as the outermost filter in the row.
-        if (benchView) {
-          var benchChip = el('button', 'ts-chip ts-chip--sky cursor-pointer', 'Bench hosts ×');
+        if (hideBench) {
+          var benchChip = el('button', 'ts-chip ts-chip--sky cursor-pointer', 'Bench hosts hidden ×');
           benchChip.type = 'button';
-          benchChip.title = 'Stop showing the machines marked as processing hosts';
+          benchChip.title = 'Show the machines marked as processing hosts again';
           benchChip.addEventListener('click', function () {
-            benchView = false;
+            hideBench = false;
             page = 1;
             paintFilters();
             syncView();
@@ -1342,7 +1344,7 @@
         clear.type = 'button';
         clear.addEventListener('click', function () {
           filters = {};
-          benchView = false;
+          hideBench = false;
           page = 1;
           paintFilters();
           syncView();
@@ -1406,20 +1408,22 @@
 
       // The bench choice is a base-set toggle, not a narrowing facet, but it uses
       // the same chip as every other option so the modal reads consistently.
+      // Selecting it HIDES the processing hosts; leaving it clear shows them,
+      // which is the default.
       function renderBenchGroup(host) {
         var n = Object.keys(benchHosts).length;
         var group = el('div', '');
         group.appendChild(el('p', 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400', 'Processing host'));
         var wrap = el('div', 'flex flex-wrap gap-1.5');
         var b = el('button', 'ts-chip cursor-pointer ' + (pendingBench ? 'bg-brand-700 text-white' : 'ts-chip--slate'),
-          'Show bench hosts (' + n + ')');
+          'Hide bench hosts (' + n + ')');
         b.type = 'button';
         b.setAttribute('aria-pressed', pendingBench ? 'true' : 'false');
         if (n === 0 && !pendingBench) {
           b.classList.add('opacity-60');
           b.title = 'No machines are marked yet. Open a machine’s Ops panel and choose “Mark as our bench machine”.';
         } else {
-          b.title = 'Machines marked as processing hosts are left out of the fleet and asset counts. Show them to confirm or change the mark.';
+          b.title = 'Machines marked as processing hosts are shown by default. Hide them to read the customer fleet alone.';
         }
         b.addEventListener('click', function () {
           pendingBench = !pendingBench;
@@ -1509,14 +1513,14 @@
       function openFilterModal() {
         // Deep copy: Cancel must leave the applied filter untouched.
         pending = JSON.parse(JSON.stringify(filters));
-        pendingBench = benchView;
+        pendingBench = hideBench;
         renderFilterGroups();
         window.TSDialog.open(filterModal);
       }
       function closeFilterModal() { window.TSDialog.close(filterModal); }
       function applyFilterModal() {
         filters = JSON.parse(JSON.stringify(pending));
-        benchView = !!pendingBench;
+        hideBench = !!pendingBench;
         page = 1;
         paintFilters();
         syncView();
@@ -1669,9 +1673,9 @@
           page: String(page), per: String(per), q: currentQ,
           sort: sortKey || '', dir: sortDir === 1 ? 'asc' : 'desc', source: source
         });
-        // Bench hosts are excluded server-side unless explicitly requested, so
-        // the counts and the pager follow the visible rows.
-        if (benchView) { params.set('bench', '1'); }
+        // Bench hosts are shown server-side unless the view asks to hide them,
+        // so the counts and the pager follow the visible rows either way.
+        if (hideBench) { params.set('bench', 'hide'); }
         // The advanced filter must ride the REQUEST, not just the address bar. It
         // was written to the URL first and forgotten here, which made Apply look
         // like a no-op: the URL changed, the rows did not.
@@ -2911,9 +2915,11 @@
 
       // ---- Bench / processing hosts ------------------------------------------
       // A bench machine produces evidence but is not one of the customer's assets.
-      // Marking one removes it from the fleet (the server excludes it from the list
-      // and every count) and from certificate asset accounting. benchView and
-      // benchHosts are declared with the filters, where the base-set choice lives.
+      // Marking one keeps it in the list (badged, so the mark is visible and
+      // changeable) and takes it out of certificate asset accounting; the filter
+      // can hide the rows when the operator wants the customer fleet alone.
+      // hideBench and benchHosts are declared with the filters, where the
+      // base-set choice lives.
 
       function loadBenchHosts() {
         fetch('/api/devices/processing-hosts').then(function (r) { return r.json(); })
@@ -2931,7 +2937,7 @@
         var card = el('div', 'mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
         card.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Processing host'));
         card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400',
-          'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets, so it is left out of the fleet and from certificate asset counts. Its evidence is still used.'));
+          'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets, so it is excluded from certificate asset counts. Its evidence is still used.'));
         if (on) {
           card.appendChild(el('p', 'mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300',
             'Unmarking keeps every report and declared link, but past jobs that used this machine as a bench will resolve their origin differently: its media will be treated as sanitised in the machine that reported them, and the report’s host can outrank a declared origin. Keep this set if it was your bench for customer work.'));
@@ -2971,14 +2977,11 @@
             state.textContent = on ? 'Not a processing host.' : 'Marked as a processing host.';
             state.className = 'mt-3 text-xs font-semibold ' + (on ? 'text-slate-500 dark:text-slate-400' : 'text-brand-700 dark:text-brand-400');
             btn.disabled = false;
-            // Keep the row on screen after MARKING it. Reloading with the default
-            // view would make it vanish, which reads as deletion; staying in the
-            // bench view shows the Bench badge and the Filters chip, which is how
-            // the operator can confirm the flag is set.
-            // Unmarking the last one leaves the bench view: there is nothing left
-            // to show.
-            if (!on) benchView = true;
-            else if (!Object.keys(benchHosts).length) benchView = false;
+            // Keep the row on screen after MARKING it: the machine stays in the
+            // list, so a hidden view would make the row they just flagged vanish,
+            // which reads as deletion. Unhide and the Bench badge plus the
+            // Filters chip are how the operator confirms the flag is set.
+            if (!on) hideBench = false;
             paintFilters();
             lastDevicesJson = '';
             loadDevices();

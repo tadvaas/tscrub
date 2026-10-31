@@ -13,10 +13,19 @@ and this project uses date-based versioning (`v1.x`).
 - **The bench-host visibility control moved into the Filters modal.** It was a
   toolbar toggle beside Filters, which is not where an operator looks to ask
   "what is in this list", and it stayed invisible until a host existed. It is now
-  **Filters → Show our bench hosts**, counted in the `Filters (N)` badge, shown as
-  a removable `Bench hosts` chip and cleared by Clear all. The hint inside the
-  modal says how to mark a machine when none is marked. The view is still part of
-  the remembered view (`?bench=1` plus local storage).
+  the **Processing host** facet group, counted in the `Filters (N)` badge, shown
+  as a removable `Bench hosts hidden` chip and cleared by Clear all. The tooltip
+  says how to mark a machine when none is marked. The choice is still part of the
+  remembered view (`?bench=hide` plus local storage).
+
+- **Bench machines are shown in Devices by default.** They used to be hidden
+  unless `?bench=1` was set, which meant the row that carries the **Bench** badge
+  and the Ops toggle was missing from the one list an operator uses to find a
+  machine — and a marked host looked like a deleted one. Processors now appear
+  like any other machine (badged, and still excluded from certificate asset
+  counts), and **Filters → Processing host → Hide bench hosts** is the explicit
+  way to read the customer fleet alone. `bench=1` links keep working and now
+  simply show the default.
 
 - **The origin action moved into the medium's record view and was renamed.** It
   was behind the report-history expansion as `Assign origin…` (and `Change

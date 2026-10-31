@@ -1983,8 +1983,10 @@ if ($method === 'GET' && $route === '/devices') {
 
     $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per,
         'sort' => $sort, 'dir' => $dir, 'source' => $source, 'ff' => $ff,
-        // Processing hosts are hidden by default; this is the explicit opt-in.
-        'bench' => !empty($_GET['bench'])]);
+        // Processing hosts are SHOWN by default; `bench=hide` is the explicit
+        // opt-out. Forwarded raw rather than as a bool so the one normaliser
+        // (query_hide_bench) is the only place the spelling is interpreted.
+        'bench' => (string)($_GET['bench'] ?? '')]);
 
     json_out([
         'ok'      => true,
@@ -2049,7 +2051,7 @@ if ($method === 'GET' && $route === '/devices/export') {
         'q'      => $q,
         'ff'     => (string)($_GET['ff'] ?? ''),
         'source' => list_source($_GET['source'] ?? ''),
-        'bench'  => !empty($_GET['bench']),
+        'bench'  => (string)($_GET['bench'] ?? ''),
         'all'    => true,
         'page'   => 1,
         'per'    => 100,

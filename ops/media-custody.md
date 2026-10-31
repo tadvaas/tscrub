@@ -42,10 +42,11 @@ state both. The job (COCID) is the container for that evidence.
 2. Mark your own bench machine as a **processing host** once:
    **Devices → the bench machine's row → Ops → Mark as our bench machine**.
    The card states whether the machine is currently a processing host, and the
-   row carries a **Bench** badge when shown. The machine is excluded from the
-   customer's fleet and from certificate asset counts, while the evidence it
-   produces is still used. To see it, open **Devices → Filters → Processing host
-   → Show bench hosts**; the bench view is remembered, so a refresh keeps it.
+   row carries a **Bench** badge. The machine is excluded from certificate asset
+   counts, while the evidence it produces is still used. It stays in the Devices
+   list unless someone hides it: **Devices → Filters → Processing host → Hide
+   bench hosts**. That choice is remembered, so a refresh keeps the customer
+   fleet on its own.
 3. Have a marker or label for the drive. Write the **asset serial** and the
    **COCID** on it before it leaves the asset.
 
@@ -168,7 +169,8 @@ was sanitised; the chassis was not.
 | The declared origin does not appear on the Media row | Only **declared** links are attached to the list, and the list shows them as the `elsewhere` chip rather than in a column. Observed origins are derived at certificate time. | Open the medium's record (Reports ▸ → View) and read **Origin asset**; generate or regenerate the certificate and read Annex A. |
 | `asset serial is empty or a firmware placeholder` | The asset reported `N/A` or a placeholder. | The customer cannot track an asset by a serial the machine does not have; agree an identifier and record it before the job. |
 | The same drive appears twice | Two cheap drives report the same serial, or a drive was erased twice. | Do not link it. Resolve the duplicate physically (label and re-check). A re-installed drive is re-sanitisation, not a second medium. |
-| Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use **Filters → Processing host → Show bench hosts**, or `?bench=1`. When nothing is marked the chip's tooltip says where to mark one. A marked row carries a **Bench** badge in that view. |
+| The bench row is counted as a customer asset | It is marked as a processing host, so it is evidence and not an asset. | Nothing to fix — that is the rule. If the row itself should not be in the list, use **Filters → Processing host → Hide bench hosts**, or `?bench=hide`. |
+| A bench row is missing from the list | Benches are shown by default, so it was hidden on purpose: the view remembers the choice. | Remove the `Bench hosts hidden` chip above the table, or open **Filters → Processing host → Hide bench hosts** to clear it. |
 
 ---
 
@@ -221,7 +223,7 @@ no observed link and needs a declaration.
 | Declare an origin | Media → medium's row → Reports ▸ → View → Reassign origin |
 | Remove a declaration | same panel, or `DELETE /api/media/link/{id}` |
 | Mark/unmark a bench host | Devices → row → Ops → Mark as our bench machine |
-| Show bench hosts | Devices → Filters → Processing host → Show bench hosts (or `?bench=1`) |
+| Hide/show bench hosts | Devices → Filters → Processing host → Hide bench hosts (or `?bench=hide`); benches are shown by default |
 | List declared links | `GET /api/media/links?cocid=<COCID>` |
 | Asset figures on a certificate | PDF Annex A, JSON-LD `assetAccounting`, `/verify` |
 | Re-issue after a new link | Certificates → generate/regenerate the job |

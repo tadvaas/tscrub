@@ -3499,6 +3499,24 @@ function list_source($value): string
 }
 
 /**
+ * Does the caller want the machines marked as processing (bench) hosts left out?
+ *
+ * A processing host is our own bench machine: it produces evidence but is not one
+ * of the customer's assets. It is still a machine an operator needs to SEE — the
+ * row is where the Bench badge and the Ops toggle live — so it is shown BY
+ * DEFAULT and this is the explicit opt-out.
+ *
+ * `bench=1` was the old opt-in for showing them. It is accepted as a no-op here,
+ * so an existing link or bookmark keeps showing rows instead of suddenly hiding
+ * them, which would look like the machines had been deleted.
+ */
+function query_hide_bench($value): bool
+{
+    $v = strtolower(trim((string)$value));
+    return $v === 'hide' || $v === '0' || $v === 'no' || $v === 'false';
+}
+
+/**
  * Sort media rows by a chosen column, then by identity — never by anything a heartbeat or
  * another writer can change. Same rule and same reason as device_sort_keys(): a volatile
  * tie-break reorders the table underneath the reader.
@@ -3880,9 +3898,11 @@ function load_devices(int $userId, ?array $query = null): array {
         $source = list_source($query['source'] ?? '');
 
         $cand = devices_candidates($ids, $ph, $userId);
-        // Bench/processing hosts are evidence, not customer assets. Excluded
-        // before search/facets/summary so every count narrows with the rows.
-        if (empty($query['bench'])) {
+        // Bench/processing hosts are evidence, not customer assets, but they are
+        // still machines the operator may need to see — so they are kept unless
+        // the caller explicitly hides them. Excluded before search/facets/summary
+        // so every count narrows with the rows.
+        if (query_hide_bench($query['bench'] ?? '')) {
             foreach (array_keys($benchSet) as $pk) {
                 unset($cand[$pk]);
             }
@@ -4206,9 +4226,10 @@ function load_devices(int $userId, ?array $query = null): array {
         unset($d);
     }
 
-    // Bench/processing hosts are evidence, not customer assets. Skipped here
-    // (and therefore in the history folded below) unless explicitly requested.
-    if (!is_array($query) || empty($query['bench'])) {
+    // Processing hosts are shown like any other machine; hiding them is the
+    // explicit choice (see query_hide_bench()). Skipped here (and therefore in
+    // the history folded below) only when the caller asked for it.
+    if (!is_array($query) || query_hide_bench($query['bench'] ?? '')) {
         foreach (array_keys($benchSet) as $pk) {
             unset($devices[$pk]);
         }
