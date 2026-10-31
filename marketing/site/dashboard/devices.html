@@ -1893,19 +1893,33 @@
           // Seven columns, summing to 100%. Latest event leads: it is the
           // recency of the machine — the answer to "what was touched last?" —
           // and the column an operator scans down first.
-          ['Latest event', 'w-[15%]', 'activity'],
-          // The actions column holds only Log + Ops now (the report is reached
-          // through the log's diagnostics entry), so it no longer needs the 22%
-          // that three word buttons required.
-          ['System', 'w-[20%]', 'system'],
-          // 14%: a 13-character service tag is 133px, which did not fit 13%.
-          ['Serial', 'w-[14%]', 'serial'],
-          // 11%, not 9%: the attested rows put "not scanned" here, which needs 102px —
-          // at 9% the cell was 89px and the word was being ellipsised to "not scan…".
-          ['BIOS', 'w-[11%]', 'bios'],
-          ['MDM', 'w-[12%]', 'mdm'],
-          // 14%: a status chip plus a LAN IP (the online case) needs ~135px.
-          ['Status', 'w-[14%]', 'status'],
+          //
+          // Every width below is the measured content width plus the cell's
+          // px-4 padding, taken from the live table at its 1118px inner width,
+          // so the sum is a budget rather than a guess:
+          //
+          //   Latest event  136 + 32 = 168   16%
+          //   System        elastic          16%     (the name ellipsises; the
+          //                                           full value is the title)
+          //   Serial        109 + 32 = 141   13%     (a 15-character serial)
+          //   BIOS           71 + 32 = 103   10%     ("not scanned" on attested
+          //                                           rows is the widest)
+          //   MDM            86 + 32 = 118   11%     ("Unchecked" chip)
+          //   Status        183 + 32 = 215   20%     ("Erasing" chip + progress
+          //                                           bar + ETA — the widest
+          //                                           state; the online chip +
+          //                                           LAN IP is 183 too)
+          //   actions       125 + 32 = 157   14%     (Log + Ops, px-3)
+          //
+          // Status was 14% and its erasing cell needed 215, so the bar and the
+          // ETA were being cut off. The width came from System, which is the one
+          // column whose content is meant to ellipsise.
+          ['Latest event', 'w-[16%]', 'activity'],
+          ['System', 'w-[16%]', 'system'],
+          ['Serial', 'w-[13%]', 'serial'],
+          ['BIOS', 'w-[10%]', 'bios'],
+          ['MDM', 'w-[11%]', 'mdm'],
+          ['Status', 'w-[20%]', 'status'],
           ['', 'w-[14%]', null]
         ];
         cols.forEach(function (c) {
@@ -2013,7 +2027,7 @@
           stCell.title = cellTitle;
           tr.appendChild(stCell);
 
-          var tdv = el('td', 'px-4 py-2.5 text-right whitespace-nowrap');
+          var tdv = el('td', 'px-3 py-2.5 text-right whitespace-nowrap');
           tdv.appendChild(actionControls(dev, key));
           tr.appendChild(tdv);
           body.appendChild(tr);
