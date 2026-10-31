@@ -41,10 +41,10 @@ state both. The job (COCID) is the container for that evidence.
    COCID is cached for the whole boot.
 2. Mark your own bench machine as a **processing host** once:
    **Devices → the bench machine's row → Log → Mark as our bench machine**.
-   The row then carries a **Bench** badge, the toolbar shows **Hide bench hosts**,
-   and the machine is excluded from the customer's fleet and from certificate
-   asset counts, while the evidence it produces is still used. Click **Hide bench
-   hosts** to return to the fleet; the view is remembered, so a refresh keeps it.
+   The row then carries a **Bench** badge when shown, and the machine is excluded
+   from the customer's fleet and from certificate asset counts, while the evidence
+   it produces is still used. To see it, open **Devices → Filters → Show our bench
+   hosts**; the bench view is remembered, so a refresh keeps it.
 3. Have a marker or label for the drive. Write the **asset serial** and the
    **COCID** on it before it leaves the asset.
 
@@ -62,6 +62,16 @@ state both. The job (COCID) is the container for that evidence.
      boot snapshot is pushed automatically on entry (v1.11.87), so the asset is
      recorded with `media_state=none` or `all_protected`. Press `F` once to
      rescan, then power off. On older images press `D` first (see §8).
+
+> **If the asset never boots tScrub at all.** There is no snapshot and no
+> observation, so the appliance knows nothing about it. Do not invent a device
+> record and do not expect the laptop in the Devices list. Read the **OEM system
+> serial** from the chassis label (plus the model and the customer's asset tag)
+> before pulling the drive, then follow steps 2-4 and declare the link with that
+> serial. Put the model, tag and `asset did not boot` in the declaration note.
+> Every statement about the link is then **declared by operator**, and the
+> certificate names the asset by that serial only.
+
 2. **Photograph the drive label and the screen**, then pull the drive.
 3. **Erase the drive on the bench under the same COCID.** USB caddy or SATA is
    fine. Note that a USB bridge is **software overwrite only**: the report
@@ -101,6 +111,13 @@ state both. The job (COCID) is the container for that evidence.
   rather than guessing an origin.
 - An asset with no data-bearing media is counted as an exception, not as a
   destroyed device and not as a device with no certificate.
+- An asset that never booted has no system name on file. Its **ASSET
+  ACCOUNTING** line carries the serial you declared and nothing else: no model
+  and no asset tag. Put those in the declaration note (Media ▸ Reports ▸ Assign
+  origin), which is kept in the device log, and on the job paperwork.
+- Page 1's machine profile is the **bench** that ran the erasure, not the asset.
+  The asset appears under ASSET ACCOUNTING and in the per-drive `Origin asset`
+  column.
 
 ---
 
@@ -117,7 +134,7 @@ Asset serial (OEM system serial):
 Asset tag (optional, display only):
 Medium serial / model / size:
 Failure observed:      not detected | erase failed (<status>) | already removed
-Intake evidence:       boot snapshot <time> | failed erase report <name>
+Intake evidence:       boot snapshot <time> | failed erase report <name> | none (asset did not boot)
 Erasure evidence:      report <name>, SHA-256 <hash>, <time>
 Erase host:            <system serial>
 Method / standard:     <method>, <standard or "no standard claim (USB)">,
@@ -157,6 +174,11 @@ was sanitised; the chassis was not.
   standard claim.
 - Blank, `N/A` or duplicated serials refuse to link. The certificate would
   rather list the medium standalone than attribute it to the wrong asset.
+- A non-booting asset is named by its declared serial only; model and asset tag
+  are not printed on the certificate.
+- Do not record a non-booting asset's already-sanitised drive as **physically
+  destroyed** in a manual attestation to make the chassis appear. The drive was
+  sanitised, not destroyed; the two fates need separate records.
 - The bench view is part of the remembered view (query string and local
   storage), so a refresh keeps it. The processing-host flag itself is stored
   server-side.
