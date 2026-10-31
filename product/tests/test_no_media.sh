@@ -139,4 +139,29 @@ t::check "and closes with a nothing-to-wipe END" 'grep -q "END.*nothing-to-wipe"
 t::check "which is distinguishable from an abort or a normal end" \
     '! grep -q "ABORTED\|END .*report=" "$REPORT_JOURNAL"'
 
+echo
+echo "== the no-media boot still publishes an intake snapshot =="
+# Without this the asset exists only as a transient heartbeat: the Devices tab
+# has no row to record "no data-bearing media" against, and the certificate
+# cannot account for the asset. The push must be on ENTRY, before the terminal
+# check that can exit headless.
+no_media_fn="$(awk '/^triage::no_media_run\(\)/,/^}/' "$ROOT_DIR/src/40_table.sh")"
+t::check "no_media_run pushes the registration" \
+    'printf "%s" "$no_media_fn" | grep -q "register::push"'
+t::check "the push happens before the headless exit" \
+    '[[ "$(printf "%s" "$no_media_fn" | grep -n "register::push" | head -1 | cut -d: -f1)" -lt "$(printf "%s" "$no_media_fn" | grep -n "terminal_controls_supported" | head -1 | cut -d: -f1)" ]]'
+
+SYS_SERIAL="ASSET-1"; SYS_UUID="uuid-1"; COCID="12345"
+SYS_MEDIA_STATE="none"; DISCOVERY_NOTICE="No supported drives found."
+SYS_SERIAL_SOURCE="dmi"; devices=(); devrow=()
+body="$(register::json_body)"
+t::check "the snapshot states no media" \
+    'printf "%s" "$body" | grep -q "\"media_state\":\"none\""'
+t::check "it carries the discovery reason" \
+    'printf "%s" "$body" | grep -q "No supported drives found."'
+t::check "it identifies the serial's source" \
+    'printf "%s" "$body" | grep -q "\"serial_source\":\"dmi\""'
+t::check "an empty drive list is still valid JSON" \
+    'printf "%s" "$body" | grep -q "\"drives\":\[\]"'
+
 t::summary

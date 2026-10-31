@@ -11,6 +11,7 @@ require_once __DIR__ . '/http.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/org.php';
 require_once __DIR__ . '/grading.php';
+require_once __DIR__ . '/media_provenance.php';
 
 function run_cmd(array $cmd) {
     $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
@@ -204,6 +205,9 @@ function reports_denormalize(array $payload, bool $withSummary = false): array {
             'validator'      => (string)($payload['validator'] ?? ''),
             'media_source'   => (string)($payload['media_source'] ?? ''),
             'media_destination' => (string)($payload['media_destination'] ?? ''),
+            'media_state'    => (string)($payload['media_state'] ?? ''),
+            'discovery_notice' => (string)($payload['discovery_notice'] ?? ''),
+            'serial_source'  => (string)($payload['serial_source'] ?? 'dmi'),
             'drive_count'    => count(is_array($payload['drives'] ?? null) ? $payload['drives'] : []),
             'report_id'      => (string)($payload['report_id'] ?? ''),
             'digital_identifier' => (string)($payload['digital_identifier'] ?? ''),
@@ -1000,6 +1004,12 @@ function certificate_drives_ensure_schema(): void {
             'sanitization_standard' => "VARCHAR(32) NOT NULL DEFAULT '' AFTER verify_coverage_pct",
             'sanitization_level' => "VARCHAR(16) NOT NULL DEFAULT '' AFTER sanitization_standard",
             'sanitization_shortfall' => "VARCHAR(64) NOT NULL DEFAULT '' AFTER sanitization_level",
+            // Asset → medium provenance (research/media-provenance). Blank on an
+            // ordinary in-place row, so every certificate shape that existed
+            // before this feature renders exactly as it did.
+            'asset_serial' => "VARCHAR(191) NOT NULL DEFAULT '' AFTER sanitization_shortfall",
+            'origin_provenance' => "VARCHAR(16) NOT NULL DEFAULT '' AFTER asset_serial",
+            'provenance_json' => "TEXT NULL AFTER origin_provenance",
         ];
         foreach ($wanted as $col => $ddl) {
             $stmt = db()->prepare(
@@ -1015,6 +1025,320 @@ function certificate_drives_ensure_schema(): void {
     }
 }
 
+/**
+ * Lazily create the asset-provenance objects (idempotent — mirrors schema.sql).
+ *
+ * Also called OUTSIDE any transaction: DDL implicitly commits, and a caller
+ * holding a transaction would lose it (same rule as certificate_drives_ensure_schema).
+ */
+function asset_media_ensure_schema(): void {
+    static $ensured = false;
+    if ($ensured) return;
+    $ensured = true;
+    try {
+        // Guarded by db_table_exists so a read path that calls this never issues
+        // DDL on every request (the same rule as reports_ensure_schema()).
+        $ddl = [
+            'media_links' => "CREATE TABLE IF NOT EXISTS media_links (
+                id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id       BIGINT UNSIGNED NOT NULL,
+                cocid         VARCHAR(64)     NOT NULL,
+                asset_serial  VARCHAR(191)    NOT NULL,
+                media_serial  VARCHAR(191)    NOT NULL,
+                reason        VARCHAR(64)     NOT NULL DEFAULT '',
+                note          VARCHAR(500)    NOT NULL DEFAULT '',
+                declared_by   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                declared_at   DATETIME        NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_media_link (user_id, cocid, asset_serial, media_serial),
+                KEY idx_media_link_media (user_id, media_serial),
+                KEY idx_media_link_cocid (user_id, cocid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            'certificate_assets' => "CREATE TABLE IF NOT EXISTS certificate_assets (
+                id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                certificate_id  BIGINT UNSIGNED NOT NULL,
+                asset_key       VARCHAR(191)    NOT NULL,
+                asset_serial    VARCHAR(191)    NOT NULL,
+                system_name     VARCHAR(255)    NOT NULL DEFAULT '',
+                model           VARCHAR(255)    NOT NULL DEFAULT '',
+                asset_tag       VARCHAR(191)    NOT NULL DEFAULT '',
+                serial_source   VARCHAR(16)     NOT NULL DEFAULT 'dmi',
+                disposition     VARCHAR(32)     NOT NULL DEFAULT 'incomplete',
+                intake_ref      VARCHAR(255)    NOT NULL DEFAULT '',
+                intake_media    INT UNSIGNED    NOT NULL DEFAULT 0,
+                media_json      MEDIUMTEXT      NULL,
+                UNIQUE KEY uq_cert_asset (certificate_id, asset_key),
+                KEY idx_cert_assets_cert (certificate_id),
+                CONSTRAINT fk_cert_assets_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            'processing_hosts' => "CREATE TABLE IF NOT EXISTS processing_hosts (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id     BIGINT UNSIGNED NOT NULL,
+                device_key  VARCHAR(191)    NOT NULL,
+                label       VARCHAR(255)    NOT NULL DEFAULT '',
+                created_by  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                created_at  DATETIME        NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_processing_host (user_id, device_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ];
+        foreach ($ddl as $table => $sql) {
+            if (!db_table_exists($table)) {
+                db()->exec($sql);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('asset_media_ensure_schema: ' . $e->getMessage());
+    }
+}
+
+/** Boot snapshots for a COCID, payload decoded, newest first. */
+function diagnostics_for_cocid(int $userId, string $cocid): array {
+    if ($cocid === '') return [];
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = db()->prepare(
+            "SELECT id, uploaded_at, payload FROM reports
+             WHERE user_id IN ($ph) AND cocid = ? AND report_type = 'diagnostics'
+               AND " . reports_visible_sql() . '
+             ORDER BY id DESC'
+        );
+        $stmt->execute(array_merge($ids, [$cocid]));
+        $out = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $p = json_decode((string)$r['payload'], true);
+            if (!is_array($p)) continue;
+            $out[] = array_merge($p, [
+                'id'          => (int)$r['id'],
+                'uploaded_at' => ts_local((string)$r['uploaded_at']),
+            ]);
+        }
+        return $out;
+    } catch (Throwable $e) {
+        error_log('diagnostics_for_cocid: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Declared asset→medium links for one job. */
+function media_links_for_cocid(int $userId, string $cocid): array {
+    if ($cocid === '' || !db_table_exists('media_links')) return [];
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = db()->prepare("SELECT * FROM media_links WHERE user_id IN ($ph) AND cocid = ? ORDER BY id");
+        $stmt->execute(array_merge($ids, [$cocid]));
+        return $stmt->fetchAll();
+    } catch (Throwable $e) {
+        error_log('media_links_for_cocid: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Declare that a medium came out of an asset.
+ *
+ * Refused when the medium is already observed on a different (non-processing)
+ * host, or already attributed to another asset — an ambiguous link is worse
+ * than none, and the certificate must never guess.
+ * Returns ['ok'=>bool,'error'=>string,'id'=>int].
+ */
+function media_link_declare(int $userId, string $cocid, string $assetSerial, string $mediaSerial,
+                            string $reason, string $note, int $by): array {
+    asset_media_ensure_schema();
+    $cocid        = trim($cocid);
+    $assetSerial  = trim($assetSerial);
+    $mediaSerial  = trim($mediaSerial);
+    $reason       = trim($reason);
+    $note         = trim($note);
+
+    if ($cocid === '' || mb_strlen($cocid, 'UTF-8') > 64) {
+        return ['ok' => false, 'error' => 'Provide a valid Chain of Custody ID.'];
+    }
+    if (!mp_serial_usable($assetSerial)) {
+        return ['ok' => false, 'error' => 'The asset serial is empty or a firmware placeholder.'];
+    }
+    if (!mp_serial_usable($mediaSerial)) {
+        return ['ok' => false, 'error' => 'The media serial is empty or a firmware placeholder.'];
+    }
+    if (mb_strlen($assetSerial, 'UTF-8') > 191 || mb_strlen($mediaSerial, 'UTF-8') > 191) {
+        return ['ok' => false, 'error' => 'That serial is too long to record.'];
+    }
+
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    $dup = db()->prepare(
+        "SELECT id FROM media_links WHERE user_id IN ($ph) AND cocid = ? AND asset_serial = ? AND media_serial = ? LIMIT 1"
+    );
+    $dup->execute(array_merge($ids, [$cocid, $assetSerial, $mediaSerial]));
+    if ($dup->fetchColumn() !== false) {
+        return ['ok' => false, 'error' => 'That medium is already linked to this asset.'];
+    }
+
+    // Dry-run the exact resolution the certificate will use, including the
+    // candidate link, so a declaration cannot contradict an observation.
+    $payloads    = load_report_payloads($userId, $cocid);
+    $diagnostics = diagnostics_for_cocid($userId, $cocid);
+    $existing    = media_links_for_cocid($userId, $cocid);
+    $candidate   = [
+        'asset_serial' => $assetSerial,
+        'media_serial' => $mediaSerial,
+        'reason'       => $reason,
+        'note'         => $note,
+        'declared_at'  => gmdate('Y-m-d H:i:s'),
+    ];
+    $collected = mp_collect($payloads, $diagnostics, array_merge($existing, [$candidate]), processing_host_keys($userId));
+    $ms = mp_key($mediaSerial);
+    if (isset($collected['conflicts'][$ms])) {
+        return ['ok' => false, 'error' =>
+            'That media serial is already attributed to another asset in this job ('
+            . implode(', ', array_map('strval', $collected['conflicts'][$ms]))
+            . '). Resolve the existing link first.'];
+    }
+    if (!isset($collected['media'][$ms])) {
+        return ['ok' => false, 'error' => 'That media serial could not be linked unambiguously.'];
+    }
+    if ((string)$collected['media'][$ms]['asset_key'] !== mp_key($assetSerial)) {
+        return ['ok' => false, 'error' =>
+            'That media serial was recorded in a report on a different host. '
+            . 'If that host is a bench machine, mark it as a processing host first, then link.'];
+    }
+
+    try {
+        $q = db()->prepare(
+            'INSERT INTO media_links (user_id, cocid, asset_serial, media_serial, reason, note, declared_by, declared_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $q->execute([$userId, $cocid, $assetSerial, $mediaSerial, $reason, $note, $by, gmdate('Y-m-d H:i:s')]);
+        return ['ok' => true, 'error' => '', 'id' => (int)db()->lastInsertId()];
+    } catch (Throwable $e) {
+        error_log('media_link_declare: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Could not record the link.'];
+    }
+}
+
+/** Remove a declared link. Returns true when a row was removed. */
+function media_link_delete(int $userId, int $id): bool {
+    asset_media_ensure_schema();
+    if ($id <= 0) return false;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    $q = db()->prepare("DELETE FROM media_links WHERE id = ? AND user_id IN ($ph)");
+    $q->execute(array_merge([$id], $ids));
+    return $q->rowCount() > 0;
+}
+
+/** Lowercased device keys that are OUR bench/processing hosts, as a set. */
+function processing_host_keys(int $userId): array {
+    if (!db_table_exists('processing_hosts')) return [];
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = db()->prepare("SELECT device_key FROM processing_hosts WHERE user_id IN ($ph)");
+        $stmt->execute($ids);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $k) {
+            $k = mp_key((string)$k);
+            if ($k !== '') $out[$k] = true;
+        }
+        return $out;
+    } catch (Throwable $e) {
+        error_log('processing_host_keys: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Mark/unmark a host as a bench machine. */
+function processing_host_set(int $userId, string $deviceKey, bool $on, string $label, int $by): bool {
+    asset_media_ensure_schema();
+    $deviceKey = mp_key($deviceKey);
+    if ($deviceKey === '' || mb_strlen($deviceKey, 'UTF-8') > 191) return false;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        if (!$on) {
+            $q = db()->prepare("DELETE FROM processing_hosts WHERE user_id IN ($ph) AND device_key = ?");
+            $q->execute(array_merge($ids, [$deviceKey]));
+            return true;
+        }
+        $q = db()->prepare(
+            'INSERT INTO processing_hosts (user_id, device_key, label, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE label = VALUES(label), created_by = VALUES(created_by)'
+        );
+        $q->execute([$userId, $deviceKey, trim($label), $by, gmdate('Y-m-d H:i:s')]);
+        return true;
+    } catch (Throwable $e) {
+        error_log('processing_host_set: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Freeze the resolved asset accounting onto a certificate. */
+function certificate_assets_save(int $certId, array $assets): void {
+    if ($certId <= 0) return;
+    asset_media_ensure_schema();
+    db()->prepare('DELETE FROM certificate_assets WHERE certificate_id = ?')->execute([$certId]);
+    $q = db()->prepare(
+        'INSERT INTO certificate_assets
+         (certificate_id, asset_key, asset_serial, system_name, model, asset_tag, serial_source,
+          disposition, intake_ref, intake_media, media_json)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+    );
+    foreach ($assets as $a) {
+        if (!is_array($a)) continue;
+        $q->execute([
+            $certId,
+            (string)($a['asset_key'] ?? mp_key((string)($a['asset_serial'] ?? ''))),
+            (string)($a['asset_serial'] ?? ''),
+            (string)($a['system_name'] ?? ''),
+            (string)($a['model'] ?? ''),
+            (string)($a['asset_tag'] ?? ''),
+            (string)($a['serial_source'] ?? 'dmi'),
+            (string)($a['disposition'] ?? 'incomplete'),
+            (string)($a['intake_ref'] ?? ''),
+            (int)($a['intake_media'] ?? 0),
+            json_encode(array_values($a['media'] ?? []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+}
+
+/** The frozen asset accounting of a certificate. */
+function certificate_assets_load(int $certId): array {
+    if (!db_table_exists('certificate_assets')) return [];
+    try {
+        $q = db()->prepare('SELECT * FROM certificate_assets WHERE certificate_id = ? ORDER BY asset_serial');
+        $q->execute([$certId]);
+        $out = [];
+        foreach ($q->fetchAll() as $r) {
+            $r['media'] = json_decode((string)($r['media_json'] ?? '[]'), true) ?: [];
+            unset($r['media_json']);
+            $out[] = $r;
+        }
+        return $out;
+    } catch (Throwable $e) {
+        error_log('certificate_assets_load: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Resolve asset accounting for one job against the drives the certificate will
+ * print. Reads the reports, boot snapshots and declared links, then applies the
+ * evidence. The caller freezes the result onto the certificate.
+ */
+function media_provenance_for_cocid(int $userId, string $cocid, array $drives): array {
+    asset_media_ensure_schema();
+    $collected = mp_collect(
+        load_report_payloads($userId, $cocid),
+        diagnostics_for_cocid($userId, $cocid),
+        media_links_for_cocid($userId, $cocid),
+        processing_host_keys($userId)
+    );
+    return mp_apply_evidence($collected, $drives);
+}
+
 function load_cert_drives(int $certId): array {
     certificate_drives_ensure_schema();
     $stmt = db()->prepare(
@@ -1024,7 +1348,8 @@ function load_cert_drives(int $certId): array {
                 firmware, sector_size, sectors, hpa, dco, sed_status, reallocsectorspost, selftest, start_time, end_time, duration_secs,
                 tool_version, operator, validator, media_source, media_destination,
                 standard, passes, erase_engine, verify_technique, verify_coverage_pct,
-                sanitization_standard, sanitization_level, sanitization_shortfall
+                sanitization_standard, sanitization_level, sanitization_shortfall,
+                asset_serial, origin_provenance, provenance_json
          FROM certificate_drives WHERE certificate_id = ? AND source <> \'manual\' ORDER BY id'
     );
     $stmt->execute([$certId]);
@@ -1061,6 +1386,9 @@ function certificate_drives_column_map(): array {
         'sanitization_standard' => 'sanitization_standard',
         'sanitization_level' => 'sanitization_level',
         'sanitization_shortfall' => 'sanitization_shortfall',
+        'asset_serial' => 'asset_serial',
+        'origin_provenance' => 'origin_provenance',
+        'provenance_json' => 'provenance_json',
     ];
 }
 
@@ -1120,6 +1448,9 @@ function db_drive_to_group(array $d): array {
         'system' => (string)($d['system'] ?? ''),
         'sysserial' => (string)($d['sysserial'] ?? $d['system_serial'] ?? ''),
         'bbserial' => (string)($d['bbserial'] ?? $d['baseboard_serial'] ?? ''),
+        'asset_serial' => (string)($d['asset_serial'] ?? ''),
+        'origin_provenance' => (string)($d['origin_provenance'] ?? ''),
+        'provenance_json' => (string)($d['provenance_json'] ?? ''),
         'smart' => (string)($d['smart'] ?? ''),
         'tempc' => (string)($d['tempc'] ?? ''),
         'poweronhours' => (string)($d['poweronhours'] ?? ''),
@@ -1618,6 +1949,12 @@ function store_diagnostics_report(int $userId, array $d, string $serial, string 
         'uefi_boot_entries' => (string)($d['uefi_boot_entries'] ?? ''),
         'peripherals'    => (string)($d['peripherals'] ?? ''),
         'bios_lockdown'  => isset($d['bios_lockdown']) ? (int)$d['bios_lockdown'] : 0,
+        // Intake evidence (v1.11.x+): whether any media was visible and why not.
+        // Explicit whitelist — a new appliance field not added here is dropped
+        // on ingest without an error.
+        'media_state'    => (string)($d['media_state'] ?? ''),
+        'discovery_notice' => (string)($d['discovery_notice'] ?? ''),
+        'serial_source'  => (string)($d['serial_source'] ?? 'dmi'),
         'cpu_socket'     => (string)($d['cpu_socket'] ?? ''),
         'cpu_family'     => (string)($d['cpu_family'] ?? ''),
         'cpu_id'         => (string)($d['cpu_id'] ?? ''),
@@ -3190,6 +3527,40 @@ function media_sort_rows(array $rows, string $sort, int $dir): array
 }
 
 /**
+ * Per-certificate asset figures: how many assets are recorded at all, and how
+ * many are NOT the ordinary "sanitised in place" case (media removed and
+ * sanitised elsewhere, no data-bearing media, incomplete). One batched query so
+ * a certificate list does not run one per row.
+ *
+ * @return array<int, array{total:int, exceptions:int}>
+ */
+function asset_exception_counts(array $certIds): array
+{
+    $certIds = array_values(array_unique(array_filter(array_map('intval', $certIds), static fn($v) => $v > 0)));
+    if ($certIds === [] || !db_table_exists('certificate_assets')) return [];
+    $ph = implode(',', array_fill(0, count($certIds), '?'));
+    try {
+        $q = db()->prepare(
+            "SELECT certificate_id, COUNT(*) AS total,
+                    SUM(CASE WHEN disposition <> 'sanitised_in_place' THEN 1 ELSE 0 END) AS exceptions
+               FROM certificate_assets WHERE certificate_id IN ($ph) GROUP BY certificate_id"
+        );
+        $q->execute($certIds);
+        $out = [];
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['certificate_id']] = [
+                'total'      => (int)$r['total'],
+                'exceptions' => (int)$r['exceptions'],
+            ];
+        }
+        return $out;
+    } catch (Throwable $e) {
+        error_log('asset_exception_counts: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Attested (operator-recorded) item counts per certificate id: units and media.
  *
  * Kept deliberately OUT of the stored verified figures — `certificates.devices`/`runs` count
@@ -3504,6 +3875,13 @@ function load_devices(int $userId, ?array $query = null): array {
         $source = list_source($query['source'] ?? '');
 
         $cand = devices_candidates($ids, $ph, $userId);
+        // Bench/processing hosts are evidence, not customer assets. Excluded
+        // before search/facets/summary so every count narrows with the rows.
+        if (empty($query['bench'])) {
+            foreach (array_keys(processing_host_keys($userId)) as $pk) {
+                unset($cand[$pk]);
+            }
+        }
         $presence = presence_map($userId);
         foreach ($cand as $key => &$c) {
             $lastSeen = presence_last_seen((string)($c['sysserial'] ?? ''), (string)($c['systemuuid'] ?? ''), $presence);
@@ -3695,6 +4073,9 @@ function load_devices(int $userId, ?array $query = null): array {
                 'validator'     => (string)($g['validator'] ?? ''),
                 'media_source'  => (string)($g['media_source'] ?? ''),
                 'media_destination' => (string)($g['media_destination'] ?? ''),
+                'media_state'   => (string)($g['media_state'] ?? ''),
+                'discovery_notice' => (string)($g['discovery_notice'] ?? ''),
+                'serial_source' => (string)($g['serial_source'] ?? 'dmi'),
                 'battery'       => (string)($g['battery'] ?? ''),
                 'refurb_grade'  => (string)($r['grade'] ?? ''),
                 'notes'         => (string)($r['notes'] ?? ''),
@@ -3816,6 +4197,14 @@ function load_devices(int $userId, ?array $query = null): array {
         if ((string)$r['uploaded_at'] < $d['first']) $d['first'] = (string)$r['uploaded_at'];
         if ((string)$r['uploaded_at'] > $d['last'])  $d['last']  = (string)$r['uploaded_at'];
         unset($d);
+    }
+
+    // Bench/processing hosts are evidence, not customer assets. Skipped here
+    // (and therefore in the history folded below) unless explicitly requested.
+    if (!is_array($query) || empty($query['bench'])) {
+        foreach (array_keys(processing_host_keys($userId)) as $pk) {
+            unset($devices[$pk]);
+        }
     }
 
     // Fold erasure reports into the same machine history so the Devices tab
@@ -4076,6 +4465,40 @@ function load_devices(int $userId, ?array $query = null): array {
  * (the Drives tab expands it when a drive has multiple reports). Sorted by
  * model, then serial.
  */
+/**
+ * Attach a declared origin to each medium row, keyed by (cocid, media serial).
+ * One batched lookup, because the alternative is a query per row. Observed
+ * origins are derived at certificate time; the list shows what was declared.
+ */
+function media_links_attach(array $rows, int $userId): array {
+    if ($rows === [] || !db_table_exists('media_links')) return $rows;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare("SELECT cocid, media_serial, asset_serial FROM media_links WHERE user_id IN ($ph)");
+        $q->execute($ids);
+        $map = [];
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $l) {
+            $map[(string)$l['cocid']][mp_key((string)$l['media_serial'])] = (string)$l['asset_serial'];
+        }
+    } catch (Throwable $e) {
+        error_log('media_links_attach: ' . $e->getMessage());
+        return $rows;
+    }
+    if ($map === []) return $rows;
+    foreach ($rows as &$r) {
+        if (!is_array($r) || !empty($r['attested'])) continue;
+        $cocid = (string)($r['cocid'] ?? '');
+        $ms = mp_key((string)($r['serial'] ?? ''));
+        if ($cocid !== '' && $ms !== '' && isset($map[$cocid][$ms])) {
+            $r['origin_asset'] = $map[$cocid][$ms];
+            $r['origin_provenance'] = 'declared';
+        }
+    }
+    unset($r);
+    return $rows;
+}
+
 function load_drives(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
@@ -4096,7 +4519,9 @@ function load_drives(int $userId, ?array $query = null): array {
     // which is what makes the page boundaries follow the sort. An export asks for
     // all:true and must take the full path too, since it filters first.
     if ($query !== null && $q === '' && $sort === '' && empty($query['all'])) {
-        return drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source);
+        $res = drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source);
+        $res['drives'] = media_links_attach($res['drives'], $userId);
+        return $res;
     }
 
     $stmt = db()->prepare("SELECT id, cocid, uploaded_at, devices, payload FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' AND " . reports_visible_sql() . ' ORDER BY uploaded_at DESC, id DESC');
@@ -4176,6 +4601,7 @@ function load_drives(int $userId, ?array $query = null): array {
 
     // The Submitted column's value, for every row, before anything sorts on it.
     $out = media_with_datetime($out);
+    $out = media_links_attach($out, $userId);
 
     if ($query === null) {
         return $out;

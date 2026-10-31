@@ -16,6 +16,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/certifier.php';
 require_once __DIR__ . '/cert_terms.php';
+require_once __DIR__ . '/media_provenance.php';
 
 /** Public vendor Ed25519 key + fingerprint (mirrors /api/signing-key). */
 function jsonld_pub_key(): array {
@@ -395,6 +396,9 @@ function jsonld_normalize_drive(array $d): array {
         'psid_revert'   => jsonld_na((string)($d['psid_revert'] ?? '')),
         'ppi_requested' => jsonld_na((string)($d['ppi_requested'] ?? '')),
         'ppi_cleared'   => jsonld_na((string)($d['ppi_cleared'] ?? '')),
+        // Asset → medium provenance. Blank on an ordinary in-place row.
+        'asset_serial'  => jsonld_na((string)($d['asset_serial'] ?? '')),
+        'origin_provenance' => jsonld_na((string)($d['origin_provenance'] ?? '')),
     ];
 }
 
@@ -443,6 +447,18 @@ function jsonld_drive(array $norm): array {
         'duration'     => $duration,
     ];
     if ($props !== []) { $d['properties'] = $props; }
+    // The customer tracks assets, not hosts. State the origin explicitly when it
+    // is not the machine that ran the erase (the whole point of the feature),
+    // and name the host so an auditor never has to infer it from properties.
+    if (($norm['asset_serial'] ?? '') !== '') {
+        $d['originAsset'] = $norm['asset_serial'];
+        if (($norm['origin_provenance'] ?? '') !== '') {
+            $d['originProvenance'] = $norm['origin_provenance'];
+        }
+        if (($norm['system_serial'] ?? '') !== '') {
+            $d['hostSerial'] = $norm['system_serial'];
+        }
+    }
     return $d;
 }
 
@@ -451,7 +467,7 @@ function jsonld_drive(array $norm): array {
  * report rows. $summary keys: cert, cocid, issued_at, devices, methods, runs,
  * first, last, sha_state, sig_state, pdf_sha256.
  */
-function build_cert_jsonld(array $summary, array $drives, array $reports, array $issuer, array $attested = []): array {
+function build_cert_jsonld(array $summary, array $drives, array $reports, array $issuer, array $attested = [], array $assets = []): array {
     $context = [
         'https://schema.org',
         [
@@ -469,6 +485,18 @@ function build_cert_jsonld(array $summary, array $drives, array $reports, array 
             'shaState' => 'tscrub:shaState',
             'signatureState' => 'tscrub:signatureState',
             'properties' => 'tscrub:properties',
+            'originAsset' => 'tscrub:originAsset',
+            'originProvenance' => 'tscrub:originProvenance',
+            'hostSerial' => 'tscrub:hostSerial',
+            'assetAccounting' => 'tscrub:assetAccounting',
+            'assets' => 'tscrub:assets',
+            'assetSerial' => 'tscrub:assetSerial',
+            'assetTag' => 'tscrub:assetTag',
+            'serialSource' => 'tscrub:serialSource',
+            'disposition' => 'tscrub:disposition',
+            'provenance' => 'tscrub:provenance',
+            'failedStatus' => 'tscrub:failedStatus',
+            'conflict' => 'tscrub:conflict',
         ],
     ];
 
@@ -499,6 +527,43 @@ function build_cert_jsonld(array $summary, array $drives, array $reports, array 
     // — see research/cert-destruction-evidence/README.md).
     $mediaDisposition = cert_media_disposition($drives);
     if ($mediaDisposition !== '') { $doc['mediaDisposition'] = $mediaDisposition; }
+
+    // Asset accounting: only the assets the per-drive list cannot explain. An
+    // ordinary in-place job emits no key at all, so documents issued before this
+    // feature and ordinary new ones keep exactly their previous shape.
+    if ($assets !== [] && mp_asset_accounting_visible($assets)) {
+        $rows = [];
+        foreach ($assets as $a) {
+            if (($a['disposition'] ?? '') === 'sanitised_in_place') continue;
+            $media = [];
+            foreach (($a['media'] ?? []) as $m) {
+                $media[] = [
+                    'serial'       => (string)($m['serial'] ?? ''),
+                    'status'       => (string)($m['status'] ?? ''),
+                    'disposition'  => (string)($m['disposition'] ?? ''),
+                    'hostSerial'   => (string)($m['host_serial'] ?? ''),
+                    'provenance'   => (string)($m['provenance'] ?? ''),
+                    'failedStatus' => (string)($m['failed_status'] ?? ''),
+                    'conflict'     => !empty($m['conflict']),
+                ];
+            }
+            $rows[] = [
+                'assetSerial'  => (string)($a['asset_serial'] ?? ''),
+                'system'       => (string)($a['system_name'] ?? ''),
+                'assetTag'     => (string)($a['asset_tag'] ?? ''),
+                'serialSource' => (string)($a['serial_source'] ?? 'dmi'),
+                'disposition'  => (string)($a['disposition'] ?? ''),
+                'intakeRef'    => (string)($a['intake_ref'] ?? ''),
+                'media'        => $media,
+            ];
+        }
+        if ($rows !== []) {
+            $doc['assetAccounting'] = [
+                'qualifier' => mp_provenance_qualifier(),
+                'assets'    => $rows,
+            ];
+        }
+    }
 
     // Manually recorded (attested) destruction, mirroring the PDF's attested
     // appendix. Deliberately NOT folded into mediaDisposition or the `about` drive

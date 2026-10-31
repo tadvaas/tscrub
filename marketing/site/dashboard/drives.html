@@ -1080,6 +1080,88 @@
         renderPager();
       }
 
+      // Declared origin for a medium that was pulled and erased elsewhere. The
+      // origin is operator-declared provenance; the erasure itself stays verified.
+      function originBox(d) {
+        var box = el('div', 'mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-ink-700 pt-2 text-xs');
+        var known = !!d.origin_asset;
+        var label = known
+          ? 'Origin asset: ' + d.origin_asset + ' (' + (d.origin_provenance === 'declared' ? 'declared by operator' : d.origin_provenance) + '). Erased on ' + (d.sysserial || 'a different host') + '.'
+          : 'Origin asset not recorded — set it when this medium came out of another machine.';
+        box.appendChild(el('span', 'text-slate-500 dark:text-slate-400', label));
+        var btn = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', known ? 'Change origin…' : 'Assign origin…');
+        btn.type = 'button';
+        btn.title = 'Record which asset this medium came from. Provenance is operator-declared; the erasure evidence is not changed.';
+        btn.addEventListener('click', function () { openOriginForm(d, box); });
+        box.appendChild(btn);
+        return box;
+      }
+
+      function openOriginForm(d, box) {
+        box.innerHTML = '';
+        var form = el('div', 'flex w-full flex-wrap items-end gap-2');
+        var mk = function (label, value, ph) {
+          var w = el('label', 'flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400');
+          w.appendChild(el('span', '', label));
+          var i = el('input', 'ts-input h-8 text-xs', '');
+          i.type = 'text';
+          i.value = value || '';
+          if (ph) { i.placeholder = ph; }
+          w.appendChild(i);
+          form.appendChild(w);
+          return i;
+        };
+        var asset = mk('Asset serial (OEM)', d.origin_asset || '', 'e.g. CZC1234ABC');
+        var cocid = mk('Chain of Custody', d.cocid || '', 'e.g. 12345');
+        var reason = mk('Why', 'media_removed', 'media_removed');
+        var note = mk('Note (optional)', '', 'pulled at intake');
+        var save = el('button', 'ts-btn ts-btn--sm ts-btn--primary', 'Save');
+        save.type = 'button';
+        var cancel = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', 'Cancel');
+        cancel.type = 'button';
+        var msg = el('p', 'w-full text-xs font-semibold text-red-600 dark:text-red-400', '');
+        save.addEventListener('click', function () {
+          save.disabled = true;
+          msg.textContent = '';
+          fetch('/api/media/link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify({
+              cocid: cocid.value.trim(),
+              asset_serial: asset.value.trim(),
+              media_serial: d.serial || '',
+              reason: reason.value.trim(),
+              note: note.value.trim()
+            })
+          }).then(function (r) {
+            return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+          }).then(function (res) {
+            if (!res.ok) {
+              // The server refuses a link that contradicts an observation on
+              // another host, and says what to do about it.
+              msg.textContent = (res.j && res.j.error) || 'Could not record that link.';
+              save.disabled = false;
+              return;
+            }
+            box.innerHTML = '';
+            box.appendChild(el('span', 'text-xs font-semibold text-emerald-700 dark:text-emerald-400', 'Origin recorded. It appears on the certificate after it is generated.'));
+            lastDrivesJson = '';
+            loadDrives();
+          }).catch(function () {
+            msg.textContent = 'Could not record that link.';
+            save.disabled = false;
+          });
+        });
+        cancel.addEventListener('click', function () {
+          lastDrivesJson = '';
+          loadDrives();
+        });
+        form.appendChild(save);
+        form.appendChild(cancel);
+        box.appendChild(form);
+        box.appendChild(msg);
+      }
+
       function render() {
         // The view may have moved since the last paint (a clamped page number, a
         // filter, a sort) — write it back so a refresh reproduces the screen.
@@ -1168,7 +1250,18 @@
           var serCell = el('td', 'truncate px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400', d.serial || '—');
           serCell.title = d.serial || '';
           tr.appendChild(serCell);
-          tr.appendChild(el('td', 'whitespace-nowrap px-3 py-2 ' + statusClass(d.status), d.status || '—'));
+          var statusTd = el('td', 'whitespace-nowrap px-3 py-2');
+          statusTd.appendChild(el('span', statusClass(d.status), d.status || '—'));
+          // A medium whose recorded origin is a different machine was pulled and
+          // erased elsewhere. The erasure is still instrument-verified; only the
+          // origin is declared. Say so rather than letting the host look wrong.
+          var originDiff = d.origin_asset && String(d.origin_asset).toLowerCase() !== String(d.sysserial || '').toLowerCase();
+          if (originDiff) {
+            var originChip = el('span', 'ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'elsewhere');
+            originChip.title = 'Erased on ' + (d.sysserial || 'another host') + '; origin asset ' + d.origin_asset + ' (declared by operator)';
+            statusTd.appendChild(originChip);
+          }
+          tr.appendChild(statusTd);
           var methCell = el('td', 'max-w-[22rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—');
           methCell.title = d.method || '';
           tr.appendChild(methCell);
@@ -1235,6 +1328,7 @@
             });
             var inner = el('div', animRow ? 'row-expand' : '');
             inner.appendChild(st);
+            inner.appendChild(originBox(d));
             subtd.appendChild(inner);
             sub.appendChild(subtd);
             body.appendChild(sub);

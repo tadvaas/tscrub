@@ -64,6 +64,9 @@
       </div>
       <button type="button" id="search-clear" class="ts-btn ts-btn--secondary hidden">Clear</button>
       <button type="button" id="filter-btn" class="ts-btn ts-btn--secondary" title="Filter the list by presence, BIOS lock, MDM, Secure Boot, TPM, media and notes">Filters</button>
+      <!-- Bench / processing hosts are hidden by default. Shown only once one exists,
+           or while the operator is deliberately looking at them. -->
+      <button type="button" id="bench-btn" class="ts-btn ts-btn--secondary hidden" aria-pressed="false" title="Show the machines marked as processing hosts (bench machines). They are excluded from the fleet and from asset counts.">Bench hosts</button>
       <!-- The count comes from the FILTERED set, not the account: only devices with a
            captured hash and no job at all can be queued, so on a full view this reads
            "Check MDM (9)", not "(207)". -->
@@ -853,6 +856,7 @@
       fetch('/api/me').then(function (r) { return r.json(); }).then(function (d) {
         if (!d.user) { window.location.href = '/login?next=/dashboard/devices'; return; }
         loadDevices();
+        loadBenchHosts();
       });
 
       function short(v, n) {
@@ -1186,6 +1190,7 @@
           ff: encodeFilters(filters),
           fields: exportFieldKeys().join(',')
         });
+        if (benchView) { qs.set('bench', '1'); }
         var a = document.createElement('a');
         a.href = '/api/devices/export?' + qs.toString();
         a.download = 'tscrub-devices-' + exportStamp() + '.' + ext;
@@ -1596,6 +1601,9 @@
           page: String(page), per: String(per), q: currentQ,
           sort: sortKey || '', dir: sortDir === 1 ? 'asc' : 'desc', source: source
         });
+        // Bench hosts are excluded server-side unless explicitly requested, so
+        // the counts and the pager follow the visible rows.
+        if (benchView) { params.set('bench', '1'); }
         // The advanced filter must ride the REQUEST, not just the address bar. It
         // was written to the URL first and forgotten here, which made Apply look
         // like a no-op: the URL changed, the rows did not.
@@ -2732,6 +2740,7 @@
           reboot:      ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Power'],
           mdm:         ['bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400', 'MDM'],
           drive:       ['bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400', 'Media'],
+          media:       ['bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400', 'Media'],
           certificate: ['bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400', 'Cert'],
           boot:        ['bg-slate-200 dark:bg-ink-700 text-slate-600 dark:text-slate-400', 'Boot']
         };
@@ -2828,8 +2837,84 @@
         wrap.appendChild(inner);
         logBodies[key] = inner;
         logFill(dev, key, inner);
+        // Always present (even with no events): whether this machine is OUR bench
+        // host is a property of the machine, not of its history.
+        wrap.appendChild(benchToggle(dev));
         return wrap;
       }
+
+      // ---- Bench / processing hosts ------------------------------------------
+      // A bench machine produces evidence but is not one of the customer's assets.
+      // Marking one removes it from the fleet (the server excludes it from the list
+      // and every count) and from certificate asset accounting.
+      var benchHosts = {};
+      var benchView = viewGet('bench') === '1';
+
+      function paintBench() {
+        var btn = document.getElementById('bench-btn');
+        if (!btn) return;
+        var n = Object.keys(benchHosts).length;
+        btn.classList.toggle('hidden', !(benchView || n > 0));
+        btn.setAttribute('aria-pressed', benchView ? 'true' : 'false');
+        btn.textContent = benchView ? 'Hide bench hosts' : 'Bench hosts' + (n ? ' (' + n + ')' : '');
+      }
+
+      function loadBenchHosts() {
+        fetch('/api/devices/processing-hosts').then(function (r) { return r.json(); })
+          .then(function (d) {
+            benchHosts = {};
+            ((d && d.hosts) || []).forEach(function (h) { benchHosts[String(h.device_key || '')] = h; });
+            paintBench();
+          })
+          .catch(function () { paintBench(); });
+      }
+
+      function benchToggle(dev) {
+        var key = String(dev._key || dev.sysserial || '').toLowerCase();
+        var on = !!benchHosts[key];
+        var box = el('div', 'mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-ink-700 pt-2');
+        var btn = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', on ? 'Stop treating this as a bench machine' : 'Mark as our bench machine');
+        btn.type = 'button';
+        btn.title = 'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets.';
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          fetch('/api/devices/processing-host', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+            body: JSON.stringify({
+              device_key: key, on: !on, label: 'Bench host',
+              serial: dev.sysserial || '', bbserial: dev.bbserial || '', uuid: dev.systemuuid || ''
+            })
+          }).then(function (r) {
+            return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+          }).then(function (res) {
+            if (!res.ok) {
+              alert((res.j && res.j.error) || 'Could not update that host.');
+              btn.disabled = false;
+              return;
+            }
+            if (on) { delete benchHosts[key]; } else { benchHosts[key] = { device_key: key }; }
+            paintBench();
+            lastDevicesJson = '';
+            loadDevices();
+          }).catch(function () {
+            alert('Could not update that host.');
+            btn.disabled = false;
+          });
+        });
+        box.appendChild(btn);
+        box.appendChild(el('span', 'text-[11px] text-slate-500 dark:text-slate-400',
+          'Excluded from the fleet and from certificate asset counts. Evidence it produced is still used.'));
+        return box;
+      }
+
+      document.getElementById('bench-btn').addEventListener('click', function () {
+        benchView = !benchView;
+        paintBench();
+        page = 1;
+        lastDevicesJson = '';
+        loadDevices();
+      });
 
       // Rebuilds the panel's contents in place — on the first paint (fetch out),
       // when the events arrive, and on Load more. Never by re-rendering the table.

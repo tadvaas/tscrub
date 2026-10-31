@@ -10,6 +10,27 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
+- **A drive erased on a bench machine keeps its asset's identity.** When storage
+  will not erase in its own chassis, the operator pulls it and erases it
+  elsewhere. The evidence is then a report whose `SystemSerial` is the bench, so
+  the customer's asset was absent from the certificate and our bench was counted
+  as one of their devices. The job now records **asset accounting**: each asset's
+  media are linked to the report that sanitised them, wherever it ran. Provenance
+  is derived from the appliance's own observations (the boot snapshot's drive
+  inventory, or a failed erase attempt on that asset) and otherwise declared by
+  the operator from the medium's Reports expansion on the Media page, labelled
+  `declared by operator` and never presented as instrument-verified. Annex A gains
+  an `ASSET ACCOUNTING` block (media removed and sanitised elsewhere, no
+  data-bearing media at intake, incomplete) and an `Origin asset` column shown
+  only when it differs from `Machine SN`; an ordinary in-place job renders
+  exactly as before. A no-media boot now pushes its intake snapshot, so a
+  non-data-bearing asset is recorded instead of existing only as a heartbeat.
+  Bench machines can be marked as processing hosts from their Log: excluded from
+  the fleet and from certificate asset counts, their evidence still used. The
+  signed JSON-LD twin carries `originAsset` / `originProvenance` / `hostSerial`
+  and an `assetAccounting` block, and `/verify` states the same figures.
+  Plan: `research/media-provenance/README.md`.
+
 - **Correct a mistyped COCID from the dashboard, without deleting evidence.** A
   COCID typed at boot is checked for shape, not for truth, so `12354` for
   `12345` either invents a job or joins an unrelated one — and the ID is stamped

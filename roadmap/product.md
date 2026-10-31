@@ -442,6 +442,18 @@ with the release that carried them (per `CHANGELOG.md`).
 
 ### 4.2 Media & platform coverage (§9.1, §6)
 
+- [ ] **A drive that will not erase in its own chassis — provenance and custody.**
+      When an asset's storage is not detected or refuses the erase, the operator
+      pulls it and erases it on a bench machine. The evidence is then a report
+      whose `SystemSerial` is the bench, so the customer's asset is absent from
+      the certificate and our bench is counted as one of their devices. Wanted:
+      the job (COCID) becomes asset accounting — each asset listed with its
+      data-bearing media and the report that sanitised each one; provenance
+      (observed at intake / failed attempt / declared by operator) printed as a
+      separate evidence class from the erasure; assets with no data-bearing media
+      recorded as such instead of vanishing; processing hosts excluded from asset
+      counts. (§9.1, §11.4)
+      → Plan: `research/media-provenance/README.md`.
 - [ ] Mac (Intel + Apple Silicon) erase — pull-the-drive workflow + docs, not a
       Mac boot; declare Apple Silicon's Recovery-only erase on `compare.html`.
       (§9.1) → **Plan**: `research/macos-boot/plan.md` (status: awaiting review;

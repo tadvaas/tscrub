@@ -270,6 +270,9 @@ fn_main() {
         triage::no_media_run || exit 0
         ui::spinner_start "Preparing..."
     fi
+    # What the intake snapshot should say about media (ok / all_protected / none).
+    # Computed after any rescan, so a machine that recovered its drive reports ok.
+    SYS_MEDIA_STATE="$(device::media_state)"
     smart::capture_all pre
     ui::spinner_stop
 

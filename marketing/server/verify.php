@@ -97,6 +97,12 @@ if ($isValidId) {
             $hasReports  = !empty($record['reports']);
             $hasAttested = ($docAttDevices + $docAttMedia) > 0;
 
+            // Asset accounting is read from the DOCUMENT snapshot, not from the live
+            // links: this page verifies a document. A job with no signed erasure
+            // reports can still have an asset record from boot snapshots.
+            $assetAccounting = is_array($snapshot['assetAccounting'] ?? null) ? $snapshot['assetAccounting'] : [];
+            $assetRows = is_array($assetAccounting['assets'] ?? null) ? $assetAccounting['assets'] : [];
+
             // The sanitisaton-standard claim, taken from the DOCUMENT rather
             // than the live table (this page verifies a document) and computed
             // by the same rule the PDF uses, so the two cannot disagree. It is
@@ -223,9 +229,15 @@ if ($found) {
         // Saying 'some underlying reports did not pass integrity checks' when there are no
         // reports at all is simply false, and it is the sentence the previous code fell
         // through to for exactly this case.
-        $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no '
-            . 'appliance reports: ' . ($hasRetained ? 'the outcome it records' : 'the destruction it records')
-            . ' is a statement by the operator, not an instrument-verified sanitisation.';
+        if ($assetRows !== []) {
+            $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no signed erasure reports: '
+                . 'the asset accounting it records is derived from boot snapshots (diagnostics), which are not signed '
+                . 'evidence of sanitisation.';
+        } else {
+            $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no '
+                . 'appliance reports: ' . ($hasRetained ? 'the outcome it records' : 'the destruction it records')
+                . ' is a statement by the operator, not an instrument-verified sanitisation.';
+        }
         if ($hasRetained) {
             $integrityNote .= ' A factory reset destroys no hardware: the reset devices were retained and '
                 . 'remain in circulation, and no claim is made about their media beyond the operator\'s declaration.';
@@ -301,6 +313,33 @@ if ($found) {
       <?php if ($hasAttested): ?>
       <tr><th>Operator-attested</th><td><?= v_h($attestedSummary) ?></td></tr>
       <?php endif; ?>
+<?php if (!empty($assetRows)): ?>
+      <tr><th>Asset accounting</th><td><?= count($assetRows) ?> <?= count($assetRows) === 1 ? 'asset' : 'assets' ?> with media sanitised outside the asset or no data-bearing media
+        <div style="margin-top:6px;font-size:12px;color:#64748b;">
+        <?php foreach ($assetRows as $a): ?>
+          <?php
+          $bits = [];
+          foreach ((array)($a['media'] ?? []) as $m) {
+              $b = (string)($m['serial'] ?? '');
+              if ((string)($m['disposition'] ?? '') === 'media_removed_sanitised') {
+                  $b .= ' sanitised on ' . ((string)($m['hostSerial'] ?? '') !== '' ? (string)$m['hostSerial'] : 'a different host');
+                  if ((string)($m['provenance'] ?? '') !== '') {
+                      $b .= ' (' . mp_provenance_label((string)$m['provenance']) . ')';
+                  }
+              } elseif ((string)($m['disposition'] ?? '') === 'incomplete') {
+                  $b .= ' — no completed erasure evidence';
+              }
+              if ($b !== '') $bits[] = $b;
+          }
+          $disp = (string)($a['disposition'] ?? '');
+          ?>
+          <div><strong><?= v_h($a['assetSerial'] ?? '') ?></strong>
+            — <?= v_h($disp) ?><?= $bits !== [] ? ': ' . v_h(implode('; ', $bits)) : '' ?></div>
+        <?php endforeach; ?>
+        </div>
+        <div style="margin-top:4px;font-size:12px;color:#64748b;"><?= v_h((string)($assetAccounting['qualifier'] ?? '')) ?></div>
+      </td></tr>
+<?php endif; ?>
 <?php if ($claimView !== null): ?>
       <tr><th>Sanitisation standard</th><td><?= v_h($claimView['value']) ?><br><span style="font-size:12px;color:#64748b;"><?= v_h($claimView['note']) ?></span></td></tr>
 <?php endif; ?>

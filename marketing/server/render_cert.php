@@ -24,6 +24,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/tcpdf/tcpdf.php';
 require_once __DIR__ . '/cert_terms.php';
 require_once __DIR__ . '/claim_lib.php';
+require_once __DIR__ . '/media_provenance.php';
 
 function fmt_ts($ts) {
     if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/', (string)$ts, $m)) {
@@ -316,6 +317,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'tool'     => ['label' => 'Tool',         'w' => 24, 'align' => 'C'],
         'system'   => ['label' => 'Machine',      'w' => 32, 'align' => 'L'],
         'sysserial'=> ['label' => 'Machine SN',   'w' => 23, 'align' => 'C'],
+        // Shown only when a medium's origin differs from the host that erased it.
+        // When every row is in place the column is dropped, so the ordinary
+        // certificate keeps its exact previous column set and widths.
+        'asset'    => ['label' => 'Origin asset', 'w' => 23, 'align' => 'C'],
         'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'C'],
         'format'   => ['label' => 'Formatted',    'w' => 18, 'align' => 'C'],
         'psid'     => ['label' => 'PSID',         'w' => 14, 'align' => 'C'],
@@ -345,6 +350,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             }
             case 'system':    return (string)($d['system'] ?? '');
             case 'sysserial': return (string)($d['sysserial'] ?? '');
+            case 'asset':     return (string)($d['asset_serial'] ?? '');
             case 'format': {
                 $fr = strtolower(trim((string)($d['format_result'] ?? '')));
                 $fs = strtolower(trim((string)($d['format_fs'] ?? '')));
@@ -389,6 +395,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case 'tool':   return trim((string)($d['tool_version'] ?? '')) === '';
             case 'system':    return trim((string)($d['system'] ?? '')) === '';
             case 'sysserial': return trim((string)($d['sysserial'] ?? '')) === '';
+            case 'asset':     return trim((string)($d['asset_serial'] ?? '')) === '';
             case 'format': {
                 $fr = strtolower(trim((string)($d['format_result'] ?? '')));
                 return $fr !== 'ok';
@@ -413,6 +420,15 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
 
     // Drop columns empty for every drive; show Status only when at least one
     // drive is not COMPLETED (an all-green column adds nothing).
+    $showOrigin = false;
+    foreach ($drives as $dx) {
+        $as = trim((string)($dx['asset_serial'] ?? ''));
+        if ($as !== '' && mp_key($as) !== mp_key((string)($dx['sysserial'] ?? ''))) {
+            $showOrigin = true;
+            break;
+        }
+    }
+    if (!$showOrigin) unset($cols['asset']);
     foreach (array_keys($cols) as $key) {
         if ($key === '#') continue;
         $allEmpty = true;
@@ -568,7 +584,7 @@ function cert_render_manifest(TCPDF $pdf, float $x, float $W, float $H, string $
     }
 }
 
-function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives, array $reports): void {
+function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives, array $reports, array $assets = []): void {
     $bg = function () use ($pdf, $W, $H): void {
         $pdf->SetFillColor(250, 249, 246);
         $pdf->Rect(0, 0, $W, $H, 'F');
@@ -595,7 +611,85 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
     $pdf->SetXY($x, 21);
     $pdf->Cell($W - 2 * $x, 4.5, 'Item-level record of ' . count($drives) . ' media item(s) processed under Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
 
+    // Assets whose outcome the per-drive table cannot explain: media removed and
+    // sanitised on another host, an asset with no data-bearing media, or an asset
+    // that did not complete. An ordinary in-place job yields no rows here and the
+    // annex is exactly what it was before this feature.
+    $visibleAssets = mp_asset_block_rows($assets);
+    $y = 30.0;
+    if ($visibleAssets !== []) {
+        $w = $W - 2 * $x;
+        $assetHeader = function (float $ay) use ($pdf, $x, $w): void {
+            $pdf->SetFont('helvetica', 'B', 10);
+            $pdf->SetTextColor(11, 18, 32);
+            $pdf->SetXY($x, $ay);
+            $pdf->Cell($w, 5, 'ASSET ACCOUNTING', 0, 1, 'L');
+            $pdf->SetLineWidth(0.2);
+            $pdf->SetDrawColor(203, 213, 225);
+            $pdf->Line($x, $ay + 5.0, $x + $w, $ay + 5.0);
+            $pdf->SetDrawColor(0, 0, 0);
+        };
+        $assetHeader($y);
+        $y += 6.4;
+
+        $pdf->SetFont('helvetica', '', 7.5);
+        foreach ($visibleAssets as $a) {
+            $line = mp_asset_line($a);
+            $details = [];
+            foreach (($a['media'] ?? []) as $m) {
+                $bits = [strtoupper((string)($m['serial'] ?? ''))];
+                $disp = (string)($m['disposition'] ?? '');
+                if ($disp === 'media_removed_sanitised') {
+                    $host = trim((string)($m['host_serial'] ?? ''));
+                    $bits[] = 'sanitised on ' . ($host !== '' ? $host : 'a different host');
+                    if ((string)($m['provenance'] ?? '') !== '') {
+                        $bits[] = mp_provenance_label((string)$m['provenance']);
+                    }
+                } elseif ($disp === 'media_destroyed') {
+                    $bits[] = 'physically destroyed';
+                } elseif ($disp === 'incomplete') {
+                    if (!empty($m['conflict'])) {
+                        $bits[] = 'origin ambiguous between assets';
+                    } else {
+                        $fs = trim((string)($m['failed_status'] ?? ''));
+                        $bits[] = 'no completed erasure evidence' . ($fs !== '' ? ' (' . $fs . ')' : '');
+                    }
+                }
+                $details[] = implode(', ', $bits);
+            }
+            if (($a['disposition'] ?? '') === 'no_data_bearing_media') {
+                $ref = trim((string)($a['intake_ref'] ?? ''));
+                if ($ref !== '') $details[] = 'boot snapshot ' . $ref;
+            }
+            if ($details !== []) $line .= ' — ' . implode('; ', $details);
+
+            $need = $pdf->getStringHeight($w, $line, false, true) + 1.0;
+            if ($y + $need > $H - 12) {
+                $pdf->AddPage();
+                $bg();
+                $pageLabel();
+                $assetHeader(14.0);
+                $y = 20.4;
+                $pdf->SetFont('helvetica', '', 7.5);
+            }
+            $pdf->SetTextColor(51, 65, 85);
+            $pdf->SetXY($x, $y);
+            $pdf->MultiCell($w, 3.8, $line, 0, 'L');
+            $y = $pdf->GetY() + 0.8;
+        }
+
+        $pdf->SetFont('helvetica', 'I', 7.0);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetXY($x, $y);
+        $pdf->MultiCell($w, 3.4, mp_provenance_qualifier(), 0, 'L');
+        $y = $pdf->GetY() + 2.2;
+    }
+
     if ($drives === []) {
+        if ($visibleAssets !== []) {
+            // The asset block IS the substantive record for a job with no media.
+            return;
+        }
         $pdf->SetFont('helvetica', '', 11);
         $pdf->SetTextColor(100, 116, 139);
         $pdf->SetXY($x, 60);
@@ -611,7 +705,6 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
     // Annex status column carry them); see
     // research/cert-destruction-evidence/README.md.
     $breakdown = cert_method_breakdown($drives);
-    $y = 30.0;
     if ($breakdown !== []) {
         $pdf->SetFont('helvetica', 'B', 10);
         $pdf->SetTextColor(11, 18, 32);
@@ -915,12 +1008,18 @@ function cert_attestation_size($pdf, string $text, float $w, float $availH, floa
  * by what means, under what custody, that the tool did the sanitising, and that the
  * attested items were not sanitised by it and are not instrument-verified.
  */
-function cert_attestation_text(string $toolName, int $devices, int $attItems, int $attRetained): string
+function cert_attestation_text(string $toolName, int $devices, int $attItems, int $attRetained, bool $removedAssets = false): string
 {
     $sanitisedClaim = 'This is to certify that the data on the storage devices listed in Annex A was destroyed — by in-place sanitisation '
         . '(Clear / Purge), or by physical destruction where recorded — under controlled chain-of-custody from receipt to final '
         . 'verification, in accordance with the methods, techniques, standards and levels set out herein. '
         . $toolName . ' was used as the sanitisation tool.';
+    if ($removedAssets) {
+        // Never let a reader hear 'in place' for a medium that left its chassis.
+        // The asset block names which, and on what host each medium was sanitised.
+        $sanitisedClaim .= ' Where storage media were removed from an asset and sanitised on a different host, Annex A states this:'
+            . ' the medium was sanitised, the asset itself was not sanitised in place.';
+    }
 
     if ($devices > 0 && $attItems === 0) {
         return $sanitisedClaim;
@@ -958,7 +1057,7 @@ function cert_attestation_text(string $toolName, int $devices, int $attItems, in
     return $text;
 }
 
-function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = [], string $offlineCode = ''): array {
+function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = [], string $offlineCode = '', array $assets = []): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
     usort($drives, function ($a, $b) {
@@ -984,6 +1083,11 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
             $drives[$i]['cert'] = ($st === 'FROZEN') ? 'DESTRUCTION REQUIRED' : 'NOT SANITISED';
         }
     }
+    // The destruction decision above changes a drive's final status AFTER
+    // provenance was resolved; bring the asset block into line so the two parts
+    // of the certificate cannot disagree.
+    $assets = mp_reconcile_assets($assets, $drives);
+
     $nonCompleted = 0;
     $destroyedCount = 0;
     foreach ($drives as $d) {
@@ -1011,6 +1115,19 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $attMedia   = (int)$attCounts['media'];
     $attSplit   = md_attested_split($attested);
     $attItems   = count($attested['devices'] ?? []) + count($attested['media'] ?? []);
+
+    // Assets whose media were NOT sanitised in place, or which had no data-bearing
+    // media at all. An ordinary in-place job yields an empty list here, so the
+    // certificate it renders is byte-identical to the pre-provenance renderer.
+    $visibleAssets = mp_asset_block_rows($assets);
+    $removedAssetCount = count(array_filter(
+        $visibleAssets,
+        static fn($a) => ($a['disposition'] ?? '') === 'media_removed_sanitised'
+    ));
+    $noMediaAssetCount = count(array_filter(
+        $visibleAssets,
+        static fn($a) => ($a['disposition'] ?? '') === 'no_data_bearing_media'
+    ));
 
     $range = 'N/A';
     if (($g['first'] ?? null) !== null) {
@@ -1148,11 +1265,24 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     if ($devices > 0)  { $subParts[] = $devices . ($devices === 1 ? ' verified media item' : ' verified media items'); }
     if ($attItems > 0) { $subParts[] = $attItems . ($attItems === 1 ? ' item' : ' items') . ' destroyed by attestation'; }
     if ($devices === 0 && $attItems === 0) { $subParts[] = '0 media items'; }
+    if ($removedAssetCount > 0) {
+        $subParts[] = $removedAssetCount . ($removedAssetCount === 1 ? ' asset with media removed' : ' assets with media removed');
+    }
+    if ($noMediaAssetCount > 0) {
+        $subParts[] = $noMediaAssetCount . ($noMediaAssetCount === 1 ? ' asset with no data-bearing media' : ' assets with no data-bearing media');
+    }
     $subParts[] = 'issued ' . gmdate('Y-m-d H:i') . ' UTC';
-    $pdf->SetFont('helvetica', '', 11);
+    $subTxt = implode('  ·  ', $subParts);
+    // Shrink rather than truncate: this line carries a claim (asset counts), and a
+    // claim is never allowed to end in an ellipsis.
+    $subFont = 11.0;
+    while ($subFont > 8.5 && $pdf->getStringWidth($subTxt, 'helvetica', '', $subFont) > ($W - 22)) {
+        $subFont -= 0.5;
+    }
+    $pdf->SetFont('helvetica', '', $subFont);
     $pdf->SetTextColor(71, 85, 105);
     $pdf->SetXY(10, 32);
-    $pdf->Cell($W - 20, 5, implode('  ·  ', $subParts), 0, 1, 'C');
+    $pdf->Cell($W - 20, 5, $subTxt, 0, 1, 'C');
 
     // Outcome banner — states the claim ("data destroyed") plus, implicitly, the
     // how: a run that is part sanitised in place and part physically destroyed is
@@ -1329,7 +1459,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $pdf->SetTextColor(51, 65, 85);
     $toolName = ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub');
     $attRetained = (int)$attSplit['retained']['devices'] + (int)$attSplit['retained']['media'];
-    $attestation = cert_attestation_text($toolName, (int)$devices, $attItems, $attRetained);
+    $attestation = cert_attestation_text($toolName, (int)$devices, $attItems, $attRetained, $removedAssetCount > 0);
 
     // Drawn at the largest size that fits the band. The wording above is short enough to
     // fit at the full size for every job shape; this is the guard that keeps it that way,
@@ -1446,7 +1576,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
 
     // ---- Annex A ----
-    cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports']);
+    cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports'], $assets);
 
     // Manually recorded (attested) destruction goes on its own page, so it can never
     // collide with the annex table or push page 1's fixed layout around. A
@@ -1464,5 +1594,8 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         'methods' => $methods,
         'runs'    => $runs,
         'drives'  => $drives,
+        // The reconciled asset accounting, so the JSON-LD twin and the stored
+        // snapshot are exactly what the PDF states.
+        'assets'  => $assets,
     ];
 }

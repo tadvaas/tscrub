@@ -154,6 +154,11 @@ CREATE TABLE IF NOT EXISTS certificate_drives (
   -- utf8mb4_bin so the comparison is byte-exact and agrees with md_normalise();
   -- the default _unicode_ci collation would merge accents and diverge from PHP.
   identity_key        VARCHAR(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
+  -- Asset → medium provenance (research/media-provenance). Blank on an ordinary
+  -- in-place row; set only when the medium was sanitised on a different host.
+  asset_serial        VARCHAR(191)    NOT NULL DEFAULT '',
+  origin_provenance   VARCHAR(16)     NOT NULL DEFAULT '',
+  provenance_json     TEXT            NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_cdr_identity (certificate_id, identity_key),
   KEY idx_cd_cert (certificate_id),
@@ -185,6 +190,57 @@ CREATE TABLE IF NOT EXISTS certificate_devices (
   UNIQUE KEY uq_cd_identity (certificate_id, identity_key),
   KEY idx_cddevice_cert (certificate_id),
   CONSTRAINT fk_cddevice_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Declared asset→medium provenance. Observed links are derived from the
+-- reports themselves; only an operator's declaration is stored here. See
+-- research/media-provenance/README.md.
+CREATE TABLE IF NOT EXISTS media_links (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id       BIGINT UNSIGNED NOT NULL,
+  cocid         VARCHAR(64)     NOT NULL,
+  asset_serial  VARCHAR(191)    NOT NULL,
+  media_serial  VARCHAR(191)    NOT NULL,
+  reason        VARCHAR(64)     NOT NULL DEFAULT '',
+  note          VARCHAR(500)    NOT NULL DEFAULT '',
+  declared_by   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  declared_at   DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_media_link (user_id, cocid, asset_serial, media_serial),
+  KEY idx_media_link_media (user_id, media_serial),
+  KEY idx_media_link_cocid (user_id, cocid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Frozen asset accounting of a certificate. A certificate is a snapshot: the
+-- public verifier and a re-download read this, never a fresh resolution.
+CREATE TABLE IF NOT EXISTS certificate_assets (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  certificate_id  BIGINT UNSIGNED NOT NULL,
+  asset_key       VARCHAR(191)    NOT NULL,
+  asset_serial    VARCHAR(191)    NOT NULL,
+  system_name     VARCHAR(255)    NOT NULL DEFAULT '',
+  model           VARCHAR(255)    NOT NULL DEFAULT '',
+  asset_tag       VARCHAR(191)    NOT NULL DEFAULT '',
+  serial_source   VARCHAR(16)     NOT NULL DEFAULT 'dmi',
+  disposition     VARCHAR(32)     NOT NULL DEFAULT 'incomplete',
+  intake_ref      VARCHAR(255)    NOT NULL DEFAULT '',
+  intake_media    INT UNSIGNED    NOT NULL DEFAULT 0,
+  media_json      MEDIUMTEXT      NULL,
+  UNIQUE KEY uq_cert_asset (certificate_id, asset_key),
+  KEY idx_cert_assets_cert (certificate_id),
+  CONSTRAINT fk_cert_assets_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Our own bench machines: they produce evidence but are never customer assets.
+CREATE TABLE IF NOT EXISTS processing_hosts (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     BIGINT UNSIGNED NOT NULL,
+  device_key  VARCHAR(191)    NOT NULL,
+  label       VARCHAR(255)    NOT NULL DEFAULT '',
+  created_by  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at  DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_processing_host (user_id, device_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Uploaded reports (raw evidence) stored independently of certificates.

@@ -281,6 +281,65 @@ function device_events(int $userId, string $serial, string $uuid = '', int $limi
         }
     }
 
+    // --- media removed from this asset (declared provenance) -----------------
+    // The declaration is an operator attestation; the erasure it points at is
+    // instrument-verified and recorded against the host that ran it. Both are
+    // shown, so the custody trail reads end to end for a drive that was pulled
+    // and erased elsewhere.
+    if ($serial !== '') {
+        try {
+            $q = db()->prepare("SELECT * FROM media_links WHERE user_id IN ($ph) AND asset_serial = ? ORDER BY id DESC LIMIT 30");
+            $q->execute(array_merge($ids, [$serial]));
+            foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                $ms = (string)$l['media_serial'];
+                $detail = trim((string)$l['reason']);
+                if (trim((string)$l['note']) !== '') {
+                    $detail .= ($detail !== '' ? ' · ' : '') . trim((string)$l['note']);
+                }
+                $add((string)$l['declared_at'], 'media',
+                    'Medium ' . $ms . ' declared as removed from this asset', 'info',
+                    $detail, '', (string)$l['cocid']);
+
+                $rq = db()->prepare(
+                    "SELECT payload, uploaded_at FROM reports
+                      WHERE user_id IN ($ph) AND cocid = ? AND report_type = 'erasure'
+                        AND " . reports_visible_sql() . '
+                      ORDER BY id DESC'
+                );
+                $rq->execute(array_merge($ids, [(string)$l['cocid']]));
+                $found = false;
+                foreach ($rq->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $rg = json_decode((string)$r['payload'], true);
+                    if (!is_array($rg)) continue;
+                    foreach (($rg['drives'] ?? []) as $dv) {
+                        if (!is_array($dv)) continue;
+                        if (strcasecmp((string)($dv['serial'] ?? ''), $ms) !== 0) continue;
+                        $st = (string)($dv['status'] ?? '');
+                        $host = (string)($dv['sysserial'] ?? '');
+                        $add(
+                            (string)($dv['ts'] ?? $r['uploaded_at']),
+                            'media',
+                            'Medium ' . $ms . ': ' . ($st !== '' ? $st : 'no status') . ($host !== '' ? ' on ' . $host : ''),
+                            stripos($st, 'COMPLET') !== false ? 'ok' : (stripos($st, 'FAIL') !== false ? 'fail' : 'info'),
+                            (string)($dv['method'] ?? ''),
+                            '',
+                            (string)$l['cocid']
+                        );
+                        $found = true;
+                        break 2;
+                    }
+                }
+                if (!$found) {
+                    $add((string)$l['declared_at'], 'media',
+                        'Medium ' . $ms . ': no erasure report in this job yet', 'warn', '', '', (string)$l['cocid']);
+                }
+            }
+        } catch (Throwable $e) {
+            // A pre-provenance install has no media_links table; the rest of the log is fine.
+            error_log('device log media links: ' . $e->getMessage());
+        }
+    }
+
     usort($events, static fn(array $a, array $b): int => strcmp((string)$b['at'], (string)$a['at']));
     return array_slice($events, 0, $limit);
 }

@@ -1488,8 +1488,18 @@ triage::no_media_run() {
     # not "done" (nothing was erased) and not "failed" (nothing failed).
     status::write no_media 0 0 0
     status::ping_now
+    # Intake evidence for the server: the machine, its identity and the reason it
+    # has no media. Set BEFORE the registration push below reads it.
+    SYS_MEDIA_STATE="$(device::media_state)"
     report::journal_open
     report::journal NOTE "no storage detected - nothing to erase (cocid=${COCID:-none})"
+
+    # Push the boot snapshot even though there is nothing to erase. Without this
+    # the asset exists only as a transient heartbeat, so the Devices tab has no
+    # row to record "no data-bearing media" against and the certificate cannot
+    # account for the asset at all. Backgrounded like the normal boot push so a
+    # slow network cannot hold the screen.
+    { register::push; } 3>&- &
 
     if ! ui::terminal_controls_supported; then
         printf "%s[!] No storage detected - nothing to erase.\n" "$TABLE_INDENT" >&2

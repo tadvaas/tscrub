@@ -26,6 +26,15 @@ register::json_body() {
     # it a diagnostics snapshot cannot be tied to a CoC — which is why the
     # dashboard's Log had nothing to show for the commonest event of all.
     printf ',"cocid":"%s"' "$(report::_json_field "${COCID:-}")"
+    # Intake evidence: whether this machine could see any media at all, and if
+    # not why (nothing attached / everything protected). Without this a no-media
+    # boot leaves only a heartbeat, so the asset has no row to record its
+    # outcome against. serial_source says whether the serial is a real DMI value
+    # or a derived/placeholder one (derived-identity).
+    printf ',"media_state":"%s","discovery_notice":"%s","serial_source":"%s"' \
+        "$(report::_json_field "${SYS_MEDIA_STATE:-}")" \
+        "$(report::_json_field "${DISCOVERY_NOTICE:-}")" \
+        "$(report::_json_field "${SYS_SERIAL_SOURCE:-dmi}")"
     printf ',"manufacturer":"%s","product":"%s"' \
         "$(report::_json_field "${SYS_MANUFACTURER:-}")" \
         "$(report::_json_field "${SYS_PRODUCT:-}")"

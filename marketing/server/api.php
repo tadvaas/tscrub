@@ -113,7 +113,7 @@ function send_reset_email(array $u): void {
     );
 }
 
-function cert_row(array $c, ?array $att = null): array {
+function cert_row(array $c, ?array $att = null, ?array $assets = null): array {
     // Attested (operator-recorded) items live in their own tables and are deliberately NOT
     // part of `devices`/`methods`/`runs` — those count instrument-verified evidence, and the
     // two classes are never summed (the PDF, /verify and the JSON-LD twin all keep them
@@ -124,6 +124,9 @@ function cert_row(array $c, ?array $att = null): array {
     // caller gets it looked up, so no caller can accidentally emit a row without it.
     if ($att === null) {
         $att = attested_counts([(int)($c['id'] ?? 0)])[(int)($c['id'] ?? 0)] ?? [];
+    }
+    if ($assets === null) {
+        $assets = asset_exception_counts([(int)($c['id'] ?? 0)])[(int)($c['id'] ?? 0)] ?? [];
     }
     $attDevices = (int)($att['devices'] ?? 0);
     $attMedia   = (int)($att['media'] ?? 0);
@@ -139,6 +142,11 @@ function cert_row(array $c, ?array $att = null): array {
         // The figure a list wants to show: every attested ITEM, units and media together, so
         // the definition lives in one place rather than being re-derived per surface.
         'attested_items'   => $attDevices + $attMedia,
+        // Asset accounting: how many assets the certificate records, and how many
+        // are not the ordinary in-place case. Zero on a certificate issued before
+        // the feature, which is honest: it recorded no asset-level detail.
+        'asset_total'      => (int)($assets['total'] ?? 0),
+        'asset_exceptions' => (int)($assets['exceptions'] ?? 0),
         'first'      => (string)($c['first_ts'] ?? ''),
         'last'       => (string)($c['last_ts'] ?? ''),
         'sha_state'  => (string)$c['sha_state'],
@@ -179,7 +187,7 @@ function owner_tier(int $userId): string {
  * Merges into the existing certificate when one already exists for that COCID.
  * Returns the certificate row (cert_row shape).
  */
-function generate_certificate(array $g, int $userId, bool $canSign, array $destroyed = []): array {
+function generate_certificate(array $g, int $userId, bool $canSign, array $destroyed = [], array $assets = [], array $originMap = []): array {
     require_once __DIR__ . '/render_cert.php';
     certs_ensure_schema();
     $certifier = certifier_for_user($userId);
@@ -215,7 +223,8 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     // the same rendered data. Returns ['path', 'sha', 'ts'] — path is '' when
     // signing is unavailable, which must never block PDF issuance.
     $attested = [];
-    $writeJson = function (array $rendered, array $grp, string $certId) use ($certifier, $issuedAt, &$attested): array {
+    $finalAssets = $assets;
+    $writeJson = function (array $rendered, array $grp, string $certId) use ($certifier, $issuedAt, &$attested, $assets): array {
         $doc = build_cert_jsonld([
             'cert'       => $certId,
             'cocid'      => (string)$grp['cocid'],
@@ -228,7 +237,7 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
             'sha_state'  => (string)$grp['shaState'],
             'sig_state'  => (string)$grp['sigState'],
             'pdf_sha256' => (string)$rendered['sha'],
-        ], $rendered['drives'], $grp['reports'], $certifier, $attested);
+        ], $rendered['drives'], $grp['reports'], $certifier, $attested, $rendered['assets'] ?? $assets);
         $signed = jsonld_sign_document($doc);
         if ($signed === null) { return ['path' => '', 'sha' => '', 'ts' => 'none']; }
         return ['path' => jsonld_write($signed['json'], $certId), 'sha' => $signed['sha256'], 'ts' => $signed['ts_state']];
@@ -237,15 +246,25 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     if ($existing !== false) {
         // One COCID = one consolidated cert: merge and re-render the same cert.
         $merged = merge_group($g, load_cert_drives((int)$existing['id']), load_cert_reports((int)$existing['id']), $existing);
+        // Re-apply the freshly resolved origin to drives that were merged in from
+        // the stored certificate (which may predate this feature or carry an older
+        // link). A re-issue is an explicit act, so it reads the current links.
+        foreach ($merged['drives'] as $i => $drv) {
+            $ms = mp_key((string)($drv['serial'] ?? ''));
+            if ($ms !== '' && isset($originMap[$ms])) {
+                $merged['drives'][$i] = array_merge($drv, $originMap[$ms]);
+            }
+        }
         $certId = (string)$existing['cert_id'];
         // Manually recorded destruction lives with the certificate, not in the report
         // merge: load it and hand it to the renderer as its own (attested) section.
         $attested = manual_attested_load((int)$existing['id']);
         $rendered = render_certificate_pdf($merged, $certId, $canSign, $certifier, $destroyed, $attested,
-            (string)cert_offline_marker((string)cert_offline_code($certId, $issuedAtCode)));
+            (string)cert_offline_marker((string)cert_offline_code($certId, $issuedAtCode)), $assets);
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
+        $finalAssets = $rendered['assets'] ?? $assets;
         $j = $writeJson($rendered, $merged, $certId);
 
         try {
@@ -281,10 +300,11 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     } else {
         $certId = gen_cert_id();
         $rendered = render_certificate_pdf($g, $certId, $canSign, $certifier, $destroyed, [],
-            (string)cert_offline_marker((string)cert_offline_code($certId, $issuedAtCode)));
+            (string)cert_offline_marker((string)cert_offline_code($certId, $issuedAtCode)), $assets);
         $groupPath = $certId . '.pdf';
         $written = $pdfDir . '/' . $groupPath;
         @file_put_contents($written, $rendered['data']);
+        $finalAssets = $rendered['assets'] ?? $assets;
         $j = $writeJson($rendered, $g, $certId);
 
         $entry = [
@@ -319,6 +339,16 @@ function generate_certificate(array $g, int $userId, bool $canSign, array $destr
     }
 
     $cert = fetch_cert_by_cert_id($certId);
+    // Freeze the asset accounting onto the certificate beside the drive rows. The
+    // certificate is a snapshot: /verify and a re-download read this, never a fresh
+    // resolution of reports that may have changed since the document was issued.
+    if ($cert !== null) {
+        try {
+            certificate_assets_save((int)$cert['id'], $finalAssets);
+        } catch (Throwable $e) {
+            error_log('certificate_assets_save: ' . $e->getMessage());
+        }
+    }
     return cert_row($cert);
 }
 
@@ -706,7 +736,11 @@ if ($method === 'GET' && $route === '/certs') {
     // Kept out of the WHERE/SELECT above so the verified figures stay exactly what they were:
     // an attested item is not instrument-verified evidence and must not inflate them.
     $att = attested_counts(array_map(static fn($r) => (int)$r['id'], $rows));
-    $certs = array_map(static fn($r) => cert_row($r, $att[(int)$r['id']] ?? []), $rows);
+    $assetCounts = asset_exception_counts(array_map(static fn($r) => (int)$r['id'], $rows));
+    $certs = array_map(
+        static fn($r) => cert_row($r, $att[(int)$r['id']] ?? [], $assetCounts[(int)$r['id']] ?? []),
+        $rows
+    );
     json_out(['ok' => true, 'certs' => $certs, 'total' => $total, 'page' => $page, 'per' => $per]);
 }
 
@@ -720,6 +754,7 @@ if ($method === 'GET' && count($seg) === 2 && $seg[0] === 'certs') {
     $out = cert_row($c);
     $out['reports'] = load_cert_reports((int)$c['id']);
     $out['drives'] = load_cert_drives((int)$c['id']);
+    $out['assets'] = certificate_assets_load((int)$c['id']);
     json_out(['ok' => true, 'cert' => $out]);
 }
 
@@ -1947,7 +1982,9 @@ if ($method === 'GET' && $route === '/devices') {
     $ff = (string)($_GET['ff'] ?? '');
 
     $res = load_devices((int)$u['id'], ['q' => $q, 'page' => $page, 'per' => $per,
-        'sort' => $sort, 'dir' => $dir, 'source' => $source, 'ff' => $ff]);
+        'sort' => $sort, 'dir' => $dir, 'source' => $source, 'ff' => $ff,
+        // Processing hosts are hidden by default; this is the explicit opt-in.
+        'bench' => !empty($_GET['bench'])]);
 
     json_out([
         'ok'      => true,
@@ -2012,6 +2049,7 @@ if ($method === 'GET' && $route === '/devices/export') {
         'q'      => $q,
         'ff'     => (string)($_GET['ff'] ?? ''),
         'source' => list_source($_GET['source'] ?? ''),
+        'bench'  => !empty($_GET['bench']),
         'all'    => true,
         'page'   => 1,
         'per'    => 100,
@@ -2354,6 +2392,91 @@ if ($method === 'POST' && $route === '/stripe/webhook') {
     json_out(['ok' => true, 'handled' => true]);
 }
 
+// ---- Asset → medium provenance (research/media-provenance) -------------------
+// A drive pulled from an asset and erased on a bench machine is evidenced by a
+// report whose SystemSerial is the bench. These routes record the operator's
+// declaration of where the medium came from; observations are derived from the
+// reports themselves. Both are surfaced by the certificate, with provenance
+// printed separately from the erasure evidence.
+
+// GET /api/media/links?cocid= — declared links for one job.
+if ($method === 'GET' && $route === '/media/links') {
+    $u = auth_require();
+    $cocid = trim((string)($_GET['cocid'] ?? ''));
+    if ($cocid === '' || mb_strlen($cocid, 'UTF-8') > 64) {
+        fail(400, 'Provide a valid Chain of Custody ID.');
+    }
+    json_out(['ok' => true, 'links' => media_links_for_cocid((int)$u['id'], $cocid)]);
+}
+
+// POST /api/media/link — declare that a medium came out of an asset.
+// Refused when it contradicts an observation made on a different host.
+if ($method === 'POST' && $route === '/media/link') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $res = media_link_declare(
+        (int)$u['id'],
+        (string)($d['cocid'] ?? ''),
+        (string)($d['asset_serial'] ?? ''),
+        (string)($d['media_serial'] ?? ''),
+        (string)($d['reason'] ?? ''),
+        (string)($d['note'] ?? ''),
+        (int)$u['id']
+    );
+    if (!$res['ok']) {
+        fail(409, (string)$res['error']);
+    }
+    json_out(['ok' => true, 'id' => (int)$res['id']], 201);
+}
+
+// DELETE /api/media/link/{id} — remove a declared link.
+if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'media' && $seg[1] === 'link') {
+    auth_csrf_verify();
+    $u = auth_require();
+    if (!media_link_delete((int)$u['id'], (int)$seg[2])) {
+        fail(404, 'Link not found.');
+    }
+    json_out(['ok' => true]);
+}
+
+// GET /api/devices/processing-hosts — our bench machines.
+if ($method === 'GET' && $route === '/devices/processing-hosts') {
+    $u = auth_require();
+    $ids = org_member_ids((int)$u['id']);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare("SELECT device_key, label, created_at FROM processing_hosts WHERE user_id IN ($ph) ORDER BY device_key");
+        $q->execute($ids);
+        json_out(['ok' => true, 'hosts' => $q->fetchAll()]);
+    } catch (Throwable $e) {
+        json_out(['ok' => true, 'hosts' => []]);
+    }
+}
+
+// POST /api/devices/processing-host — mark/unmark a host as a bench machine.
+if ($method === 'POST' && $route === '/devices/processing-host') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $on = !empty($d['on']);
+    // The list's _key is the normalised device key; when a caller does not have
+    // it, derive it from the identity fields rather than trusting a bare serial
+    // (a placeholder system serial may key the row on the baseboard or UUID).
+    $key = (string)($d['device_key'] ?? '');
+    if ($key === '') {
+        $key = device_key([
+            'sysserial'  => (string)($d['serial'] ?? ''),
+            'bbserial'   => (string)($d['bbserial'] ?? ''),
+            'systemuuid' => (string)($d['uuid'] ?? ''),
+        ]);
+    }
+    if (!processing_host_set((int)$u['id'], $key, $on, (string)($d['label'] ?? ''), (int)$u['id'])) {
+        fail(400, 'Could not update that host.');
+    }
+    json_out(['ok' => true, 'on' => $on]);
+}
+
 // POST /api/certificates/devices — record a manually destroyed device (unit) with
 // the media it contained. An operator ATTESTATION, never instrument-verified: see
 // research/manual-destruction/README.md.
@@ -2515,6 +2638,20 @@ if ($method === 'POST' && $route === '/certs') {
         ]);
     }
 
+    // Asset → medium provenance. Resolved BEFORE merge_group() dedupes drive
+    // rows: a COMPLETED bench row can otherwise replace the FAILED row from the
+    // asset, erasing the only link between them (merge_group keeps the higher
+    // status per serial). The annotations travel with the drive rows into the
+    // per-drive table so the certificate states the origin beside the host.
+    $prov = media_provenance_for_cocid((int)$u['id'], $cocid, $g['drives']);
+    foreach ($g['drives'] as $i => $drv) {
+        $ms = mp_key((string)($drv['serial'] ?? ''));
+        if ($ms !== '' && isset($prov['drives'][$ms])) {
+            $g['drives'][$i] = array_merge($drv, $prov['drives'][$ms]);
+        }
+    }
+    $assets = $prov['assets'];
+
     // Physical-destruction decision. Drives that didn't complete (FAILED /
     // BLOCKED / FROZEN / UNKNOWN / DRY-RUN) can't be claimed as wiped. When the
     // operator hasn't supplied a decision, return the uncompleted drives so the
@@ -2568,7 +2705,7 @@ if ($method === 'POST' && $route === '/certs') {
     // is cheap and must not consume the slot (it would otherwise block the
     // follow-up POST that carries the confirmed destruction choices).
     rate_limit('certs', 30);
-    $out = generate_certificate($g, (int)$u['id'], owner_tier((int)$u['id']) !== 'free', $destroyed);
+    $out = generate_certificate($g, (int)$u['id'], owner_tier((int)$u['id']) !== 'free', $destroyed, $assets, $prov['drives']);
     json_out(['ok' => true, 'cert' => $out], 201);
 }
 
