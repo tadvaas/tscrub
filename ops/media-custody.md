@@ -143,7 +143,7 @@ was sanitised; the chassis was not.
 | The declared origin does not appear on the Media row | Only **declared** links are attached to the list. Observed origins are derived at certificate time. | Generate or regenerate the certificate and read Annex A, or open the medium's Reports expansion after a declaration. |
 | `asset serial is empty or a firmware placeholder` | The asset reported `N/A` or a placeholder. | The customer cannot track an asset by a serial the machine does not have; agree an identifier and record it before the job. |
 | The same drive appears twice | Two cheap drives report the same serial, or a drive was erased twice. | Do not link it. Resolve the duplicate physically (label and re-check). A re-installed drive is re-sanitisation, not a second medium. |
-| Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use the **Bench hosts** toggle, or `?bench=1`. A marked row carries a **Bench** badge in that view. |
+| Bench rows are not visible | Processing hosts are excluded from the default fleet view. | Use the **Bench hosts** toggle, or `?bench=1`. The toggle is disabled while nothing is marked and its tooltip says where to mark one. A marked row carries a **Bench** badge in that view. |
 
 ---
 

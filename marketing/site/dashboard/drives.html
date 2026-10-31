@@ -1123,16 +1123,20 @@
         save.addEventListener('click', function () {
           save.disabled = true;
           msg.textContent = '';
-          fetch('/api/media/link', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({
-              cocid: cocid.value.trim(),
-              asset_serial: asset.value.trim(),
-              media_serial: d.serial || '',
-              reason: reason.value.trim(),
-              note: note.value.trim()
-            })
+          // This page has no global token: getCsrf() fetches one. A bare `csrf`
+          // reference would throw before the request was sent.
+          getCsrf().then(function (token) {
+            return fetch('/api/media/link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+              body: JSON.stringify({
+                cocid: cocid.value.trim(),
+                asset_serial: asset.value.trim(),
+                media_serial: d.serial || '',
+                reason: reason.value.trim(),
+                note: note.value.trim()
+              })
+            });
           }).then(function (r) {
             return r.json().then(function (j) { return { ok: r.ok, j: j }; });
           }).then(function (res) {

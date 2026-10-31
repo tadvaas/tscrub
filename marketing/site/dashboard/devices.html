@@ -64,9 +64,9 @@
       </div>
       <button type="button" id="search-clear" class="ts-btn ts-btn--secondary hidden">Clear</button>
       <button type="button" id="filter-btn" class="ts-btn ts-btn--secondary" title="Filter the list by presence, BIOS lock, MDM, Secure Boot, TPM, media and notes">Filters</button>
-      <!-- Bench / processing hosts are hidden by default. Shown only once one exists,
-           or while the operator is deliberately looking at them. -->
-      <button type="button" id="bench-btn" class="ts-btn ts-btn--secondary hidden" aria-pressed="false" title="Show the machines marked as processing hosts (bench machines). They are excluded from the fleet and from asset counts.">Bench hosts</button>
+      <!-- Bench / processing hosts. Visible from the start, disabled until one
+           exists: hiding the control made the feature undiscoverable. -->
+      <button type="button" id="bench-btn" class="ts-btn ts-btn--secondary" aria-pressed="false" disabled title="No machines are marked as processing hosts yet. Open a machine’s Log and choose “Mark as our bench machine”.">Bench hosts</button>
       <!-- The count comes from the FILTERED set, not the account: only devices with a
            captured hash and no job at all can be queued, so on a full view this reads
            "Check MDM (9)", not "(207)". -->
@@ -2869,9 +2869,18 @@
         var btn = document.getElementById('bench-btn');
         if (!btn) return;
         var n = Object.keys(benchHosts).length;
-        btn.classList.toggle('hidden', !(benchView || n > 0));
+        // Always visible: the control is also how an operator discovers the
+        // feature. With nothing marked it is disabled and says so, rather than
+        // leaving them hunting for a button that does not exist.
+        btn.classList.remove('hidden');
+        btn.disabled = (!benchView && n === 0);
         btn.setAttribute('aria-pressed', benchView ? 'true' : 'false');
         btn.textContent = benchView ? 'Hide bench hosts' : 'Bench hosts' + (n ? ' (' + n + ')' : '');
+        btn.title = n === 0
+          ? 'No machines are marked as processing hosts yet. Open a machine’s Log and choose “Mark as our bench machine”.'
+          : (benchView
+              ? 'Hide the machines marked as processing hosts'
+              : 'Show the machines marked as processing hosts (bench machines). They are excluded from the fleet and from asset counts.');
       }
 
       function loadBenchHosts() {
@@ -2893,13 +2902,18 @@
         btn.title = 'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets.';
         btn.addEventListener('click', function () {
           btn.disabled = true;
-          fetch('/api/devices/processing-host', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-            body: JSON.stringify({
-              device_key: key, on: !on, label: 'Bench host',
-              serial: dev.sysserial || '', bbserial: dev.bbserial || '', uuid: dev.systemuuid || ''
-            })
+          // The page has no global token: getCsrf() fetches one. Using a bare
+          // `csrf` here threw before the request was made, so the mark silently
+          // never happened.
+          getCsrf().then(function (token) {
+            return fetch('/api/devices/processing-host', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+              body: JSON.stringify({
+                device_key: key, on: !on, label: 'Bench host',
+                serial: dev.sysserial || '', bbserial: dev.bbserial || '', uuid: dev.systemuuid || ''
+              })
+            });
           }).then(function (r) {
             return r.json().then(function (j) { return { ok: r.ok, j: j }; });
           }).then(function (res) {
@@ -2913,7 +2927,10 @@
             // view would make it vanish, which reads as deletion; staying in the
             // bench view shows the Bench badge and the Hide bench hosts control,
             // which is how the operator can confirm the flag is set.
-            if (!on) { benchView = true; }
+            // Unmarking the last one leaves the bench view: there is nothing left
+            // to show, and the control returns to its disabled empty state.
+            if (!on) benchView = true;
+            else if (!Object.keys(benchHosts).length) benchView = false;
             paintBench();
             lastDevicesJson = '';
             loadDevices();

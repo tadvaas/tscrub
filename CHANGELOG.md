@@ -10,6 +10,25 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **Two provenance features were dead on arrival in production.** The lazy schema
+  bootstrap created `media_links`, then threw on `certificate_assets`: its
+  `AUTO_INCREMENT` id was keyed only as the second column of `uq_cert_asset`,
+  which MySQL refuses (error 1075), so the `processing_hosts` table after it was
+  never created either. "Mark as our bench machine" answered 400 and asset
+  accounting had nowhere to save. The primary key is now declared, and a static
+  test asserts that every `AUTO_INCREMENT` column in both `schema.sql` and the
+  bootstrap is keyed first.
+
+- **The bench mark never reached the server.** The new POST sent a bare `csrf`
+  variable that neither dashboard page defines, so building the request threw and
+  no request was made. Both that POST and the Media page's origin declaration now
+  fetch the token with `getCsrf()`, guarded by a test.
+
+- **The Bench hosts control was hidden until a host existed**, which made the
+  feature undiscoverable (and unreachable while the two bugs above kept the list
+  empty). It is now always visible, disabled with a tooltip that says where to
+  mark a machine, and it returns to that state when the last host is unmarked.
+
 - **A machine marked as a bench host showed no flag anywhere.** Marking it removed
   it from the Devices list, which reads as deletion, and the only clue was a
   toolbar toggle that reverted on refresh. The row now keeps a `Bench` badge, the

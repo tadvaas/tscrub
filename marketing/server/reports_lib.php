@@ -1067,6 +1067,7 @@ function asset_media_ensure_schema(): void {
                 intake_ref      VARCHAR(255)    NOT NULL DEFAULT '',
                 intake_media    INT UNSIGNED    NOT NULL DEFAULT 0,
                 media_json      MEDIUMTEXT      NULL,
+                PRIMARY KEY (id),
                 UNIQUE KEY uq_cert_asset (certificate_id, asset_key),
                 KEY idx_cert_assets_cert (certificate_id),
                 CONSTRAINT fk_cert_assets_cert FOREIGN KEY (certificate_id) REFERENCES certificates(id) ON DELETE CASCADE
