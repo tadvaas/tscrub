@@ -74,6 +74,11 @@ and this project uses date-based versioning (`v1.x`).
 - **The Bench tag is the same amber on Devices and Media.** It was sky-blue on
   Devices and amber on Media; both now use the amber processing-host palette.
 
+- **The bench visibility choice is a facet-style chip in Filters.** It was a
+  custom checkbox card above the facets; it is now the **Processing host → Show
+  bench hosts** group, using the same chip, selected style and Apply count as
+  every other filter. Its zero-count tooltip still points at the Ops panel.
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema

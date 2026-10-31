@@ -319,18 +319,6 @@
           <button id="filter-modal-close" type="button" class="ts-btn ts-btn--secondary">Close</button>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <!-- A bench host is our own machine, not the customer's asset, so the
-               server leaves it out of the fleet and every count. Showing them is a
-               base-set choice rather than a narrowing facet, which is why it sits
-               above the groups instead of among them. This is also where the
-               feature is discovered: the hint says how to mark a machine. -->
-          <label class="mb-5 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-ink-700 dark:bg-ink-800">
-            <input id="filter-bench" type="checkbox" class="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700" />
-            <span class="min-w-0">
-              <span class="block text-sm font-semibold text-ink-900 dark:text-white">Show our bench hosts</span>
-              <span id="filter-bench-hint" class="block text-xs text-slate-500 dark:text-slate-400">Processing hosts are our own bench machines: left out of the fleet and asset counts, their evidence still used.</span>
-            </span>
-          </label>
           <div id="filter-groups" class="space-y-5"></div>
           <p class="mt-4 text-xs text-slate-400 dark:text-slate-500">Options with no matches stay selectable, so a filter can be set up to watch a state — “Erasing (0)” today shows the device the moment it starts erasing.</p>
         </div>
@@ -1371,9 +1359,10 @@
       function renderFilterGroups() {
         var host = document.getElementById('filter-groups');
         host.innerHTML = '';
-        var bench = document.getElementById('filter-bench');
-        if (bench) { bench.checked = !!pendingBench; }
-        paintBenchHint();
+        // A base-set choice, rendered with the same group/chip language as the
+        // facets so the modal has one interaction model. It sits first because
+        // it decides which records the facet counts below describe.
+        renderBenchGroup(host);
         FACET_DEFS.forEach(function (d) {
           var group = el('div', '');
           group.appendChild(el('p', 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400', d.label));
@@ -1415,16 +1404,31 @@
         document.getElementById('filter-reset').classList.toggle('invisible', n === 0);
       }
 
-      // The checkbox is the discoverable home of the bench-host feature, so it has
-      // to say how to create one when there is nothing to show.
-      function paintBenchHint() {
-        var hint = document.getElementById('filter-bench-hint');
-        if (!hint) return;
+      // The bench choice is a base-set toggle, not a narrowing facet, but it uses
+      // the same chip as every other option so the modal reads consistently.
+      function renderBenchGroup(host) {
         var n = Object.keys(benchHosts).length;
-        hint.textContent = n === 0
-          ? 'No machines are marked yet. Open a machine’s Ops panel and choose “Mark as our bench machine”.'
-          : n + (n === 1 ? ' machine is' : ' machines are')
-            + ' marked. Processing hosts are left out of the fleet and asset counts; their evidence is still used.';
+        var group = el('div', '');
+        group.appendChild(el('p', 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400', 'Processing host'));
+        var wrap = el('div', 'flex flex-wrap gap-1.5');
+        var b = el('button', 'ts-chip cursor-pointer ' + (pendingBench ? 'bg-brand-700 text-white' : 'ts-chip--slate'),
+          'Show bench hosts (' + n + ')');
+        b.type = 'button';
+        b.setAttribute('aria-pressed', pendingBench ? 'true' : 'false');
+        if (n === 0 && !pendingBench) {
+          b.classList.add('opacity-60');
+          b.title = 'No machines are marked yet. Open a machine’s Ops panel and choose “Mark as our bench machine”.';
+        } else {
+          b.title = 'Machines marked as processing hosts are left out of the fleet and asset counts. Show them to confirm or change the mark.';
+        }
+        b.addEventListener('click', function () {
+          pendingBench = !pendingBench;
+          renderFilterGroups();
+          paintFilterHint();
+        });
+        wrap.appendChild(b);
+        group.appendChild(wrap);
+        host.appendChild(group);
       }
 
       // An open-vocabulary facet (COCID): typed in, not picked from a list, because
@@ -1529,10 +1533,6 @@
         renderFilterGroups();
       });
       document.getElementById('filter-apply').addEventListener('click', applyFilterModal);
-      document.getElementById('filter-bench').addEventListener('change', function () {
-        pendingBench = this.checked;
-        paintFilterHint();
-      });
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && !filterModal.classList.contains('hidden')) closeFilterModal();
       });
@@ -2920,10 +2920,9 @@
           .then(function (d) {
             benchHosts = {};
             ((d && d.hosts) || []).forEach(function (h) { benchHosts[String(h.device_key || '')] = h; });
-            paintBenchHint();
             paintFilters();
           })
-          .catch(function () { paintBenchHint(); paintFilters(); });
+          .catch(function () { paintFilters(); });
       }
 
       function benchToggle(dev) {

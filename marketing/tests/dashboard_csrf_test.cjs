@@ -167,18 +167,20 @@ check('drives: the report history no longer carries the origin action', !/functi
 check('drives: the old labels are gone', !/Assign origin/.test(pages.drives) && !/Change origin/.test(pages.drives));
 check('drives: action labels do not carry a dialog ellipsis', !/Correct COCID\u2026/.test(pages.drives) && !/Reassign origin\u2026/.test(pages.drives));
 
-// The control itself: a checkbox in the Filters modal, not a toolbar button.
-const benchInput = (pages.devices.match(/<input[^>]*id="filter-bench"[^>]*>/) || [''])[0];
-check('devices: Filters modal has the bench checkbox', benchInput.length > 0);
-check('devices: the bench checkbox is a checkbox', /type="checkbox"/.test(benchInput));
+// The bench choice is a facet-style chip group inside Filters, not a custom
+// checkbox, so the modal has one interaction model.
+check('devices: no separate bench checkbox', !/id="filter-bench"/.test(pages.devices));
 check('devices: no separate Bench hosts toolbar button', !/id="bench-btn"/.test(pages.devices));
-check('devices: the bench checkbox names the choice', /Show our bench hosts/.test(pages.devices));
-
-const hint = bodyOf(js.devices, 'paintBenchHint');
-check('devices: paintBenchHint() exists', hint.length > 0);
+const benchGroup = bodyOf(js.devices, 'renderBenchGroup');
+check('devices: the bench choice is a filter group', benchGroup.length > 0);
 check(
-  'devices: paintBenchHint() says how to mark one when none exist',
-  /No machines are marked yet/.test(hint)
+  'devices: the bench choice uses the facet chip classes',
+  /ts-chip/.test(benchGroup) && /pendingBench \? 'bg-brand-700 text-white'/.test(benchGroup)
+);
+check('devices: the bench choice is labelled Show bench hosts', /Show bench hosts/.test(benchGroup));
+check(
+  'devices: no hosts marked explains where to mark one',
+  /No machines are marked yet/.test(benchGroup) && /Ops panel/.test(benchGroup)
 );
 
 // Marking a bench machine belongs with the machine's operations, not in its log
@@ -188,7 +190,6 @@ const logPanel = bodyOf(js.devices, 'logPanel');
 const openOps = bodyOf(js.devices, 'openOperations');
 check('devices: the Log no longer carries the bench action', !/benchToggle/.test(logPanel));
 check('devices: the Operations panel carries the bench action', /benchToggle\(dev\)/.test(openOps));
-check('devices: the empty-bench hint points at the Ops panel', /Ops panel/.test(hint));
 check(
   'devices: the Ops card warns that unmarking changes past provenance',
   /Unmarking keeps every report/.test(bodyOf(js.devices, 'benchToggle'))
