@@ -977,6 +977,25 @@
         });
       }
 
+      // The report carries the appliance's clock. A dead RTC can put the erasure
+      // years before the upload; flag that rather than presenting the time as
+      // credible. A legitimate delayed upload is days, not years.
+      function erasureClockBad(h) {
+        var erased = fmtTsTime(h.ts);
+        var submitted = fmtTsTime(h.uploaded_at);
+        if (!erased || !submitted) return false;
+        var e = Date.parse(erased.replace(' ', 'T'));
+        var s = Date.parse(submitted.replace(' ', 'T'));
+        if (isNaN(e) || isNaN(s)) return false;
+        return (s - e) > 365 * 86400000 || (e - s) > 86400000;
+      }
+
+      function clockChip() {
+        var chip = el('span', 'ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'clock?');
+        chip.title = 'The erasure time is more than a year before the report was submitted, or in the future. The appliance clock was probably wrong.';
+        return chip;
+      }
+
       function historyList(d) {
         var wrap = el('div', 'mt-3 space-y-2');
         if (!(d.history || []).length) {
@@ -994,6 +1013,10 @@
           row.appendChild(el('p', 'mt-1 text-slate-500 dark:text-slate-400',
             (submitted ? 'Submitted ' + submitted : 'No submission time')
             + (erased && erased !== submitted ? ' · erased ' + erased : '')));
+          if (erasureClockBad(h)) {
+            row.appendChild(el('p', 'mt-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400',
+              'Erasure time looks wrong (appliance clock).'));
+          }
           var detail = [h.method, h.cls].filter(Boolean).join(' · ');
           if (detail) row.appendChild(el('p', 'mt-0.5 truncate text-slate-500 dark:text-slate-400', detail));
           row.appendChild(el('p', 'mt-1 text-[11px] text-slate-400 dark:text-slate-500',
@@ -1376,7 +1399,9 @@
               }
               htr.appendChild(hcoc);
               htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.uploaded_at) || '—'));
-              htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—'));
+              var erasedCell = el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—');
+              if (erasureClockBad(h)) erasedCell.appendChild(clockChip());
+              htr.appendChild(erasedCell);
               htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.method || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.cls || '—'));
@@ -1474,6 +1499,7 @@
         if (submitted) when.push('submitted ' + submitted);
         if (erased && erased !== submitted) when.push('erased ' + erased);
         meta.appendChild(document.createTextNode(' · ' + (when.length ? when.join(' · ') : '—')));
+        if (erasureClockBad(d)) meta.appendChild(clockChip());
         head.appendChild(meta);
         doc.appendChild(head);
 

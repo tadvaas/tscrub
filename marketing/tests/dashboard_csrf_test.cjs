@@ -145,6 +145,18 @@ check(
   'drives: the record header shows the submission time',
   /when\.push\('submitted '/.test(bodyOf(js.drives, 'openDrive'))
 );
+check(
+  'drives: a bad erasure clock is flagged',
+  /function erasureClockBad/.test(js.drives)
+    && /365 \* 86400000/.test(bodyOf(js.drives, 'erasureClockBad'))
+    && /function clockChip/.test(js.drives)
+);
+check(
+  'drives: the history and record show the clock flag',
+  /erasedCell\.appendChild\(clockChip\(\)\)/.test(js.drives)
+    && /erasureClockBad\(d\)\) meta\.appendChild\(clockChip\(\)\)/.test(js.drives)
+    && /Erasure time looks wrong/.test(js.drives)
+);
 check('drives: the report history no longer carries the origin action', !/function originBox/.test(js.drives) && !/inner\.appendChild\(originBox/.test(js.drives));
 check('drives: the old labels are gone', !/Assign origin/.test(pages.drives) && !/Change origin/.test(pages.drives));
 check('drives: action labels do not carry a dialog ellipsis', !/Correct COCID\u2026/.test(pages.drives) && !/Reassign origin\u2026/.test(pages.drives));

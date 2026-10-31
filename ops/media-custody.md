@@ -189,6 +189,11 @@ was sanitised; the chassis was not.
   an ordinary machine: its media are assumed sanitised in place, and the report's
   host can outrank a declared origin. Leave it set when decommissioning a bench;
   only unmark a mistake. The media index's `Bench` tag follows the current flag.
+- A `clock?` marker means the report's erasure timestamp is more than a year
+  before its upload, or in the future. The appliance RTC was wrong; use the
+  submission time and the report hash as the reliable parts, and say so if the
+  customer asks about the printed erasure time. The certificate still prints the
+  report's raw timestamps.
 - Do not record a non-booting asset's already-sanitised drive as **physically
   destroyed** in a manual attestation to make the chassis appear. The drive was
   sanitised, not destroyed; the two fates need separate records.

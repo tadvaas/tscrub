@@ -65,6 +65,12 @@ and this project uses date-based versioning (`v1.x`).
   them, and the report's host can outrank a declared origin. Keep the flag set
   when decommissioning a bench.
 
+- **A report whose erasure clock is years before its submission is flagged.** A
+  dead RTC can put the erasure timestamp in 2001 while the report was submitted
+  in 2026. The history row and record header now show a `clock?` chip, and the
+  mobile history says the erasure time looks wrong, instead of presenting the
+  date as credible. The certificate still carries the report's raw timestamps.
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema
