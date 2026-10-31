@@ -8,6 +8,18 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+## [v1.11.87] - 2026-10-31
+
+Released artefacts: ISO `tscrub-v1.11.87_2025.11_30_x86-64_v0.41_20261031-cb0efa69.iso`
+(176,496,640 B, SHA-256 `a58053d56c591272bbd0d5e727a375f74e0a1914325bab32e40a19fef12b4ab0`,
+168 MiB); signed script SHA-256
+`c59cd125b79f1f37c2384f2062951f081df01230fa3f9ccdb7066000873f86f9` (overlay copy
+`741c4a2afbd38dfd3125d8299f765020cf839005fa1230f5c91f83bac5d4cd37`, verified byte
+for byte against the slim build); PXE `bzImage` 95,234,592 B signed
+`/CN=My iPXE Vendor Key`, SHA-256
+`0a516af9f5a4f05c94f2cd4cd3a8bf64c2e7e33a5ee20019c07f69fbc9539572`; build-host
+commit `cb0efa69`.
+
 ### Added
 
 - **A drive erased on a bench machine keeps its asset's identity.** When storage
