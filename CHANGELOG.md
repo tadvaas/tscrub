@@ -71,6 +71,9 @@ and this project uses date-based versioning (`v1.x`).
   mobile history says the erasure time looks wrong, instead of presenting the
   date as credible. The certificate still carries the report's raw timestamps.
 
+- **The Bench tag is the same amber on Devices and Media.** It was sky-blue on
+  Devices and amber on Media; both now use the amber processing-host palette.
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema

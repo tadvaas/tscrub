@@ -132,6 +132,12 @@ check(
     && /if \(d\.host_processing\) modelRow\.appendChild\(benchChip\(\)\)/.test(js.drives)
 );
 check(
+  'devices/media: the Bench tag uses the same amber palette',
+  /bg-amber-100[\s\S]*text-amber-700/.test(bodyOf(js.devices, 'benchBadge'))
+    && /bg-amber-100[\s\S]*text-amber-700/.test(bodyOf(js.drives, 'benchChip'))
+    && !/bg-sky-100/.test(bodyOf(js.devices, 'benchBadge'))
+);
+check(
   'drives: the report history is sorted by submission',
   /function historySorted/.test(js.drives)
     && /uploaded_at/.test(bodyOf(js.drives, 'historySorted'))
