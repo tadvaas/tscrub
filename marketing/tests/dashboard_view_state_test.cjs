@@ -35,11 +35,12 @@ const path = require('path');
 
 const root = process.env.VIEW_ROOT || path.join(__dirname, '..');
 const PAGES = [
-  // syncCalls includes the definition. Devices carries three extra call sites for
-  // the advanced-filter modal (chip remove, clear-all, apply), one for the bench
-  // host chip, and one more for the "Clear filters" button in the empty state;
+  // syncCalls includes the definition. Devices carries ONE extra call site for the
+  // applied-filter path: Apply, a chip's ×, Clear all and the bench chip all go
+  // through reloadFiltered(), which writes the view once, so they cannot drift
+  // apart — and one more for the "Clear filters" button in the empty state;
   // Media has none of those.
-  { file: 'devices.html', key: 'tscrub.view.devices', sortDefault: 'status', syncCalls: 13 },
+  { file: 'devices.html', key: 'tscrub.view.devices', sortDefault: 'status', syncCalls: 10 },
   { file: 'drives.html', key: 'tscrub.view.drives', sortDefault: 'date', syncCalls: 8 },
 ];
 

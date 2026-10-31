@@ -1015,11 +1015,12 @@
       });
       paintSourceSwitch();
 
-      // The list panel's own busy state. Only the record-source switch sets it: that
-      // click changes what every row on the page means, while a search keystroke only
-      // narrows the same rows (an overlay on every character would flicker), and the
-      // pager already carries a spinner of its own. The 10s auto-refresh never sets it
-      // either — a background poll must not animate the page under the operator.
+      // The list panel's own busy state. Two things set it: the record-source
+      // switch and every applied filter change (reloadFiltered). Both replace the
+      // whole page of rows. A search keystroke only narrows the same rows (an
+      // overlay on every character would flicker), and the pager already carries a
+      // spinner of its own. The 10s auto-refresh never sets it either — a background
+      // poll must not animate the page under the operator.
       //
       // Every indicator painted here is either fixed-size or out of the flow — see the
       // markup. That is the whole point: a loading indicator must not resize the thing
@@ -1316,10 +1317,7 @@
           benchChip.title = 'Show the machines marked as processing hosts again';
           benchChip.addEventListener('click', function () {
             hideBench = false;
-            page = 1;
-            paintFilters();
-            syncView();
-            loadDevices();
+            reloadFiltered();
           });
           row.appendChild(benchChip);
         }
@@ -1332,10 +1330,7 @@
             chip.addEventListener('click', function () {
               delete filters[f][v];
               if (!Object.keys(filters[f]).length) { delete filters[f]; }
-              page = 1;
-              paintFilters();
-              syncView();
-              loadDevices();
+              reloadFiltered();
             });
             row.appendChild(chip);
           });
@@ -1345,12 +1340,26 @@
         clear.addEventListener('click', function () {
           filters = {};
           hideBench = false;
-          page = 1;
-          paintFilters();
-          syncView();
-          loadDevices();
+          reloadFiltered();
         });
         row.appendChild(clear);
+      }
+
+      // Every APPLIED filter change (Apply in the modal, a chip's ×, Clear all, the
+      // bench chip) changes the whole page of rows, and the rows only change when
+      // the response lands. Painting the chips is instant, so without this the
+      // click appears to have done nothing at all: the operator applies a filter,
+      // the modal closes, and the table sits there unchanged for the round-trip.
+      //
+      // Deliberately NOT used by the search box (a keystroke narrows the rows
+      // already on screen, so an overlay per character would flicker) or by the
+      // auto-refresh (a background poll must never animate the page under them).
+      function reloadFiltered() {
+        page = 1;
+        paintFilters();
+        syncView();
+        startListBusy();
+        loadDevices();
       }
 
       // One group per dimension. Zero-count options stay SELECTABLE: a fleet is
@@ -1521,11 +1530,11 @@
       function applyFilterModal() {
         filters = JSON.parse(JSON.stringify(pending));
         hideBench = !!pendingBench;
-        page = 1;
-        paintFilters();
-        syncView();
+        // Start the request and the panel's busy state BEFORE closing: the modal
+        // closes in the same tick, so the operator is looking at the table when the
+        // spinner appears rather than at a list that looks untouched.
+        reloadFiltered();
         closeFilterModal();
-        loadDevices();
       }
 
       document.getElementById('filter-btn').addEventListener('click', openFilterModal);

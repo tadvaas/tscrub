@@ -15,8 +15,10 @@
  *   - the progress bar is a fixed-height strip whose inner block alone moves;
  *   - the pager buttons keep a min-width, so swapping a label for a spinner
  *     cannot resize them;
- *   - the busy state is started by the record-source switch and ended in the
- *     fetch's settle step — for BOTH pages.
+ *   - the busy state is started by the record-source switch and by every applied
+ *     filter change, and ended in the fetch's settle step — for BOTH pages. A
+ *     filter that changes the rows must acknowledge the click, or Apply looks
+ *     like a no-op until the response lands.
  *
  * Run: node marketing/tests/dashboard_loading_test.cjs
  */
@@ -28,8 +30,8 @@ const path = require('path');
 const siteRoot = process.env.DASHBOARD_ROOT || path.join(__dirname, '..');
 const repoRoot = path.join(__dirname, '..');
 const PAGES = [
-  { file: path.join(siteRoot, 'site', 'dashboard', 'devices.html'), list: 'device-list', fetchSeq: 'devicesFetchSeq' },
-  { file: path.join(siteRoot, 'site', 'dashboard', 'drives.html'), list: 'drive-list', fetchSeq: 'drivesFetchSeq' },
+  { file: path.join(siteRoot, 'site', 'dashboard', 'devices.html'), list: 'device-list', fetchSeq: 'devicesFetchSeq', busyStarts: 2 },
+  { file: path.join(siteRoot, 'site', 'dashboard', 'drives.html'), list: 'drive-list', fetchSeq: 'drivesFetchSeq', busyStarts: 1 },
 ];
 
 let count = 0;
@@ -126,10 +128,21 @@ for (const p of PAGES) {
     /source-busy[\s\S]{0,80}opacity-100/.test(js) && /classList\.toggle\('opacity-0'/.test(js));
   check('the overlay is toggled, not rebuilt', /getElementById\('list-busy'\)[\s\S]{0,60}classList\.toggle\('hidden'/.test(js));
   check('the switch click starts the busy state', /startListBusy\(\);/.test(js));
-  // Exactly one call site: the switch handler. The 10s auto-refresh must never
-  // start it, or the page animates under the operator every poll.
-  check('busy is started from the source-switch handler only',
-    (js.match(/startListBusy\(\);/g) || []).length === 1, (js.match(/startListBusy\(\);/g) || []).length);
+  // Two call sites on Devices: the switch handler, and reloadFiltered() — the one
+  // path every APPLIED filter change goes through, because an applied filter also
+  // replaces the whole page of rows. The 10s auto-refresh must never start it, or
+  // the page animates under the operator every poll.
+  check('busy is started by the switch and by an applied filter change',
+    (js.match(/startListBusy\(\);/g) || []).length === p.busyStarts,
+    (js.match(/startListBusy\(\);/g) || []).length);
+  if (p.busyStarts > 1) {
+    check('the filter path shows the busy state before it refetches',
+      /function reloadFiltered\(\)[\s\S]{0,200}startListBusy\(\);[\s\S]{0,40}loadDevices\(\);/.test(js));
+    // Apply, a chip's ×, Clear all and the bench chip: four entry points, one path.
+    check('every applied filter change goes through it',
+      (js.match(/reloadFiltered\(\);/g) || []).length === 4,
+      (js.match(/reloadFiltered\(\);/g) || []).length);
+  }
   check('busy is ended in the fetch settle step', /endListBusy\(seq\);/.test(js));
   check('the end is sequence-guarded', new RegExp('function endListBusy\\(seq\\) \\{\\s*\\n\\s*if \\(seq !== ' + p.fetchSeq + '\\) return;').test(js));
   check('a fast response still shows the animation for a beat', /320 - \(Date\.now\(\) - listBusyAt\)/.test(js));

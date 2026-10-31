@@ -90,6 +90,14 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **Applying a filter now shows the list working.** The modal closed and the rows
+  stayed put until the response landed, so on anything slower than a local
+  round-trip the click looked like a no-op — the only evidence was the
+  `Filters (N)` badge. Apply, a chip's ×, Clear all and the bench chip now go
+  through one path that puts the panel into the same busy state the record-source
+  switch uses (dimmed rows, spinner, progress bar, `aria-busy`), and holds it for
+  a beat so a fast response cannot flash it.
+
 - **Two provenance features were dead on arrival in production.** The lazy schema
   bootstrap created `media_links`, then threw on `certificate_assets`: its
   `AUTO_INCREMENT` id was keyed only as the second column of `uq_cert_asset`,
