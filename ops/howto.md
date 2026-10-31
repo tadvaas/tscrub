@@ -553,6 +553,7 @@ hash matches, and the report is attributed.
 ## Related docs
 
 - `ops/deploy.md` — website + backend deployment.
+- `ops/media-custody.md` — a drive pulled from an asset and erased on a bench machine: provenance, declared links, processing hosts and what the certificate states.
 - `ops/secure-boot-mok.md` — Secure Boot runbook (this guide's §2 source).
 - `ops/report-verification.md` — report verification + attribution (this guide's §3 source).
 - `ops/licence-request-workflow.md`, `ops/vendor-key-rotation.md` — licence lifecycle.
