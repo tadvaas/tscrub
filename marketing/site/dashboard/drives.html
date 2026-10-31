@@ -1089,21 +1089,34 @@
       function originState(d, box) {
         box.innerHTML = '';
         var host = d.sysserial || '';
+        var tone, chip, chipCls, text;
         if (d.origin_asset) {
           var prov = d.origin_provenance === 'declared' ? 'declared by operator' : (d.origin_provenance || '');
-          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
-            'Origin asset: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + (host || 'a different host') + '.'));
+          tone = 'text-emerald-700 dark:text-emerald-400';
+          chip = 'Declared origin';
+          chipCls = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+          text = 'Origin asset: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + (host || 'a different host') + '.';
         } else if (d.host_processing) {
-          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
-            'Processed on bench machine ' + (host || 'a processing host') + '. If this medium was pulled from a customer asset, reassign the origin. A loose medium or the bench’s own drive needs none.'));
+          tone = 'text-amber-700 dark:text-amber-400';
+          chip = 'Bench processed';
+          chipCls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+          text = 'Processed on bench machine ' + (host || 'a processing host') + '. If this medium was pulled from a customer asset, reassign the origin. A loose medium or the bench’s own drive needs none.';
         } else if (host) {
-          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
-            'Origin asset: ' + host + '. This medium was sanitised in the machine that reported it, so no separate origin is needed.'));
+          tone = 'text-emerald-700 dark:text-emerald-400';
+          chip = 'In place';
+          chipCls = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+          text = 'Origin asset: ' + host + '. This medium was sanitised in the machine that reported it, so no separate origin is needed.';
         } else {
-          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
-            'This report has no host serial, so the origin asset cannot be assumed. Reassign it if the medium came from another asset.'));
+          tone = 'text-amber-700 dark:text-amber-400';
+          chip = 'No host serial';
+          chipCls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+          text = 'This report has no host serial, so the origin asset cannot be assumed. Reassign it if the medium came from another asset.';
         }
-        box.appendChild(el('p', 'mt-1 text-[11px] text-slate-500 dark:text-slate-400',
+        var row = el('div', 'flex flex-wrap items-start gap-2');
+        row.appendChild(el('span', 'mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' + chipCls, chip));
+        row.appendChild(el('p', 'min-w-0 text-sm ' + tone, text));
+        box.appendChild(row);
+        box.appendChild(el('p', 'mt-2 text-[11px] text-slate-500 dark:text-slate-400',
           d.origin_asset
             ? 'Provenance is operator-declared; the erasure evidence is unchanged.'
             : 'Reassigning records an operator declaration; the erasure evidence is unchanged.'));

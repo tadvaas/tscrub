@@ -44,7 +44,9 @@ and this project uses date-based versioning (`v1.x`).
   says it was processed on the bench and may need its origin reassigned, because
   it may have been pulled from another asset; a loose medium or the bench’s own
   drive needs none. Each report now carries a `host_processing` flag so the record
-  view knows which case applies.
+  view knows which case applies. The statement is colour-coded: **green** for an
+  assumed in-place origin or a declared one, **amber** for a bench-processed
+  medium or a report with no host serial.
 
 ### Fixed
 

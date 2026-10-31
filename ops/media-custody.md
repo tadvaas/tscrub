@@ -112,7 +112,9 @@ state both. The job (COCID) is the container for that evidence.
   origin asset** (it was sanitised in place). The "processed on bench machine /
   may need an origin" caveat appears only when the reporting host is a marked
   processing host. Even then it says *if*: a loose medium or the bench's own
-  drive has no customer asset to record.
+  drive has no customer asset to record. The state is colour-coded: green for an
+  in-place or declared origin, amber for a bench-processed medium or a report
+  with no host serial.
 - A standalone medium with no link stays standalone. The dashboard shows `—`
   rather than guessing an origin.
 - An asset with no data-bearing media is counted as an exception, not as a

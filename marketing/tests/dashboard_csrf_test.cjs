@@ -117,6 +117,14 @@ check(
   'drives: only a bench host gets the reassign caveat',
   /host_processing/.test(originState) && /Processed on bench machine/.test(originState)
 );
+check(
+  'drives: the in-place state is green',
+  /else if \(host\)[\s\S]*?text-emerald-700/.test(originState) && /In place/.test(originState)
+);
+check(
+  'drives: the bench state is amber',
+  /host_processing[\s\S]*?text-amber-700/.test(originState) && /Bench processed/.test(originState)
+);
 check('drives: the report history no longer carries the origin action', !/function originBox/.test(js.drives) && !/inner\.appendChild\(originBox/.test(js.drives));
 check('drives: the old labels are gone', !/Assign origin/.test(pages.drives) && !/Change origin/.test(pages.drives));
 check('drives: action labels do not carry a dialog ellipsis', !/Correct COCID\u2026/.test(pages.drives) && !/Reassign origin\u2026/.test(pages.drives));
