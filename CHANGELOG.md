@@ -38,6 +38,14 @@ and this project uses date-based versioning (`v1.x`).
   (this opens a dialog) was applied inconsistently: Add and Filters open dialogs
   without one. In-progress labels such as `Saving…` keep theirs.
 
+- **The media record no longer implies every origin is unknown.** An ordinary
+  medium is shown as sanitised in the machine that reported it, with that host as
+  its origin asset. Only a medium reported by a marked processing host (bench)
+  says it was processed on the bench and may need its origin reassigned, because
+  it may have been pulled from another asset; a loose medium or the bench’s own
+  drive needs none. Each report now carries a `host_processing` flag so the record
+  view knows which case applies.
+
 ### Fixed
 
 - **Two provenance features were dead on arrival in production.** The lazy schema

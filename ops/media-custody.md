@@ -108,6 +108,11 @@ state both. The job (COCID) is the container for that evidence.
   asset had media removed.
 - Provenance is printed as `observed` or `declared by operator`. A declared
   link is never a verified fact.
+- In the medium's record, an ordinary medium states the **reporting host as the
+  origin asset** (it was sanitised in place). The "processed on bench machine /
+  may need an origin" caveat appears only when the reporting host is a marked
+  processing host. Even then it says *if*: a loose medium or the bench's own
+  drive has no customer asset to record.
 - A standalone medium with no link stays standalone. The dashboard shows `—`
   rather than guessing an origin.
 - An asset with no data-bearing media is counted as an exception, not as a

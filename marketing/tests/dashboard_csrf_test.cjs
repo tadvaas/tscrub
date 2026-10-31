@@ -109,6 +109,14 @@ check(
     && driveView.indexOf('Correct COCID') < driveView.indexOf('Reassign origin')
 );
 check('drives: the origin state itself is read-only', originState.length > 0 && !/Reassign origin/.test(originState));
+check(
+  'drives: an ordinary host is assumed to be the origin asset',
+  /sanitised in the machine that reported it/.test(originState) && !/not separately recorded/.test(originState)
+);
+check(
+  'drives: only a bench host gets the reassign caveat',
+  /host_processing/.test(originState) && /Processed on bench machine/.test(originState)
+);
 check('drives: the report history no longer carries the origin action', !/function originBox/.test(js.drives) && !/inner\.appendChild\(originBox/.test(js.drives));
 check('drives: the old labels are gone', !/Assign origin/.test(pages.drives) && !/Change origin/.test(pages.drives));
 check('drives: action labels do not carry a dialog ellipsis', !/Correct COCID\u2026/.test(pages.drives) && !/Reassign origin\u2026/.test(pages.drives));

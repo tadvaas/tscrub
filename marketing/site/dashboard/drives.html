@@ -1088,18 +1088,25 @@
       // action belongs with the record, not behind the report history.
       function originState(d, box) {
         box.innerHTML = '';
-        var host = d.sysserial || 'a different host';
+        var host = d.sysserial || '';
         if (d.origin_asset) {
           var prov = d.origin_provenance === 'declared' ? 'declared by operator' : (d.origin_provenance || '');
           box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
-            'Origin asset: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + host + '.'));
+            'Origin asset: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + (host || 'a different host') + '.'));
+        } else if (d.host_processing) {
+          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
+            'Processed on bench machine ' + (host || 'a processing host') + '. If this medium was pulled from a customer asset, reassign the origin. A loose medium or the bench’s own drive needs none.'));
+        } else if (host) {
+          box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
+            'Origin asset: ' + host + '. This medium was sanitised in the machine that reported it, so no separate origin is needed.'));
         } else {
           box.appendChild(el('p', 'text-sm text-slate-700 dark:text-slate-300',
-            'Origin asset not separately recorded. This medium is attributed to the machine that reported it, '
-            + host + '. If it was pulled from another asset, reassign the origin.'));
+            'This report has no host serial, so the origin asset cannot be assumed. Reassign it if the medium came from another asset.'));
         }
         box.appendChild(el('p', 'mt-1 text-[11px] text-slate-500 dark:text-slate-400',
-          'Provenance is operator-declared; the erasure evidence is unchanged.'));
+          d.origin_asset
+            ? 'Provenance is operator-declared; the erasure evidence is unchanged.'
+            : 'Reassigning records an operator declaration; the erasure evidence is unchanged.'));
       }
 
       function openOriginForm(d, box) {
@@ -1434,13 +1441,16 @@
 
         // Origin asset: the customer asset this medium came from, when it is not
         // the machine that ran the erase. Shown with the record so the state is
-        // visible; the action is in the footer beside Correct COCID.
-        var originSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-        originSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Origin asset'));
-        var originBody = el('div', 'mt-2');
-        originState(d, originBody);
-        originSec.appendChild(originBody);
-        doc.appendChild(originSec);
+        // visible; the action is in the footer beside Correct COCID. An attested
+        // record has no erasure report to re-attribute, so the section is omitted.
+        if (!d.attested) {
+          var originSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
+          originSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Origin asset'));
+          var originBody = el('div', 'mt-2');
+          originState(d, originBody);
+          originSec.appendChild(originBody);
+          doc.appendChild(originSec);
+        }
 
         // Device + drive identity (and the richer v1.9.0 capture when present).
         function section(title, pairs) {

@@ -4534,10 +4534,27 @@ function media_links_apply(array $rows, array $map): array {
     return $rows;
 }
 
+/**
+ * Is the report's host one of our processing (bench) hosts?
+ *
+ * A medium reported by an ordinary machine is assumed to have been sanitised in
+ * place: that host IS its origin asset. Only a processing host needs the
+ * caveat, because the medium may have been pulled out of another machine first.
+ */
+function host_is_processing(array $g, array $processingHosts): bool {
+    if ($processingHosts === []) return false;
+    $key = mp_key(device_key($g));
+    return $key !== '' && isset($processingHosts[$key]);
+}
+
 function load_drives(int $userId, ?array $query = null): array {
     reports_ensure_schema();
     $ids = org_member_ids($userId);
     $ph = implode(',', array_fill(0, count($ids), '?'));
+    // One lookup, used by both list paths. A medium reported by a processing
+    // host may have come from another asset; a medium reported by any other
+    // host is assumed to have been sanitised in place.
+    $processingHosts = processing_host_keys($userId);
 
     $q = trim((string)($query['q'] ?? ''));
     $page = max(1, (int)($query['page'] ?? 1));
@@ -4554,7 +4571,7 @@ function load_drives(int $userId, ?array $query = null): array {
     // which is what makes the page boundaries follow the sort. An export asks for
     // all:true and must take the full path too, since it filters first.
     if ($query !== null && $q === '' && $sort === '' && empty($query['all'])) {
-        $res = drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source);
+        $res = drives_paged($ids, $ph, $page, $per, manual_list_drives($userId), $source, $processingHosts);
         $res['drives'] = media_links_attach($res['drives'], $userId);
         return $res;
     }
@@ -4567,6 +4584,7 @@ function load_drives(int $userId, ?array $query = null): array {
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $g = json_decode((string)$r['payload'], true);
         if (!is_array($g) || empty($g['drives'])) continue;
+        $isProcessing = host_is_processing($g, $processingHosts);
         foreach ($g['drives'] as $d) {
             if (!is_array($d)) continue;
             $serial = trim((string)($d['serial'] ?? ''));
@@ -4579,6 +4597,7 @@ function load_drives(int $userId, ?array $query = null): array {
             $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
             $entry['ts']             = ts_local((string)($d['ts'] ?? ''));
             $entry['report_devices'] = (int)$r['devices'];
+            $entry['host_processing'] = $isProcessing ? 1 : 0;
 
             if (!isset($drives[$key])) {
                 $drives[$key] = $entry;
@@ -4672,7 +4691,7 @@ function load_drives(int $userId, ?array $query = null): array {
  * `drive_serials` cache (no full-payload decode), then fetch payloads only for
  * the reports those drives appear in.
  */
-function drives_paged(array $ids, string $ph, int $page, int $per, array $attested = [], string $source = 'all'): array {
+function drives_paged(array $ids, string $ph, int $page, int $per, array $attested = [], string $source = 'all', array $processingHosts = []): array {
     $stmt = db()->prepare("SELECT id, uploaded_at, drive_serials FROM reports WHERE user_id IN ($ph) AND report_type = 'erasure' AND " . reports_visible_sql() . ' ORDER BY uploaded_at DESC, id DESC');
     $stmt->execute($ids);
     $newest = [];
@@ -4743,6 +4762,7 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $g = json_decode((string)$r['payload'], true);
             if (!is_array($g) || empty($g['drives'])) continue;
+            $isProcessing = host_is_processing($g, $processingHosts);
             foreach ($g['drives'] as $d) {
                 if (!is_array($d)) continue;
                 $serial = trim((string)($d['serial'] ?? ''));
@@ -4755,6 +4775,7 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
                 $entry['uploaded_at']    = ts_local((string)$r['uploaded_at']);
                 $entry['ts']             = ts_local((string)($d['ts'] ?? ''));
                 $entry['report_devices'] = (int)$r['devices'];
+                $entry['host_processing'] = $isProcessing ? 1 : 0;
 
                 if (!isset($drives[$key])) {
                     $drives[$key] = $entry;

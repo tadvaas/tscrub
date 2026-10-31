@@ -90,5 +90,17 @@ t_eq('empty map leaves the rows exactly as they were', $rows, $same);
 $flat = media_links_apply([['cocid' => 'B', 'serial' => 'D1']], $map);
 t_eq('row without history: origin', 'ASSET-B', $flat[0]['origin_asset'] ?? null);
 
+// host_is_processing(): the Media record view uses this to assume an ordinary
+// host is the origin asset, and only caveat a medium that ran on the bench.
+$g = ['sysserial' => 'PC1QGQNK'];
+$set = [mp_key(device_key($g)) => true];
+t_check('host_is_processing: matched serial', host_is_processing($g, $set));
+t_check('host_is_processing: another host is not the bench', !host_is_processing(['sysserial' => 'OTHER'], $set));
+t_check('host_is_processing: no processing hosts', !host_is_processing($g, []));
+$ph = ['sysserial' => 'N/A', 'bbserial' => 'BOARD123'];
+$set2 = [mp_key(device_key($ph)) => true];
+t_check('host_is_processing: placeholder serial falls back to the board serial', host_is_processing($ph, $set2));
+t_check('host_is_processing: empty identity', !host_is_processing([], $set));
+
 echo "\n" . ($fails ? "$fails of $count checks FAILED" : "$count checks passed") . "\n";
 exit($fails ? 1 : 0);
