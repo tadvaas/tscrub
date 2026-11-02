@@ -3480,8 +3480,6 @@
       }
 
       function renderBiosIdleForm(dev, content) {
-        content.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400',
-          'The appliance applies this on its next poll. The result appears in this device\u2019s Log; the BIOS badge updates with the next diagnostics report.'));
         var inp = el('input', 'mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
         inp.type = 'text';
         inp.autocomplete = 'off';
