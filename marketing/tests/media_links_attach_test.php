@@ -142,8 +142,52 @@ t_check('declare: the replaced declaration is kept out of the dry run',
     (bool)preg_match('/media_link_replace_ids\(\$existing, \$cocid, \$mediaSerial\)/', $lib));
 t_check('declare: the old rows are deleted, not just ignored',
     (bool)preg_match('/foreach \(\$replaceIds as \$rid\)/', $lib));
-t_check('declare: reports whether the asset serial is a known device',
-    (bool)preg_match("/'asset_known' => device_serial_known\(/", $lib));
+t_check('declare: the device must exist before a link is recorded',
+    (bool)preg_match('/\$deviceKnown = device_serial_known\(\$userId, \$assetSerial\);/', $lib)
+    && (bool)preg_match("/'unknown_asset' => true/", $lib));
+t_check('declare: an unknown device can be recorded in the same request',
+    (bool)preg_match('/if \(!\$deviceKnown\) \{\s*\n\s*declared_device_set\(/', $lib));
+t_check('declare: reports whether the device was already on file',
+    (bool)preg_match("/'asset_known' => \\\$deviceKnown,/", $lib));
+$api = (string)file_get_contents($serverDir . '/api.php');
+t_check('the link route forwards the create-device acknowledgement',
+    (bool)preg_match("/!empty\(\\\$d\['create_device'\]\)/", $api)
+    && (bool)preg_match("/'unknown_asset' => !empty\(\\\$res\['unknown_asset'\]\)/", $api));
+
+// ---- declared devices: the register a media origin may point at ------------
+// Shape the list row. Every key here is read by load_devices()' presence and
+// grade loops, so a missing one warns on every render.
+$row = declared_device_row(['serial' => '5CG91256SC', 'model' => 'HP EliteBook', 'note' => 'no boot', 'created_at' => '2026-11-02 10:00:00']);
+t_eq('declared row: key is namespaced', 'declared:5cg91256sc', $row['_key']);
+t_eq('declared row: serial kept as typed', '5CG91256SC', $row['sysserial']);
+t_eq('declared row: model is the system name', 'HP EliteBook', $row['system']);
+t_eq('declared row: flagged declared', true, $row['declared']);
+t_eq('declared row: never online', false, $row['online']);
+// array_key_exists, not isset: several of these are legitimately null, and
+// isset() would report them missing.
+t_check('declared row: carries the keys the list loops read',
+    !array_diff(
+        ['drives', 'systemuuid', 'bioslock', 'secure_boot', 'tpm', 'mdm', 'drive_count', 'history',
+         'refurb_grade', 'notes', 'first', 'last', 'activity_at', 'lan_ip', 'last_seen',
+         'last_seen_at', 'erasure', 'bbserial'],
+        array_keys($row)
+    ));
+$row2 = declared_device_row(['serial' => 'X1', 'model' => '', 'created_at' => '2026-11-02 10:00:00']);
+t_eq('declared row: no model still names the row', 'Declared device', $row2['system']);
+
+// Removal is only allowed while nothing depends on the row.
+t_check('removable: unused row can go', declared_device_removable(0, 0));
+t_check('removable: a media origin depends on it', !declared_device_removable(1, 0));
+t_check('removable: a report depends on it', !declared_device_removable(0, 1));
+
+// Wiring: the register feeds the list, the gate, and nothing else.
+t_check('the Devices list folds declared rows into the candidates',
+    (bool)preg_match('/foreach \(declared_devices_rows\(\$userId\) as \$key => \$row\)/', $lib));
+t_check('the existence gate counts a declared device',
+    (bool)preg_match('/isset\(declared_device_keys\(\$userId\)\[\$key\]\)/', $lib));
+t_check('a failure to look the device up does not refuse the link',
+    (bool)preg_match('/return true;\s+\/\/ never turn a lookup failure into a false refusal/', $lib));
+
 $api = (string)file_get_contents($serverDir . '/api.php');
 t_check('the link route forwards asset_known and replaced',
     (bool)preg_match("/'asset_known' => \(bool\)\(\\\$res\['asset_known'\]/", $api)

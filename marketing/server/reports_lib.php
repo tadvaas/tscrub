@@ -1082,6 +1082,22 @@ function asset_media_ensure_schema(): void {
                 PRIMARY KEY (id),
                 UNIQUE KEY uq_processing_host (user_id, device_key)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            // A device an operator put on file because the machine never boots
+            // tScrub (media pulled and erased on the bench). It is a REGISTER
+            // entry, not evidence: media origins may point at it, but nothing
+            // may present it as a machine the appliance inspected.
+            'declared_devices' => "CREATE TABLE IF NOT EXISTS declared_devices (
+                id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id     BIGINT UNSIGNED NOT NULL,
+                device_key  VARCHAR(191)    NOT NULL,
+                serial      VARCHAR(191)    NOT NULL,
+                model       VARCHAR(191)    NOT NULL DEFAULT '',
+                note        VARCHAR(255)    NOT NULL DEFAULT '',
+                created_by  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                created_at  DATETIME        NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_declared_device (user_id, device_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
         foreach ($ddl as $table => $sql) {
             if (!db_table_exists($table)) {
@@ -1169,14 +1185,14 @@ function media_link_replace_ids(array $links, string $cocid, string $mediaSerial
 /**
  * Has this serial ever checked in as a device?
  *
- * "Exists on the Devices tab" means a diagnostics snapshot, because that is what
+ * "Exists on the Devices tab" means either a diagnostics snapshot (that is what
  * devices_candidates() builds the list from — an erasure report alone does not
- * create a device row.
+ * create a device row) or a declared-devices register row, which is how a
+ * machine that never boots tScrub gets onto the list.
  *
- * This is a WARNING, never a gate. A machine that never boots tScrub (its media
- * pulled and erased on the bench) has no device row, and recording exactly that
- * asset is why declared origins exist. So the caller reports "no machine with
- * this serial" to the operator as a likely typo while still recording the link.
+ * Both are equivalent for the GATE in media_link_declare(): a media origin may
+ * only name a device that exists. They are NOT equivalent as evidence, and no
+ * surface may present a declared device as an inspected machine.
  */
 function device_serial_known(int $userId, string $serial): bool {
     $key = mp_key($serial);
@@ -1184,6 +1200,7 @@ function device_serial_known(int $userId, string $serial): bool {
     $ids = org_member_ids($userId);
     $ph  = implode(',', array_fill(0, count($ids), '?'));
     try {
+        if (isset(declared_device_keys($userId)[$key])) { return true; }
         $stmt = db()->prepare(
             "SELECT 1 FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics'
                AND device_key = ? AND " . reports_visible_sql() . ' LIMIT 1'
@@ -1192,28 +1209,37 @@ function device_serial_known(int $userId, string $serial): bool {
         return $stmt->fetchColumn() !== false;
     } catch (Throwable $e) {
         error_log('device_serial_known: ' . $e->getMessage());
-        return true;   // never turn a lookup failure into a false "typo" warning
+        return true;   // never turn a lookup failure into a false refusal
     }
 }
 
 /**
- * Declare that a medium came out of an asset.
+ * Declare that a media item came out of a device.
  *
- * Refused when the medium is already observed on a different (non-processing)
- * host, or already attributed to another asset — an ambiguous link is worse
- * than none, and the certificate must never guess.
+ * GATED on the device existing: a serial that is neither an observed machine (a
+ * diagnostics snapshot) nor a declared-devices register row is refused with
+ * `unknown_asset`, so a typo cannot become a certificate line. `$createDevice`
+ * lets the caller put the machine on file and link in the same request — the
+ * documented non-booting path — but only with the operator's explicit
+ * acknowledgement.
  *
- * Declaring again for the same medium in the same job REPLACES the previous
+ * Also refused when the media item is already observed on a different
+ * (non-processing) host, or attributed to another device: an ambiguous link is
+ * worse than none, and the certificate must never guess.
+ *
+ * Declaring again for the same media item in the same job REPLACES the previous
  * declaration (see media_link_replace_ids), so "Reassign origin" really does
  * reassign and a mistyped serial can be corrected.
  *
- * Returns ['ok'=>bool,'error'=>string,'id'=>int,'replaced'=>int,'asset_known'=>bool].
- * `asset_known` is informational: it says whether the asset serial matches a
- * machine in this account, so the dashboard can flag a likely typo without
- * refusing a machine that has never booted tScrub.
+ * Returns ['ok'=>bool,'error'=>string,'id'=>int,'replaced'=>int,
+ *          'asset_known'=>bool,'unknown_asset'=>bool].
+ * `asset_known` reports whether the device was ALREADY on file (observed or
+ * declared) before this call, so the dashboard can say "recorded" rather than
+ * "linked".
  */
 function media_link_declare(int $userId, string $cocid, string $assetSerial, string $mediaSerial,
-                            string $reason, string $note, int $by): array {
+                            string $reason, string $note, int $by,
+                            bool $createDevice = false, string $deviceModel = '', string $deviceNote = ''): array {
     asset_media_ensure_schema();
     $cocid        = trim($cocid);
     $assetSerial  = trim($assetSerial);
@@ -1232,6 +1258,18 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     }
     if (mb_strlen($assetSerial, 'UTF-8') > 191 || mb_strlen($mediaSerial, 'UTF-8') > 191) {
         return ['ok' => false, 'error' => 'That serial is too long to record.'];
+    }
+
+    // GATE: a media origin may only name a device that exists. "Exists" is a
+    // diagnostics snapshot OR a declared-devices row, so a machine that never
+    // boots tScrub is still recordable — but it has to BE on file first, which
+    // is what stops a typo from becoming a certificate line. The flag is the
+    // operator's explicit acknowledgement, never an automatic side effect.
+    $deviceKnown = device_serial_known($userId, $assetSerial);
+    if (!$deviceKnown && !$createDevice) {
+        return ['ok' => false, 'unknown_asset' => true, 'error' =>
+            'No device with serial ' . $assetSerial . ' is in Devices. ' .
+            'Record the device first, then link — the form can do both in one step.'];
     }
 
     $ids = org_member_ids($userId);
@@ -1285,6 +1323,11 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     try {
         $pdo = db();
         $pdo->beginTransaction();
+        // The register row goes in first: the link is only allowed to exist
+        // because that row (or a boot snapshot) makes the device real.
+        if (!$deviceKnown) {
+            declared_device_set($userId, $assetSerial, $deviceModel, $deviceNote, $by);
+        }
         foreach ($replaceIds as $rid) {
             $del = $pdo->prepare("DELETE FROM media_links WHERE id = ? AND user_id IN ($ph)");
             $del->execute(array_merge([$rid], $ids));
@@ -1303,12 +1346,10 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
             'error'   => '',
             'id'      => $newId,
             'replaced' => count($replaceIds),
-            // The declaration is recorded either way. This only tells the caller
-            // whether the serial names a machine the account has actually seen, so
-            // a typo can be flagged at the moment it is saved. Never a gate: a
-            // machine that never boots tScrub has no device row, and declaring its
-            // origin is exactly what this is for.
-            'asset_known' => device_serial_known($userId, $assetSerial),
+            // True whenever a device row now exists for this serial: the gate
+            // guarantees it, so this only distinguishes "already observed" from
+            // "recorded just now" for the dashboard's message.
+            'asset_known' => $deviceKnown,
         ];
     } catch (Throwable $e) {
         if (db()->inTransaction()) { db()->rollBack(); }
@@ -1326,6 +1367,141 @@ function media_link_delete(int $userId, int $id): bool {
     $q = db()->prepare("DELETE FROM media_links WHERE id = ? AND user_id IN ($ph)");
     $q->execute(array_merge([$id], $ids));
     return $q->rowCount() > 0;
+}
+
+/**
+ * Create or update a declared (register-only) device.
+ *
+ * A device an operator put on file because the machine never boots tScrub: its
+ * media were pulled and erased on the bench, so there is no boot snapshot and no
+ * device row. The register is what a media origin may point at, and what makes
+ * the "you cannot link media to a device that does not exist" rule satisfiable.
+ *
+ * It is NOT evidence: nothing in the certificate may present it as a machine the
+ * appliance inspected, and it must never create a media link.
+ */
+function declared_device_set(int $userId, string $serial, string $model, string $note, int $by): bool {
+    asset_media_ensure_schema();
+    $serial = trim($serial);
+    $key = mp_key($serial);
+    if ($key === '' || mb_strlen($serial, 'UTF-8') > 191) return false;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare(
+            'INSERT INTO declared_devices (user_id, device_key, serial, model, note, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE serial = VALUES(serial), model = VALUES(model), note = VALUES(note)'
+        );
+        $q->execute([$userId, $key, $serial, trim($model), trim($note), $by, gmdate('Y-m-d H:i:s')]);
+        return true;
+    } catch (Throwable $e) {
+        error_log('declared_device_set: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Can a register row be removed? Pure, so the rule is testable without a DB.
+ *
+ * Only an unused row may go. Once a media link or any report depends on the
+ * serial it is part of a job's record, and deleting it would silently change a
+ * certificate that is regenerated later.
+ */
+function declared_device_removable(int $linkCount, int $reportCount): bool {
+    return $linkCount <= 0 && $reportCount <= 0;
+}
+
+/** Remove a declared device. Returns 'ok', 'missing' or 'in_use'. */
+function declared_device_delete(int $userId, string $deviceKey): string {
+    asset_media_ensure_schema();
+    $key = mp_key($deviceKey);
+    if ($key === '') return 'missing';
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare("SELECT id FROM declared_devices WHERE user_id IN ($ph) AND device_key = ? LIMIT 1");
+        $q->execute(array_merge($ids, [$key]));
+        if ($q->fetchColumn() === false) return 'missing';
+        $l = db()->prepare("SELECT COUNT(*) FROM media_links WHERE user_id IN ($ph) AND asset_serial = ?");
+        $l->execute(array_merge($ids, [$key]));
+        $r = db()->prepare("SELECT COUNT(*) FROM reports WHERE user_id IN ($ph) AND device_key = ?");
+        $r->execute(array_merge($ids, [$key]));
+        if (!declared_device_removable((int)$l->fetchColumn(), (int)$r->fetchColumn())) return 'in_use';
+        $d = db()->prepare("DELETE FROM declared_devices WHERE user_id IN ($ph) AND device_key = ?");
+        $d->execute(array_merge($ids, [$key]));
+        return 'ok';
+    } catch (Throwable $e) {
+        error_log('declared_device_delete: ' . $e->getMessage());
+        return 'missing';
+    }
+}
+
+/**
+ * Shape one register row the way the Devices list expects it. Pure.
+ *
+ * Every key here is read by load_devices()' presence/grade loops, so a missing
+ * one produces warnings on every render.
+ */
+function declared_device_row(array $r): array {
+    $serial = trim((string)($r['serial'] ?? ''));
+    $model  = trim((string)($r['model'] ?? ''));
+    $created = (string)($r['created_at'] ?? '');
+    return [
+        '_key'          => 'declared:' . mp_key($serial),
+        'declared'      => true,
+        'sysserial'     => $serial,
+        'systemuuid'    => '',
+        'bbserial'      => '',
+        'system'        => $model !== '' ? $model : 'Declared device',
+        'online'        => false,
+        'erasure'       => null,
+        'lan_ip'        => '',
+        'last_seen'     => null,
+        'last_seen_at'  => null,
+        'bioslock'      => '',
+        'secure_boot'   => '',
+        'tpm'           => '',
+        'mdm'           => '',
+        'drive_count'   => 0,
+        'drives'        => [],
+        'history'       => [],
+        'notes'         => (string)($r['note'] ?? ''),
+        'refurb_grade'  => '',
+        'first'         => $created,
+        'last'          => $created,
+        'activity_at'   => $created,
+    ];
+}
+
+/** Declared devices for the account, shaped for the Devices list. */
+function declared_devices_rows(int $userId): array {
+    if (!db_table_exists('declared_devices')) return [];
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = db()->prepare("SELECT serial, model, note, created_at FROM declared_devices WHERE user_id IN ($ph) ORDER BY serial");
+        $stmt->execute($ids);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $row = declared_device_row($r);
+            if ($row['sysserial'] !== '') { $out[$row['_key']] = $row; }
+        }
+        return $out;
+    } catch (Throwable $e) {
+        error_log('declared_devices_rows: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Lowercased device keys of the declared (register-only) devices, as a set. */
+function declared_device_keys(int $userId): array {
+    $out = [];
+    foreach (declared_devices_rows($userId) as $row) {
+        $key = mp_key((string)($row['sysserial'] ?? ''));
+        if ($key !== '') { $out[$key] = true; }
+    }
+    return $out;
 }
 
 /** Lowercased device keys that are OUR bench/processing hosts, as a set. */
@@ -3415,6 +3591,26 @@ function devices_candidates(array $ids, string $ph, int $userId): array {
         if ($key !== '' && !isset($devices[$key])) { $devices[$key] = $row; }
     }
 
+    // Declared (register-only) devices: an operator put the machine on file
+    // because it never boots tScrub, and a media origin may point at it. Folded
+    // in HERE so they take part in search, sort, facets and `total` like every
+    // other row; appending them only to the page would leave them uncounted and
+    // make `page > maxPage` clamp the pager.
+    //
+    // A machine the appliance has actually seen WINS: if a diagnostics report
+    // exists for the same serial, its row is the device and the register row is
+    // dropped. Compare on the serial, not on `_key` — the keys differ by the
+    // "declared:" namespace, so comparing keys would show the machine twice.
+    $seenSerials = [];
+    foreach ($devices as $d) {
+        $s = mp_key((string)($d['sysserial'] ?? ''));
+        if ($s !== '') { $seenSerials[$s] = true; }
+    }
+    foreach (declared_devices_rows($userId) as $key => $row) {
+        if (isset($seenSerials[mp_key((string)$row['sysserial'])])) continue;
+        $devices[$key] = $row;
+    }
+
     // Latest event: the newest report of any type, or the appliance's last
     // heartbeat. Computed HERE as well as on the final rows because it is a SORT
     // key and the sort runs over these candidates, before the per-page payload
@@ -4556,6 +4752,17 @@ function load_devices(int $userId, ?array $query = null): array {
     // They are already in $onlyKeys (devices_candidates folded them in), so the
     // ordering step below places them on their page like any other row.
     $out = array_merge($out, manual_list_devices($userId));
+    // Declared devices that no report produced. Same dedupe rule as the
+    // candidates: an observed machine with that serial owns the row.
+    $seenSerials = [];
+    foreach ($out as $d) {
+        $s = mp_key((string)($d['sysserial'] ?? ''));
+        if ($s !== '') { $seenSerials[$s] = true; }
+    }
+    foreach (declared_devices_rows($userId) as $drow) {
+        if (isset($seenSerials[mp_key((string)$drow['sysserial'])])) continue;
+        $out[] = $drow;
+    }
 
     // Fold MDM (Autopilot) + remote command state (previously done by the
     // caller). Re-applied here so sort/output stay consistent; cheap.

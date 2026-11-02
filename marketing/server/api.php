@@ -2412,8 +2412,9 @@ if ($method === 'GET' && $route === '/media/links') {
     json_out(['ok' => true, 'links' => media_links_for_cocid((int)$u['id'], $cocid)]);
 }
 
-// POST /api/media/link — declare that a medium came out of an asset.
-// Refused when it contradicts an observation made on a different host.
+// POST /api/media/link — declare that a media item came out of a device.
+// Gated on the device existing (observed or declared); refused when it
+// contradicts an observation made on a different host.
 if ($method === 'POST' && $route === '/media/link') {
     auth_csrf_verify();
     $u = auth_require();
@@ -2425,21 +2426,58 @@ if ($method === 'POST' && $route === '/media/link') {
         (string)($d['media_serial'] ?? ''),
         (string)($d['reason'] ?? ''),
         (string)($d['note'] ?? ''),
-        (int)$u['id']
+        (int)$u['id'],
+        // The operator's explicit "record this device and link" acknowledgement.
+        // Never inferred: a refused save must not create a register row.
+        !empty($d['create_device']),
+        (string)($d['device_model'] ?? ''),
+        (string)($d['device_note'] ?? '')
     );
     if (!$res['ok']) {
-        fail(409, (string)$res['error']);
+        // `unknown_asset` is forwarded so the form can offer the one-step
+        // "record the device and link" action instead of just an error.
+        fail(409, (string)$res['error'], [
+            'unknown_asset' => !empty($res['unknown_asset']),
+        ]);
     }
     // Forwarded explicitly: this array is rebuilt here, so a key added to
     // media_link_declare() is NOT automatically visible to the dashboard.
-    // `asset_known` lets the form flag a serial the account has never seen (a
-    // likely typo) without the API refusing a machine that never booted tScrub.
     json_out([
         'ok'          => true,
         'id'          => (int)$res['id'],
         'replaced'    => (int)($res['replaced'] ?? 0),
         'asset_known' => (bool)($res['asset_known'] ?? true),
     ], 201);
+}
+
+// POST /api/devices/declared — put a device on file without a boot snapshot.
+if ($method === 'POST' && $route === '/devices/declared') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $serial = trim((string)($d['serial'] ?? ''));
+    if (!mp_serial_usable($serial)) {
+        fail(400, 'The device serial is empty or a firmware placeholder.');
+    }
+    if (device_serial_known((int)$u['id'], $serial)) {
+        fail(409, 'A device with that serial is already on file.');
+    }
+    if (!declared_device_set((int)$u['id'], $serial, (string)($d['model'] ?? ''), (string)($d['note'] ?? ''), (int)$u['id'])) {
+        fail(500, 'Could not record that device.');
+    }
+    json_out(['ok' => true, 'serial' => $serial], 201);
+}
+
+// DELETE /api/devices/declared/{device_key} — remove an unused register row.
+if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'devices' && $seg[1] === 'declared') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $out = declared_device_delete((int)$u['id'], (string)$seg[2]);
+    if ($out === 'missing') { fail(404, 'Device not found.'); }
+    if ($out === 'in_use') {
+        fail(409, 'That device is used by a media origin or has reports, so it cannot be removed.');
+    }
+    json_out(['ok' => true]);
 }
 
 // DELETE /api/media/link/{id} — remove a declared link.

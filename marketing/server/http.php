@@ -13,8 +13,10 @@ function json_out(array $data, int $code = 200): void {
     exit;
 }
 
-function fail(int $code, string $msg): void {
-    json_out(['ok' => false, 'error' => $msg], $code);
+function fail(int $code, string $msg, array $extra = []): void {
+    // `+` keeps the LEFT operand, so $extra can add fields (a machine-readable
+    // reason the dashboard acts on) but can never overwrite ok/error.
+    json_out(['ok' => false, 'error' => $msg] + $extra, $code);
 }
 
 function json_body(): array {

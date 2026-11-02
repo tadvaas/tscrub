@@ -244,6 +244,23 @@ CREATE TABLE IF NOT EXISTS processing_hosts (
   UNIQUE KEY uq_processing_host (user_id, device_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- A device an operator put on file because the machine never boots tScrub (its
+-- media were pulled and erased on the bench). A REGISTER entry, not evidence:
+-- media origins may point at it, but nothing may present it as a machine the
+-- appliance inspected.
+CREATE TABLE IF NOT EXISTS declared_devices (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id     BIGINT UNSIGNED NOT NULL,
+  device_key  VARCHAR(191)    NOT NULL,
+  serial      VARCHAR(191)    NOT NULL,
+  model       VARCHAR(191)    NOT NULL DEFAULT '',
+  note        VARCHAR(255)    NOT NULL DEFAULT '',
+  created_by  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at  DATETIME        NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_declared_device (user_id, device_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Uploaded reports (raw evidence) stored independently of certificates.
 -- A certificate is generated from these on demand (POST /api/certs).
 CREATE TABLE IF NOT EXISTS reports (

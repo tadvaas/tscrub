@@ -1224,19 +1224,27 @@
         // Say what the check is (and is not) before the operator saves: the serial
         // is verified against Devices, but a machine that never booted tScrub has
         // no device row and must still be declarable, so this cannot be a gate.
+        // The link is GATED on the device existing: either tScrub has booted it, or
+        // it is on file as a declared device. A machine that never boots tScrub is
+        // the normal case here, so the save offers to record it and link in one
+        // step rather than sending the operator to another screen.
         form.appendChild(el('p', 'w-full text-[11px] text-slate-500 dark:text-slate-400',
-          'Checked against Devices when you save. A machine that never booted tScrub can still be declared — you are told if the serial matches no device.'));
+          'The device must be in Devices before media can be assigned to it. If it is not there yet, Save offers to record it.'));
         var save = el('button', 'ts-btn ts-btn--sm ts-btn--primary', 'Save');
         save.type = 'button';
         var cancel = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', 'Cancel');
         cancel.type = 'button';
         var msg = el('p', 'w-full text-xs font-semibold text-red-600 dark:text-red-400', '');
-        save.addEventListener('click', function () {
+
+        // One request builder, two outcomes: a plain link, or a link that also
+        // records the device. The second is only ever sent from the explicit
+        // button, never automatically.
+        function postLink(create, deviceModel, deviceNote) {
           save.disabled = true;
           msg.textContent = '';
           // This page has no global token: getCsrf() fetches one. A bare `csrf`
           // reference would throw before the request was sent.
-          getCsrf().then(function (token) {
+          return getCsrf().then(function (token) {
             return fetch('/api/media/link', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
@@ -1245,37 +1253,26 @@
                 asset_serial: asset.value.trim(),
                 media_serial: d.serial || '',
                 reason: reason.value.trim(),
-                note: note.value.trim()
+                note: note.value.trim(),
+                create_device: !!create,
+                device_model: deviceModel || '',
+                device_note: deviceNote || ''
               })
             });
           }).then(function (r) {
             return r.json().then(function (j) { return { ok: r.ok, j: j }; });
           }).then(function (res) {
             if (!res.ok) {
-              // The server refuses a link that contradicts an observation on
-              // another host, and says what to do about it.
               msg.textContent = (res.j && res.j.error) || 'Could not record that link.';
               save.disabled = false;
+              if (res.j && res.j.unknown_asset) { offerRecordDevice(); }
               return;
             }
             d.origin_asset = asset.value.trim();
             d.origin_provenance = 'declared';
-            // The server says whether that serial names a machine this account has
-            // actually seen. It is a warning, not a gate: an asset that never boots
-            // tScrub (media pulled and erased on the bench) has no device row, and
-            // declaring its origin is exactly what this form is for. A typo, though,
-            // used to be invisible — the link saved happily and the certificate then
-            // claimed an asset nobody owns.
-            var known = !(res.j && res.j.asset_known === false);
             box.innerHTML = '';
-            box.appendChild(el('p', 'text-xs font-semibold ' + (known
-              ? 'text-emerald-700 dark:text-emerald-400'
-              : 'text-amber-700 dark:text-amber-400'),
-              known
-                ? 'Origin recorded. It appears on the certificate after it is generated.'
-                : 'Origin recorded, but no machine with serial ' + d.origin_asset
-                  + ' has ever been seen in Devices. If that is a typo, reassign it — the new serial replaces this one. '
-                  + 'Otherwise the certificate lists it as a declared-only device.'));
+            box.appendChild(el('p', 'text-xs font-semibold text-emerald-700 dark:text-emerald-400',
+              'Origin recorded. It appears on the certificate after it is generated.'));
             var again = el('div', 'mt-2');
             originState(d, again);
             box.appendChild(again);
@@ -1285,7 +1282,42 @@
             msg.textContent = 'Could not record that link.';
             save.disabled = false;
           });
-        });
+        }
+
+        // The server refused because no device has that serial. Recording it is a
+        // second, explicit act, and it is what makes the gate satisfiable for a
+        // machine tScrub will never boot.
+        function offerRecordDevice() {
+          var wrap = el('div', 'w-full mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20');
+          wrap.appendChild(el('p', 'text-xs font-semibold text-amber-800 dark:text-amber-300',
+            'Record device ' + asset.value.trim() + ' and link?'));
+          wrap.appendChild(el('p', 'mt-1 text-[11px] text-amber-700 dark:text-amber-400',
+            'It is added to Devices as a declared device: on file for this origin, never presented as inspected by tScrub.'));
+          var row = el('div', 'mt-2 flex flex-wrap items-end gap-2');
+          var model = el('input', 'ts-input h-8 text-xs', '');
+          model.type = 'text';
+          model.placeholder = 'Model (optional)';
+          model.className = 'ts-input h-8 flex-1 text-xs';
+          var noteIn = el('input', 'ts-input h-8 text-xs', '');
+          noteIn.type = 'text';
+          noteIn.placeholder = 'Note (optional)';
+          noteIn.className = 'ts-input h-8 flex-1 text-xs';
+          row.appendChild(model);
+          row.appendChild(noteIn);
+          wrap.appendChild(row);
+          var go = el('button', 'mt-2 ts-btn ts-btn--sm ts-btn--primary', 'Record device and link');
+          go.type = 'button';
+          go.addEventListener('click', function () {
+            go.disabled = true;
+            // The model and note ride the same request so the register row exists
+            // before the link does, inside one transaction on the server.
+            postLink(true, model.value.trim(), noteIn.value.trim()).then(function () { go.disabled = false; });
+          });
+          wrap.appendChild(go);
+          form.appendChild(wrap);
+        }
+
+        save.addEventListener('click', function () { postLink(false); });
         cancel.addEventListener('click', function () {
           originState(d, box);
         });

@@ -66,13 +66,15 @@ state both. The job (COCID) is the container for that evidence.
      rescan, then power off. On older images press `D` first (see §8).
 
 > **If the device never boots tScrub at all.** There is no snapshot and no
-> observation, so the appliance knows nothing about it. Do not invent a device
-> record and do not expect the laptop in the Devices list. Read the **OEM system
+> observation, so the appliance knows nothing about it. Do not invent a report
+> and do not expect the machine in the Devices list yet. Read the **OEM system
 > serial** from the chassis label (plus the model and the customer's asset tag)
-> before pulling the drive, then follow steps 2-4 and declare the link with that
-> serial. Put the model, tag and `device did not boot` in the declaration note.
-> Every statement about the link is then **declared by operator**, and the
-> certificate names the device by that serial only.
+> before pulling the drive, then follow steps 2-4. Saving the link will tell you
+> the device is not on file and offer **Record device … and link**: that adds it
+> to Devices as a **declared device** (badged `Declared`) and records the origin
+> in one step. Put the model, tag and `device did not boot` in the notes. Every
+> statement about the link is then **declared by operator**, and the certificate
+> names the device by that serial only.
 
 2. **Photograph the drive label and the screen**, then pull the drive.
 3. **Erase the drive on the bench under the same COCID.** USB caddy or SATA is
@@ -88,10 +90,13 @@ state both. The job (COCID) is the container for that evidence.
    origin is recorded as **declared by operator** and is never shown as
    instrument-verified. Saving **replaces** any origin already recorded for that
    media item in that job, so a mistyped serial is corrected by reassigning
-   again. The serial is checked against Devices when you save: if no machine with
-   that serial has ever been seen, the form says so (amber) and still records the
-   link — a machine that never boots tScrub has no device row, and declaring it
-   is the whole point.
+   again.
+   **The device must be in Devices first.** A serial that is neither an observed
+   machine nor a declared device is refused ("No device with serial … is in
+   Devices"), and the form offers **Record device … and link**, which adds it to
+   Devices as a declared device and records the origin in one step. Nothing is
+   recorded unless you press that button, so a typo never becomes a certificate
+   line by accident.
 5. **Check the job before issuing.** On Certificates, the job shows
    `N devices to review` when a device is not the ordinary in-place case.
 6. **Generate the certificate.** The PDF now carries:
@@ -180,7 +185,7 @@ was sanitised; the chassis was not.
 |---|---|---|
 | `That media serial was recorded in a report on a different host` | The media item completed or failed under a host that is not yet a processing host, so the observation outranks a declaration. | If that host is the bench, mark it as a processing host first, then link. Otherwise the device serial is wrong. |
 | `already attributed to another device in this job` | A declaration for this media item in this job names a different device, and the two cannot both hold. | Reassign the origin again: saving replaces the previous declaration instead of adding a second one. The old link survives if the new one is refused. |
-| `no machine with serial … has ever been seen in Devices` (amber, after saving) | The declared device serial matches no device in the account. Most often a typo; legitimately, a machine that never booted tScrub. | If it is a typo, reassign with the right serial (that replaces the wrong one). If the device never booted, this is expected: the certificate lists it as a declared-only device. |
+| `No device with serial … is in Devices` (409) | Media may only be assigned to a device that is on file. The serial is neither an observed machine nor a declared device, so it is most likely a typo. | Check the chassis label. If the machine really never booted tScrub, press **Record device … and link** in the form: it adds the device as a declared device and links in one step. |
 | `origin ambiguous between devices` | Two non-processing hosts both reported the media item. | Decide which is the device and mark the other as a processing host, or correct the COCID/report. The certificate will not pick one. |
 | `no completed erasure evidence` | The link exists but no erasure report for that media item is in this COCID yet. | Run or upload the bench report under the same COCID. |
 | A no-media device says `boot snapshot <time>` only | The appliance never saw a drive. | If media existed, declare the link. If not, this is the correct record. |
@@ -196,6 +201,12 @@ was sanitised; the chassis was not.
 
 - A declaration is an **operator attestation**. Nothing can turn it into an
   instrument observation after the fact.
+- A **declared device** is a register entry, not evidence. It exists so a media
+  origin can name a machine tScrub never booted. It carries the `Declared` badge,
+  it is never presented as inspected, and it has no measured facts: no BIOS lock,
+  no TPM, no drives. If the machine ever does boot tScrub, its diagnostics report
+  owns the row and the badge disappears. It can be removed from the Ops panel
+  only while no media origin and no report refers to it.
 - A drive the appliance never saw in the device can only be linked by
   declaration. That is why step 1 exists.
 - A USB bridge erase is software overwrite only and carries no sanitisation
@@ -241,6 +252,7 @@ no observed link and needs a declaration.
 | Declare an origin | Media → the media item's row → Reports ▸ → View → Reassign origin |
 | Remove a declaration | same panel, or `DELETE /api/media/link/{id}` |
 | Mark/unmark a bench host | Devices → row → Ops → Mark as our bench machine |
+| Record a device that never boots tScrub | Reassign origin → Save → **Record device … and link**, or Devices → row → Ops → Declared device → Remove |
 | Hide/show bench hosts | Devices → Filters → Processing host → Hide bench hosts (or `?bench=hide`); benches are shown by default |
 | List declared links | `GET /api/media/links?cocid=<COCID>` |
 | Device figures on a certificate | PDF Annex A, JSON-LD `assetAccounting`, `/verify` |

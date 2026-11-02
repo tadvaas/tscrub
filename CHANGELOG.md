@@ -10,6 +10,17 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **Media can only be assigned to a device that exists.** A declared origin used
+  to accept any serial and warn afterwards, so a typo could become a certificate
+  line naming a device that exists nowhere. The link is now refused (409, with a
+  machine-readable `unknown_asset`), and "exists" means either an observed boot
+  snapshot or a row in the new **declared-devices register**. The Reassign origin
+  form turns the refusal into one action: **Record device … and link** adds the
+  machine to Devices as a declared device and records the origin together, which
+  is the documented non-booting path. Declared devices are badged `Declared`,
+  carry no measured facts, are replaced by a real boot snapshot if the machine
+  ever arrives, and can be removed from Ops only while nothing refers to them.
+
 - **The dashboard says media and device, not medium and asset.** One machine had
   two names (asset in the provenance screens, device everywhere else) and one
   drive had two grammatical forms (medium/media), which read as different things

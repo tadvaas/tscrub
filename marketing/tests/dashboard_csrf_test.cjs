@@ -213,10 +213,17 @@ check(
     && /outrank a declared origin/.test(bodyOf(js.devices, 'benchToggle'))
 );
 check(
-  'drives: a serial that matches no device is reported after saving',
-  /asset_known === false/.test(js.drives)
-    && /declared-only device/.test(js.drives)
-    && /replaces this one/.test(js.drives)
+  'drives: an unknown device offers to record it and link',
+  /res\.j && res\.j\.unknown_asset/.test(js.drives)
+    && /Record device and link/.test(js.drives)
+    && /create_device: !!create/.test(js.drives)
+    && /device_model: deviceModel/.test(js.drives)
+);
+check(
+  'devices: a register-only device carries a Declared badge',
+  /function declaredBadge/.test(js.devices)
+    && /if \(dev\.declared\) sysWrap\.appendChild\(declaredBadge\(\)\)/.test(js.devices)
+    && /if \(dev\.declared\) sys\.appendChild\(declaredBadge\(\)\)/.test(js.devices)
 );
 
 const open = bodyOf(js.devices, 'openFilterModal');

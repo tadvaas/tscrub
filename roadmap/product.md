@@ -454,6 +454,14 @@ with the release that carried them (per `CHANGELOG.md`).
       recorded as such instead of vanishing; processing hosts excluded from asset
       counts. (§9.1, §11.4)
       → Plan: `research/media-provenance/README.md`.
+- [ ] **A media origin must point at a device that exists.** Today a declared
+      origin accepts any serial the operator types: the dashboard can only warn
+      afterwards that no machine with that serial has ever been seen, and the
+      certificate then names a device that exists nowhere in the account. The
+      link should be gated on the device being in Devices, with a declared-device
+      register so a machine that never boots tScrub can still be recorded, and
+      the Reassign origin form creating that row in the same action.
+      → Plan: `research/declared-devices/README.md`.
 - [ ] Mac (Intel + Apple Silicon) erase — pull-the-drive workflow + docs, not a
       Mac boot; declare Apple Silicon's Recovery-only erase on `compare.html`.
       (§9.1) → **Plan**: `research/macos-boot/plan.md` (status: awaiting review;

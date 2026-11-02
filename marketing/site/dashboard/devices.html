@@ -768,6 +768,16 @@
         return b;
       }
 
+      // A device an operator put on file because the machine never boots tScrub
+      // (its media were pulled and erased on the bench). It is a REGISTER entry,
+      // not evidence: it is why a media origin can name this serial at all.
+      // Sky, not amber: nothing needs fixing, it is information about provenance.
+      function declaredBadge() {
+        var b = el('span', 'shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'Declared');
+        b.title = 'Recorded by an operator because the machine never booted tScrub. tScrub has never inspected this device.';
+        return b;
+      }
+
       function deviceCard(dev, key) {
         var card = el('div', 'p-4');
         card.title = dev.system || '';
@@ -779,6 +789,7 @@
         var grade = refurbBadge(dev);
         if (grade) sys.appendChild(grade);
         if (dev.bench) sys.appendChild(benchBadge());
+        if (dev.declared) sys.appendChild(declaredBadge());
         id.appendChild(sys);
         id.appendChild(el('p', 'mt-0.5 truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400', dev.sysserial || '—'));
         top.appendChild(id);
@@ -2069,6 +2080,7 @@
           var grade = refurbBadge(dev);
           if (grade) sysWrap.appendChild(grade);
           if (dev.bench) sysWrap.appendChild(benchBadge());
+          if (dev.declared) sysWrap.appendChild(declaredBadge());
           sysCell.appendChild(sysWrap);
           sysCell.title = dev.system || '';
           tr.appendChild(sysCell);
@@ -3003,6 +3015,46 @@
         return card;
       }
 
+      // A device an operator put on file because the machine never booted tScrub.
+      // It exists so a media origin can name it; it is not evidence, and it can
+      // be removed only while nothing depends on it.
+      function declaredToggle(dev) {
+        var card = el('div', 'mt-4 rounded-2xl border border-sky-200 dark:border-sky-900 bg-white dark:bg-ink-900 p-5 shadow-sm');
+        card.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Declared device'));
+        card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400',
+          'Recorded by an operator because this machine never booted tScrub. It is on file so a media origin can name it; nothing here was inspected by the appliance.'));
+        var btn = el('button', 'mt-3 ts-btn ts-btn--sm ts-btn--secondary', 'Remove from Devices');
+        btn.type = 'button';
+        btn.title = 'Only possible while no media origin and no report refers to this device.';
+        var msg = el('p', 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400', '');
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          msg.textContent = '';
+          getCsrf().then(function (token) {
+            return fetch('/api/devices/declared/' + encodeURIComponent(dev.sysserial || ''), {
+              method: 'DELETE', headers: { 'X-CSRF-Token': token }
+            });
+          }).then(function (r) {
+            return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+          }).then(function (res) {
+            if (!res.ok) {
+              msg.textContent = (res.j && res.j.error) || 'Could not remove that device.';
+              btn.disabled = false;
+              return;
+            }
+            closeOps();
+            lastDevicesJson = '';
+            loadDevices();
+          }).catch(function () {
+            msg.textContent = 'Could not remove that device.';
+            btn.disabled = false;
+          });
+        });
+        card.appendChild(btn);
+        card.appendChild(msg);
+        return card;
+      }
+
       // Rebuilds the panel's contents in place — on the first paint (fetch out),
       // when the events arrive, and on Load more. Never by re-rendering the table.
       function logFill(dev, key, inner) {
@@ -3787,6 +3839,7 @@
           // Marking a bench machine is a property of the machine, not of its log
           // history, so it lives with the machine's operations.
           opsBody.appendChild(benchToggle(dev));
+          if (dev.declared) opsBody.appendChild(declaredToggle(dev));
         }
         window.TSDialog.open(opsModal);
         document.getElementById('ops-modal-close').focus();
