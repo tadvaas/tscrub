@@ -193,6 +193,15 @@ function mp_collect(array $payloads, array $diagnostics, array $links, array $pr
         if (!mp_serial_usable($serial)) continue;
         $key = mp_key(device_key(is_array($d) ? $d : []));
         if ($key === '') continue;
+        // A processing host is evidence, never an asset — and that has to include
+        // its OWN boot snapshot, not just its erasure rows. A bench boots with the
+        // customer's drives inside it, so its inventory lists every medium it is
+        // about to erase. Counting that as an intake observation gave the bench the
+        // STRONGEST claim (strength 3) on each of those media, so a declaration for
+        // the real asset was refused with "recorded in a report on a different
+        // host" — the exact situation a bench exists for. Skipping it here is what
+        // lets the declaration supply the origin (see mp_strength).
+        if (isset($processingHosts[$key])) continue;
         $init($key, $serial, 'intake');
         if ($assets[$key]['system_name'] === '') {
             $assets[$key]['system_name'] = (string)($d['system'] ?? '');

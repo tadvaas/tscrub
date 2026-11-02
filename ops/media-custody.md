@@ -116,6 +116,12 @@ state both. The job (COCID) is the container for that evidence.
   drive has no customer asset to record. The state is colour-coded: green for an
   in-place or declared origin, amber for a bench-processed medium or a report
   with no host serial.
+- A marked processing host is **evidence, never an asset** — and that covers its
+  boot snapshots as well as its erase reports. The bench boots with the customer's
+  drives inside it, so its inventory lists every medium it is about to erase; that
+  inventory is not intake evidence and does not claim those media. Only an
+  **unmarked** host's snapshot does, which is why unmarking a bench changes past
+  provenance for its jobs.
 - A standalone medium with no link stays standalone. The dashboard shows `—`
   rather than guessing an origin.
 - An asset with no data-bearing media is counted as an exception, not as a

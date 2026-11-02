@@ -122,6 +122,27 @@ t_eq('declared: disposition', 'media_removed_sanitised', $asset['disposition'] ?
 t_eq('declared: provenance', 'declared', $r['drives']['d1']['origin_provenance'] ?? null);
 t_eq('declared: origin', 'ASSET1', $r['drives']['d1']['asset_serial'] ?? null);
 
+// ---- 3b. A bench's OWN boot snapshot is not an intake observation ----------
+// The bench boots with the customer's drives inside it, so its diagnostics
+// inventory lists every medium it is about to erase. Treating that as an intake
+// observation gave the bench provenance strength 3 on each of them, so a
+// declaration for the real asset lost and the API answered "That media serial
+// was recorded in a report on a different host" — the one thing a bench is for.
+$diags = [mp_diag('BENCH', ['D1'])];
+$payloads = [mp_group('BENCH', [mp_drive('D1', 'COMPLETED', 'BENCH')])];
+$links = [['asset_serial' => 'ASSET1', 'media_serial' => 'D1', 'reason' => 'media_removed', 'note' => '']];
+$c = mp_collect($payloads, $diags, $links, ['bench' => true]);
+t_eq('bench intake: the declaration supplies the origin', 'asset1', $c['media']['d1']['asset_key'] ?? null);
+t_eq('bench intake: provenance is the declaration', 'declared', $c['media']['d1']['provenance'] ?? null);
+t_check('bench intake: the bench is not an asset', !isset($c['assets']['bench']));
+
+// The mark, not the snapshot, is what excludes it: an UNMARKED host really did
+// contain the medium, so its snapshot still outranks a declaration. This is the
+// control that proves 3b tests the bench rule rather than "snapshots never count".
+$c = mp_collect($payloads, $diags, $links, []);
+t_eq('unmarked host: the snapshot still claims the medium', 'bench', $c['media']['d1']['asset_key'] ?? null);
+t_eq('unmarked host: provenance is intake', 'observed_intake', $c['media']['d1']['provenance'] ?? null);
+
 // ---- 4. A declaration never overrides an observation on another host -------
 $payloads = [mp_group('ASSET-A', [mp_drive('D1', 'COMPLETED', 'ASSET-A')])];
 $links = [['asset_serial' => 'ASSET-B', 'media_serial' => 'D1', 'reason' => '', 'note' => '']];

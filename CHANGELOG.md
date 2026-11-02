@@ -90,6 +90,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **A bench machine's boot snapshot no longer claims the media it is about to
+  erase.** The processing-host rule was applied to the bench's erasure reports
+  but not to its diagnostics snapshot: the bench boots with the customer's drives
+  inside it, so its inventory recorded each of them as `observed intake` — the
+  strongest provenance class — and the bench became their origin asset. Any
+  attempt to declare the real asset was then refused with "That media serial was
+  recorded in a report on a different host", which is exactly the flow a bench
+  exists for. A marked processing host is now skipped as evidence in both passes;
+  an unmarked host's snapshot still counts, as it should.
+
 - **Applying a filter now shows the list working.** The modal closed and the rows
   stayed put until the response landed, so on anything slower than a local
   round-trip the click looked like a no-op — the only evidence was the
