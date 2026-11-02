@@ -1370,6 +1370,27 @@ function media_link_delete(int $userId, int $id): bool {
 }
 
 /**
+ * Remove every declared origin for one media item in one job.
+ *
+ * The record view's "Remove this link" uses this instead of the id route, because
+ * the dashboard shows the row's own job and the id is an implementation detail it
+ * never receives. The matching rule is media_link_replace_ids(): same job, same
+ * media serial (case-insensitive), nothing else touched — the same rule that
+ * makes reassigning a replacement rather than a second claim.
+ *
+ * Returns the number of declarations removed.
+ */
+function media_link_forget(int $userId, string $cocid, string $mediaSerial): int {
+    asset_media_ensure_schema();
+    $ids = media_link_replace_ids(media_links_for_cocid($userId, $cocid), $cocid, $mediaSerial);
+    $n = 0;
+    foreach ($ids as $id) {
+        if (media_link_delete($userId, $id)) { $n++; }
+    }
+    return $n;
+}
+
+/**
  * Create or update a declared (register-only) device.
  *
  * A device an operator put on file because the machine never boots tScrub: its

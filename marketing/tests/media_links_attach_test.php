@@ -192,6 +192,11 @@ $api = (string)file_get_contents($serverDir . '/api.php');
 t_check('the link route forwards asset_known and replaced',
     (bool)preg_match("/'asset_known' => \(bool\)\(\\\$res\['asset_known'\]/", $api)
     && (bool)preg_match("/'replaced'\\s*=> \\(int\)\(\\\$res\\['replaced'\\]/", $api));
-
+// str_contains, not a regex: the expression is long and every $ and ( would
+// otherwise need escaping, which is how a guard ends up asserting its own typo.
+t_check('a declared origin can be removed by (job, media item)',
+    str_contains($lib, 'function media_link_forget')
+    && str_contains($lib, 'media_link_replace_ids(media_links_for_cocid($userId, $cocid), $cocid, $mediaSerial)')
+    && str_contains($api, "=== 'DELETE' && \$route === '/media/link'"));
 echo "\n" . ($fails ? "$fails of $count checks FAILED" : "$count checks passed") . "\n";
 exit($fails ? 1 : 0);

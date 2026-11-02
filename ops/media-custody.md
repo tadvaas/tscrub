@@ -250,7 +250,7 @@ no observed link and needs a declaration.
 | task | where |
 |---|---|
 | Declare an origin | Media → the media item's row → Reports ▸ → View → Reassign origin |
-| Remove a declaration | same panel, or `DELETE /api/media/link/{id}` |
+| Remove a declaration | the same record view: **Remove this link** (that job only), or `DELETE /api/media/link?cocid=<COCID>&media_serial=<serial>` |
 | Mark/unmark a bench host | Devices → row → Ops → Mark as our bench machine |
 | Record a device that never boots tScrub | Reassign origin → Save → **Record device … and link**, or Devices → row → Ops → Declared device → Remove |
 | Hide/show bench hosts | Devices → Filters → Processing host → Hide bench hosts (or `?bench=hide`); benches are shown by default |

@@ -220,6 +220,13 @@ check(
     && /device_model: deviceModel/.test(js.drives)
 );
 check(
+  'drives: a declared origin can be removed from the record view',
+  /Remove this link/.test(js.drives)
+    && /function removeOriginLink/.test(js.drives)
+    && /\/api\/media\/link\?cocid=/.test(js.drives)
+    && /method: 'DELETE'/.test(js.drives)
+);
+check(
   'devices: a register-only device carries a Declared badge',
   /function declaredBadge/.test(js.devices)
     && /if \(dev\.declared\) sysWrap\.appendChild\(declaredBadge\(\)\)/.test(js.devices)

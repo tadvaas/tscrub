@@ -1201,6 +1201,48 @@
           d.origin_asset
             ? 'Provenance is operator-declared; the erasure evidence is unchanged.'
             : 'Reassigning records an operator declaration; the erasure evidence is unchanged.'));
+        // Removing the declaration is the undo for a wrong origin, and it is
+        // offered right where the claim is stated. It deletes this job's
+        // declaration only; the erasure evidence and any other job's link stay.
+        if (d.origin_asset) {
+          var rm = el('button', 'mt-2 text-xs font-semibold text-red-600 hover:underline dark:text-red-400', 'Remove this link');
+          rm.type = 'button';
+          rm.title = 'Remove the declared origin for job ' + (d.cocid || '?') + '. The erasure evidence is unchanged.';
+          rm.addEventListener('click', function () { removeOriginLink(d, box, rm); });
+          box.appendChild(rm);
+        }
+      }
+
+      function removeOriginLink(d, box, btn) {
+        var cocid = d.cocid || '';
+        if (!cocid) { alert('This record has no Chain of Custody ID to remove a link from.'); return; }
+        if (!window.confirm('Remove the declared origin from this media item in job ' + cocid + '?\n\nThe erasure evidence is unchanged; the device itself stays in Devices.')) {
+          return;
+        }
+        btn.disabled = true;
+        getCsrf().then(function (token) {
+          return fetch('/api/media/link?cocid=' + encodeURIComponent(cocid)
+            + '&media_serial=' + encodeURIComponent(d.serial || ''),
+            { method: 'DELETE', headers: { 'X-CSRF-Token': token } });
+        }).then(function (r) {
+          return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+        }).then(function (res) {
+          if (!res.ok) {
+            alert((res.j && res.j.error) || 'Could not remove that link.');
+            btn.disabled = false;
+            return;
+          }
+          // Repaint from the state the row now has: with the declaration gone it
+          // falls back to bench / in place / no host, which is the honest answer.
+          d.origin_asset = '';
+          d.origin_provenance = '';
+          originState(d, box);
+          lastDrivesJson = '';
+          loadDrives();
+        }).catch(function () {
+          alert('Could not remove that link.');
+          btn.disabled = false;
+        });
       }
 
       function openOriginForm(d, box) {

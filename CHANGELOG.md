@@ -10,6 +10,14 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **A declared origin can be removed from the record view.** "Reassign origin"
+  could change a link but nothing could take one away, so a wrong origin could
+  only be replaced by another claim. The record view now offers **Remove this
+  link** beside the origin it states: it confirms, deletes that job's declaration
+  (and only that job's), and repaints the block with the honest fallback — bench
+  processed, in place, or no host serial. The device stays in Devices; if it was
+  a declared device, Ops will now let you remove it too.
+
 - **Media can only be assigned to a device that exists.** A declared origin used
   to accept any serial and warn afterwards, so a typo could become a certificate
   line naming a device that exists nowhere. The link is now refused (409, with a

@@ -2480,6 +2480,24 @@ if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'devices' && $seg[1
     json_out(['ok' => true]);
 }
 
+// DELETE /api/media/link?cocid=&media_serial= — remove the declared origin for
+// one media item in one job. The record view has no link id, and a declaration
+// is identified by (job, media item) anyway, so this mirrors the replace rule.
+if ($method === 'DELETE' && $route === '/media/link') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $cocid = trim((string)($_GET['cocid'] ?? ''));
+    $mserial = trim((string)($_GET['media_serial'] ?? ''));
+    if ($cocid === '' || $mserial === '') {
+        fail(400, 'Provide the Chain of Custody ID and the media serial.');
+    }
+    $n = media_link_forget((int)$u['id'], $cocid, $mserial);
+    if ($n === 0) {
+        fail(404, 'No declared origin for that media item in this job.');
+    }
+    json_out(['ok' => true, 'removed' => $n]);
+}
+
 // DELETE /api/media/link/{id} — remove a declared link.
 if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'media' && $seg[1] === 'link') {
     auth_csrf_verify();
