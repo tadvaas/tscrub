@@ -231,7 +231,7 @@ if ($found) {
         // through to for exactly this case.
         if ($assetRows !== []) {
             $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no signed erasure reports: '
-                . 'the asset accounting it records is derived from boot snapshots (diagnostics), which are not signed '
+                . 'the device accounting it records is derived from boot snapshots (diagnostics), which are not signed '
                 . 'evidence of sanitisation.';
         } else {
             $integrityNote = 'This certificate of destruction was issued by tScrub. It covers no '
@@ -314,7 +314,7 @@ if ($found) {
       <tr><th>Operator-attested</th><td><?= v_h($attestedSummary) ?></td></tr>
       <?php endif; ?>
 <?php if (!empty($assetRows)): ?>
-      <tr><th>Asset accounting</th><td><?= count($assetRows) ?> <?= count($assetRows) === 1 ? 'asset' : 'assets' ?> with media sanitised outside the asset or no data-bearing media
+      <tr><th>Device accounting</th><td><?= count($assetRows) ?> <?= count($assetRows) === 1 ? 'device' : 'devices' ?> with media sanitised outside the device or no data-bearing media
         <div style="margin-top:6px;font-size:12px;color:#64748b;">
         <?php foreach ($assetRows as $a): ?>
           <?php

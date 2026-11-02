@@ -52,10 +52,10 @@ function mp_provenance_label(string $p): string
 {
     switch ($p) {
         case 'observed_intake': return 'observed in the boot snapshot';
-        case 'observed_failed': return 'erase failed on this asset';
-        case 'observed_host':   return 'recorded in a report on this asset';
+        case 'observed_failed': return 'erase failed on this device';
+        case 'observed_host':   return 'recorded in a report on this device';
         case 'declared':        return 'declared by operator';
-        case 'conflict':        return 'origin ambiguous between assets';
+        case 'conflict':        return 'origin ambiguous between devices';
     }
     return '';
 }
@@ -567,9 +567,9 @@ function mp_asset_line(array $a): string
     return implode(' — ', array_values(array_filter($bits, static fn($v) => trim((string)$v) !== '')));
 }
 
-/** The provenance qualifier printed once per asset block. */
+/** The provenance qualifier printed once per device block. */
 function mp_provenance_qualifier(): string
 {
-    return 'Asset-to-medium provenance is observed by the appliance or declared by the operator; '
-        . 'the erasure evidence for each medium is instrument-verified and listed in Annex A.';
+    return 'Device-to-media provenance is observed by the appliance or declared by the operator; '
+        . 'the erasure evidence for each media item is instrument-verified and listed in Annex A.';
 }

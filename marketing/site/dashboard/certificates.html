@@ -363,8 +363,8 @@
           var assetExc = Number(c.asset_exceptions || 0);
           if (assetExc > 0) {
             var ae = el('span', 'font-semibold text-sky-700 dark:text-sky-400',
-              assetExc + ' asset' + (assetExc === 1 ? '' : 's') + ' to review');
-            ae.title = 'Assets whose media were not sanitised in place in the asset: media removed and sanitised elsewhere, no data-bearing media, or incomplete. See the certificate’s asset accounting.';
+              assetExc + ' device' + (assetExc === 1 ? '' : 's') + ' to review');
+            ae.title = 'Devices whose media were not sanitised in place in the device: media removed and sanitised elsewhere, no data-bearing media, or incomplete. See the certificate’s device accounting.';
             meta.appendChild(ae);
           }
           var att = Number(c.attested_items || 0);
@@ -372,7 +372,7 @@
             var a = el('span', 'font-semibold text-amber-700 dark:text-amber-400', att + ' attested');
             a.title = att + ' operator-attested item(s): ' + Number(c.attested_devices || 0)
               + ' device(s) and ' + Number(c.attested_media || 0)
-              + ' medium/media, recorded by the operator and not instrument-verified';
+              + ' media item(s), recorded by the operator and not instrument-verified';
             meta.appendChild(a);
           }
           meta.appendChild(el('span', '', String(c.runs || 0) + ' runs'));
@@ -444,8 +444,8 @@
             var devTd = el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.devices));
             var assetExc = Number(c.asset_exceptions || 0);
             if (assetExc > 0) {
-              var ae = el('span', 'ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', assetExc + ' asset' + (assetExc === 1 ? '' : 's'));
-              ae.title = 'Assets whose media were not sanitised in place in the asset: media removed and sanitised elsewhere, no data-bearing media, or incomplete.';
+              var ae = el('span', 'ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', assetExc + ' device' + (assetExc === 1 ? '' : 's'));
+              ae.title = 'Devices whose media were not sanitised in place in the device: media removed and sanitised elsewhere, no data-bearing media, or incomplete.';
               devTd.appendChild(ae);
             }
             tr.appendChild(devTd);
@@ -455,7 +455,7 @@
               attTd.className += ' font-semibold text-amber-700 dark:text-amber-400';
               attTd.title = attItems + ' operator-attested item(s): ' + Number(c.attested_devices || 0)
                 + ' device(s) and ' + Number(c.attested_media || 0)
-                + ' medium/media, recorded by the operator and not instrument-verified';
+                + ' media item(s), recorded by the operator and not instrument-verified';
             }
             tr.appendChild(attTd);
             tr.appendChild(el('td', 'border-b border-slate-100 dark:border-ink-800 px-3 py-2', String(c.runs)));

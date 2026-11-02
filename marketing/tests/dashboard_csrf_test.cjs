@@ -215,7 +215,7 @@ check(
 check(
   'drives: a serial that matches no device is reported after saving',
   /asset_known === false/.test(js.drives)
-    && /declared-only asset/.test(js.drives)
+    && /declared-only device/.test(js.drives)
     && /replaces this one/.test(js.drives)
 );
 

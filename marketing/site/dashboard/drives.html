@@ -37,7 +37,7 @@
   <section id="main-content" role="main" tabindex="-1" class="mx-auto w-full max-w-6xl px-4 pb-10 pt-7">
     <div>
       <h1 class="text-2xl font-extrabold tracking-tight text-ink-900 dark:text-white">Media</h1>
-      <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">Every storage medium tScrub has processed — hard drives, SSDs and flash — with erasure outcomes and SMART data from your reports, plus items recorded by operator attestation.</p>
+      <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">Every media item tScrub has processed — hard drives, SSDs and flash — with erasure outcomes and SMART data from your reports, plus items recorded by operator attestation.</p>
     </div>
 
     <form id="upload-form" class="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-800 px-3 py-2">
@@ -83,7 +83,7 @@
         Add
       </button>
     </div>
-    <script src="/assets/manual-assets.js?v=18" defer></script>
+    <script src="/assets/manual-assets.js?v=19" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
       <div id="drive-list" class="min-h-[200px]">
@@ -895,8 +895,8 @@
         var gradeTd = el('td', 'px-3 py-2');
         var gradeCell = el('span', 'rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-ink-700 dark:text-slate-400', '—');
         gradeCell.title = retained
-          ? 'No SMART was ever read from this medium, so no resale grade exists — it was factory reset with its device, not scanned'
-          : 'No SMART was ever read from this medium, so no resale grade exists — it was destroyed, not graded';
+          ? 'No SMART was ever read from this media item, so no resale grade exists — it was factory reset with its device, not scanned'
+          : 'No SMART was ever read from this media item, so no resale grade exists — it was destroyed, not graded';
         gradeTd.appendChild(gradeCell);
         tr.appendChild(gradeTd);
 
@@ -972,7 +972,7 @@
         var origin = String(d.origin_asset || '');
         if (origin !== '' && origin.toLowerCase() !== host.toLowerCase()) {
           var c = el('span', 'ml-1 shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'origin');
-          c.title = 'Origin asset ' + origin
+          c.title = 'Origin device ' + origin
             + (d.origin_provenance === 'declared' ? ' (declared by operator)' : '')
             + '. Erased on ' + (host || 'a host that reported no serial') + '.';
           return c;
@@ -981,12 +981,12 @@
         if (d.host_processing) {
           var b = el('span', 'ml-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'bench');
           b.title = 'Last report came from a processing host' + (host ? ' (' + host + ')' : '')
-            + '. If this medium came from a customer asset, open Reports → View → Reassign origin.';
+            + '. If this media item came from a customer device, open Reports → View → Reassign origin.';
           return b;
         }
         if (host === '') {
           var n = el('span', 'ml-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'no host');
-          n.title = 'This report has no host serial, so the origin asset cannot be assumed. Reassign it if the medium came from another asset.';
+          n.title = 'This report has no host serial, so the origin device cannot be assumed. Reassign it if the media item came from another device.';
           return n;
         }
         return null;
@@ -1026,7 +1026,7 @@
       function historyList(d) {
         var wrap = el('div', 'mt-3 space-y-2');
         if (!(d.history || []).length) {
-          wrap.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'No reports recorded for this medium yet.'));
+          wrap.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400', 'No reports recorded for this media item yet.'));
           return wrap;
         }
         historySorted(d).forEach(function (h) {
@@ -1098,7 +1098,7 @@
         var vbtn = el('button', 'inline-flex h-7 items-center whitespace-nowrap rounded-lg border px-3 text-xs font-semibold ' + (expanded[serial]
           ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500 dark:text-white'
           : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'), 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
-        vbtn.title = 'Show every report for this medium';
+        vbtn.title = 'Show every report for this media item';
         vbtn.addEventListener('click', function () {
           expanded[serial] = !expanded[serial];
           if (expanded[serial]) expandAnim[serial] = true;
@@ -1176,22 +1176,22 @@
           tone = 'text-emerald-700 dark:text-emerald-400';
           chip = 'Declared origin';
           chipCls = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
-          text = 'Origin asset: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + (host || 'a different host') + '.';
+          text = 'Origin device: ' + d.origin_asset + (prov ? ' (' + prov + ')' : '') + '. Erased on ' + (host || 'a different host') + '.';
         } else if (d.host_processing) {
           tone = 'text-amber-700 dark:text-amber-400';
           chip = 'Bench processed';
           chipCls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
-          text = 'Processed on bench machine ' + (host || 'a processing host') + '. If this medium was pulled from a customer asset, reassign the origin. A loose medium or the bench’s own drive needs none.';
+          text = 'Processed on bench machine ' + (host || 'a processing host') + '. If this media item was pulled from a customer device, reassign the origin. A loose media item or the bench’s own drive needs none.';
         } else if (host) {
           tone = 'text-emerald-700 dark:text-emerald-400';
           chip = 'In place';
           chipCls = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
-          text = 'Origin asset: ' + host + '. This medium was sanitised in the machine that reported it, so no separate origin is needed.';
+          text = 'Origin device: ' + host + '. This media item was sanitised in the machine that reported it, so no separate origin is needed.';
         } else {
           tone = 'text-amber-700 dark:text-amber-400';
           chip = 'No host serial';
           chipCls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
-          text = 'This report has no host serial, so the origin asset cannot be assumed. Reassign it if the medium came from another asset.';
+          text = 'This report has no host serial, so the origin device cannot be assumed. Reassign it if the media item came from another device.';
         }
         var row = el('div', 'flex flex-wrap items-start gap-2');
         row.appendChild(el('span', 'mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' + chipCls, chip));
@@ -1217,7 +1217,7 @@
           form.appendChild(w);
           return i;
         };
-        var asset = mk('Asset serial (OEM)', d.origin_asset || '', 'e.g. CZC1234ABC');
+        var asset = mk('Device serial (OEM)', d.origin_asset || '', 'e.g. CZC1234ABC');
         var cocid = mk('Chain of Custody', d.cocid || '', 'e.g. 12345');
         var reason = mk('Why', 'media_removed', 'media_removed');
         var note = mk('Note (optional)', '', 'pulled at intake');
@@ -1275,7 +1275,7 @@
                 ? 'Origin recorded. It appears on the certificate after it is generated.'
                 : 'Origin recorded, but no machine with serial ' + d.origin_asset
                   + ' has ever been seen in Devices. If that is a typo, reassign it — the new serial replaces this one. '
-                  + 'Otherwise the certificate lists it as a declared-only asset.'));
+                  + 'Otherwise the certificate lists it as a declared-only device.'));
             var again = el('div', 'mt-2');
             originState(d, again);
             box.appendChild(again);
@@ -1302,7 +1302,7 @@
         var box = document.getElementById('drive-list');
         box.innerHTML = '';
         if (!total) {
-          box.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', currentQ ? 'No media match "' + currentQ + '".' : 'No media yet. Upload a report (or boot an appliance) to record the first medium.'));
+          box.appendChild(el('p', 'p-6 text-sm text-slate-500 dark:text-slate-400', currentQ ? 'No media match "' + currentQ + '".' : 'No media yet. Upload a report (or boot an appliance) to record the first media item.'));
           document.getElementById('drive-pager').innerHTML = '';
           return;
         }
@@ -1328,7 +1328,7 @@
         // row; Size and Type moved off the table into the Detail drawer, which frees the
         // width Status and Method needed — Method was the most-truncated column on the page.
         // Submitted stays full-width-ish because "2026-10-18 14:44" is sixteen characters.
-        [['Submitted', 'w-[12%]', 'date', 'When the most recent report for this medium was uploaded. Blank for an operator attestation — there is no report.'],
+        [['Submitted', 'w-[12%]', 'date', 'When the most recent report for this media item was uploaded. Blank for an operator attestation — there is no report.'],
          ['Model', 'w-[19%]', 'model'], ['Serial', 'w-[14%]', 'serial'],
          // Status carries the outcome AND the provenance chip, so it needs room for
          // both; Method gives up the width, because it truncates with a tooltip.
@@ -1414,7 +1414,7 @@
           // height is set by the tallest control in it.
           var vbtn = el('button', 'whitespace-nowrap ts-btn ts-btn--sm ts-btn--info', 'Reports' + (expanded[serial] ? ' ▴' : ' ▾'));
           vbtn.setAttribute('aria-expanded', expanded[serial] ? 'true' : 'false');
-          vbtn.title = 'Show every report for this medium';
+          vbtn.title = 'Show every report for this media item';
           vbtn.addEventListener('click', function () {
             expanded[serial] = !expanded[serial];
             if (expanded[serial]) expandAnim[serial] = true;
@@ -1569,7 +1569,7 @@
         // record has no erasure report to re-attribute, so the section is omitted.
         if (!d.attested) {
           var originSec = el('div', 'border-b border-slate-200 dark:border-ink-700 px-6 py-4');
-          originSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Origin asset'));
+          originSec.appendChild(el('div', 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500', 'Origin device'));
           var originBody = el('div', 'mt-2');
           originState(d, originBody);
           originSec.appendChild(originBody);
@@ -1686,7 +1686,7 @@
         // erasure report to attribute.
         if (!d.attested) {
           var obtn = el('button', 'rounded-lg border border-slate-300 dark:border-ink-700 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Reassign origin');
-          obtn.title = 'Record which customer asset this medium came from. Provenance is operator-declared; the erasure evidence is not changed.';
+          obtn.title = 'Record which customer device this media item came from. Provenance is operator-declared; the erasure evidence is not changed.';
           obtn.addEventListener('click', function () {
             openOriginForm(d, originBody);
             if (originSec.scrollIntoView) originSec.scrollIntoView({ behavior: 'smooth', block: 'center' });

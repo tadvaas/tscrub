@@ -119,14 +119,14 @@
       // own when its outcome differed (e.g. one drive pulled and wiped, the rest
       // destroyed), so that pair stays behind a toggle.
       row.appendChild(el('p', { class: 'mt-2 text-xs text-slate-500 dark:text-slate-400',
-        text: 'Integrated or soldered storage: use the device\'s own make, model and serial — the medium IS that storage.' }));
+        text: 'Integrated or soldered storage: use the device\'s own make, model and serial — the media item IS that storage.' }));
 
       var override = el('div', { class: 'mt-2 hidden' }, [grid([
-        select('Reason for this medium', 'reason', REASONS, false),
-        select('Method for this medium', 'destroy_method', METHODS, false)
+        select('Reason for this media item', 'reason', REASONS, false),
+        select('Method for this media item', 'destroy_method', METHODS, false)
       ], 2)]);
       var toggle = el('button', { type: 'button', class: 'mt-2 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline',
-        text: 'Different outcome for this medium…' });
+        text: 'Different outcome for this media item…' });
       toggle.addEventListener('click', function () {
         override.classList.remove('hidden');
         toggle.classList.add('hidden');
@@ -188,7 +188,7 @@
     body.appendChild(mediaBox);
 
     var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
-      text: isDevice ? '+ Add another medium' : '+ Add another media item' });
+      text: '+ Add another media item' });
     addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow(isDevice)); });
     body.appendChild(addRow);
 
@@ -276,7 +276,7 @@
     if (!cocid.trim()) { return show('A Chain of Custody ID is required.'); }
     if (!media.length) {
       return show(isDevice
-        ? 'Add at least one medium — a device that held no storage has nothing to record.'
+        ? 'Add at least one media item — a device that held no storage has nothing to record.'
         : 'Fill in the media item you are recording.');
     }
 
@@ -399,7 +399,7 @@
     }
     var kind = (row.attested_kind === 'media') ? 'media' : 'device';
     var what = (kind === 'device')
-      ? 'this device and every medium recorded with it'
+      ? 'this device and every media item recorded with it'
       : 'this media item';
     var cocid = String(row.cocid || '');
 
@@ -580,7 +580,7 @@
     wrap.appendChild(det);
 
     var rm = iconBtn('remove', 'Remove',
-      row.attested_kind === 'media' ? 'Remove this attested media item' : 'Remove this attested device and every medium recorded with it',
+      row.attested_kind === 'media' ? 'Remove this attested media item' : 'Remove this attested device and every media item recorded with it',
       'border-red-300 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50');
     rm.addEventListener('click', function () { remove(row, rm); });
     wrap.appendChild(rm);

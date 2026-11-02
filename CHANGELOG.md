@@ -10,6 +10,17 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **The dashboard says media and device, not medium and asset.** One machine had
+  two names (asset in the provenance screens, device everywhere else) and one
+  drive had two grammatical forms (medium/media), which read as different things
+  to the people doing the job. All operator-facing copy now says **device** and
+  **media item**: the Reassign origin form asks for a *device serial*, the record
+  view shows *Origin device*, and the certificate prints **DEVICE ACCOUNTING**
+  and an *Origin device* column. The signed JSON-LD keys (`originAsset`,
+  `assetAccounting`) and the database columns keep their names — they are a
+  machine contract read by `/verify` and by parsers, not prose. Certificates
+  issued before this change keep the wording they were signed with.
+
 - **Reassigning a medium's origin now replaces the previous declaration, and the
   serial is checked against Devices.** Declaring an origin used to add a second
   claim, which the provenance rule correctly read as ambiguous and refused — so a

@@ -152,14 +152,14 @@ $pdf = $rendered['data'];
 $text = pdf_lines($pdf);
 
 t_check('pdf is produced', strlen($pdf) > 1000);
-t_check('asset accounting block is rendered', strpos($text, 'ASSET ACCOUNTING') !== false);
+t_check('device accounting block is rendered', strpos($text, 'DEVICE ACCOUNTING') !== false);
 t_check('the removed asset is named', strpos($text, 'ASSET1') !== false);
 t_check('the host that erased it is named', strpos($text, 'sanitised on BENCH') !== false);
-t_check('provenance names the failed attempt', strpos($text, 'erase failed on this asset') !== false);
+t_check('provenance names the failed attempt', strpos($text, 'erase failed on this device') !== false);
 t_check('the asset with no media is named', strpos($text, 'ASSET3') !== false);
 t_check('the no-media outcome is stated', strpos($text, 'no data-bearing media') !== false);
-t_check('page 1 counts the exception', strpos($text, 'asset with media removed') !== false);
-t_check('the origin column is present', strpos($text, 'Origin asset') !== false);
+t_check('page 1 counts the exception', strpos($text, 'device with media removed') !== false);
+t_check('the origin column is present', strpos($text, 'Origin device') !== false);
 t_check('the in-place asset is not claimed as removed', strpos($text, 'ASSET2 —') === false);
 preg_match_all('~/Type\s*/Page[^s]~', $pdf, $m);
 t_check('page count is sane', count($m[0]) >= 2 && count($m[0]) <= 8);
@@ -195,7 +195,7 @@ $ord = mp_apply_evidence(
 );
 $plain = render_certificate_pdf(t_group($inPlace), 'COD-TEST-0002-AA-BBB-CCCC-DDDD', false, [], [], [], '', $ord['assets']);
 $plainText = pdf_lines($plain['data']);
-t_check('in-place job has no asset block', strpos($plainText, 'ASSET ACCOUNTING') === false);
+t_check('in-place job has no device block', strpos($plainText, 'DEVICE ACCOUNTING') === false);
 t_check('in-place job has no origin column', strpos($plainText, 'Origin asset') === false);
 t_check('in-place job still states the media count', strpos($plainText, 'DATA DESTROYED') !== false);
 

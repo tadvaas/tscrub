@@ -317,10 +317,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'tool'     => ['label' => 'Tool',         'w' => 24, 'align' => 'C'],
         'system'   => ['label' => 'Machine',      'w' => 32, 'align' => 'L'],
         'sysserial'=> ['label' => 'Machine SN',   'w' => 23, 'align' => 'C'],
-        // Shown only when a medium's origin differs from the host that erased it.
+        // Shown only when a media item's origin differs from the host that erased it.
         // When every row is in place the column is dropped, so the ordinary
         // certificate keeps its exact previous column set and widths.
-        'asset'    => ['label' => 'Origin asset', 'w' => 23, 'align' => 'C'],
+        'asset'    => ['label' => 'Origin device', 'w' => 23, 'align' => 'C'],
         'status'   => ['label' => 'Status',       'w' => 15, 'align' => 'C'],
         'format'   => ['label' => 'Formatted',    'w' => 18, 'align' => 'C'],
         'psid'     => ['label' => 'PSID',         'w' => 14, 'align' => 'C'],
@@ -623,7 +623,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
             $pdf->SetFont('helvetica', 'B', 10);
             $pdf->SetTextColor(11, 18, 32);
             $pdf->SetXY($x, $ay);
-            $pdf->Cell($w, 5, 'ASSET ACCOUNTING', 0, 1, 'L');
+            $pdf->Cell($w, 5, 'DEVICE ACCOUNTING', 0, 1, 'L');
             $pdf->SetLineWidth(0.2);
             $pdf->SetDrawColor(203, 213, 225);
             $pdf->Line($x, $ay + 5.0, $x + $w, $ay + 5.0);
@@ -649,7 +649,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
                     $bits[] = 'physically destroyed';
                 } elseif ($disp === 'incomplete') {
                     if (!empty($m['conflict'])) {
-                        $bits[] = 'origin ambiguous between assets';
+                        $bits[] = 'origin ambiguous between devices';
                     } else {
                         $fs = trim((string)($m['failed_status'] ?? ''));
                         $bits[] = 'no completed erasure evidence' . ($fs !== '' ? ' (' . $fs . ')' : '');
@@ -1266,10 +1266,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     if ($attItems > 0) { $subParts[] = $attItems . ($attItems === 1 ? ' item' : ' items') . ' destroyed by attestation'; }
     if ($devices === 0 && $attItems === 0) { $subParts[] = '0 media items'; }
     if ($removedAssetCount > 0) {
-        $subParts[] = $removedAssetCount . ($removedAssetCount === 1 ? ' asset with media removed' : ' assets with media removed');
+        $subParts[] = $removedAssetCount . ($removedAssetCount === 1 ? ' device with media removed' : ' devices with media removed');
     }
     if ($noMediaAssetCount > 0) {
-        $subParts[] = $noMediaAssetCount . ($noMediaAssetCount === 1 ? ' asset with no data-bearing media' : ' assets with no data-bearing media');
+        $subParts[] = $noMediaAssetCount . ($noMediaAssetCount === 1 ? ' device with no data-bearing media' : ' devices with no data-bearing media');
     }
     $subParts[] = 'issued ' . gmdate('Y-m-d H:i') . ' UTC';
     $subTxt = implode('  ·  ', $subParts);

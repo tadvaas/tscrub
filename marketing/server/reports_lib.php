@@ -1225,7 +1225,7 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
         return ['ok' => false, 'error' => 'Provide a valid Chain of Custody ID.'];
     }
     if (!mp_serial_usable($assetSerial)) {
-        return ['ok' => false, 'error' => 'The asset serial is empty or a firmware placeholder.'];
+        return ['ok' => false, 'error' => 'The device serial is empty or a firmware placeholder.'];
     }
     if (!mp_serial_usable($mediaSerial)) {
         return ['ok' => false, 'error' => 'The media serial is empty or a firmware placeholder.'];
@@ -1241,7 +1241,7 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     );
     $dup->execute(array_merge($ids, [$cocid, $assetSerial, $mediaSerial]));
     if ($dup->fetchColumn() !== false) {
-        return ['ok' => false, 'error' => 'That medium is already linked to this asset.'];
+        return ['ok' => false, 'error' => 'That media item is already linked to this device.'];
     }
 
     // Dry-run the exact resolution the certificate will use, including the
@@ -1269,7 +1269,7 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     $ms = mp_key($mediaSerial);
     if (isset($collected['conflicts'][$ms])) {
         return ['ok' => false, 'error' =>
-            'That media serial is already attributed to another asset in this job ('
+            'That media serial is already attributed to another device in this job ('
             . implode(', ', array_map('strval', $collected['conflicts'][$ms]))
             . '). Resolve the existing link first.'];
     }

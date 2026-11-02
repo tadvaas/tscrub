@@ -81,7 +81,7 @@
          account total, and "Filters (3)" on a button does not say WHICH three — so the
          reason for a short list has to be visible on the page, not one click away. -->
     <div id="filter-chips" class="mt-2 hidden flex-wrap items-center gap-1.5"></div>
-    <script src="/assets/manual-assets.js?v=18" defer></script>
+    <script src="/assets/manual-assets.js?v=19" defer></script>
     <script src="/assets/report-corrections.js?v=3" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
@@ -764,7 +764,7 @@
       // hiding it is the operator's explicit filter choice.
       function benchBadge() {
         var b = el('span', 'shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'Bench');
-        b.title = 'Marked as our processing host: excluded from certificate asset counts, while the evidence it produced is still used.';
+        b.title = 'Marked as our processing host: excluded from the certificate’s device counts, while the evidence it produced is still used.';
         return b;
       }
 
@@ -1852,7 +1852,7 @@
         stCell.appendChild(el('span', 'text-xs font-semibold text-amber-700 dark:text-amber-400', retained ? 'Retained' : 'Destroyed'));
         stCell.title = (retained ? 'Factory reset — device retained — ' : 'Destroyed — ') + attestedDestruction(dev)
           + ' · attested by ' + (dev.attested_by || '—')
-          + (dev.drive_count ? ' · ' + dev.drive_count + ' medium' + (dev.drive_count === 1 ? '' : 'a') + ' recorded with it' : '');
+          + (dev.drive_count ? ' · ' + dev.drive_count + ' media item' + (dev.drive_count === 1 ? '' : 's') + ' recorded with it' : '');
         tr.appendChild(stCell);
 
         // Built by the shared module: the same two controls appear in the Media table,
@@ -2923,10 +2923,10 @@
       }
 
       // ---- Bench / processing hosts ------------------------------------------
-      // A bench machine produces evidence but is not one of the customer's assets.
-      // Marking one keeps it in the list (badged, so the mark is visible and
-      // changeable) and takes it out of certificate asset accounting; the filter
-      // can hide the rows when the operator wants the customer fleet alone.
+      // A bench machine produces evidence but is not one of the customer's
+      // devices. Marking one keeps it in the list (badged, so the mark is visible
+      // and changeable) and takes it out of certificate device accounting; the
+      // filter can hide the rows when the operator wants the customer fleet alone.
       // hideBench and benchHosts are declared with the filters, where the
       // base-set choice lives.
 
@@ -2946,7 +2946,7 @@
         var card = el('div', 'mt-4 rounded-2xl border border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-900 p-5 shadow-sm');
         card.appendChild(el('div', 'text-sm font-bold text-ink-900 dark:text-white', 'Processing host'));
         card.appendChild(el('p', 'mt-1 text-xs text-slate-500 dark:text-slate-400',
-          'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets, so it is excluded from certificate asset counts. Its evidence is still used.'));
+          'A processing host is our own bench machine: it produces evidence but is not one of the customer’s devices, so it is excluded from the certificate’s device counts. Its evidence is still used.'));
         if (on) {
           card.appendChild(el('p', 'mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300',
             'Unmarking keeps every report and declared link, but past jobs that used this machine as a bench will resolve their origin differently: its media will be treated as sanitised in the machine that reported them, and the report’s host can outrank a declared origin. Keep this set if it was your bench for customer work.'));
@@ -2956,7 +2956,7 @@
         card.appendChild(state);
         var btn = el('button', 'mt-2 ts-btn ts-btn--sm ts-btn--secondary', on ? 'Stop treating this as a bench machine' : 'Mark as our bench machine');
         btn.type = 'button';
-        btn.title = 'A processing host is our own bench machine: it produces evidence but is not one of the customer’s assets.';
+        btn.title = 'A processing host is our own bench machine: it produces evidence but is not one of the customer’s devices.';
         btn.addEventListener('click', function () {
           btn.disabled = true;
           // The page has no global token: getCsrf() fetches one. Using a bare

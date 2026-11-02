@@ -383,7 +383,7 @@ setTimeout(() => {
                       del2.length === 1 && del2[0].url.indexOf('/api/certificates/devices/7?cocid=COC-1') !== -1,
                       JSON.stringify(del2));
                     check('remove — a device confirm warns that its media go too',
-                      /every medium recorded with it/.test(global.__lastConfirm), global.__lastConfirm);
+                      /every media item recorded with it/.test(global.__lastConfirm), global.__lastConfirm);
 
                     // Failure: the operator must be told, and the button must come back.
                     installResponse({ status: 409, body: JSON.stringify({ ok: false, error: 'Not found.' }) });
