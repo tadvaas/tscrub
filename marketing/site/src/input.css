@@ -24,6 +24,14 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Deep links land ON the heading, not under the sticky bar. Without this a
+   link to a docs section puts its <h2> (and the first line under it) behind the
+   64px navbar — which is what /docs#non-boot, the FAQ answer and llms.txt all
+   point at. One rule for every in-page anchor on the site. */
+[id] {
+  scroll-margin-top: 5.5rem;
+}
+
 body {
   @apply flex min-h-screen flex-col bg-white text-slate-800 antialiased dark:bg-ink-900 dark:text-slate-200;
 }

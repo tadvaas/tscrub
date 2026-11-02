@@ -8,6 +8,22 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **The docs now carry the non-booting workflow.** Everything needed to process
+  a machine that will not run the appliance existed as a set of separate
+  controls, and nothing published connected them: read the OEM serial off the
+  chassis, mark the bench as a processing host, erase the pulled media under the
+  same COCID, then declare the origin. `docs` gains section 15, "A device that
+  will not boot", with a table separating the five outcomes (erased in place,
+  failed, no storage, bench-erased with a declared origin, and scrapped with the
+  media inside - which is an attestation, never an erasure) and the step that
+  confuses operators: a serial that is not in Devices is refused, and the form
+  offers to record the device and link it in one action. The certificate section
+  and the FAQ point at it, and the certificate section now uses the same
+  device/media vocabulary as the dashboard (`DEVICE ACCOUNTING`, `Origin
+  device`); the JSON-LD keys are unchanged.
+
 ### Changed
 
 - **Manually recorded items are editable in place.** An attested device or media
