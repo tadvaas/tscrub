@@ -3436,38 +3436,23 @@
       }
 
       // ---- BIOS clear popover (launched from the index BIOS cell) ----
+      //
+      // SUBMISSION ONLY. This popover used to double as a progress/verdict surface:
+      // it polled the command, showed "Queued / Clearing…", and once the command
+      // resolved it replaced the form with the verdict. A WRONG PASSWORD therefore
+      // left a dead end — the form was gone and the operator could not try again
+      // without reloading. The outcome belongs where the evidence is: the device's
+      // Log (the command and its verdict) and the BIOS badge (which updates with
+      // the next diagnostics report).
+      //
+      // Resubmitting is safe: remote_enqueue() supersedes a still-pending unlock for
+      // the same serial and drops the old password, so a retry replaces the queued
+      // attempt rather than queueing a second one.
       var biosPop = null;
-      var biosPollTimer = null;
 
       function closeBiosPop() {
         if (biosPop) { biosPop.remove(); biosPop = null; }
-        if (biosPollTimer) { clearTimeout(biosPollTimer); biosPollTimer = null; }
       }
-
-      // Latest bios_unlock command → popover state. Resolved commands are shown
-      // once (with their verdict) and not polled again; 'idle' is the action form.
-      function biosUnlockState(u) {
-        var s = u && u.status ? u.status : 'none';
-        if (s === 'pending') return { kind: 'staged', data: u };
-        if (s === 'dispatched') return { kind: 'inprogress', data: u };
-        if (s === 'done' || s === 'failed' || s === 'expired') {
-          return { kind: 'resolved', data: u };
-        }
-        return { kind: 'idle', data: null };
-      }
-
-      var BIOS_VERDICT_MSG = {
-        cleared: 'Cleared — the badge updates after the next diagnostics report.',
-        wrong_password: 'Wrong password.',
-        policy: 'Rejected by policy.',
-        failed: 'Failed.',
-        no_clear_path: 'No clear path found.',
-        not_supported: 'Not supported on this machine.',
-        needs_privilege: 'Needs elevated privileges.',
-        read_only: 'BIOS is read-only.',
-        no_interface: 'No unlock interface.',
-        unsupported: 'Unsupported on this machine.'
-      };
 
       function openBiosPop(dev, anchor) {
         closeBiosPop();
@@ -3487,13 +3472,16 @@
 
         document.body.appendChild(pop);
         biosPop = pop;
+        // Fill before measuring: the form is the popover's only state now, so
+        // offsetHeight is final here and a popover near the bottom of the
+        // viewport flips above the anchor instead of running off-screen.
+        renderBiosIdleForm(dev, content);
         positionAndDismissPop(pop, anchor, closeBiosPop);
-        renderBiosIdleForm(dev, content);   // show the common case instantly, no loading flash
-        content._biosKind = 'idle';
-        renderBiosPop(dev, content);        // swap to staged/clearing if one is in flight
       }
 
       function renderBiosIdleForm(dev, content) {
+        content.appendChild(el('p', 'text-xs text-slate-500 dark:text-slate-400',
+          'The appliance applies this on its next poll. The result appears in this device\u2019s Log; the BIOS badge updates with the next diagnostics report.'));
         var inp = el('input', 'mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 focus:border-brand-500 focus:ring-brand-500');
         inp.type = 'text';
         inp.autocomplete = 'off';
@@ -3517,8 +3505,15 @@
             });
           }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
             if (res.ok) {
+              // Stay open AND usable. If the password turns out to be wrong the
+              // operator reads that in the Log and submits again straight away;
+              // re-enabling the button here is the fix — this path used to swap the
+              // form out for the verdict, which left no way to retry.
+              inp.value = '';
+              btn.disabled = false;
+              err.className = 'mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400';
+              err.textContent = 'Queued. Sending another password replaces it until the appliance picks it up.';
               loadDevices(true);
-              renderBiosPop(dev, content);
             } else {
               btn.disabled = false;
               err.className = 'mt-2 text-xs font-semibold text-red-600 dark:text-red-400';
@@ -3532,47 +3527,9 @@
         });
       }
 
-      function renderBiosPop(dev, content) {
-        if (biosPollTimer) { clearTimeout(biosPollTimer); biosPollTimer = null; }
-        fetch('/api/bios/unlock?serial=' + encodeURIComponent(dev.sysserial)).then(function (r) { return r.json(); }).then(function (d) {
-          var st = biosUnlockState(d && d.unlock);
-          if (st.kind === 'idle' && content._biosKind === 'idle') return;   // form already shown
-          content.innerHTML = '';
-          content._biosKind = st.kind;
-
-          if (st.kind === 'staged') {
-            var row = el('div', 'mt-2 flex items-center justify-between gap-2');
-            row.appendChild(el('span', 'text-xs font-semibold text-amber-700 dark:text-amber-400', 'Queued — the appliance picks it up on its next poll.'));
-            var cancelBtn = el('button', 'shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ink-800', 'Cancel');
-            row.appendChild(cancelBtn);
-            content.appendChild(row);
-            cancelBtn.addEventListener('click', function () {
-              cancelBtn.disabled = true;
-              getCsrf().then(function (csrf) {
-                return fetch('/api/devices/commands/cancel', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                  body: JSON.stringify({ id: st.data.id })
-                });
-              }).then(function (r) { return r.json(); }).then(function () {
-                loadDevices(true);
-                renderBiosPop(dev, content);
-              }).catch(function () { cancelBtn.disabled = false; });
-            });
-            biosPollTimer = setTimeout(function () { renderBiosPop(dev, content); }, 4000);
-          } else if (st.kind === 'inprogress') {
-            content.appendChild(el('p', 'mt-1 text-xs font-semibold text-sky-700 dark:text-sky-400 animate-pulse', 'Clearing…'));
-            biosPollTimer = setTimeout(function () { renderBiosPop(dev, content); }, 4000);
-          } else if (st.kind === 'resolved') {
-            var v = st.data && st.data.verdict ? String(st.data.verdict) : '';
-            content.appendChild(el('p', 'mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300', BIOS_VERDICT_MSG[v] || 'Done — see the Log for the result.'));
-          } else {
-            renderBiosIdleForm(dev, content);
-          }
-        }).catch(function () {
-          content.textContent = 'Could not load the command state.';
-        });
-      }
+      // Deliberately no re-render hook here: this popover has no in-flight and
+      // no resolved state by design. Progress and verdicts live in the row and
+      // the Log.
 
       var remotePollTimer = null;
 

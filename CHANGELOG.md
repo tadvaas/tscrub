@@ -156,6 +156,20 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **A wrong BIOS password no longer locks the Clear BIOS password form.** The
+  popover on the Devices BIOS badge was doing two jobs: it took the password
+  *and* it reported the outcome, polling the command and then replacing the form
+  with its verdict. A wrong password is a resolved command, so the operator was
+  left reading "Wrong password." with no field and no button — the only way to
+  try again was to reload the page. The popover is now submission only: it always
+  opens on the password form, and the submit button comes back enabled whatever
+  the outcome, so a retry is one click away (a newer unlock supersedes the queued
+  one, and the superseded attempt is logged as replaced). Progress and results
+  moved to where the evidence already is: the row's Operations dot while a clear
+  is queued or running, and the device's Log, which now also classifies a clear
+  from the appliance's own detail when the row carries no verdict, so the history
+  reads "BIOS clear: Wrong password" rather than a bare "Failed".
+
 - **The Media index says where a medium came from, in one chip.** A bench-erased
   medium showed an amber `Bench` tag next to its **model** and a sky `elsewhere`
   tag next to its status, so the tag looked like part of the drive's name,

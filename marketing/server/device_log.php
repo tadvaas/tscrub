@@ -24,6 +24,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/org.php';
 require_once __DIR__ . '/http.php';       // ts_local()
 require_once __DIR__ . '/reports_lib.php';
+require_once __DIR__ . '/bios_unlock.php'; // unlock_verdict() — the clear's verdict vocabulary
 
 /** Outcome wording + severity for a finished remote command. */
 function device_event_command_outcome(string $command, string $status, string $verdict): array {
@@ -139,13 +140,22 @@ function device_events(int $userId, string $serial, string $uuid = '', int $limi
                     $add((string)$c['resolved_at'], $cmd, $noun($cmd) . ' ' . $label, $st === 'expired' ? 'warn' : 'info', '', $id);
                     continue;
                 }
-                [$outcome, $state] = device_event_command_outcome($cmd, $st, (string)$c['verdict']);
+                // Classify from the appliance's detail when the row carries no
+                // verdict. Some clears resolved through a path that never wrote
+                // the column, and "Failed" is useless to an operator when the
+                // detail itself says "wrong password". unlock_verdict() is the
+                // one place that vocabulary lives.
+                $verdict = (string)$c['verdict'];
+                if ($cmd === 'bios_unlock') {
+                    $verdict = unlock_verdict((string)$c['result'], (string)$c['detail'], $verdict);
+                }
+                [$outcome, $state] = device_event_command_outcome($cmd, $st, $verdict);
                 $detail = trim((string)$c['detail']);
                 // The operator-facing instruction for the one verdict that needs
                 // one: the appliance's own detail explains what happened but not
                 // what to do about it. (This is the guidance the ops card used to
                 // carry, kept where a clear's history is actually read.)
-                if ((string)$c['verdict'] === 'no_clear_path') {
+                if ($verdict === 'no_clear_path') {
                     $detail = trim($detail . ($detail !== '' ? ' — ' : '')
                         . 'HP setup passwords can be cleared from Linux by an appliance running v1.11.46 or newer; on an older image, clear it pre-boot (BIOS setup, vendor SMC, or SPI reflash)');
                 }
