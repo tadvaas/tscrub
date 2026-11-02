@@ -2468,6 +2468,18 @@ if ($method === 'POST' && $route === '/devices/declared') {
     json_out(['ok' => true, 'serial' => $serial], 201);
 }
 
+// PUT /api/devices/declared/{device_key} — correct the model / note of a
+// register-only device. The serial is the key media links store, so it is fixed.
+if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'devices' && $seg[1] === 'declared') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    if (!declared_device_update((int)$u['id'], (string)$seg[2], (string)($d['model'] ?? ''), (string)($d['note'] ?? ''))) {
+        fail(404, 'Device not found.');
+    }
+    json_out(['ok' => true]);
+}
+
 // DELETE /api/devices/declared/{device_key} — remove an unused register row.
 if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'devices' && $seg[1] === 'declared') {
     auth_csrf_verify();
@@ -2640,6 +2652,56 @@ if ($method === 'DELETE' && count($seg) === 3 && $seg[0] === 'certificates' && $
     if ($cert === null) { fail(404, 'No job found for that Chain of Custody ID.'); }
     $n = manual_attested_delete((int)$cert['id'], (int)$seg[2], false);
     json_out(['ok' => true, 'removed' => $n]);
+}
+
+// PUT /api/certificates/devices/{id} — correct an attested device and its media.
+// The COCID is the record's identity: it is read from the row, never the client.
+if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'certificates' && $seg[1] === 'devices') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+
+    $rawMedia = (is_array($d['media'] ?? null)) ? $d['media'] : [];
+    if (count($rawMedia) < 1) {
+        fail(400, 'Record at least one media item — a device that held no storage has nothing to certify here.');
+    }
+    if (count($rawMedia) > 64) {
+        fail(400, 'Too many media on one device (64 maximum).');
+    }
+    $dev = md_validate_device(is_array($d['device'] ?? null) ? $d['device'] : []);
+    if ($dev['errors']) { fail(400, $dev['errors'][0]); }
+    $media = [];
+    foreach ($rawMedia as $i => $m) {
+        $row = is_array($m) ? $m : [];
+        if (($row['reason'] ?? '') === '')         { $row['reason'] = $dev['clean']['reason']; }
+        if (($row['destroy_method'] ?? '') === '') { $row['destroy_method'] = $dev['clean']['destroy_method']; }
+        $v = md_validate_media($row);
+        if ($v['errors']) { fail(400, 'Media ' . ($i + 1) . ': ' . $v['errors'][0]); }
+        $media[] = $v['clean'];
+    }
+
+    // The record's own COCID decides which job the edit belongs to: the route
+    // looks the device up by id and refuses anything that is not in this account.
+    $own = lookup_attested_device((int)$u['id'], (int)$seg[2]);
+    if ($own === null) { fail(404, 'Record not found.'); }
+
+    $res = manual_attested_update_device((int)$own['certificate_id'], (int)$seg[2], $dev['clean'], $media, manual_attester($u));
+    if (!$res['ok']) { fail(409, $res['error']); }
+    json_out(['ok' => true, 'id' => (int)$res['id']]);
+}
+
+// PUT /api/certificates/media/{id} — correct one standalone attested media item.
+if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'certificates' && $seg[1] === 'media') {
+    auth_csrf_verify();
+    $u = auth_require();
+    $d = json_body();
+    $v = md_validate_media(is_array($d['media'] ?? null) ? $d['media'] : []);
+    if ($v['errors']) { fail(400, $v['errors'][0]); }
+    $own = lookup_attested_media((int)$u['id'], (int)$seg[2]);
+    if ($own === null) { fail(404, 'Record not found.'); }
+    $res = manual_attested_update_media((int)$own['certificate_id'], (int)$seg[2], $v['clean'], manual_attester($u));
+    if (!$res['ok']) { fail(409, $res['error']); }
+    json_out(['ok' => true, 'id' => (int)$res['id']]);
 }
 
 // POST /api/certs — generate a consolidated certificate for a COCID from stored reports.

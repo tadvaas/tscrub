@@ -10,6 +10,15 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **Manually recorded items are editable in place.** An attested device or media
+  item could only be corrected by removing it and retyping every field, and a
+  declared device could not be corrected at all. Both now edit where they are:
+  the attested row's pencil reopens the Add form pre-filled (COCID locked, since
+  the job is the record's identity) and saves with `PUT`, reconciling the media
+  set from the form; the declared device's Ops panel edits its model and note.
+  A declared device's serial stays fixed because media declarations store it
+  literally — to change it, remove the device once nothing refers to it.
+
 - **A declared origin can be removed from the record view.** "Reassign origin"
   could change a link but nothing could take one away, so a wrong origin could
   only be replaced by another claim. The record view now offers **Remove this

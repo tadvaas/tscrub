@@ -60,6 +60,8 @@
   // (the original version kept this as a local inside open()).
   var isDevice = true;
   var root = null;
+  // The record being EDITED, or null when this is a new one. Set by open().
+  var editing = null;
 
   function el(tag, attrs, children) {
     var n = document.createElement(tag);
@@ -70,20 +72,23 @@
     return n;
   }
 
-  function input(label, name, placeholder) {
+  function input(label, name, placeholder, value) {
     var wrap = el('label', { class: 'block' });
     wrap.appendChild(el('span', { class: 'mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300', text: label }));
-    wrap.appendChild(el('input', { name: name, type: 'text', placeholder: placeholder || '',
-      class: 'w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm' }));
+    var i = el('input', { name: name, type: 'text', placeholder: placeholder || '',
+      class: 'w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm' });
+    if (value !== undefined && value !== null) { i.value = String(value); }
+    wrap.appendChild(i);
     return wrap;
   }
 
-  function select(label, name, options, required) {
+  function select(label, name, options, required, value) {
     var wrap = el('label', { class: 'block' });
     wrap.appendChild(el('span', { class: 'mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300', text: label }));
     var sel = el('select', { name: name, class: 'w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-ink-900 px-3 py-2 text-sm' });
     sel.appendChild(el('option', { value: '', text: required ? 'Choose…' : '—' }));
     options.forEach(function (o) { sel.appendChild(el('option', { value: o[0], text: o[1] })); });
+    if (value) { sel.value = String(value); }
     wrap.appendChild(sel);
     return wrap;
   }
@@ -92,7 +97,8 @@
     return el('div', { class: 'grid grid-cols-1 gap-3 sm:grid-cols-' + (cols || 2) }, children);
   }
 
-  function mediaRow(isDevice) {
+  function mediaRow(isDevice, m) {
+    var src = m || {};
     var row = el('div', { class: 'rounded-lg border border-slate-200 dark:border-ink-700 p-3' });
     var head = el('div', { class: 'mb-2 flex items-center justify-between' });
     head.appendChild(el('span', { class: 'text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400', text: 'Medium' }));
@@ -106,12 +112,12 @@
       // Kept short on purpose: this text lands in the Drives table's Type column, and
       // "eMMC/UFS (integrated)" does not fit one line there. "integrated" is already
       // said by the reason ("Media soldered / integrated") and by the note below.
-      input('Type', 'type', 'SSD, HDD, eMMC/UFS'),
-      input('Size', 'size'),
-      input('Make', 'make'),
-      input('Model', 'model'),
-      input('Serial / IMEI', 'serial'),
-      input('Bus', 'bus')
+      input('Type', 'type', 'SSD, HDD, eMMC/UFS', src.type),
+      input('Size', 'size', '', src.size),
+      input('Make', 'make', '', src.make),
+      input('Model', 'model', '', src.model),
+      input('Serial / IMEI', 'serial', '', src.serial),
+      input('Bus', 'bus', '', src.bus)
     ], 3));
     if (isDevice) {
       // The device already carries the reason and the destruction method, so asking
@@ -122,8 +128,8 @@
         text: 'Integrated or soldered storage: use the device\'s own make, model and serial — the media item IS that storage.' }));
 
       var override = el('div', { class: 'mt-2 hidden' }, [grid([
-        select('Reason for this media item', 'reason', REASONS, false),
-        select('Method for this media item', 'destroy_method', METHODS, false)
+        select('Reason for this media item', 'reason', REASONS, false, src.reason),
+        select('Method for this media item', 'destroy_method', METHODS, false, src.destroy_method)
       ], 2)]);
       var toggle = el('button', { type: 'button', class: 'mt-2 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline',
         text: 'Different outcome for this media item…' });
@@ -135,8 +141,8 @@
       row.appendChild(override);
     } else {
       row.appendChild(grid([
-        select('Reason', 'reason', REASONS, true),
-        select('Method', 'destroy_method', METHODS, true)
+        select('Reason', 'reason', REASONS, true, src.reason),
+        select('Method', 'destroy_method', METHODS, true, src.destroy_method)
       ], 2));
     }
     return row;
@@ -155,16 +161,24 @@
     return out;
   }
 
-  function open(kind) {
+  var editing = null;
+
+  function open(kind, record) {
     isDevice = (kind !== 'drive');
+    editing = record || null;
+    var isEdit = !!editing;
+    var rec = editing || {};
     var modal = document.getElementById('manual-modal');
     var body = document.getElementById('manual-modal-body');
 
-    document.getElementById('manual-modal-title').textContent = isDevice
-      ? 'Record a destroyed device' : 'Record a destroyed media item';
+    document.getElementById('manual-modal-title').textContent = isEdit
+      ? (isDevice ? 'Edit attested device' : 'Edit attested media item')
+      : (isDevice ? 'Record a destroyed device' : 'Record a destroyed media item');
     document.getElementById('manual-modal-sub').textContent =
       'Operator attestation — not instrument-verified destruction';
-    document.getElementById('manual-modal-save').textContent = isDevice ? 'Record device' : 'Record media item';
+    document.getElementById('manual-modal-save').textContent = isEdit
+      ? 'Save changes'
+      : (isDevice ? 'Record device' : 'Record media item');
 
     body.innerHTML = '';
     var err = el('p', { id: 'manual-modal-error', class: 'hidden rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300' });
@@ -176,15 +190,24 @@
 
     if (isDevice) {
       body.appendChild(grid([
-        select('Category', 'category', CATEGORIES, true),
-        input('Make', 'make'),
-        input('Model', 'model'),
-        input('Serial / IMEI / asset tag', 'serial')
+        select('Category', 'category', CATEGORIES, true, rec.category),
+        input('Make', 'make', '', rec.make),
+        input('Model', 'model', '', rec.model),
+        input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial)
       ], 2));
     }
 
     var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
-    mediaBox.appendChild(mediaRow(isDevice));
+    // Edit mode starts from the record's own media set: removing a row here removes
+    // the media, adding one adds it. A device with no manual media row (possible on
+    // old records) still gets one blank row so the form can be saved.
+    if (isEdit) {
+      var rows = isDevice ? (rec.drives || []) : [rec];
+      if (!rows.length) { rows = [{}]; }
+      rows.forEach(function (m) { mediaBox.appendChild(mediaRow(isDevice, m)); });
+    } else {
+      mediaBox.appendChild(mediaRow(isDevice));
+    }
     body.appendChild(mediaBox);
 
     var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
@@ -193,8 +216,8 @@
     body.appendChild(addRow);
 
     if (isDevice) {
-      var methodWrap = select('Method', 'destroy_method', METHODS, true);
-      var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor');
+      var methodWrap = select('Method', 'destroy_method', METHODS, true, rec.destroy_method);
+      var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor', '', rec.destroy_vendor);
 
       // A factory reset has no destruction vendor — the mechanism IS the method. Hiding
       // the box is deliberate: the server drops a vendor on a retained item, so leaving
@@ -207,18 +230,28 @@
       methodWrap.querySelector('select').addEventListener('change', vendorSync);
 
       body.appendChild(el('div', { class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' }, [grid([
-        select('Reason', 'reason', REASONS, true),
+        select('Reason', 'reason', REASONS, true, rec.reason),
         methodWrap,
         vendorWrap,
-        input('Date (YYYY-MM-DD)', 'destroy_date'),
-        input('Witness', 'destroy_witness'),
-        input('Evidence reference (vendor certificate no.)', 'evidence_ref')
+        input('Date (YYYY-MM-DD)', 'destroy_date', '', rec.destroy_date),
+        input('Witness', 'destroy_witness', '', rec.destroy_witness),
+        input('Evidence reference (vendor certificate no.)', 'evidence_ref', '', rec.evidence_ref)
       ], 2)]));
     }
 
-    // The page's own COCID, when one is in view, so the operator does not retype it.
-    var pre = document.querySelector('[data-cocid]');
-    if (pre) { body.querySelector('input[name=cocid]').value = pre.getAttribute('data-cocid'); }
+    // The COCID is the record's identity: an edit cannot move a record to another
+    // job, because the job is what the certificate and the media links are keyed
+    // on. Disabled rather than hidden, so the operator can see which job it is.
+    var cocidInput = body.querySelector('input[name=cocid]');
+    if (isEdit) {
+      cocidInput.value = rec.cocid || '';
+      cocidInput.disabled = true;
+      cocidInput.title = 'The Chain of Custody ID is the record\'s identity and cannot be changed by editing.';
+    } else {
+      // The page's own COCID, when one is in view, so the operator does not retype it.
+      var pre = document.querySelector('[data-cocid]');
+      if (pre) { cocidInput.value = pre.getAttribute('data-cocid'); }
+    }
 
     // Same open strategy as the Operations and Export modals. Focus
     // containment (Tab cycle, focus return) comes from the shared dialog helper
@@ -307,7 +340,12 @@
       payload = { cocid: cocid.trim(), media: media[0] };
     }
 
-    var url = isDevice ? '/api/certificates/devices' : '/api/certificates/media';
+    var isEdit = !!editing;
+    var url = isEdit
+      ? (isDevice
+          ? '/api/certificates/devices/' + encodeURIComponent(editing.attested_id)
+          : '/api/certificates/media/' + encodeURIComponent(editing.attested_id))
+      : (isDevice ? '/api/certificates/devices' : '/api/certificates/media');
     button.disabled = true;
     button.textContent = 'Saving…';
 
@@ -320,12 +358,14 @@
     function restore() {
       clearTimeout(timer);
       button.disabled = false;
-      button.textContent = isDevice ? 'Record device' : 'Record media item';
+      button.textContent = isEdit
+        ? 'Save changes'
+        : (isDevice ? 'Record device' : 'Record media item');
     }
 
     fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) {
       return fetch(url, {
-        method: 'POST',
+        method: isEdit ? 'PUT' : 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (d && d.csrf) || '' },
         body: JSON.stringify(payload),
@@ -531,6 +571,8 @@
   // already in the dashboard chrome.
   var ICON_PATHS = {
     details: 'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z',
+    // Pencil: correct the record in place instead of removing and retyping it.
+    edit: 'M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z',
     remove: 'M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z'
   };
 
@@ -579,6 +621,13 @@
     det.addEventListener('click', function () { detail(row); });
     wrap.appendChild(det);
 
+    // Correct a typo without losing the record: the modal opens pre-filled and
+    // saves with PUT. Until this existed the only correction was remove+re-enter.
+    var ed = iconBtn('edit', 'Edit', 'Correct this attested record in place',
+      'border-slate-300 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-ink-900 dark:text-slate-300 dark:hover:bg-ink-800');
+    ed.addEventListener('click', function () { edit(row); });
+    wrap.appendChild(ed);
+
     var rm = iconBtn('remove', 'Remove',
       row.attested_kind === 'media' ? 'Remove this attested media item' : 'Remove this attested device and every media item recorded with it',
       'border-red-300 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50');
@@ -586,6 +635,11 @@
     wrap.appendChild(rm);
 
     return wrap;
+  }
+
+  function edit(row) {
+    if (!row) { return; }
+    open(row.attested_kind === 'media' ? 'drive' : 'device', row);
   }
 
   /**
@@ -690,12 +744,10 @@
     open: open,
     remove: remove,
     detail: detail,
+    edit: edit,
     actions: actions,
-    // The button carries the page's own COCID when one is in view (the drives page
-    // uploads per job), so the operator does not retype it.
-    openFor: function (kind) {
-      var pre = document.querySelector('[data-cocid]');
-      open(kind, pre ? pre.getAttribute('data-cocid') : '');
-    }
+    // New record. The page's own COCID is filled by open() from [data-cocid]; it
+    // must NOT be passed as the second argument, which is the record being edited.
+    openFor: function (kind) { open(kind); }
   };
 })();

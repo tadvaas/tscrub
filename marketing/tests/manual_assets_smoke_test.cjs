@@ -73,8 +73,8 @@ function makeNode(tag) {
       }
       return null;
     },
-    querySelector() { return null; },
-    querySelectorAll() { return []; },
+    querySelector(sel) { return matches(this, sel)[0] || null; },
+    querySelectorAll(sel) { return matches(this, sel); },
   };
   n.classList._o = n;
   return n;
@@ -95,6 +95,9 @@ function walkAll(node) {
 function matches(root, sel) {
   const all = walkAll(root);
   if (sel === '#manual-modal-media') { return all.filter(n => n.id === 'manual-modal-media'); }
+  // A bare tag selector ('select'), which open() uses to reach the method field
+  // inside its label wrapper.
+  if (/^[a-zA-Z]+$/.test(sel)) { return all.filter(n => n.tagName === sel.toUpperCase()); }
   // 'input[name=serial]' and '[name=serial]' are both used, so the tag is optional.
   const m = /^(?:([a-zA-Z]+))?\[name=([^\]]+)\]$/.exec(sel);
   if (m) {
@@ -516,7 +519,7 @@ setTimeout(() => {
                           installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
                           const cell = window.ManualAssets.actions(Object.assign({}, devRow, { attested_id: 5 }));
                           const abtns = cell.children.filter(c => c.tagName === 'BUTTON');
-                          check('actions — two buttons are built', abtns.length === 2, abtns.length);
+                          check('actions — three buttons are built (details, edit, remove)', abtns.length === 3, abtns.length);
                           // Icon-only: the accessible name cannot come from the content, so an
                           // aria-label is mandatory — a glyph with only a tooltip is unusable
                           // with a screen reader and invisible on touch.
@@ -526,19 +529,47 @@ setTimeout(() => {
                           check('actions — each icon button has a tooltip', abtns.every(b => !!b.title));
                           check('actions — each button holds an svg with one path',
                             abtns.every(b => b.children.length === 1 && b.children[0].children.length === 1));
-                          check('actions — the icons differ (details vs remove)',
-                            abtns[0].children[0].children[0].getAttribute('d') !== abtns[1].children[0].children[0].getAttribute('d'));
+                          check('actions — the icons differ',
+                            new Set(abtns.map(b => b.children[0].children[0].getAttribute('d'))).size === 3);
                           check('actions — the buttons are not labelled with words',
-                            abtns.every(b => !/Details|Remove/.test(b.textContent || '')));
+                            abtns.every(b => !/Details|Edit|Remove/.test(b.textContent || '')));
 
                           byId['manual-detail-modal']._classes.add('hidden');
                           abtns[0]._on.click();
                           check('actions — the Details button opens the record view',
                             byId['manual-detail-modal']._classes.has('hidden') === false);
 
+                          // ---- edit mode: the same modal, pre-filled, saving with PUT ----
+                          abtns[1]._on.click();
+                          check('actions — Edit opens the modal in edit mode',
+                            /Edit attested/.test(byId['manual-modal-title'].textContent), byId['manual-modal-title'].textContent);
+                          check('actions — Edit relabels the save button',
+                            byId['manual-modal-save'].textContent === 'Save changes', byId['manual-modal-save'].textContent);
+                          const edBody = byId['manual-modal-body'];
+                          const edCocid = edBody.querySelector('[name=cocid]');
+                          check('actions — Edit locks the COCID to the record\'s job',
+                            !!edCocid && edCocid.disabled === true && edCocid.value === 'COC-DEMO-2026-10-13',
+                            edCocid && edCocid.value);
+                          const edSerial = edBody.querySelector('[name=serial]');
+                          check('actions — Edit pre-fills the serial',
+                            !!edSerial && edSerial.value === 'DEMO-IMEI-0001', edSerial && edSerial.value);
+                          const edMethod = edBody.querySelector('select[name=destroy_method]');
+                          check('actions — Edit pre-selects the destruction method',
+                            !!edMethod && edMethod.value === 'shredded', edMethod && edMethod.value);
+                          check('actions — Edit builds one media row per recorded item',
+                            (edBody.querySelectorAll('[name=type]') || []).length >= 1);
+                          // Editing must reach the update route for THIS record, and with PUT:
+                          // the module is evaluated as source here, so the request shape is
+                          // asserted on the code rather than by firing the saved form.
+                          check('edit — saves with PUT to the record\'s own url',
+                            /method: isEdit \? 'PUT' : 'POST'/.test(src)
+                              && /'\/api\/certificates\/devices\/' \+ encodeURIComponent\(editing\.attested_id\)/.test(src));
+                          check('edit — a new record is still a POST',
+                            /'\/api\/certificates\/devices' : '\/api\/certificates\/media'/.test(src));
+
                           global.__confirmAnswer = true;
                           global.__reqs = [];
-                          abtns[1]._on.click();
+                          abtns[2]._on.click();
                           setTimeout(() => {
                             const del = global.__reqs.filter(r => r.method === 'DELETE');
                             // attested_kind drives the route, so pin both: a device removal must
@@ -552,7 +583,7 @@ setTimeout(() => {
                             global.__confirmAnswer = true;
                             const mCell = window.ManualAssets.actions({ attested_kind: 'media', attested_id: 9, cocid: 'COC-1' });
                             const mBtns = mCell.children.filter(c => c.tagName === 'BUTTON');
-                            mBtns[1]._on.click();
+                            mBtns[2]._on.click();
                             setTimeout(() => {
                               const mdl = global.__reqs.filter(r => r.method === 'DELETE');
                               check('actions — a media row removes via /api/certificates/media',

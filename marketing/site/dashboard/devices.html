@@ -81,7 +81,7 @@
          account total, and "Filters (3)" on a button does not say WHICH three — so the
          reason for a short list has to be visible on the page, not one click away. -->
     <div id="filter-chips" class="mt-2 hidden flex-wrap items-center gap-1.5"></div>
-    <script src="/assets/manual-assets.js?v=19" defer></script>
+    <script src="/assets/manual-assets.js?v=20" defer></script>
     <script src="/assets/report-corrections.js?v=3" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
@@ -3051,6 +3051,62 @@
           });
         });
         card.appendChild(btn);
+
+        // Model and note are correctable in place. The SERIAL is not: it is the key
+        // media declarations store, so renaming it would orphan every link that
+        // names it. To change it, remove the device (once nothing refers to it) and
+        // record it again.
+        var editBtn = el('button', 'mt-2 ts-btn ts-btn--sm ts-btn--secondary', 'Edit details');
+        editBtn.type = 'button';
+        var form = el('div', 'mt-3 hidden space-y-2');
+        var mkField = function (label, value) {
+          var w = el('label', 'block text-[11px] font-semibold text-slate-500 dark:text-slate-400');
+          w.appendChild(el('span', 'mb-1 block', label));
+          var i = el('input', 'ts-input h-8 w-full text-xs', '');
+          i.type = 'text';
+          i.value = value || '';
+          w.appendChild(i);
+          form.appendChild(w);
+          return i;
+        };
+        var modelIn = mkField('Model', dev.model || dev.system || '');
+        var noteIn = mkField('Note', dev.notes || '');
+        var saveBtn = el('button', 'ts-btn ts-btn--sm ts-btn--primary', 'Save details');
+        saveBtn.type = 'button';
+        var editMsg = el('p', 'text-xs font-semibold text-red-600 dark:text-red-400', '');
+        editBtn.addEventListener('click', function () {
+          form.classList.toggle('hidden');
+          editBtn.textContent = form.classList.contains('hidden') ? 'Edit details' : 'Cancel edit';
+        });
+        saveBtn.addEventListener('click', function () {
+          saveBtn.disabled = true;
+          editMsg.textContent = '';
+          getCsrf().then(function (token) {
+            return fetch('/api/devices/declared/' + encodeURIComponent(dev.sysserial || ''), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+              body: JSON.stringify({ model: modelIn.value.trim(), note: noteIn.value.trim() })
+            });
+          }).then(function (r) {
+            return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+          }).then(function (res) {
+            if (!res.ok) {
+              editMsg.textContent = (res.j && res.j.error) || 'Could not save the details.';
+              saveBtn.disabled = false;
+              return;
+            }
+            closeOps();
+            lastDevicesJson = '';
+            loadDevices();
+          }).catch(function () {
+            editMsg.textContent = 'Could not save the details.';
+            saveBtn.disabled = false;
+          });
+        });
+        form.appendChild(saveBtn);
+        form.appendChild(editMsg);
+        card.appendChild(editBtn);
+        card.appendChild(form);
         card.appendChild(msg);
         return card;
       }

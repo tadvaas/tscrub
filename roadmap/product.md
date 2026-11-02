@@ -462,6 +462,12 @@ with the release that carried them (per `CHANGELOG.md`).
       register so a machine that never boots tScrub can still be recorded, and
       the Reassign origin form creating that row in the same action.
       → Plan: `research/declared-devices/README.md`.
+- [ ] **Manually recorded records must be editable.** An attested device or media
+      item, and a declared device, can only be removed and re-entered when a
+      field is wrong, which loses the record's id and makes the operator retype
+      every field. Edit in place, with the COCID fixed and the media set
+      reconciled from the form.
+      → Plan: `research/manual-edit/README.md`.
 - [ ] Mac (Intel + Apple Silicon) erase — pull-the-drive workflow + docs, not a
       Mac boot; declare Apple Silicon's Recovery-only erase on `compare.html`.
       (§9.1) → **Plan**: `research/macos-boot/plan.md` (status: awaiting review;

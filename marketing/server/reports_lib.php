@@ -905,6 +905,153 @@ function manual_attested_save_device(int $certId, string $cocid, array $dev, arr
     }
 }
 
+/**
+ * Find an attested device by id inside this account. Returns
+ * ['certificate_id' => int, 'cocid' => string] or null.
+ *
+ * The edit route cannot trust a COCID from the client: the record's own job is
+ * its identity, and scoping the lookup through `certificates.user_id` is what
+ * stops an id from another account being edited.
+ */
+function lookup_attested_device(int $userId, int $deviceId): ?array {
+    if ($deviceId <= 0) return null;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare(
+            "SELECT d.certificate_id, d.cocid
+               FROM certificate_devices d
+               JOIN certificates c ON c.id = d.certificate_id
+              WHERE d.id = ? AND c.user_id IN ($ph) LIMIT 1"
+        );
+        $q->execute(array_merge([$deviceId], $ids));
+        $r = $q->fetch(PDO::FETCH_ASSOC);
+        return $r === false ? null : ['certificate_id' => (int)$r['certificate_id'], 'cocid' => (string)$r['cocid']];
+    } catch (Throwable $e) {
+        error_log('lookup_attested_device: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** Find a standalone attested media row by id inside this account. */
+function lookup_attested_media(int $userId, int $mediaId): ?array {
+    if ($mediaId <= 0) return null;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare(
+            "SELECT d.certificate_id, c.cocid
+               FROM certificate_drives d
+               JOIN certificates c ON c.id = d.certificate_id
+              WHERE d.id = ? AND d.source = 'manual' AND COALESCE(d.certificate_device_id, 0) = 0
+                AND c.user_id IN ($ph) LIMIT 1"
+        );
+        $q->execute(array_merge([$mediaId], $ids));
+        $r = $q->fetch(PDO::FETCH_ASSOC);
+        return $r === false ? null : ['certificate_id' => (int)$r['certificate_id'], 'cocid' => (string)$r['cocid']];
+    } catch (Throwable $e) {
+        error_log('lookup_attested_media: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Update an attested device and replace its media set.
+ *
+ * The form is the source of truth: the device's manual media rows are deleted and
+ * re-inserted from the submitted set, in one transaction, so "add a drive" and
+ * "remove a drive" are just edits of the set. The COCID is the record's identity
+ * and is never taken from the client. `attested_by` is left as recorded: editing
+ * corrects the facts, it does not re-attribute the attestation.
+ *
+ * Returns ['ok' => bool, 'id' => int, 'error' => string].
+ */
+function manual_attested_update_device(int $certId, int $deviceId, array $dev, array $media, string $attestedBy): array
+{
+    if ($deviceId <= 0) { return ['ok' => false, 'id' => 0, 'error' => 'Record not found.']; }
+    manual_list_cache([]);   // the lists are about to change
+    try {
+        $own = db()->prepare('SELECT id, cocid FROM certificate_devices WHERE certificate_id = ? AND id = ? LIMIT 1');
+        $own->execute([$certId, $deviceId]);
+        $row = $own->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) { return ['ok' => false, 'id' => 0, 'error' => 'Record not found.']; }
+        $cocid = (string)$row['cocid'];
+
+        db()->beginTransaction();
+        $q = db()->prepare(
+            'UPDATE certificate_devices
+                SET category = ?, make = ?, model = ?, serial = ?, reason = ?, destroy_method = ?,
+                    destroy_vendor = ?, destroy_date = ?, destroy_witness = ?, evidence_ref = ?,
+                    evidence_sha256 = ?, identity_key = ?
+              WHERE certificate_id = ? AND id = ?'
+        );
+        $q->execute([
+            (string)$dev['category'], (string)$dev['make'], (string)$dev['model'], (string)$dev['serial'],
+            (string)$dev['reason'], (string)$dev['destroy_method'],
+            (string)$dev['destroy_vendor'], (string)$dev['destroy_date'],
+            (string)$dev['destroy_witness'], (string)$dev['evidence_ref'],
+            (string)$dev['evidence_sha256'], (string)$dev['identity_key'],
+            $certId, $deviceId,
+        ]);
+        $del = db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND certificate_device_id = ? AND source = 'manual'");
+        $del->execute([$certId, $deviceId]);
+        foreach ($media as $m) {
+            manual_media_insert($certId, $deviceId, $cocid, $m, $dev, $attestedBy);
+        }
+        db()->commit();
+        return ['ok' => true, 'id' => $deviceId, 'error' => ''];
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('manual_attested_update_device: ' . $e->getMessage());
+        return [
+            'ok'    => false,
+            'id'    => 0,
+            'error' => manual_is_duplicate($e)
+                ? 'That asset is already recorded on this job (same serial, make and model). If two units really are identical, give one an asset tag so the two can be told apart.'
+                : 'Could not save the changes.',
+        ];
+    }
+}
+
+/** Update one standalone attested medium. Same delete-and-reinsert rule. */
+function manual_attested_update_media(int $certId, int $mediaId, array $m, string $attestedBy): array
+{
+    if ($mediaId <= 0) { return ['ok' => false, 'id' => 0, 'error' => 'Record not found.']; }
+    manual_list_cache([]);
+    try {
+        // certificate_drives has no cocid column: the job lives on the certificate.
+        $own = db()->prepare(
+            "SELECT c.cocid
+               FROM certificate_drives d
+               JOIN certificates c ON c.id = d.certificate_id
+              WHERE d.certificate_id = ? AND d.id = ? AND d.source = 'manual'
+                AND COALESCE(d.certificate_device_id, 0) = 0 LIMIT 1"
+        );
+        $own->execute([$certId, $mediaId]);
+        $cocid = $own->fetchColumn();
+        if ($cocid === false) { return ['ok' => false, 'id' => 0, 'error' => 'Record not found.']; }
+
+        db()->beginTransaction();
+        $del = db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND id = ? AND source = 'manual'");
+        $del->execute([$certId, $mediaId]);
+        manual_media_insert($certId, 0, (string)$cocid, $m, [], $attestedBy);
+        // Read the id BEFORE commit: lastInsertId() answers 0 after it on this connection.
+        $newId = (int)db()->lastInsertId();
+        db()->commit();
+        return ['ok' => true, 'id' => $newId, 'error' => ''];
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
+        error_log('manual_attested_update_media: ' . $e->getMessage());
+        return [
+            'ok'    => false,
+            'id'    => 0,
+            'error' => manual_is_duplicate($e)
+                ? 'That media item is already recorded on this job (same serial, make and model).'
+                : 'Could not save the changes.',
+        ];
+    }
+}
+
 /** Save one standalone destroyed medium (a drive with no device recorded). */
 function manual_attested_save_media(int $certId, string $cocid, array $m, string $attestedBy): array
 {
@@ -1418,6 +1565,35 @@ function declared_device_set(int $userId, string $serial, string $model, string 
         return true;
     } catch (Throwable $e) {
         error_log('declared_device_set: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Correct a declared device's display details.
+ *
+ * The SERIAL is deliberately not editable: it is the key that media declarations
+ * store literally (media_links.asset_serial), so renaming it would orphan every
+ * link that names it. To change the serial, remove the device once nothing refers
+ * to it and record it again.
+ */
+function declared_device_update(int $userId, string $deviceKey, string $model, string $note): bool {
+    asset_media_ensure_schema();
+    $key = mp_key($deviceKey);
+    if ($key === '') return false;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $q = db()->prepare("UPDATE declared_devices SET model = ?, note = ? WHERE user_id IN ($ph) AND device_key = ?");
+        $q->execute(array_merge([trim($model), trim($note)], $ids, [$key]));
+        // MySQL counts CHANGED rows, not matched ones: saving the form unchanged
+        // would report "not found" on a device that is right there.
+        if ($q->rowCount() > 0) { return true; }
+        $e = db()->prepare("SELECT 1 FROM declared_devices WHERE user_id IN ($ph) AND device_key = ? LIMIT 1");
+        $e->execute(array_merge($ids, [$key]));
+        return $e->fetchColumn() !== false;
+    } catch (Throwable $e) {
+        error_log('declared_device_update: ' . $e->getMessage());
         return false;
     }
 }
@@ -3251,6 +3427,9 @@ function manual_drive_row(array $m, string $cocid = ''): array
         'serial'    => (string)$m['serial'],
         'model'     => (string)$m['model'],
         'type'      => (string)$m['type'],
+        // `make` is carried so the edit form can pre-fill it; the tables show
+        // make+model together in the Model column via `model` alone.
+        'make'      => (string)($m['make'] ?? ''),
         'size'      => (string)$m['size'],
         'bus'       => (string)$m['bus'],
         'method'    => (string)$m['method'],

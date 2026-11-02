@@ -232,6 +232,12 @@ check(
     && /if \(dev\.declared\) sysWrap\.appendChild\(declaredBadge\(\)\)/.test(js.devices)
     && /if \(dev\.declared\) sys\.appendChild\(declaredBadge\(\)\)/.test(js.devices)
 );
+check(
+  'devices: a declared device can be edited in the Ops panel',
+  /Edit details/.test(js.devices)
+    && /method: 'PUT'/.test(bodyOf(js.devices, 'declaredToggle'))
+    && /\/api\/devices\/declared\//.test(bodyOf(js.devices, 'declaredToggle'))
+);
 
 const open = bodyOf(js.devices, 'openFilterModal');
 check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*hideBench/.test(open));

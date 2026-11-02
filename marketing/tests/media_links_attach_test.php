@@ -198,5 +198,19 @@ t_check('a declared origin can be removed by (job, media item)',
     str_contains($lib, 'function media_link_forget')
     && str_contains($lib, 'media_link_replace_ids(media_links_for_cocid($userId, $cocid), $cocid, $mediaSerial)')
     && str_contains($api, "=== 'DELETE' && \$route === '/media/link'"));
+// Manual records are editable in place. The COCID is the record's identity, so
+// the update path looks it up from the row (never from the client).
+t_check('an attested device is updated in place, never moved to another job',
+    str_contains($lib, 'function manual_attested_update_device')
+    && str_contains($lib, "SELECT id, cocid FROM certificate_devices WHERE certificate_id = ? AND id = ?")
+    && str_contains($api, "=== 'PUT' && count(\$seg) === 3 && \$seg[0] === 'certificates' && \$seg[1] === 'devices'"));
+t_check('a standalone attested media item is updated in place',
+    str_contains($lib, 'function manual_attested_update_media')
+    && str_contains($api, "=== 'PUT' && count(\$seg) === 3 && \$seg[0] === 'certificates' && \$seg[1] === 'media'"));
+t_check('a declared device can be corrected without renaming its serial',
+    str_contains($lib, 'function declared_device_update')
+    && str_contains($api, "=== 'PUT' && count(\$seg) === 3 && \$seg[0] === 'devices' && \$seg[1] === 'declared'")
+    // The serial is the key media declarations store literally; the update must not touch it.
+    && !preg_match('/UPDATE declared_devices SET[^\']*serial/', $lib));
 echo "\n" . ($fails ? "$fails of $count checks FAILED" : "$count checks passed") . "\n";
 exit($fails ? 1 : 0);
