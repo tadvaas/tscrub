@@ -90,6 +90,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **The Media index says where a medium came from, in one chip.** A bench-erased
+  medium showed an amber `Bench` tag next to its **model** and a sky `elsewhere`
+  tag next to its status, so the tag looked like part of the drive's name,
+  neither word said what it meant, and both appeared at once once the origin was
+  recorded. There is now a single provenance chip beside the status: `origin`
+  (with the asset serial in its tooltip) when an origin is declared, `bench` when
+  the last report came from a processing host and nothing is recorded, `no host`
+  when the report carried no serial. The Status column gained the width for it,
+  which also stops `COMPLETED [chip]` spilling into the Method column.
+
 - **A bench machine's boot snapshot no longer claims the media it is about to
   erase.** The processing-host rule was applied to the bench's erasure reports
   but not to its diagnostics snapshot: the bench boots with the customer's drives

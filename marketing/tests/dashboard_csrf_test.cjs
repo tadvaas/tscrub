@@ -128,15 +128,25 @@ check(
   /host_processing[\s\S]*?text-amber-700/.test(originState) && /Bench processed/.test(originState)
 );
 check(
-  'drives: the media index tags a bench-reported medium',
-  /function benchChip/.test(js.drives)
-    && /if \(d\.host_processing\) model\.appendChild\(benchChip\(\)\)/.test(js.drives)
-    && /if \(d\.host_processing\) modelRow\.appendChild\(benchChip\(\)\)/.test(js.drives)
+  'drives: one provenance chip per row, in the status cell',
+  /function provenanceChip/.test(js.drives)
+    && /var prov = provenanceChip\(d\);\s*\n\s*if \(prov\) statusTd\.appendChild\(prov\)/.test(js.drives)
+    && !/benchChip/.test(js.drives)
+);
+check(
+  'drives: the model cell carries no provenance tag',
+  !/modelRow\.appendChild\(provenanceChip/.test(js.drives)
+    && !/model\.appendChild\(benchChip/.test(js.drives)
+);
+check(
+  'drives: the chip says origin when declared and bench when not',
+  /'origin'\)/.test(bodyOf(js.drives, 'provenanceChip'))
+    && /'bench'\)/.test(bodyOf(js.drives, 'provenanceChip'))
 );
 check(
   'devices/media: the Bench tag uses the same amber palette',
   /bg-amber-100[\s\S]*text-amber-700/.test(bodyOf(js.devices, 'benchBadge'))
-    && /bg-amber-100[\s\S]*text-amber-700/.test(bodyOf(js.drives, 'benchChip'))
+    && /bg-amber-100[\s\S]*text-amber-700/.test(bodyOf(js.drives, 'provenanceChip'))
     && !/bg-sky-100/.test(bodyOf(js.devices, 'benchBadge'))
 );
 check(

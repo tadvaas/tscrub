@@ -124,6 +124,11 @@ state both. The job (COCID) is the container for that evidence.
   provenance for its jobs.
 - A standalone medium with no link stays standalone. The dashboard shows `—`
   rather than guessing an origin.
+- The Media list carries **one** provenance chip beside the status, never two: a
+  declared origin outranks the bench tag, because the bench is *how* the medium
+  was erased while the origin is *what* it belonged to. `bench` (amber) means the
+  last report came from a processing host and no origin is recorded — open
+  **Reports ▸ → View → Reassign origin** if it came from a customer asset.
 - An asset with no data-bearing media is counted as an exception, not as a
   destroyed device and not as a device with no certificate.
 - An asset that never booted has no system name on file. Its **ASSET
@@ -172,7 +177,7 @@ was sanitised; the chassis was not.
 | `origin ambiguous between assets` | Two non-processing hosts both reported the medium. | Decide which is the asset and mark the other as a processing host, or correct the COCID/report. The certificate will not pick one. |
 | `no completed erasure evidence` | The link exists but no erasure report for that medium is in this COCID yet. | Run or upload the bench report under the same COCID. |
 | A no-media asset says `boot snapshot <time>` only | The appliance never saw a drive. | If media existed, declare the link. If not, this is the correct record. |
-| The declared origin does not appear on the Media row | Only **declared** links are attached to the list, and the list shows them as the `elsewhere` chip rather than in a column. Observed origins are derived at certificate time. | Open the medium's record (Reports ▸ → View) and read **Origin asset**; generate or regenerate the certificate and read Annex A. |
+| The declared origin does not appear on the Media row | The list shows provenance as ONE chip beside the status: `origin` (sky) when an origin is declared, `bench` (amber) when the last report came from a processing host and no origin is recorded. The asset serial itself is in the chip's tooltip and in the record. | Open the medium's record (Reports ▸ → View) and read **Origin asset**; generate or regenerate the certificate and read Annex A. |
 | `asset serial is empty or a firmware placeholder` | The asset reported `N/A` or a placeholder. | The customer cannot track an asset by a serial the machine does not have; agree an identifier and record it before the job. |
 | The same drive appears twice | Two cheap drives report the same serial, or a drive was erased twice. | Do not link it. Resolve the duplicate physically (label and re-check). A re-installed drive is re-sanitisation, not a second medium. |
 | The bench row is counted as a customer asset | It is marked as a processing host, so it is evidence and not an asset. | Nothing to fix — that is the rule. If the row itself should not be in the list, use **Filters → Processing host → Hide bench hosts**, or `?bench=hide`. |

@@ -956,13 +956,40 @@
         return 'bg-slate-400';
       }
 
-      // A tag on the media index: the LAST report for this medium was submitted
-      // by a machine marked as a processing (bench) host. It is the same
-      // classification the record's origin state uses.
-      function benchChip() {
-        var chip = el('span', 'shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'Bench');
-        chip.title = 'Last report submitted by a processing host (bench machine)';
-        return chip;
+      // ONE provenance chip per row, in the Status cell. It answers the only
+      // provenance question the index has: where did this medium come from?
+      //
+      // It used to be two chips in two columns — a Bench tag beside the MODEL and
+      // an `elsewhere` tag beside the status. Read together they were confusing:
+      // the amber tag looked like part of the drive's model name, neither word said
+      // what it meant, and both appeared at once for a bench-erased medium that had
+      // had its origin recorded. A declared origin wins: the bench is HOW the medium
+      // was erased, the origin is WHAT it belonged to, and once the origin is on
+      // record the row's outstanding question is answered. The record view's origin
+      // state carries the full explanation.
+      function provenanceChip(d) {
+        var host = String(d.sysserial || '');
+        var origin = String(d.origin_asset || '');
+        if (origin !== '' && origin.toLowerCase() !== host.toLowerCase()) {
+          var c = el('span', 'ml-1 shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'origin');
+          c.title = 'Origin asset ' + origin
+            + (d.origin_provenance === 'declared' ? ' (declared by operator)' : '')
+            + '. Erased on ' + (host || 'a host that reported no serial') + '.';
+          return c;
+        }
+        if (origin !== '') { return null; }   // declared as the host itself: in place
+        if (d.host_processing) {
+          var b = el('span', 'ml-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'bench');
+          b.title = 'Last report came from a processing host' + (host ? ' (' + host + ')' : '')
+            + '. If this medium came from a customer asset, open Reports → View → Reassign origin.';
+          return b;
+        }
+        if (host === '') {
+          var n = el('span', 'ml-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'no host');
+          n.title = 'This report has no host serial, so the origin asset cannot be assumed. Reassign it if the medium came from another asset.';
+          return n;
+        }
+        return null;
       }
 
       // Newest submission first. The API already returns this order, but the list
@@ -1044,7 +1071,6 @@
         var grade = el('span', 'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ' + gradeBadgeClass(d.grade), d.grade || '—');
         if (d.grade_reason) grade.title = d.grade_reason;
         model.appendChild(grade);
-        if (d.host_processing) model.appendChild(benchChip());
         id.appendChild(model);
         id.appendChild(el('p', 'mt-0.5 truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400', d.serial || '—'));
         top.appendChild(id);
@@ -1052,7 +1078,13 @@
         var chip = el('span', 'shrink-0 ' + statusChipClass(d.status));
         chip.appendChild(el('span', 'inline-block h-1.5 w-1.5 shrink-0 rounded-full ' + statusDotClass(d.status)));
         chip.appendChild(el('span', 'text-xs font-semibold', d.status || '—'));
-        top.appendChild(chip);
+        var badges = el('div', 'flex shrink-0 items-center');
+        badges.appendChild(chip);
+        // Same single provenance chip as the table row, beside the status it belongs
+        // to — not beside the model, where it read as part of the drive's name.
+        var prov = provenanceChip(d);
+        if (prov) badges.appendChild(prov);
+        top.appendChild(badges);
         card.appendChild(top);
 
         var meth = el('p', 'mt-3 truncate text-xs text-slate-600 dark:text-slate-400', d.method || '—');
@@ -1279,7 +1311,9 @@
         // Submitted stays full-width-ish because "2026-10-18 14:44" is sixteen characters.
         [['Submitted', 'w-[12%]', 'date', 'When the most recent report for this medium was uploaded. Blank for an operator attestation — there is no report.'],
          ['Model', 'w-[19%]', 'model'], ['Serial', 'w-[14%]', 'serial'],
-         ['Status', 'w-[14%]', 'status'], ['Method', 'w-[24%]', 'method'],
+         // Status carries the outcome AND the provenance chip, so it needs room for
+         // both; Method gives up the width, because it truncates with a tooltip.
+         ['Status', 'w-[17%]', 'status'], ['Method', 'w-[21%]', 'method'],
          ['Grade', 'w-[7%]', 'grade'],
          ['', 'w-[10%]', null]].forEach(function (c) {
           // Sticky cells need their own background: the <tr> background scrolls
@@ -1329,7 +1363,6 @@
           var modelCell = el('td', 'max-w-[14rem] px-3 py-2 font-medium text-ink-900 dark:text-white');
           var modelRow = el('div', 'flex min-w-0 items-center gap-1.5');
           modelRow.appendChild(el('span', 'truncate', d.model || '—'));
-          if (d.host_processing) modelRow.appendChild(benchChip());
           modelCell.appendChild(modelRow);
           modelCell.title = d.model || '';
           tr.appendChild(modelCell);
@@ -1338,15 +1371,12 @@
           tr.appendChild(serCell);
           var statusTd = el('td', 'whitespace-nowrap px-3 py-2');
           statusTd.appendChild(el('span', statusClass(d.status), d.status || '—'));
-          // A medium whose recorded origin is a different machine was pulled and
-          // erased elsewhere. The erasure is still instrument-verified; only the
-          // origin is declared. Say so rather than letting the host look wrong.
-          var originDiff = d.origin_asset && String(d.origin_asset).toLowerCase() !== String(d.sysserial || '').toLowerCase();
-          if (originDiff) {
-            var originChip = el('span', 'ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'elsewhere');
-            originChip.title = 'Erased on ' + (d.sysserial || 'another host') + '; origin asset ' + d.origin_asset + ' (declared by operator)';
-            statusTd.appendChild(originChip);
-          }
+          // Where the medium came from, in the same cell as the outcome: a declared
+          // origin (pulled and erased elsewhere), the bench it was erased on without
+          // one, or a report with no host serial at all. At most ONE chip, so the
+          // row cannot contradict itself.
+          var prov = provenanceChip(d);
+          if (prov) statusTd.appendChild(prov);
           tr.appendChild(statusTd);
           var methCell = el('td', 'max-w-[22rem] truncate px-3 py-2 text-slate-700 dark:text-slate-300', d.method || '—');
           methCell.title = d.method || '';
