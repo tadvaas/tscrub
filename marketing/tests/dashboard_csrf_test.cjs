@@ -212,6 +212,12 @@ check(
   /Unmarking keeps every report/.test(bodyOf(js.devices, 'benchToggle'))
     && /outrank a declared origin/.test(bodyOf(js.devices, 'benchToggle'))
 );
+check(
+  'drives: a serial that matches no device is reported after saving',
+  /asset_known === false/.test(js.drives)
+    && /declared-only asset/.test(js.drives)
+    && /replaces this one/.test(js.drives)
+);
 
 const open = bodyOf(js.devices, 'openFilterModal');
 check('devices: opening Filters seeds the bench choice', /pendingBench\s*=\s*hideBench/.test(open));

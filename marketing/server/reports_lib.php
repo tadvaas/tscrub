@@ -1138,12 +1138,79 @@ function media_links_for_cocid(int $userId, string $cocid): array {
 }
 
 /**
+ * Which existing declarations a new one for (cocid, medium) replaces.
+ *
+ * "Reassign origin" is an EDIT, not an addition. A second declaration for the
+ * same medium in the same job would be a same-strength claim on a different
+ * asset, which the dry run correctly calls ambiguous and refuses — so before
+ * this, a mistyped serial could not be corrected from the dashboard at all and
+ * the only way out was `DELETE /api/media/link/{id}`. The ids are returned, not
+ * deleted: the caller deletes them only once the new origin has passed the dry
+ * run, so a refused reassignment leaves the old origin intact.
+ *
+ * Pure, so the matching rule (same job, same medium, case-insensitive serial,
+ * every other medium untouched) is testable without a database.
+ */
+function media_link_replace_ids(array $links, string $cocid, string $mediaSerial): array {
+    $cocid = trim($cocid);
+    $ms = mp_key($mediaSerial);
+    if ($cocid === '' || $ms === '') return [];
+    $out = [];
+    foreach ($links as $l) {
+        if (!is_array($l)) continue;
+        if (trim((string)($l['cocid'] ?? '')) !== $cocid) continue;
+        if (mp_key((string)($l['media_serial'] ?? '')) !== $ms) continue;
+        $id = (int)($l['id'] ?? 0);
+        if ($id > 0) { $out[] = $id; }
+    }
+    return $out;
+}
+
+/**
+ * Has this serial ever checked in as a device?
+ *
+ * "Exists on the Devices tab" means a diagnostics snapshot, because that is what
+ * devices_candidates() builds the list from — an erasure report alone does not
+ * create a device row.
+ *
+ * This is a WARNING, never a gate. A machine that never boots tScrub (its media
+ * pulled and erased on the bench) has no device row, and recording exactly that
+ * asset is why declared origins exist. So the caller reports "no machine with
+ * this serial" to the operator as a likely typo while still recording the link.
+ */
+function device_serial_known(int $userId, string $serial): bool {
+    $key = mp_key($serial);
+    if ($key === '') return false;
+    $ids = org_member_ids($userId);
+    $ph  = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = db()->prepare(
+            "SELECT 1 FROM reports WHERE user_id IN ($ph) AND report_type = 'diagnostics'
+               AND device_key = ? AND " . reports_visible_sql() . ' LIMIT 1'
+        );
+        $stmt->execute(array_merge($ids, [$key]));
+        return $stmt->fetchColumn() !== false;
+    } catch (Throwable $e) {
+        error_log('device_serial_known: ' . $e->getMessage());
+        return true;   // never turn a lookup failure into a false "typo" warning
+    }
+}
+
+/**
  * Declare that a medium came out of an asset.
  *
  * Refused when the medium is already observed on a different (non-processing)
  * host, or already attributed to another asset — an ambiguous link is worse
  * than none, and the certificate must never guess.
- * Returns ['ok'=>bool,'error'=>string,'id'=>int].
+ *
+ * Declaring again for the same medium in the same job REPLACES the previous
+ * declaration (see media_link_replace_ids), so "Reassign origin" really does
+ * reassign and a mistyped serial can be corrected.
+ *
+ * Returns ['ok'=>bool,'error'=>string,'id'=>int,'replaced'=>int,'asset_known'=>bool].
+ * `asset_known` is informational: it says whether the asset serial matches a
+ * machine in this account, so the dashboard can flag a likely typo without
+ * refusing a machine that has never booted tScrub.
  */
 function media_link_declare(int $userId, string $cocid, string $assetSerial, string $mediaSerial,
                             string $reason, string $note, int $by): array {
@@ -1182,6 +1249,15 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     $payloads    = load_report_payloads($userId, $cocid);
     $diagnostics = diagnostics_for_cocid($userId, $cocid);
     $existing    = media_links_for_cocid($userId, $cocid);
+    // Reassigning a medium REPLACES its declaration. Leaving the old row in the
+    // dry run would tie two same-strength claims on different assets, which is
+    // correctly ambiguous and refused — so the operator could never correct a
+    // mistyped serial. The old rows are deleted only after the new origin passes.
+    $replaceIds = media_link_replace_ids($existing, $cocid, $mediaSerial);
+    $kept = array_values(array_filter(
+        $existing,
+        static fn($l) => !in_array((int)($l['id'] ?? 0), $replaceIds, true)
+    ));
     $candidate   = [
         'asset_serial' => $assetSerial,
         'media_serial' => $mediaSerial,
@@ -1189,7 +1265,7 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
         'note'         => $note,
         'declared_at'  => gmdate('Y-m-d H:i:s'),
     ];
-    $collected = mp_collect($payloads, $diagnostics, array_merge($existing, [$candidate]), processing_host_keys($userId));
+    $collected = mp_collect($payloads, $diagnostics, array_merge($kept, [$candidate]), processing_host_keys($userId));
     $ms = mp_key($mediaSerial);
     if (isset($collected['conflicts'][$ms])) {
         return ['ok' => false, 'error' =>
@@ -1207,13 +1283,35 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     }
 
     try {
-        $q = db()->prepare(
+        $pdo = db();
+        $pdo->beginTransaction();
+        foreach ($replaceIds as $rid) {
+            $del = $pdo->prepare("DELETE FROM media_links WHERE id = ? AND user_id IN ($ph)");
+            $del->execute(array_merge([$rid], $ids));
+        }
+        $q = $pdo->prepare(
             'INSERT INTO media_links (user_id, cocid, asset_serial, media_serial, reason, note, declared_by, declared_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $q->execute([$userId, $cocid, $assetSerial, $mediaSerial, $reason, $note, $by, gmdate('Y-m-d H:i:s')]);
-        return ['ok' => true, 'error' => '', 'id' => (int)db()->lastInsertId()];
+        // Capture the id BEFORE commit: lastInsertId() answers 0 once the
+        // transaction is committed on this connection.
+        $newId = (int)$pdo->lastInsertId();
+        $pdo->commit();
+        return [
+            'ok'      => true,
+            'error'   => '',
+            'id'      => $newId,
+            'replaced' => count($replaceIds),
+            // The declaration is recorded either way. This only tells the caller
+            // whether the serial names a machine the account has actually seen, so
+            // a typo can be flagged at the moment it is saved. Never a gate: a
+            // machine that never boots tScrub has no device row, and declaring its
+            // origin is exactly what this is for.
+            'asset_known' => device_serial_known($userId, $assetSerial),
+        ];
     } catch (Throwable $e) {
+        if (db()->inTransaction()) { db()->rollBack(); }
         error_log('media_link_declare: ' . $e->getMessage());
         return ['ok' => false, 'error' => 'Could not record the link.'];
     }

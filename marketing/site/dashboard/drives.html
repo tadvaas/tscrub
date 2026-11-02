@@ -1221,6 +1221,11 @@
         var cocid = mk('Chain of Custody', d.cocid || '', 'e.g. 12345');
         var reason = mk('Why', 'media_removed', 'media_removed');
         var note = mk('Note (optional)', '', 'pulled at intake');
+        // Say what the check is (and is not) before the operator saves: the serial
+        // is verified against Devices, but a machine that never booted tScrub has
+        // no device row and must still be declarable, so this cannot be a gate.
+        form.appendChild(el('p', 'w-full text-[11px] text-slate-500 dark:text-slate-400',
+          'Checked against Devices when you save. A machine that never booted tScrub can still be declared — you are told if the serial matches no device.'));
         var save = el('button', 'ts-btn ts-btn--sm ts-btn--primary', 'Save');
         save.type = 'button';
         var cancel = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', 'Cancel');
@@ -1255,8 +1260,22 @@
             }
             d.origin_asset = asset.value.trim();
             d.origin_provenance = 'declared';
+            // The server says whether that serial names a machine this account has
+            // actually seen. It is a warning, not a gate: an asset that never boots
+            // tScrub (media pulled and erased on the bench) has no device row, and
+            // declaring its origin is exactly what this form is for. A typo, though,
+            // used to be invisible — the link saved happily and the certificate then
+            // claimed an asset nobody owns.
+            var known = !(res.j && res.j.asset_known === false);
             box.innerHTML = '';
-            box.appendChild(el('p', 'text-xs font-semibold text-emerald-700 dark:text-emerald-400', 'Origin recorded. It appears on the certificate after it is generated.'));
+            box.appendChild(el('p', 'text-xs font-semibold ' + (known
+              ? 'text-emerald-700 dark:text-emerald-400'
+              : 'text-amber-700 dark:text-amber-400'),
+              known
+                ? 'Origin recorded. It appears on the certificate after it is generated.'
+                : 'Origin recorded, but no machine with serial ' + d.origin_asset
+                  + ' has ever been seen in Devices. If that is a typo, reassign it — the new serial replaces this one. '
+                  + 'Otherwise the certificate lists it as a declared-only asset.'));
             var again = el('div', 'mt-2');
             originState(d, again);
             box.appendChild(again);

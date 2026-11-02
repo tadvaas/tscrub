@@ -102,5 +102,52 @@ $set2 = [mp_key(device_key($ph)) => true];
 t_check('host_is_processing: placeholder serial falls back to the board serial', host_is_processing($ph, $set2));
 t_check('host_is_processing: empty identity', !host_is_processing([], $set));
 
+// media_link_replace_ids(): "Reassign origin" is an EDIT. The declaration being
+// replaced has to leave the dry run, or the old and the new claim tie at equal
+// strength on different assets — correctly read as ambiguous — and the operator
+// can never correct a mistyped serial from the dashboard.
+$links = [
+    ['id' => 11, 'cocid' => '33219', 'asset_serial' => 'TYPO123', 'media_serial' => 'BTNH04540L8G512A'],
+    ['id' => 12, 'cocid' => '33219', 'asset_serial' => 'OTHER', 'media_serial' => 'S3WTNX0M375228'],
+    ['id' => 13, 'cocid' => '33704', 'asset_serial' => 'OTHER', 'media_serial' => 'BTNH04540L8G512A'],
+];
+t_eq(
+    'reassign: only the same job + same medium is replaced',
+    [11],
+    media_link_replace_ids($links, '33219', 'BTNH04540L8G512A')
+);
+t_eq(
+    'reassign: the serial match ignores case and padding',
+    [11],
+    media_link_replace_ids($links, '33219', '  btnh04540l8g512a ')
+);
+t_eq(
+    'reassign: a different medium in the same job is untouched',
+    [12],
+    media_link_replace_ids($links, '33219', 'S3WTNX0M375228')
+);
+t_eq(
+    'reassign: a declaration in another job is untouched',
+    [13],
+    media_link_replace_ids($links, '33704', 'BTNH04540L8G512A')
+);
+t_eq('reassign: nothing to replace', [], media_link_replace_ids($links, '33219', 'NOTHING'));
+t_eq('reassign: no links at all', [], media_link_replace_ids([], '33219', 'BTNH04540L8G512A'));
+
+// The declaration itself must USE both rules. A helper nobody calls protects
+// nothing — the same trap that let a banner helper pass its own test while the
+// certificate never rendered it.
+$lib = (string)file_get_contents($serverDir . '/reports_lib.php');
+t_check('declare: the replaced declaration is kept out of the dry run',
+    (bool)preg_match('/media_link_replace_ids\(\$existing, \$cocid, \$mediaSerial\)/', $lib));
+t_check('declare: the old rows are deleted, not just ignored',
+    (bool)preg_match('/foreach \(\$replaceIds as \$rid\)/', $lib));
+t_check('declare: reports whether the asset serial is a known device',
+    (bool)preg_match("/'asset_known' => device_serial_known\(/", $lib));
+$api = (string)file_get_contents($serverDir . '/api.php');
+t_check('the link route forwards asset_known and replaced',
+    (bool)preg_match("/'asset_known' => \(bool\)\(\\\$res\['asset_known'\]/", $api)
+    && (bool)preg_match("/'replaced'\\s*=> \\(int\)\(\\\$res\\['replaced'\\]/", $api));
+
 echo "\n" . ($fails ? "$fails of $count checks FAILED" : "$count checks passed") . "\n";
 exit($fails ? 1 : 0);

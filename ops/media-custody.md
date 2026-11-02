@@ -86,7 +86,12 @@ state both. The job (COCID) is the container for that evidence.
    **Media → the medium's row → Reports ▸ → View → Reassign origin**, then enter
    the asset serial, the COCID, the reason and an optional note. The origin is
    recorded as **declared by operator** and is never shown as
-   instrument-verified.
+   instrument-verified. Saving **replaces** any origin already recorded for that
+   medium in that job, so a mistyped serial is corrected by reassigning again.
+   The serial is checked against Devices when you save: if no machine with that
+   serial has ever been seen, the form says so (amber) and still records the
+   link — a machine that never boots tScrub has no device row, and declaring it
+   is the whole point.
 5. **Check the job before issuing.** On Certificates, the job shows
    `N assets to review` when an asset is not the ordinary in-place case.
 6. **Generate the certificate.** The PDF now carries:
@@ -173,7 +178,8 @@ was sanitised; the chassis was not.
 | Message / symptom | Cause | Fix |
 |---|---|---|
 | `That media serial was recorded in a report on a different host` | The medium completed or failed under a host that is not yet a processing host, so the observation outranks a declaration. | If that host is the bench, mark it as a processing host first, then link. Otherwise the asset serial is wrong. |
-| `already attributed to another asset` | Another declared link claims the medium in this job. | Remove the wrong link (Media ▸ link, or `DELETE /api/media/link/{id}`), then re-add. |
+| `already attributed to another asset` | A declaration for this medium in this job names a different asset, and the two cannot both hold. | Reassign the origin again: saving replaces the previous declaration instead of adding a second one. The old link survives if the new one is refused. |
+| `no machine with serial … has ever been seen in Devices` (amber, after saving) | The declared asset serial matches no device in the account. Most often a typo; legitimately, a machine that never booted tScrub. | If it is a typo, reassign with the right serial (that replaces the wrong one). If the asset never booted, this is expected: the certificate lists it as a declared-only asset. |
 | `origin ambiguous between assets` | Two non-processing hosts both reported the medium. | Decide which is the asset and mark the other as a processing host, or correct the COCID/report. The certificate will not pick one. |
 | `no completed erasure evidence` | The link exists but no erasure report for that medium is in this COCID yet. | Run or upload the bench report under the same COCID. |
 | A no-media asset says `boot snapshot <time>` only | The appliance never saw a drive. | If media existed, declare the link. If not, this is the correct record. |

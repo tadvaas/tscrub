@@ -2430,7 +2430,16 @@ if ($method === 'POST' && $route === '/media/link') {
     if (!$res['ok']) {
         fail(409, (string)$res['error']);
     }
-    json_out(['ok' => true, 'id' => (int)$res['id']], 201);
+    // Forwarded explicitly: this array is rebuilt here, so a key added to
+    // media_link_declare() is NOT automatically visible to the dashboard.
+    // `asset_known` lets the form flag a serial the account has never seen (a
+    // likely typo) without the API refusing a machine that never booted tScrub.
+    json_out([
+        'ok'          => true,
+        'id'          => (int)$res['id'],
+        'replaced'    => (int)($res['replaced'] ?? 0),
+        'asset_known' => (bool)($res['asset_known'] ?? true),
+    ], 201);
 }
 
 // DELETE /api/media/link/{id} — remove a declared link.

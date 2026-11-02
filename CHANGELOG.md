@@ -10,6 +10,17 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **Reassigning a medium's origin now replaces the previous declaration, and the
+  serial is checked against Devices.** Declaring an origin used to add a second
+  claim, which the provenance rule correctly read as ambiguous and refused — so a
+  mistyped asset serial could not be corrected from the dashboard at all. Saving
+  now replaces the declaration for that medium in that job (the old row is
+  deleted only after the new origin passes the same dry run). The response also
+  reports whether the serial matches a machine the account has seen: a typo is
+  flagged amber after saving, but the link is still recorded, because a machine
+  that never boots tScrub (media pulled and erased on the bench) has no device
+  row and declaring its origin is exactly what the feature is for.
+
 - **The bench-host visibility control moved into the Filters modal.** It was a
   toolbar toggle beside Filters, which is not where an operator looks to ask
   "what is in this list", and it stayed invisible until a host existed. It is now
