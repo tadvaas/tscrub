@@ -42,6 +42,27 @@ step links to the detailed section that follows:
    answers: a stale symlink, a stale page fallback and a manifest at the wrong
    path all return HTTP 200.
 
+## Dashboard-only release (no appliance build)
+
+Most dashboard work — provenance, media origins, bench hosts, manual records —
+touches `marketing/` only. The appliance, ISO and PXE kernel are unchanged, so
+skip §2 entirely:
+
+```bash
+cd marketing
+npm run deploy:server     # backend FIRST: the new UI calls the new routes
+npm run build && npm run deploy
+```
+
+Order matters. The pages are static and cache-busted only by their `?v=` query,
+so a browser can hold a new page against an old `api.php`; deploying the backend
+first means the only mismatched state is old UI + new API, which is harmless.
+Bump the shared-script `?v=` (§1 note) in the same commit as any change to
+`manual-assets.js` / `report-corrections.js`.
+
+Verify with the "Post-deploy verification" block plus the dashboard checklist
+under §3.
+
 ## Signing keys (overview)
 
 There are several distinct signing operations, each with its own key. The deploy
@@ -85,6 +106,14 @@ Notes:
 - `--delete` removes anything in the docroot that isn't in `dist/`. The form backend lives **outside** the docroot (`~/webs/tscrub-form/`), so it's unaffected.
 - Static SEO/LLM files (`robots.txt`, `sitemap.xml`, `llms*.txt`, `favicon.svg`) live in `marketing/site/public/` and ship automatically.
 - Auth pages (`login`, `register`, `dashboard`, `admin`) ship automatically and are `noindex` (disallowed in `robots.txt`).
+- **Shared dashboard scripts need a version bump.** `manual-assets.js` and
+  `report-corrections.js` are `site/public/` files loaded with `?v=N`, and
+  Cloudflare serves `/assets/*` for 30 days as `immutable`. A redeploy does NOT
+  change what browsers get: bump the `?v=` in every page that loads the script
+  (`devices.html`, `drives.html`) **in the same commit** as the change, then
+  rebuild + redeploy. Current values are visible with
+  `grep -n 'assets/.*\.js?v=' marketing/site/dashboard/*.html`; the query string
+  is the cache key, so it is the only reliable way to ship a JS fix.
 
 ## 2. Product (`product/`)
 
@@ -370,15 +399,14 @@ npm run deploy:server
 ```
 
 What it copies: `deploy-server.sh` first propagates `site/public/logo.png` into
-`server/logo.png`, then rsyncs the **entire** `marketing/server/` directory —
-`api.php`, `auth.php`, `bios_unlock.php`, `db.php`, `download-manifest.json`,
-`http.php`, `mail.php`, `mdm.php`, `mdm-worker.php`, `migrate.php`,
-`render_cert.php`, `render_diag.php`, `render_drive.php`, `reports_lib.php`,
-`schema.sql`, `seed-admin.php`, `stripe.php`, `submit.php`, `verify.php`,
-`sendmail.py`, `issue_licence.py`, `config.example.json`, `nginx-location.conf`,
-`cert-bg.png`, and `tcpdf/`. Deliberately **no `--delete`**; it excludes the
-runtime-only files `config.json`, `certificates/`, `sign.crt`, `sign.key`,
-`vendor.key`, and `__pycache__/`.
+`server/logo.png`, then rsyncs the **entire** `marketing/server/` directory
+(PHP handlers, `reports_lib.php` and the provenance modules, `manual_destruction.php`,
+`media_provenance.php`, `claim_lib.php`, `jsonld.php`, `render_*.php`, `schema.sql`,
+`tcpdf/`, `cert-bg.png`, the Python helpers and `nginx-location.conf`). The script
+is the source of truth for the list — do not enumerate files here and trust it.
+It is deliberately **no `--delete`** and excludes the runtime-only files
+`config.json`, `certificates/`, `sign.crt`, `sign.key`, `vendor.key`, and
+`__pycache__/`.
 
 ### One-time DB setup (already done on this server)
 
@@ -407,6 +435,14 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && php seed-admin.php <admin-email>
 
 - Host `127.0.0.1:3306`, database `tScrub`, user `tScrub`. Credentials live only in `config.json` (mode 640, group www-data); `config.example.json` is the template. Never commit the real password.
 - Tables: `users`, `sessions`, `certificates`, `certificate_reports`, `certificate_drives`, `licences`, `api_tokens`, `tokens`, `admin_audit_log`, `credit_events`, `subscriptions`, `stripe_events`.
+- Media-provenance tables (created lazily on first use by
+  `asset_media_ensure_schema()`, and in `schema.sql` for a fresh install):
+  `media_links` (declared media → device origin, one row per job + media item),
+  `processing_hosts` (our marked bench machines, excluded from device counts),
+  `certificate_assets` (the frozen per-certificate device accounting; needs
+  `PRIMARY KEY (id)` or MySQL 1075 aborts the whole lazy batch), and
+  `declared_devices` (devices an operator put on file because the machine never
+  boots tScrub).
 - `licences.pub_key` holds the base64 DER (SPKI) public half of each paid licence's report key, derived at issuance, so uploaded reports can be bound back to the licence (attribution). Free licences leave it empty. On an existing server, add it and backfill with:
 
 ```bash
@@ -415,6 +451,47 @@ ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && mysql --defaults-extra-file=/tmp
 ```
 - `/verify` reads MySQL only. The `certificates/` JSON dir is kept on disk for the record but is no longer the source of truth.
 - Backups are handled by Proxmox Backup Server (hypervisor-level, covers MySQL) — no separate `mysqldump` cron needed.
+
+### Media provenance, declared devices and manual records (2026-11)
+
+The Media/Devices provenance features ship entirely in `reports_lib.php` +
+`api.php` + the dashboard pages, with four tables. What an operator or a deploy
+has to know:
+
+1. **Media origins are gated on the device existing.** `POST /api/media/link`
+   answers `409` with `unknown_asset: true` when the serial is neither an
+   observed machine (a diagnostics snapshot) nor a `declared_devices` row. The
+   Reassign origin form turns that into one action ("Record device … and link"),
+   which writes the register row and the link in one transaction.
+2. **A declared device is a register entry, not evidence.** Badged `Declared`,
+   no measured facts, replaced by a real diagnostics row if the machine ever
+   boots, removable from Ops only while no media link and no report refers to it.
+3. **Bench machines are marked, not guessed.** `processing_hosts` is what makes
+   an erasure report "evidence only"; a bench that is NOT marked becomes the
+   origin of every drive erased on it (this is why the Ops card warns before
+   unmarking).
+4. **Manually recorded records are editable** (`PUT /api/certificates/devices/{id}`,
+   `PUT /api/certificates/media/{id}`, `PUT /api/devices/declared/{key}`). The
+   COCID is read from the row, never from the client; a declared device's serial
+   is immutable because `media_links.asset_serial` stores it literally.
+
+Force-create the tables (idempotent; the app also creates them on first use):
+
+```bash
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && \
+  printf "[client]\nhost=127.0.0.1\nuser=tScrub\npassword=<DB_PASSWORD>\ndatabase=tScrub\n" > /tmp/.my.cnf && \
+  chmod 600 /tmp/.my.cnf && mysql --defaults-extra-file=/tmp/.my.cnf < schema.sql && rm -f /tmp/.my.cnf'
+
+# sanity: all four must be present, and certificate_assets must have its PK
+ssh oxwet@192.168.0.6 'cd ~/webs/tscrub-form && php -r "
+require \"db.php\";
+foreach ([\"media_links\",\"processing_hosts\",\"certificate_assets\",\"declared_devices\"] as \$t) {
+  echo \$t . \"=\" . (db_table_exists(\$t) ? \"yes\" : \"NO\") . PHP_EOL;
+}"'
+```
+
+If `certificate_assets` is missing on a live server, look for MySQL 1075 in the
+PHP log: its `AUTO_INCREMENT` id must be the **first** column of a key.
 
 ### Stripe payments (device credits)
 
@@ -562,6 +639,14 @@ order:
 - `marketing/site/public/llms.txt` + `llms-full.txt` — whenever a page is added
   or retitled, or a service/feature list changes (keep the LLM context files in
   sync per the SEO preference).
+- **Certificate wording.** The dashboard, the PDF and `/verify` now say
+  `DEVICE ACCOUNTING` and `Origin device` (they said ASSET/medium before
+  2026-11-02), and the dashboard says "media item" rather than "medium". The
+  signed JSON-LD keys (`originAsset`, `assetAccounting`) are a machine contract
+  and deliberately keep their old names — do not "fix" them. Certificates issued
+  before the change keep the wording they were signed with; only regeneration
+  prints the new one. Check `docs.html` §10 ("Media removed and erased on
+  another machine") against the current PDF.
 
 ### Claim surfaces (when the release changes what the product ASSERTS)
 
@@ -629,6 +714,30 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://tscrub.com/how-
 
 # product build
 cd product && grep -c 'LICENSE_VENDOR_PUBLIC_KEY_B64' build/tscrub.sh
+```
+
+### Dashboard features: media provenance and manual records
+
+These need a logged-in session, so run them in the browser (console) or with a
+cookie jar. In the dashboard, in order:
+
+1. **Devices → Filters** opens with a `PROCESSING HOST` group (a chip, not a
+   checkbox) and the bench row is **visible by default**; `?bench=hide` hides it.
+2. **Media → a medium → Reports ▾ → View** shows `Origin device` (not "Origin
+   asset"), and `Reassign origin` offers **Record device … and link** when the
+   serial is unknown.
+3. `POST /api/media/link` with an unknown serial answers **409** and
+   `"unknown_asset": true` — never 200. This is the gate; a 200 here means the
+   deployed `api.php` predates it.
+4. **Confirm the four tables exist** (command above) and that
+   `certificate_assets` has a primary key.
+5. **An attested row has three actions** (details, edit, remove), and the edit
+   form opens with the COCID disabled.
+
+```bash
+# read-only smoke against the public surfaces (no login)
+curl -s -o /dev/null -w "api/me %{http_code}\n" https://tscrub.com/api/me
+curl -s -o /dev/null -w "verify %{http_code}\n" "https://tscrub.com/verify?cert=<issued-cert-id>"
 ```
 
 ## 6. Git commit, tag & push (Mac repo)
