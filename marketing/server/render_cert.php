@@ -26,6 +26,41 @@ require_once __DIR__ . '/cert_terms.php';
 require_once __DIR__ . '/claim_lib.php';
 require_once __DIR__ . '/media_provenance.php';
 
+function cert_head_metrics(): array
+{
+    return [
+        'size' => 10.0,   // every section title, so no page introduces its own weight
+        'cell' => 5.0,    // one line of it
+        'gap'  => 1.5,    // millimetres between the rule and the first content row
+    ];
+}
+
+/**
+ * Draw a section title and return the Y its content starts at.
+ *
+ * There is exactly ONE definition of that geometry (cert_head_metrics), because
+ * the space under a title is a thing a reader sees and cannot un-see: the annex
+ * sections each drew their own heading, and two of them then started their first
+ * line wherever the previous cell happened to leave the cursor — the method
+ * summary's bullets sat 1.2 mm under their rule while the device accounting's
+ * lines sat 2.6 mm under theirs. Anything that heads a section goes through here.
+ */
+function cert_heading(TCPDF $pdf, float $x, float $y, float $w, string $title, bool $rule = true): float
+{
+    $m = cert_head_metrics();
+    $pdf->SetFont('helvetica', 'B', $m['size']);
+    $pdf->SetTextColor(11, 18, 32);
+    $pdf->SetXY($x, $y);
+    $pdf->Cell($w, $m['cell'], $title, 0, 1, 'L');
+    if ($rule) {
+        $pdf->SetLineWidth(0.2);
+        $pdf->SetDrawColor(203, 213, 225);
+        $pdf->Line($x, $y + $m['cell'], $x + $w, $y + $m['cell']);
+        $pdf->SetDrawColor(0, 0, 0);
+    }
+    return $y + $m['cell'] + $m['gap'];
+}
+
 function fmt_ts($ts) {
     if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/', (string)$ts, $m)) {
         return $m[1] . ' ' . $m[2];
@@ -558,20 +593,17 @@ function cert_render_manifest(TCPDF $pdf, float $x, float $W, float $H, string $
     $pdf->AddPage();
     $bg();
     $pageLabel();
-    $pdf->SetFont('helvetica', 'B', 12);
-    $pdf->SetTextColor(11, 18, 32);
-    $pdf->SetXY($x, 20);
-    $pdf->Cell($W - 2 * $x, 6, 'REPORT MANIFEST', 0, 1, 'L');
-
+    $pdf->SetY(cert_heading($pdf, $x, 20, $W - 2 * $x, 'REPORT MANIFEST'));
+    // The heading leaves the cursor in its own 10 pt bold; the manifest body is
+    // small grey mono-ish text like the rest of the annex.
     $pdf->SetFont('helvetica', '', 7.5);
     $pdf->SetTextColor(71, 85, 105);
-    $pdf->SetY(28);
     foreach ($reports as $r) {
         $mark  = ($r['state'] ?? '') === 'mismatch' ? '[FAIL]' : (($r['state'] ?? '') === 'verified' ? '[OK]' : '[REC]');
         $state = ($r['state'] ?? '') === 'verified' ? 'sha256 verified' : (($r['state'] ?? '') === 'mismatch' ? 'MISMATCH' : 'sha256 recorded');
         $line  = $mark . '  ' . ($r['name'] ?? '') . '  -  ' . ($r['sha'] ?? '') . '  (' . $state . ')';
 
-        if ($pdf->GetY() + 4 > $H - 12) {
+        if ($pdf->GetY() + 3.8 > $H - 12) {
             $pdf->AddPage();
             $bg();
             $pageLabel();
@@ -579,8 +611,10 @@ function cert_render_manifest(TCPDF $pdf, float $x, float $W, float $H, string $
             $pdf->SetFont('helvetica', '', 7.5);
             $pdf->SetTextColor(71, 85, 105);
         }
-        $pdf->SetX($x);
-        $pdf->Cell($W - 2 * $x, 4, $line, 0, 1, 'L');
+        // MultiCell at the same 3.8 line as the annex's other lists, so the first
+        // line sits the same distance under the title's rule as they do.
+        $pdf->SetXY($x, $pdf->GetY());
+        $pdf->MultiCell($W - 2 * $x, 3.8, $line, 0, 'L');
     }
 }
 
@@ -598,17 +632,10 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
 
     $w = $W - 2 * $x;
 
-    // A section heading and its rule. Returns the Y to continue from.
+    // A section heading and its rule. The geometry lives in cert_heading(), so
+    // this page's titles are spaced exactly like every other page's.
     $heading = function (float $hy, string $title) use ($pdf, $x, $w): float {
-        $pdf->SetFont('helvetica', 'B', 10);
-        $pdf->SetTextColor(11, 18, 32);
-        $pdf->SetXY($x, $hy);
-        $pdf->Cell($w, 5, $title, 0, 1, 'L');
-        $pdf->SetLineWidth(0.2);
-        $pdf->SetDrawColor(203, 213, 225);
-        $pdf->Line($x, $hy + 5.0, $x + $w, $hy + 5.0);
-        $pdf->SetDrawColor(0, 0, 0);
-        return $hy + 6.4;
+        return cert_heading($pdf, $x, $hy, $w, $title);
     };
 
     // ---- Annex A, first page: the annex title block ----
@@ -624,7 +651,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
 
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(100, 116, 139);
-    $pdf->SetXY($x, 21);
+    $pdf->SetXY($x, 10 + 10 + cert_head_metrics()['gap']);   // same gap as every section title
     $pdf->Cell($w, 4.5, 'Item-level record of ' . count($drives) . ' media item(s) processed under Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
 
     // ---- One page per section ----
@@ -736,7 +763,10 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 . ' — ' . $b['technique']
                 . ' — ' . $b['n'] . ' media item(s)';
             $pdf->SetTextColor(51, 65, 85);
-            $pdf->SetX($x);
+            // Explicit Y: the text block continues from the cursor, and the
+            // heading's Cell leaves it on the rule, not at the content Y. That is
+            // exactly the 1.5 mm this page was missing.
+            $pdf->SetXY($x, $y);
             $pdf->MultiCell($w, 3.8, $line, 0, 'L');
             $y = $pdf->GetY() + 0.6;
         }
@@ -745,7 +775,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
         if ($disposition !== '') {
             $pdf->SetFont('helvetica', 'I', 7.5);
             $pdf->SetTextColor(100, 116, 139);
-            $pdf->SetX($x);
+            $pdf->SetXY($x, $y);
             $pdf->MultiCell($w, 3.8, 'Media disposition: ' . $disposition . '.', 0, 'L');
             $pdf->SetFont('helvetica', '', 7.5);
             $y = $pdf->GetY() + 1.2;
@@ -845,11 +875,7 @@ function cert_render_attested_section($pdf, array $attested, float $startY, stri
     $heading = $retained > 0
         ? 'OPERATOR ATTESTATION — NOT INSTRUMENT-VERIFIED'
         : 'PHYSICALLY DESTROYED — OPERATOR ATTESTATION';
-    $pdf->SetFont('helvetica', 'B', 9);
-    $pdf->SetTextColor(11, 18, 32);
-    $pdf->SetXY($x, $y);
-    $pdf->Cell($w, 4.5, $heading, 0, 1, 'L');
-    $y += 5.0;
+    $y = cert_heading($pdf, $x, $y, $w, $heading);
 
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(51, 65, 85);
@@ -1298,7 +1324,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
     $pdf->SetFont('helvetica', '', $subFont);
     $pdf->SetTextColor(71, 85, 105);
-    $pdf->SetXY(10, 32);
+    $pdf->SetXY(10, 16 + 12 + cert_head_metrics()['gap']);   // same gap as every section title
     $pdf->Cell($W - 20, 5, $subTxt, 0, 1, 'C');
 
     // Outcome banner — states the claim ("data destroyed") plus, implicitly, the
@@ -1356,16 +1382,11 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
     $pdf->setCellPaddings(0, 0, 0, 0);
 
-    // Section primitives.
-    $sectionHeader = function (float $sx, float $sy, float $sw, string $title) use ($pdf): void {
-        $pdf->SetFont('helvetica', 'B', 10);
-        $pdf->SetTextColor(11, 18, 32);
-        $pdf->SetXY($sx, $sy);
-        $pdf->Cell($sw, 5, $title, 0, 0, 'L');
-        $pdf->SetLineWidth(0.2);
-        $pdf->SetDrawColor(203, 213, 225);
-        $pdf->Line($sx, $sy + 5.0, $sx + $sw, $sy + 5.0);
-        $pdf->SetDrawColor(0, 0, 0);
+    // Section primitives. Every title in this document — page 1's sections, the
+    // annex's, the manifest's — is drawn by cert_heading(), so the space under a
+    // title is the same everywhere; see cert_head_metrics().
+    $sectionHeader = function (float $sx, float $sy, float $sw, string $title) use ($pdf): float {
+        return cert_heading($pdf, $sx, $sy, $sw, $title);
     };
     $row = function (float $sx, float $sy, float $labelW, float $valueW, string $label, string $value, array $color = [11, 18, 32]) use ($pdf): void {
         $pdf->SetFont('helvetica', '', 7.5);
@@ -1448,8 +1469,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     $labelW   = 30.0;
     $sectionY = 70.0;
 
-    $sectionHeader(30, $sectionY, 237, 'ERASURE INFORMATION');
-    $yy = $sectionY + 5.8;
+    $yy = $sectionHeader(30, $sectionY, 237, 'ERASURE INFORMATION');
     $maxRows = max(count($erasureL), count($erasureR));
     for ($r = 0; $r < $maxRows; $r++) {
         if (isset($erasureL[$r])) $row($gridX[0], $yy, $labelW, $gridW - $labelW, $erasureL[$r][0], $erasureL[$r][1]);
@@ -1458,8 +1478,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
 
     $yy += 2.2;
-    $sectionHeader(30, $yy, 237, 'PERSONNEL & AUTHORITY');
-    $yy += 5.8;
+    $yy = $sectionHeader(30, $yy, 237, 'PERSONNEL & AUTHORITY');
     $maxRows = max(count($personnelL), count($personnelR));
     for ($r = 0; $r < $maxRows; $r++) {
         if (isset($personnelL[$r])) $row($gridX[0], $yy, $labelW, $gridW - $labelW, $personnelL[$r][0], $personnelL[$r][1]);
@@ -1467,11 +1486,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
         $yy += 3.6;
     }
 
-    // Attestation.
-    $pdf->SetFont('helvetica', 'B', 9);
-    $pdf->SetTextColor(11, 18, 32);
-    $pdf->SetXY(30, 118);
-    $pdf->Cell(237, 4.5, 'ATTESTATION', 0, 1, 'L');
+    // Attestation. The title is drawn one gap above the paragraph so the band
+    // itself keeps the full height it was sized for (cert_attestation_band()).
+    $attBand = cert_attestation_band();
+    cert_heading($pdf, 30, $attBand['y'] - cert_head_metrics()['cell'] - cert_head_metrics()['gap'], 237, 'ATTESTATION');
 
     $pdf->SetTextColor(51, 65, 85);
     $toolName = ($toolVersion !== '' ? 'tScrub ' . $toolVersion : 'tScrub');
@@ -1481,10 +1499,10 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // Drawn at the largest size that fits the band. The wording above is short enough to
     // fit at the full size for every job shape; this is the guard that keeps it that way,
     // because the alternative to shrinking is printing over the operator's name.
-    $band = cert_attestation_band();
-    $pdf->SetFont('helvetica', '', cert_attestation_size($pdf, $attestation, $band['w'], $band['h'], $band['max'], $band['min']));
-    $pdf->SetXY($band['x'], $band['y']);
-    $pdf->MultiCell($band['w'], $band['line'], $attestation, 0, 'L');
+    $attBand = cert_attestation_band();
+    $pdf->SetFont('helvetica', '', cert_attestation_size($pdf, $attestation, $attBand['w'], $attBand['h'], $attBand['max'], $attBand['min']));
+    $pdf->SetXY($attBand['x'], $attBand['y']);
+    $pdf->MultiCell($attBand['w'], $attBand['line'], $attestation, 0, 'L');
 
     // Signature blocks. The operator line carries the erasure completion date;
     // the validator line is only drawn when a validator was actually supplied

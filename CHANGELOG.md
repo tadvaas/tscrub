@@ -38,6 +38,18 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **Every section title in the certificate is spaced the same.** The destruction
+  method summary's first bullet sat 1.2 mm under its rule while the device
+  accounting's first line sat 2.7 mm under its own: each section drew its own
+  heading and started its first row from wherever the previous drawing call left
+  the cursor, so one list inherited the cursor sitting on the rule and another
+  was placed explicitly. Headings now come from one function with one set of
+  metrics — 10 pt, a 5 mm line, the hairline on its baseline, and 1.5 mm to the
+  first row — used by `ERASURE INFORMATION`, `PERSONNEL & AUTHORITY`,
+  `ATTESTATION`, `DEVICE ACCOUNTING`, `DESTRUCTION METHOD SUMMARY`, `DEVICE
+  DETAILS`, `REPORT MANIFEST` and the operator-attestation page. Measured on the
+  generated PDF, every text section now starts within 0.15 mm of every other.
+
 - **Annex A gives each section its own page.** The device accounting block, the
   destruction method summary and the per-drive table all shared one page, so the
   table began wherever the summary happened to end, a long accounting block

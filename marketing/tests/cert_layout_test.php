@@ -140,5 +140,59 @@ t_check('one section opener owns the AddPage decision',
 t_check('the method summary no longer draws its own heading inline',
     strpos($annex, "\$pdf->SetXY(\$x, \$y);\n        \$pdf->Cell(\$W - 2 * \$x, 5, 'DESTRUCTION METHOD SUMMARY'") === false);
 
+echo "\n== 4. every section title is drawn by one primitive, at one spacing ==\n";
+// The reported defect: DESTRUCTION METHOD SUMMARY sat 1.16 mm under its rule
+// while DEVICE ACCOUNTING sat 2.66 mm under its own. The cause was a MultiCell
+// continuing from the cursor the heading's Cell left on the rule instead of from
+// the Y the heading returns.
+t_check('one heading primitive exists (cert_heading)', preg_match('/function cert_heading\(/', $src) === 1);
+t_check('its geometry is defined once (cert_head_metrics)', preg_match('/function cert_head_metrics\(/', $src) === 1);
+t_check('cert_heading is the only place that measures a title',
+    preg_match('/\$m = cert_head_metrics\(\);\s*\$pdf->SetFont\(\'helvetica\', \'B\', \$m\[\'size\'\]\);/', $src) === 1);
+
+$titles = [
+    // title => the wrapper that must receive it
+    'ERASURE INFORMATION'        => '/\$sectionHeader\([^;]*\'ERASURE INFORMATION\'/',
+    'PERSONNEL & AUTHORITY'      => '/\$sectionHeader\([^;]*\'PERSONNEL & AUTHORITY\'/',
+    'ATTESTATION'                => '/cert_heading\([^;]*\'ATTESTATION\'/',
+    'DEVICE ACCOUNTING'          => '/\$section\(\'DEVICE ACCOUNTING\'\)/',
+    'DESTRUCTION METHOD SUMMARY' => '/\$section\(\'DESTRUCTION METHOD SUMMARY\'\)/',
+    'DEVICE DETAILS'             => '/\$section\(\'DEVICE DETAILS\'\)/',
+    'REPORT MANIFEST'            => '/cert_heading\([^;]*\'REPORT MANIFEST\'/',
+];
+foreach ($titles as $title => $pattern) {
+    t_check('"' . $title . '" is drawn through the heading primitive', preg_match($pattern, $src) === 1);
+}
+// …and every wrapper delegates, so there is one geometry, not one per page.
+t_check('the page-1 section wrapper delegates to cert_heading',
+    preg_match('/\$sectionHeader = function[^{]*\{[^}]*cert_heading\(/', $src) === 1);
+t_check('the annex section opener delegates to the heading',
+    preg_match('/\$heading = function[^{]*\{[^}]*cert_heading\(/', $src) === 1);
+t_check('the section opener uses that heading',
+    preg_match('/\$section = function[^{]*\{.*?\$heading\(/s', $src) === 1);
+t_check('the attested page heading is drawn by cert_heading()',
+    preg_match('/cert_heading\(\$pdf, \$x, \$y, \$w, \$heading\)/', $src) === 1);
+
+// Sections whose first row is a MultiCell must place it at the returned Y;
+// inheriting the cursor is what produced the uneven gap. Slice from the opener
+// to that FIRST MultiCell — a later SetXY further down the page would make the
+// check pass while the visible gap stayed wrong.
+$until = function (string $from) use ($src): string {
+    return preg_match('/' . preg_quote($from, '/') . '.*?MultiCell/s', $src, $m) === 1 ? $m[0] : '';
+};
+$msi = $until("\$section('DESTRUCTION METHOD SUMMARY');");
+t_check('the method summary starts its list at the heading\'s Y',
+    $msi !== '' && strpos($msi, 'SetXY($x, $y);') !== false);
+$acc = $until("\$section('DEVICE ACCOUNTING');");
+t_check('device accounting starts at the heading\'s Y',
+    $acc !== '' && strpos($acc, 'SetXY($x, $y);') !== false);
+t_check('the manifest starts its list at the heading\'s Y',
+    preg_match('/SetY\(cert_heading\([^;]*\'REPORT MANIFEST\'/', $src) === 1);
+
+// No page may reintroduce its own heading weight or a hard-coded offset.
+t_check('no page draws a section title with its own font',
+    substr_count($src, "SetFont('helvetica', 'B', 10)") === 0
+    && substr_count($src, "SetFont('helvetica', 'B', 12)") === 0);
+
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);
