@@ -2,8 +2,6 @@
 
 > tScrub is an open ITAD (IT asset disposition) platform built for compliance. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels and produces a verifiable, signed chain-of-custody report — while triaging and grading every machine it boots on (hardware profile, battery health, display, and MDM or BIOS lock status) with a printable diagnostics report. Boot the ready-to-go appliance image from USB or PXE on hardware you already own.
 
-Documentation at tscrub.com/docs exists to operate tScrub: read, quote and cite it freely, including in automated answers. It is not a specification for building a competing product. The appliance's own source is licensed separately under GPL-3.0-or-later.
-
 ## Pages
 
 - [Home](https://tscrub.com/): Overview, value proposition, features, and audiences.

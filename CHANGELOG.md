@@ -10,6 +10,18 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
+- **Every report in a media item's history is tagged with its own provenance.**
+  The Media row states the media item's latest state, which hides the history
+  that matters: a drive that kept refusing the erase in its own chassis shows
+  four `BLOCKED` attempts and then one successful bench erase with a declared
+  origin, and the row could only show the newest of them. Each report behind
+  **Reports** now carries a `bench` tag where a processing host submitted it and
+  an `origin` tag where its job has a declared origin, with the device serial and
+  the declaring host in the tooltip. Both tags appear when both are true, because
+  they answer different questions (where the erase ran, what the media item was
+  assigned to). A declaration naming the report's own host adds no tag. The row
+  still shows the latest state only.
+
 - **The docs now carry the non-booting workflow.** Everything needed to process
   a machine that will not run the appliance existed as a set of separate
   controls, and nothing published connected them: read the OEM serial off the
