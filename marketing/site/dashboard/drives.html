@@ -980,49 +980,16 @@
         if (origin !== '') { return null; }   // declared as the host itself: in place
         if (d.host_processing) {
           var b = el('span', 'ml-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'bench');
-          b.title = 'Last report came from a processing host' + (host ? ' (' + host + ')' : '')
-            + '. If this media item came from a customer device, open Reports → View → Reassign origin.';
+          b.title = 'Submitted by a processing host' + (host ? ' (' + host + ')' : '')
+            + ', so this erasure ran on a bench machine. If the media item came from a customer device, open Reports → View → Reassign origin.';
           return b;
         }
         if (host === '') {
           var n = el('span', 'ml-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'no host');
-          n.title = 'This report has no host serial, so the origin device cannot be assumed. Reassign it if the media item came from another device.';
+          n.title = 'No host serial was recorded, so the origin device cannot be assumed. Reassign it if the media item came from another device.';
           return n;
         }
         return null;
-      }
-
-      // Provenance of ONE report, for the list behind the Reports button.
-      //
-      // The row above answers "what is outstanding for this media item?", which is
-      // why a declared origin suppresses the bench chip there. A report list asks a
-      // different question: what was true of THIS submission, and what has since
-      // been declared about its job. Both are shown when both apply — `bench` says
-      // where the erase ran, `origin` says which device the operator assigned the
-      // media item to — and each carries its own title, so neither has to be guessed.
-      function reportProvenanceChips(h) {
-        var out = [];
-        var host = String(h.sysserial || '');
-        var origin = String(h.origin_asset || '');
-        if (h.host_processing) {
-          var b = el('span', 'shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'bench');
-          b.title = 'Submitted by a processing host' + (host ? ' (' + host + ')' : '')
-            + ', so this erasure ran on a bench machine rather than in the device\u2019s own chassis.';
-          out.push(b);
-        }
-        if (origin !== '' && origin.toLowerCase() !== host.toLowerCase()) {
-          var o = el('span', 'shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-400', 'origin');
-          o.title = 'Origin device ' + origin
-            + (h.origin_provenance === 'declared' ? ' (declared by operator)' : '')
-            + '. This report was erased on ' + (host || 'a host that reported no serial') + '.';
-          out.push(o);
-        }
-        if (host === '' && origin === '') {
-          var n = el('span', 'shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', 'no host');
-          n.title = 'This report has no host serial, so the origin device cannot be assumed.';
-          out.push(n);
-        }
-        return out;
       }
 
       // Newest submission first. The API already returns this order, but the list
@@ -1065,13 +1032,13 @@
         historySorted(d).forEach(function (h) {
           var row = el('div', 'rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-ink-700 dark:bg-ink-800');
           var top = el('div', 'flex items-center justify-between gap-2');
-          // The COC keeps its truncation; the chips are shrink-0 beside it, so a
-          // long ID gives way to the tags rather than pushing the status off the row.
-          var idbox = el('div', 'flex min-w-0 items-center gap-1');
-          idbox.appendChild(el('span', 'truncate font-mono font-semibold text-brand-700 dark:text-brand-400', h.cocid || '—'));
-          reportProvenanceChips(h).forEach(function (c) { idbox.appendChild(c); });
-          top.appendChild(idbox);
-          top.appendChild(el('span', 'shrink-0 ' + statusChipClass(h.status), h.status || '—'));
+          top.appendChild(el('span', 'truncate font-mono font-semibold text-brand-700 dark:text-brand-400', h.cocid || '—'));
+          // One tag, in the status position exactly as on the row above.
+          var hstat = el('div', 'flex shrink-0 items-center');
+          hstat.appendChild(el('span', statusChipClass(h.status), h.status || '—'));
+          var hprov = provenanceChip(h);
+          if (hprov) hstat.appendChild(hprov);
+          top.appendChild(hstat);
           row.appendChild(top);
           var submitted = fmtTsTime(h.uploaded_at);
           var erased = fmtTsTime(h.ts || h.uploaded_at);
@@ -1558,21 +1525,20 @@
               if (h.report_devices > 1) {
                 hcoc.appendChild(el('span', 'block text-[10px] text-slate-400 dark:text-slate-500', h.report_devices + ' media items in report'));
               }
-              // Same tags as the card, on the report's identity cell: the sub-table
-              // has no provenance column and adding one would re-cut every width in
-              // it, so the tag sits with the COC it belongs to.
-              var hchips = reportProvenanceChips(h);
-              if (hchips.length) {
-                var hbox = el('div', 'mt-1 flex flex-wrap items-center gap-1');
-                hchips.forEach(function (c) { hbox.appendChild(c); });
-                hcoc.appendChild(hbox);
-              }
               htr.appendChild(hcoc);
               htr.appendChild(el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.uploaded_at) || '—'));
               var erasedCell = el('td', 'px-2 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400', fmtTsTime(h.ts || h.uploaded_at) || '—');
               if (erasureClockBad(h)) erasedCell.appendChild(clockChip());
               htr.appendChild(erasedCell);
-              htr.appendChild(el('td', 'px-2 py-1.5 ' + statusClass(h.status), h.status || '—'));
+          // Tags are identical in both places: one tag per report, in the status
+          // cell, so a report list reads like the row above it ("COMPLETED origin").
+          // It is the media item's CURRENT provenance, not two facts side by side:
+          // a declared origin wins, exactly as it does on the row.
+          var hstatusCell = el('td', 'px-2 py-1.5', '');
+          hstatusCell.appendChild(el('span', statusClass(h.status), h.status || '—'));
+          var hstatusProv = provenanceChip(h);
+          if (hstatusProv) hstatusCell.appendChild(hstatusProv);
+          htr.appendChild(hstatusCell);
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.method || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 text-slate-700 dark:text-slate-300', h.cls || '—'));
               htr.appendChild(el('td', 'px-2 py-1.5 ' + smartClass(h.smartpost), h.smartpost || '—'));

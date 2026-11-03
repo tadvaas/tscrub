@@ -91,13 +91,14 @@ state both. The job (COCID) is the container for that evidence.
    instrument-verified. Saving **replaces** any origin already recorded for that
    media item in that job, so a mistyped serial is corrected by reassigning
    again.
-   **The list behind Reports tags every submission.** Each report carries a
-   `bench` tag where a processing host submitted it and an `origin` tag where
-   its job has a declared origin (the serial is in the tag's tooltip), so the
-   failed in-place attempts and the bench erase that followed are told apart at
-   a glance. The row above keeps the latest state only. A declaration naming the
-   report's own host adds no tag, because that media item was in place for that
-   job.
+   **The list behind Reports tags every submission.** Each report carries one
+   tag for its current state, in the status column exactly as the row above
+   carries it: `bench` while the job has no declared origin, and `origin` once
+   one is assigned (the serial is in the tooltip). So the blocked in-place
+   attempts and the bench erase that followed are told apart at a glance, and a
+   report whose origin was declared stops looking like an unexplained bench
+   erase. A declaration naming the report's own host adds no tag, because that
+   media item was in place for that job.
    **The device must be in Devices first.** A serial that is neither an observed
    machine nor a declared device is refused ("No device with serial … is in
    Devices"), and the form offers **Record device … and link**, which adds it to

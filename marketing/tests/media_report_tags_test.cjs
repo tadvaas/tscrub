@@ -1,24 +1,22 @@
 /**
- * Per-report provenance tags in the Media page's report list.
+ * The Media page's per-report provenance tag.
  *
- * The row above the list states the media item's LATEST provenance. The list
- * behind the Reports button states what was true of each submission, plus what
- * has since been declared about its job — a report that ran on the bench, and a
- * report whose job was later pointed at a device, are different facts and can
- * both be true of one report. The rules are pure, so the function is extracted
- * from the page's inline script and run against synthetic reports:
+ * The row above a report list states the media item's latest provenance. The
+ * list behind the Reports button states the same for EACH submission: one tag,
+ * in the status column, exactly as the row shows it ("COMPLETED origin").
  *
- *   - submitted by a processing host            -> `bench`
- *   - declared origin different from its host   -> `origin` (serial in the title)
- *   - both                                      -> both tags
- *   - declared origin equal to the host         -> nothing ("in place")
- *   - no host serial and no declaration         -> `no host`
- *   - no host serial but a declaration          -> `origin` only
+ *   - submitted on a bench, no declared origin   -> `bench`
+ *   - a declared origin for that job             -> `origin` (and only that:
+ *                                                   the tag is the CURRENT state,
+ *                                                   not a second fact beside it)
+ *   - declared origin equal to the report's host -> nothing ("in place")
+ *   - no host serial and no declaration          -> `no host`
  *
- * The wiring checks at the end assert the helper is called from BOTH renderers:
- * the card list and the table sub-row. A tag that exists in only one of them is
- * invisible at half the page widths, and no assertion about the helper would
- * notice.
+ * Both surfaces use the row's own `provenanceChip`, so the two can never drift
+ * apart. The rule is pure, so it is extracted from the page's inline script and
+ * run against synthetic reports; the wiring checks then assert the chip is
+ * actually appended in the status cell of both renderers, and NOT in the CoC
+ * cell (where it was tried first and read as part of the report ID).
  *
  * Run: node marketing/tests/media_report_tags_test.cjs
  */
@@ -45,11 +43,7 @@ function check(label, ok, detail) {
   }
 }
 
-/**
- * Pull one function out of the page by brace matching. The function is
- * self-contained (it only calls `el`), which is what makes this safe: there is
- * no capture of page state and nothing to stub beyond the element factory.
- */
+/** Pull one function out of the page by brace matching. */
 function extractFunction(src, name) {
   const start = src.indexOf('function ' + name + '(');
   if (start === -1) return null;
@@ -66,74 +60,80 @@ function extractFunction(src, name) {
   return null;
 }
 
-const src = extractFunction(js, 'reportProvenanceChips');
-check('reportProvenanceChips is defined in the Media page', src !== null);
+const src = extractFunction(js, 'provenanceChip');
+check('provenanceChip is defined in the Media page', src !== null);
 
 const el = (tag, cls, text) => ({ tag, cls: cls || '', text: text === undefined ? '' : text, title: '' });
-const chipsOf = src
-  ? new Function('el', src + '\nreturn reportProvenanceChips;')(el)
-  : () => [];
-const tags = (h) => chipsOf(h).map((c) => c.text);
-const chip = (h, text) => chipsOf(h).find((c) => c.text === text) || null;
+const chipOf = src
+  ? new Function('el', src + '\nreturn provenanceChip;')(el)
+  : () => null;
+const tags = (h) => {
+  const c = chipOf(h);
+  return c ? [c.text] : [];
+};
 
-// ---- a report submitted by the bench --------------------------------------
+// ---- not assigned: the bench is the current state -------------------------
 const bench = { sysserial: 'BENCH123', host_processing: 1 };
-check('bench report carries the bench tag', tags(bench).join(',') === 'bench', tags(bench).join(','));
-check('bench tag names the host in its title',
-  /BENCH123/.test((chip(bench, 'bench') || {}).title || ''), (chip(bench, 'bench') || {}).title);
-check('bench tag is the row chip\'s amber, not a new colour',
-  /bg-amber-100/.test((chip(bench, 'bench') || {}).cls || ''));
+check('a bench report with no assignment shows just bench',
+  tags(bench).join(',') === 'bench', tags(bench).join(','));
+check('the bench tag names the host',
+  /BENCH123/.test((chipOf(bench) || {}).title || ''), (chipOf(bench) || {}).title);
+check('the bench tag keeps the row chip\'s amber',
+  /bg-amber-100/.test((chipOf(bench) || {}).cls || ''));
 
-// ---- a report whose job has a declared origin -----------------------------
+// ---- assigned: origin REPLACES bench, it does not join it -----------------
 const declared = { sysserial: 'BENCH123', host_processing: 1, origin_asset: 'CZC1234ABC', origin_provenance: 'declared' };
-check('bench report with a declared origin carries both tags',
-  tags(declared).join(',') === 'bench,origin', tags(declared).join(','));
-check('origin tag names the device in its title',
-  /CZC1234ABC/.test((chip(declared, 'origin') || {}).title || ''), (chip(declared, 'origin') || {}).title);
-check('origin tag says the provenance is declared',
-  /declared by operator/.test((chip(declared, 'origin') || {}).title || ''), (chip(declared, 'origin') || {}).title);
-check('origin tag is the row chip\'s sky, not a new colour',
-  /bg-sky-100/.test((chip(declared, 'origin') || {}).cls || ''));
+check('once assigned the only tag is origin',
+  tags(declared).join(',') === 'origin', tags(declared).join(','));
+check('the origin tag names the device',
+  /CZC1234ABC/.test((chipOf(declared) || {}).title || ''), (chipOf(declared) || {}).title);
+check('the origin tag says the provenance is declared',
+  /declared by operator/.test((chipOf(declared) || {}).title || ''), (chipOf(declared) || {}).title);
+check('the origin tag keeps the row chip\'s sky',
+  /bg-sky-100/.test((chipOf(declared) || {}).cls || ''));
 
-// A declaration made on a report that ran in the device's own chassis: the
-// origin is the host, so there is nothing to flag.
-check('declared origin equal to the host adds no tag',
+// ---- declarations that add nothing ---------------------------------------
+check('a declaration naming the host itself adds no tag',
   tags({ sysserial: 'CZC1234ABC', origin_asset: 'CZC1234ABC' }).length === 0,
   tags({ sysserial: 'CZC1234ABC', origin_asset: 'CZC1234ABC' }).join(','));
 check('host/origin comparison ignores case',
   tags({ sysserial: 'czc1234abc', origin_asset: 'CZC1234ABC' }).length === 0,
   tags({ sysserial: 'czc1234abc', origin_asset: 'CZC1234ABC' }).join(','));
 
-// ---- ordinary reports ------------------------------------------------------
+// ---- ordinary and hostless reports ---------------------------------------
 check('an in-place report carries no tag',
   tags({ sysserial: 'HOST9' }).length === 0, tags({ sysserial: 'HOST9' }).join(','));
-
-// ---- reports with no host serial ------------------------------------------
 check('a report with no host serial is tagged no host',
   tags({ sysserial: '' }).join(',') === 'no host', tags({ sysserial: '' }).join(','));
-check('a declaration alone satisfies a report with no host serial',
+check('a declaration satisfies a report with no host serial',
   tags({ sysserial: '', origin_asset: 'CZC1234ABC', origin_provenance: 'declared' }).join(',') === 'origin',
   tags({ sysserial: '', origin_asset: 'CZC1234ABC' }).join(','));
 
-// ---- wiring: both renderers must paint the tags ---------------------------
-const definitionCount = (js.match(/reportProvenanceChips\s*\(/g) || []).length;
-check('the helper has exactly two call sites (one per renderer)',
-  definitionCount - 1 === 2, definitionCount - 1);
+// ---- wiring: the same chip, in the status position, in both renderers -----
+check('the two-tag helper is gone', !/reportProvenanceChips/.test(js));
 
-const historyStart = js.indexOf('function historyList(');
-const historyEnd = js.indexOf('function driveCard(');
-const cardBody = (historyStart > -1 && historyEnd > historyStart)
-  ? js.slice(historyStart, historyEnd)
-  : '';
-check('the card renderer calls the helper', /reportProvenanceChips\(h\)/.test(cardBody));
+// The definition matches the same pattern, so subtract it: four CALLS means the
+// two rows and the two report lists, which is every surface that shows one.
+const calls = (js.match(/provenanceChip\s*\(/g) || []).length - 1;
+check('exactly four call sites (2 rows + 2 report lists)', calls === 4, calls);
 
-const cocStart = js.indexOf("var hcoc = el('td'");
-const cocBody = cocStart > -1 ? js.slice(cocStart, cocStart + 1200) : '';
-check('the table renderer calls the helper', /reportProvenanceChips\(h\)/.test(cocBody));
+const statusIdx = js.indexOf("var hstatusCell = el('td'");
+const statusBody = statusIdx > -1 ? js.slice(statusIdx, statusIdx + 500) : '';
+check('the table report row appends the chip to its status cell',
+  /provenanceChip\(h\)/.test(statusBody) && /hstatusCell\.appendChild\(hstatusProv\)/.test(statusBody));
 
-// The row keeps its latest-state chip: the per-report tags are additional, not a
-// replacement for the thing the operator sees without opening the list.
-check('the row still paints its own latest-state chip', /var prov = provenanceChip\(d\);\s*\n\s*if \(prov\) badges\.appendChild\(prov\);/.test(js));
+const cocIdx = js.indexOf("var hcoc = el('td'");
+const cocEnd = js.indexOf('htr.appendChild(hcoc);', cocIdx);
+const cocBody = (cocIdx > -1 && cocEnd > cocIdx) ? js.slice(cocIdx, cocEnd) : '';
+check('the CoC cell stays free of provenance tags', cocBody !== '' && !/provenanceChip/.test(cocBody));
+
+const cardIdx = js.indexOf("var hstat = el('div'");
+const cardBody = cardIdx > -1 ? js.slice(cardIdx, cardIdx + 400) : '';
+check('the card report row appends the chip beside its status',
+  /hstat\.appendChild\(hprov\)/.test(cardBody));
+
+check('the row still paints its own chip',
+  /var prov = provenanceChip\(d\);/.test(js) && /if \(prov\) badges\.appendChild\(prov\);/.test(js));
 
 console.log('\n' + (fails === 0 ? 'ALL TESTS PASSED' : fails + ' FAILED') + ' (' + count + ' checks)');
 process.exit(fails === 0 ? 0 : 1);
