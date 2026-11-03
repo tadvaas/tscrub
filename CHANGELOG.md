@@ -38,6 +38,18 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Changed
 
+- **Annex A gives each section its own page.** The device accounting block, the
+  destruction method summary and the per-drive table all shared one page, so the
+  table began wherever the summary happened to end, a long accounting block
+  pushed the summary onto a page of its own, and a short one left three sections
+  stacked. The annex title opens its first page, the first section follows it,
+  and every later section — `DEVICE ACCOUNTING`, `DESTRUCTION METHOD SUMMARY`,
+  `DEVICE DETAILS` — starts on a fresh page, as does the report manifest. A
+  reference like "the accounting on page 3" now holds for every certificate, and
+  no section can be split by the next one starting mid-page. An ordinary job
+  (no device accounting) gains one page; a job with media removed from the
+  asset gains two.
+
 - **Manually recorded items are editable in place.** An attested device or media
   item could only be corrected by removing it and retyping every field, and a
   declared device could not be corrected at all. Both now edit where they are:
@@ -167,6 +179,26 @@ and this project uses date-based versioning (`v1.x`).
   every other filter. Its zero-count tooltip still points at the Ops panel.
 
 ### Fixed
+
+- **A certificate no longer fails because the job moved while the dialog was
+  open.** When a job has un-sanitised devices the dashboard lists them and asks
+  which were since physically destroyed; the answer was validated against a
+  freshly computed list, so a device that finished erasing between the two
+  requests was rejected — `Drive "…" is not an uncompleted drive` — and the
+  whole certificate was refused. On a job still receiving reports all day that
+  is the normal case, not a rare race, which is why generation kept failing on a
+  large Chain of Custody while smaller finished jobs worked. A device that has
+  since completed, or was already recorded as destroyed, needs no decision any
+  more: it is skipped. A serial from a different job is still refused.
+
+- **Generating several certificates in a row no longer looks broken.** The rate
+  limit was one bucket for every Chain of Custody, so generating certificate B
+  seconds after certificate A came back with a bare "Please wait a moment before
+  trying again" — indistinguishable from a button that does nothing. The limit
+  is now per job (issuing several jobs in a row is the normal way to use the
+  page), a repeat of the same job is still refused, the message says how many
+  seconds remain, and the Generate button is disabled while a request is in
+  flight so a double click cannot spend the interval.
 
 - **A wrong BIOS password no longer locks the Clear BIOS password form.** The
   popover on the Devices BIOS badge was doing two jobs: it took the password

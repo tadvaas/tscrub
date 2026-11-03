@@ -2819,22 +2819,22 @@ if ($method === 'POST' && $route === '/certs') {
         if (!is_array($d['destroyed'])) {
             fail(400, '"destroyed" must be an array of drive serials.');
         }
-        $allowed = [];
-        foreach ($nonCompleted as $n) { $allowed[strtolower(trim($n['serial']))] = true; }
-        foreach ($d['destroyed'] as $s) {
-            $s = trim((string)$s);
-            if ($s === '') continue;
-            if (!isset($allowed[strtolower($s)])) {
-                fail(400, 'Drive "' . $s . '" is not an uncompleted drive in this Chain of Custody ID.');
-            }
-            $destroyed[] = $s;
+        // Validated against the drives this certificate will carry, tolerating a
+        // drive that finished between the decision prompt and this request (see
+        // cert_decide_destroyed()).
+        [$destroyed, $unknown] = cert_decide_destroyed($decisionDrives, $d['destroyed']);
+        if ($unknown !== null) {
+            fail(400, 'Drive "' . $unknown . '" is not part of this Chain of Custody ID.');
         }
     }
 
     // Only the actual PDF generation is rate-limited; the decision check above
     // is cheap and must not consume the slot (it would otherwise block the
     // follow-up POST that carries the confirmed destruction choices).
-    rate_limit('certs', 30);
+    // Scoped per Chain of Custody: an operator issuing several jobs in a row is
+    // doing the normal thing, and one bucket for all of them made the second
+    // certificate look like it would not generate at all.
+    rate_limit('certs:' . $cocid, 30);
     $out = generate_certificate($g, (int)$u['id'], owner_tier((int)$u['id']) !== 'free', $destroyed, $assets, $prov['drives']);
     json_out(['ok' => true, 'cert' => $out], 201);
 }

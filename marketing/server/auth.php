@@ -182,10 +182,12 @@ function rate_limit(string $scope, int $seconds): void {
     if (filesize($file) > 0) {
         $last = (int)file_get_contents($file);
     }
-    if ($last > 0 && (time() - $last) < $seconds) {
+    if ($last > 0 && ($waited = time() - $last) < $seconds) {
         flock($fp, LOCK_UN);
         fclose($fp);
-        fail(429, 'Please wait a moment before trying again.');
+        // Say how long: "wait a moment" on a 30-second interval reads as a broken
+        // button, and the operator retries immediately and sees it again.
+        fail(429, 'Please wait ' . max(1, $seconds - $waited) . 's before trying again.');
     }
     ftruncate($fp, 0);
     rewind($fp);

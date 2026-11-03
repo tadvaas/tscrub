@@ -1811,6 +1811,52 @@ function media_provenance_for_cocid(int $userId, string $cocid, array $drives): 
     return mp_apply_evidence($collected, $drives);
 }
 
+/**
+ * Apply the operator's physical-destruction choices to the drives a certificate
+ * will carry.
+ *
+ * A decision only means something for a drive the certificate is still waiting
+ * on. The dashboard asks for that list, shows it, and posts back the operator's
+ * ticks — and reports keep arriving meanwhile (a 187-item job takes deliveries all
+ * day), so a drive can finish between the two requests. That is not an error: its
+ * outcome is settled and it needs no decision. Refusing the whole certificate
+ * because of it is what made "Generate certificate" fail on jobs that were still
+ * being written to.
+ *
+ * @param list<array> $decisionDrives every drive the certificate will carry
+ * @param array       $requested      serials the operator marked as destroyed
+ * @return array{0: list<string>, 1: ?string} the accepted serials, and the first
+ *         serial that is not part of this job at all (null when all are fine)
+ */
+function cert_decide_destroyed(array $decisionDrives, array $requested): array {
+    $known = [];
+    $waiting = [];
+    foreach ($decisionDrives as $drv) {
+        $s = strtolower(trim((string)($drv['serial'] ?? '')));
+        if ($s === '') continue;
+        $known[$s] = true;
+        $st = strtoupper(trim((string)($drv['status'] ?? '')));
+        if ($st === 'COMPLETED' || $st === 'DESTROYED' || $st === 'RETAINED') continue;
+        $waiting[$s] = true;
+    }
+
+    $destroyed = [];
+    foreach ($requested as $s) {
+        $s = trim((string)$s);
+        if ($s === '') continue;
+        $k = strtolower($s);
+        if (isset($waiting[$k])) {
+            $destroyed[] = $s;
+            continue;
+        }
+        if (isset($known[$k])) {
+            continue;   // finished while the dialog was open — nothing to decide
+        }
+        return [[], $s];
+    }
+    return [$destroyed, null];
+}
+
 function load_cert_drives(int $certId): array {
     certificate_drives_ensure_schema();
     $stmt = db()->prepare(

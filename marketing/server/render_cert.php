@@ -596,6 +596,22 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $pdf->Cell(165, 4, 'Certificate ID: ' . $certId . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
     };
 
+    $w = $W - 2 * $x;
+
+    // A section heading and its rule. Returns the Y to continue from.
+    $heading = function (float $hy, string $title) use ($pdf, $x, $w): float {
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetTextColor(11, 18, 32);
+        $pdf->SetXY($x, $hy);
+        $pdf->Cell($w, 5, $title, 0, 1, 'L');
+        $pdf->SetLineWidth(0.2);
+        $pdf->SetDrawColor(203, 213, 225);
+        $pdf->Line($x, $hy + 5.0, $x + $w, $hy + 5.0);
+        $pdf->SetDrawColor(0, 0, 0);
+        return $hy + 6.4;
+    };
+
+    // ---- Annex A, first page: the annex title block ----
     $pdf->AddPage();
     $bg();
     $pageLabel();
@@ -604,33 +620,39 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
     $pdf->SetFont('helvetica', 'B', 18);
     $pdf->SetTextColor(11, 18, 32);
     $pdf->SetXY($x, 10);
-    $pdf->Cell($W - 2 * $x, 10, 'ANNEX A — DEVICE DETAILS', 0, 1, 'C');
+    $pdf->Cell($w, 10, 'ANNEX A — DEVICE DETAILS', 0, 1, 'C');
 
     $pdf->SetFont('helvetica', '', 8.5);
     $pdf->SetTextColor(100, 116, 139);
     $pdf->SetXY($x, 21);
-    $pdf->Cell($W - 2 * $x, 4.5, 'Item-level record of ' . count($drives) . ' media item(s) processed under Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
+    $pdf->Cell($w, 4.5, 'Item-level record of ' . count($drives) . ' media item(s) processed under Chain of Custody ID ' . $cocid . '.', 0, 1, 'C');
+
+    // ---- One page per section ----
+    // The first section takes the rest of the title page; every later section
+    // opens a fresh page. Before this, the asset block, the method summary and
+    // the per-drive table all shared one page and the table began wherever the
+    // summary happened to end, so a long accounting block pushed the summary
+    // onto its own page and a short one left three sections stacked.
+    $y = 30.0;
+    $pageUsed = false;
+    $section = function (string $title) use ($pdf, $bg, $pageLabel, $heading, &$y, &$pageUsed): void {
+        if ($pageUsed) {
+            $pdf->AddPage();
+            $bg();
+            $pageLabel();
+            $y = 14.0;
+        }
+        $y = $heading($y, $title);
+        $pageUsed = true;
+    };
 
     // Assets whose outcome the per-drive table cannot explain: media removed and
     // sanitised on another host, an asset with no data-bearing media, or an asset
-    // that did not complete. An ordinary in-place job yields no rows here and the
-    // annex is exactly what it was before this feature.
+    // that did not complete. An ordinary in-place job yields no rows here and no
+    // page is spent on them.
     $visibleAssets = mp_asset_block_rows($assets);
-    $y = 30.0;
     if ($visibleAssets !== []) {
-        $w = $W - 2 * $x;
-        $assetHeader = function (float $ay) use ($pdf, $x, $w): void {
-            $pdf->SetFont('helvetica', 'B', 10);
-            $pdf->SetTextColor(11, 18, 32);
-            $pdf->SetXY($x, $ay);
-            $pdf->Cell($w, 5, 'DEVICE ACCOUNTING', 0, 1, 'L');
-            $pdf->SetLineWidth(0.2);
-            $pdf->SetDrawColor(203, 213, 225);
-            $pdf->Line($x, $ay + 5.0, $x + $w, $ay + 5.0);
-            $pdf->SetDrawColor(0, 0, 0);
-        };
-        $assetHeader($y);
-        $y += 6.4;
+        $section('DEVICE ACCOUNTING');
 
         $pdf->SetFont('helvetica', '', 7.5);
         foreach ($visibleAssets as $a) {
@@ -668,8 +690,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 $pdf->AddPage();
                 $bg();
                 $pageLabel();
-                $assetHeader(14.0);
-                $y = 20.4;
+                $y = $heading(14.0, 'DEVICE ACCOUNTING');
                 $pdf->SetFont('helvetica', '', 7.5);
             }
             $pdf->SetTextColor(51, 65, 85);
@@ -695,26 +716,17 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $pdf->SetXY($x, 60);
         // Not 'No devices recorded': a job can consist entirely of attested destruction,
         // in which case the next page is the substantive record.
-        $pdf->Cell($W - 2 * $x, 8, 'No appliance-verified media in this job.', 0, 1, 'C');
+        $pdf->Cell($w, 8, 'No appliance-verified media in this job.', 0, 1, 'C');
         return;
     }
 
-    // "How the data was destroyed" — one line per method used, printed above the
-    // per-drive detail so the certificate states its technique, not just its
-    // standard. Failures are deliberately excluded (the page-1 banner and the
-    // Annex status column carry them); see
-    // research/cert-destruction-evidence/README.md.
+    // "How the data was destroyed" — one line per method used, on its own page so
+    // the certificate states its technique, not just its standard. Failures are
+    // deliberately excluded (the page-1 banner and the Annex status column carry
+    // them); see research/cert-destruction-evidence/README.md.
     $breakdown = cert_method_breakdown($drives);
     if ($breakdown !== []) {
-        $pdf->SetFont('helvetica', 'B', 10);
-        $pdf->SetTextColor(11, 18, 32);
-        $pdf->SetXY($x, $y);
-        $pdf->Cell($W - 2 * $x, 5, 'DESTRUCTION METHOD SUMMARY', 0, 1, 'L');
-        $pdf->SetLineWidth(0.2);
-        $pdf->SetDrawColor(203, 213, 225);
-        $pdf->Line($x, $y + 5.0, $x + ($W - 2 * $x), $y + 5.0);
-        $pdf->SetDrawColor(0, 0, 0);
-        $y += 6.4;
+        $section('DESTRUCTION METHOD SUMMARY');
 
         $pdf->SetFont('helvetica', '', 7.5);
         foreach ($breakdown as $b) {
@@ -725,7 +737,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 . ' — ' . $b['n'] . ' media item(s)';
             $pdf->SetTextColor(51, 65, 85);
             $pdf->SetX($x);
-            $pdf->MultiCell($W - 2 * $x, 3.8, $line, 0, 'L');
+            $pdf->MultiCell($w, 3.8, $line, 0, 'L');
             $y = $pdf->GetY() + 0.6;
         }
 
@@ -734,15 +746,20 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
             $pdf->SetFont('helvetica', 'I', 7.5);
             $pdf->SetTextColor(100, 116, 139);
             $pdf->SetX($x);
-            $pdf->MultiCell($W - 2 * $x, 3.8, 'Media disposition: ' . $disposition . '.', 0, 'L');
+            $pdf->MultiCell($w, 3.8, 'Media disposition: ' . $disposition . '.', 0, 'L');
             $pdf->SetFont('helvetica', '', 7.5);
             $y = $pdf->GetY() + 1.2;
         }
         $y += 2.0;
     }
 
-    // Dense one-row-per-drive table, then the report manifest (own page).
-    cert_render_table($pdf, $x, $W, $H, $certId, $drives, max(28.0, $y));
+    // The item-level detail is the longest section and the one a reader is most
+    // likely to come looking for, so it always starts on a fresh page — unless
+    // it is the only section, in which case it takes the page it is already on
+    // and the title page is not left standing alone.
+    $section('DEVICE DETAILS');
+    cert_render_table($pdf, $x, $W, $H, $certId, $drives, $y);
+
     cert_render_manifest($pdf, $x, $W, $H, $certId, $reports);
 }
 

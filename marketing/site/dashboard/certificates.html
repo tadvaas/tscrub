@@ -273,8 +273,22 @@
       document.getElementById('destroy-modal-close').addEventListener('click', closeDestroyModal);
       document.getElementById('destroy-modal-backdrop').addEventListener('click', closeDestroyModal);
 
+      var generateInFlight = false;
       function generateCert(cocid, destroyed) {
         var status = document.getElementById('generate-status');
+        var btn = document.getElementById('generate');
+        // One generation at a time. The request is rate-limited to one every 30 s,
+        // so a second click used to come back "Please wait a moment…", which reads
+        // as though the certificate could not be generated at all.
+        if (generateInFlight) return;
+        generateInFlight = true;
+        btn.disabled = true;
+        btn.classList.add('opacity-50');
+        var release = function () {
+          generateInFlight = false;
+          btn.disabled = false;
+          btn.classList.remove('opacity-50');
+        };
         status.className = 'text-xs font-semibold text-slate-500 dark:text-slate-400';
         status.textContent = 'Generating certificate for ' + cocid + '…';
         var body = destroyed === undefined ? { cocid: cocid } : { cocid: cocid, destroyed: destroyed };
@@ -285,6 +299,7 @@
             body: JSON.stringify(body)
           });
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); }).then(function (res) {
+          release();
           if (res.ok && res.data.decision_required) {
             openDestroyModal(cocid, res.data.drives || []);
             return;
@@ -304,6 +319,12 @@
             status.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
             status.textContent = res.data.error || 'Could not generate the certificate.';
           }
+        }).catch(function () {
+          // Never leave the button disabled: a dropped connection must be
+          // retryable without a reload.
+          release();
+          status.className = 'text-xs font-semibold text-red-600 dark:text-red-400';
+          status.textContent = 'Network error — the certificate was not generated. Try again.';
         });
       }
 
