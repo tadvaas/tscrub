@@ -426,6 +426,18 @@ bios_unlock::clear() {
         return 1
     fi
 
+    # Layer 2b — HP Replicated Setup (hp-repsetup). For HP firmware with no
+    # WMI block and no sysfs password path (the Z840 class) this is the only
+    # working route — verified live on the bench, 2026-11-07. The clear is
+    # STAGED until the next boot, so the detail says to verify then; the
+    # detection cascade re-runs every boot and reports the post-boot truth.
+    # Returns 2 when not applicable (non-HP, or the tool is not shipped).
+    hp_repsetup::clear "$unlock_pwd"
+    case $? in
+        0) return 0 ;;   # accepted — staged; verified by next boot's detection
+        1) return 1 ;;   # attempted and failed — the detail is specific
+    esac
+
     # Layer 2 — HP legacy hp-wmi node (no re-read signal; trust the write).
     hp_new="${BIOS_HP_WMI_FILE%/*}/new_bios_password"
     if [[ -f "$BIOS_HP_WMI_FILE" && -f "$hp_new" ]]; then

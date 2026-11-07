@@ -33,6 +33,7 @@ for part in \
   "$SRC_DIR/35_mdm.sh" \
   "$SRC_DIR/36_bios.sh" \
   "$SRC_DIR/37_presence.sh" \
+  "$SRC_DIR/37_hp_repsetup.sh" \
   "$SRC_DIR/38_bios_unlock.sh" \
   "$SRC_DIR/39_register.sh" \
   "$SRC_DIR/40_table.sh" \

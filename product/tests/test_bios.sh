@@ -15,6 +15,8 @@ reset_env() {
     BIOS_TP_ACPI_FILE="$tmpdir/empty-tp"
     BIOS_DMIDECODE_CMD="__no_such_dmidecode__"
     BIOS_EFIVARS_ROOT="$tmpdir/empty-efi"
+    HP_REPSETUP_BIN="$tmpdir/no-hprep"
+    unset HP_REPSETUP_VENDOR HP_REPSETUP_CALL_CMD
     unset FAKE_DMI24
     rm -rf "$tmpdir/empty" "$tmpdir/empty-hp" "$tmpdir/empty-tp" \
            "$tmpdir/fa" "$tmpdir/efi" "$tmpdir/empty-efi"
@@ -239,5 +241,43 @@ t::check "bios cell: unknown is amber" '[[ "$(ui::bios_render 1)" == *"$esc_ambe
 BIOS_PASSWORD_STATUS=UNLOCKED
 t::check "bios cell: plain when colour off" '[[ "$(ui::bios_render 0)" != *"$esc_green"* ]]'
 t::assert_contains "$(UI_RUNTIME_VALUE_W=20 ui::bios_render 0)" "Unlocked" "bios cell: label present"
+
+# --- Layer 5: hp-repsetup fallback (37_hp_repsetup.sh) ----------------------
+reset_env
+HP_REPSETUP_BIN="$tmpdir/fake-hprep"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$HP_REPSETUP_BIN"
+chmod +x "$HP_REPSETUP_BIN"
+HP_REPSETUP_VENDOR="HP"
+
+fake_hprep() { printf 'Admin Password Present\n        No\n        *Yes\n'; }
+HP_REPSETUP_CALL_CMD=fake_hprep
+check_verdict "LOCKED" "hp-repsetup" "cascade: hp-repsetup locked"
+
+fake_hprep() { printf 'Admin Password Present\n        *No\n        Yes\n'; }
+HP_REPSETUP_CALL_CMD=fake_hprep
+check_verdict "UNLOCKED" "hp-repsetup" "cascade: hp-repsetup unlocked"
+
+# A stronger layer still wins over the fallback: sysfs LOCKED must not be
+# overridden by a repsetup read.
+reset_env
+write_fa_tree "dell-wmi-sysman" "AdminPassword=1"
+HP_REPSETUP_BIN="$tmpdir/fake-hprep"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$HP_REPSETUP_BIN"
+chmod +x "$HP_REPSETUP_BIN"
+HP_REPSETUP_VENDOR="HP"
+fake_hprep() { printf 'Admin Password Present\n        *No\n        Yes\n'; }
+HP_REPSETUP_CALL_CMD=fake_hprep
+check_verdict "LOCKED" "sysfs" "cascade: sysfs beats hp-repsetup"
+
+# Non-HP machines never consult the tool.
+reset_env
+HP_REPSETUP_BIN="$tmpdir/fake-hprep"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$HP_REPSETUP_BIN"
+chmod +x "$HP_REPSETUP_BIN"
+HP_REPSETUP_VENDOR="Dell Inc."
+HP_REPSETUP_CALL_CMD=fake_hprep
+check_verdict "UNKNOWN" "no verdict" "cascade: non-HP skips repsetup"
+t::check "cascade: non-HP records no hp-repsetup source" \
+    '[[ "$BIOS_SRC_SEEN" != *hp-repsetup* ]]'
 
 t::summary

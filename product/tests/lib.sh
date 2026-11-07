@@ -53,6 +53,7 @@ t::source_src() {
         "$ROOT_DIR/src/35_mdm.sh" \
         "$ROOT_DIR/src/36_bios.sh" \
         "$ROOT_DIR/src/37_presence.sh" \
+        "$ROOT_DIR/src/37_hp_repsetup.sh" \
         "$ROOT_DIR/src/38_bios_unlock.sh" \
         "$ROOT_DIR/src/39_register.sh" \
         "$ROOT_DIR/src/40_table.sh" \

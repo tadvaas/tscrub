@@ -311,5 +311,40 @@ t::assert_eq "42" \
 
 unset BIOS_WMI_CALL_CMD
 
+# --- clear via hp-repsetup (37_hp_repsetup.sh, HP fallback arm) -------------
+BIOS_FA_ROOT="$tmpdir/hprep-none"          # no sysfs path — force the arm
+mkdir -p "$BIOS_FA_ROOT"
+HP_REPSETUP_BIN="$tmpdir/fake-hprep"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$HP_REPSETUP_BIN"
+chmod +x "$HP_REPSETUP_BIN"
+HP_REPSETUP_VENDOR="HP"
+
+fake_hprep() { printf 'Admin password updated successfully.\n'; }
+HP_REPSETUP_CALL_CMD=fake_hprep
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hunter2"
+t::assert_eq "cleared" "$BIOS_UNLOCK_RESULT" "unlock: repsetup clear reports cleared"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "staged" \
+    "unlock: repsetup detail says staged until next boot"
+
+fake_hprep() { printf 'Admin password was not updated: (Access Denied)\n'; }
+HP_REPSETUP_CALL_CMD=fake_hprep
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "wrongpw"
+t::assert_eq "failed" "$BIOS_UNLOCK_RESULT" "unlock: repsetup wrong password -> failed"
+t::assert_contains "$BIOS_UNLOCK_DETAIL" "wrong password" \
+    "unlock: repsetup detail names wrong password"
+
+# Non-HP machine: the arm is skipped and the generic unsupported verdict wins.
+HP_REPSETUP_VENDOR="Dell Inc."
+BIOS_UNLOCK_RESULT=""
+BIOS_UNLOCK_DETAIL=""
+bios_unlock::clear "hunter2"
+t::assert_eq "unsupported" "$BIOS_UNLOCK_RESULT" "unlock: non-HP skips repsetup"
+
+unset HP_REPSETUP_CALL_CMD HP_REPSETUP_VENDOR HP_REPSETUP_BIN
+
 rm -rf "$tmpdir"
 t::summary

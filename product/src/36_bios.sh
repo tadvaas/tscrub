@@ -349,6 +349,14 @@ bios::detect() {
     bios::probe_efivars; rc=$?
     [[ $rc -eq 1 ]] && return 1
 
+    # Layer 5 — HP Replicated Setup (hp-repsetup). HP-only and last on
+    # purpose: it resolves machines the other layers cannot see at all (the
+    # Z840 class — no hp-bioscfg surface, no Type 24, no UserCred). It is
+    # weaker than sysfs only in that it must load a module and spawn a tool,
+    # so it stays after every free read.
+    hp_repsetup::probe; rc=$?
+    [[ $rc -eq 1 ]] && return 1
+
     # Nothing produced a verdict: say WHY rather than leaving a bare "Unknown".
     # The probes set UNLOCKED + method themselves when they found positive "not
     # set" evidence, so only a still-UNKNOWN verdict needs explaining.
