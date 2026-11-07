@@ -1,0 +1,60 @@
+# hpuefi — HP's kernel module for hp-repsetup / hp-flash
+
+Origin: HP softpaq **sp171387** "HP Flash and Replicated Setup Utilities for
+Linux v3.26" (2026-01-15), file `non-rpms/hpuefi-mod-3.07.tgz`.
+Download: https://ftp.hp.com/pub/softpaq/sp171001-171500/sp171387.tgz
+(softpaq MD5 `1da80330f3697bbb4fcebbd5e06cabb4`).
+
+## License
+
+- **This kernel module is GPLv2** — the archive ships `COPYING` (GPL v2) and the
+  source builds as a GPL module. It can be built and redistributed under GPL
+  terms, which the tScrub image already honours for the kernel.
+- The companion **binaries** (`hp-repsetup`, `hp-flash`) are NOT part of this
+  directory; HP distributes them "as a courtesy, free of charge, AS-IS" with
+  no warranty and no support (see the softpaq `README.txt`). Stage them with
+  `stage-hp-tools.sh` — do not commit the binaries.
+
+## Patches vs upstream (needed for the tScrub kernel, applied to hpuefi.c)
+
+1. `MODULE_LICENSE("GPL")` added — upstream ships no license string and
+   modpost refuses to build the module without one.
+2. `vma->vm_flags |= VM_LOCKED` → `vm_flags_set(vma, VM_LOCKED)` (kernel 6.0+
+   removed direct vm_flags assignment under mmap locking).
+3. `hpuefi.h` is the **pre-rendered** header for the Buildroot kernel —
+   upstream's `hpuefi-vm-flags.sh` reads `uname -r` off the *build host*,
+   which is wrong for a cross build, so the generated header is checked in
+   instead. Do NOT run `./hpuefi-vm-flags.sh` or plain `make` in this
+   directory.
+
+## Building
+
+Do not build here by hand. `board/shredos/modules/build-into-overlay.sh` (run
+from the Buildroot top directory) discovers this directory like every other
+`modules/*/` and builds it with:
+
+    make -C output/build/linux-6.18 M=<this dir> ARCH=x86_64 \
+         CROSS_COMPILE=output/host/bin/x86_64-buildroot-linux-gnu- modules
+
+The result lands in `usr/lib/modules/<kver>/extra/hpuefi.ko` in the overlay.
+
+**Kernel bumps:** the module is vermagic-bound to the exact kernel build. A new
+kernel without re-running the overlay build either fails to compile here (if
+the 6.18-era API patches stop applying) or refuses to load (vermagic) — both
+are loud. `build_tscrub.sh` on the build host already runs
+`build-into-overlay.sh` as part of every image build.
+
+## Runtime device node
+
+The module registers character major `hpuefi` but does NOT create the node.
+The appliance (Buildroot, no udev) creates it on demand — see
+`product/src/37_hp_repsetup.sh` `hp_repsetup::_ensure_dev` (mknod with the
+major from `/proc/devices`). `mkdevhpuefi` here is HP's equivalent one-liner,
+kept for reference.
+
+## Verified
+
+Built and verified live on the Z840 bench (BIOS M60 v02.61) 2026-11-07:
+settings dump, settings writes, and a full password set/clear round-trip all
+work through this module + hp-repsetup. See
+`research/hp-repsetup-integration/README.md`.

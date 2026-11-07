@@ -1,0 +1,64 @@
+Kernel driver for Linux UEFI BIOS utilities
+===========================================
+(c) Copyright 2018 HP Development Company, L.P.
+
+Last updated: 01/15/2026
+
+Building and Installing
+=======================
+
+1. Move the base driver tar file to the directory of your choice.  For
+   example, use /home/username/hpuefi-mod or /usr/local/src/hpuefi-mod.
+
+2. Untar/unzip archive:
+
+     # tar zxf hpuefi-mod-x.x.x.tar.gz
+
+3. Change to the driver src directory:
+
+     # cd hpuefi-mod-x.x.x/
+
+4. Compile the driver module:
+
+     # make
+
+   The loadable kernel module will be compiled as hpuefi.ko.
+
+5. Make sure that any older hpuefi drivers are removed from the kernel
+   prior to loading the new module:
+
+     # sudo rmmod hpuefi
+
+6. Load the new module using the insmod command:
+
+     # sudo insmod hpuefi.ko
+
+7. Create character device in /dev filesystem:
+
+     # sudo ./mkdevhpuefi
+
+License
+=======
+
+  Kernel driver for Linux UEFI BIOS utilities
+  (c) Copyright 2018 HP Development Company, L.P.
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of version 2 of the GNU General Public License as published
+  by the Free Software Foundation.
+
+  This program is distributed in the hope that it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+  more details.
+
+  You should have received a copy of the GNU General Public License along with
+  this program; if not, write to:
+  
+    Free Software Foundation, Inc.
+    51 Franklin Street, Fifth Floor
+    Boston, MA 02110-1301, USA.
+
+  The full GNU General Public License is included in this distribution in
+  the file called "COPYING".
+
