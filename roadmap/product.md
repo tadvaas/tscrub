@@ -103,6 +103,12 @@ they ship and note the release that carries each. **Last reconciled with
   > clear needs the dedicated WMI transport — which shipped in v1.11.46 (see
   > §4.6). Most vendors report `unsupported`. In-house SPI bench research lives in
   > `research/bios-unlock/`.
+- [ ] **HP BIOS surface via HP Replicated Setup** (§8) — ship `hp-repsetup` +
+      `hpuefi.ko` as a fallback for HP machines with no `hp-bioscfg` password
+      surface (Z840 class, verified live on the bench 2026-11-07): password
+      presence detection, set/clear with a known password, settings dump for
+      reports. Gated on the softpaq EULA. → Plan:
+      `research/hp-repsetup-integration/README.md`.
 - [x] **Appliance ops polish** (§5) — serial console (`CONFIG_SERIAL_8250`),
       `CONFIG_VIRTIO_NET` for faster VM testing, quiet `sedutil-cli` SG_IO noise
       on QEMU disks.
