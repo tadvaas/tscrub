@@ -6,6 +6,17 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.88] - 2026-11-07
+
+### Added
+
+- HP BIOS password surface for machines with no `hp-bioscfg` WMI password
+  surface (the Z840 class): detection falls back to HP's Replicated Setup
+  utility (`hp-repsetup` + the GPLv2 `hpuefi` module, both shipped in the
+  image), and a known-password clear is staged until the next boot. Verified
+  end-to-end on the bench, including a full password round-trip. Lost
+  passwords remain out of scope by policy.
+
 ## [Unreleased]
 
 ### Added
