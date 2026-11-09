@@ -167,6 +167,11 @@ smart::capture_ata() {
     devrow["$dev.poh${sfx}"]="$(smart::num "$(smart::ata_attr "$attrs" Power_On_Hours)")"
     devrow["$dev.cycles${sfx}"]="$(smart::num "$(smart::ata_attr "$attrs" Power_Cycle_Count)")"
     devrow["$dev.realloc${sfx}"]="$(smart::num "$(smart::ata_attr "$attrs" Reallocated_Sector_Ct)")"
+    # Pre-failure signals that a resale grade cares about but the report never
+    # carried: pending sectors, offline uncorrectable, UDMA CRC errors.
+    devrow["$dev.pending${sfx}"]="$(smart::num "$(smart::ata_attr "$attrs" Current_Pending_Sector)")"
+    devrow["$dev.offline_unc${sfx}"]="$(smart::num "$(smart::ata_attr "$attrs" Offline_Uncorrectable)")"
+    devrow["$dev.udma_crc${sfx}"]="$(smart::num "$(smart::ata_attr "$attrs" UDMA_CRC_Error_Count)")"
 
     # Percent used for SATA SSDs: prefer Percent_Lifetime_Remain, else a
     # wearout indicator that counts down from 100. Vendor-specific and
@@ -197,7 +202,7 @@ smart::capture_ata() {
 # would put a false claim in the report.
 smart::capture_scsi() {   # <smartctl output> <dev> <suffix>
     local out="$1" dev="$2" sfx="$3"
-    local health
+    local health _rev
 
     health="$(grep '^SMART Health Status:' <<<"$out" | head -n 1)"
     if grep -qi 'fail' <<<"$health"; then
@@ -209,6 +214,13 @@ smart::capture_scsi() {   # <smartctl output> <dev> <suffix>
     devrow["$dev.temp${sfx}"]="$(smart::num "$(sed -n 's/^Current Drive Temperature:[[:space:]]*\([0-9]*\).*/\1/p' <<<"$out")")"
     # "Accumulated power on time, hours:minutes 8711:19" -> the hours field.
     devrow["$dev.poh${sfx}"]="$(smart::num "$(sed -n 's/^Accumulated power on time, hours:minutes[[:space:]]*\([0-9]*\):.*/\1/p' <<<"$out")")"
+    # Start-stop cycles fill the SAME Power cycles column ATA and NVMe use.
+    devrow["$dev.cycles${sfx}"]="$(smart::num "$(sed -n 's/^Accumulated start-stop cycles:[[:space:]]*\([0-9]*\).*/\1/p' <<<"$out")")"
+    # Grown defects get their OWN column — never the reallocated one.
+    devrow["$dev.grown${sfx}"]="$(smart::num "$(sed -n 's/^Elements in grown defect list:[[:space:]]*\([0-9]*\).*/\1/p' <<<"$out")")"
+    # Firmware: the SCSI header's Revision line (ATA/NVMe read identify instead).
+    _rev="$(sed -n 's/^Revision:[[:space:]]*\(.*\)[[:space:]]*$/\1/p' <<<"$out" | head -n1 | xargs 2>/dev/null | tr -d '\000-\037\177')"
+    [[ -n "$_rev" ]] && firmware[$dev]="$_rev"
 }
 
 smart::capture_nvme() {
@@ -239,6 +251,9 @@ smart::capture_nvme() {
     devrow["$dev.pct_used${sfx}"]="$(smart::num "$(smart::nvme_field "$log" percentage_used)")"
     devrow["$dev.spare${sfx}"]="$(smart::num "$(smart::nvme_field "$log" available_spare)")"
     # Reallocated sectors are an ATA concept; NVMe leaves this empty.
+    devrow["$dev.media_errors${sfx}"]="$(smart::num "$(smart::nvme_field "$log" media_errors)")"
+    devrow["$dev.unsafe_shutdowns${sfx}"]="$(smart::num "$(smart::nvme_field "$log" unsafe_shutdowns)")"
+    devrow["$dev.spare_thresh${sfx}"]="$(smart::num "$(smart::nvme_field "$log" available_spare_threshold)")"
 
     # data_units_written is reported in thousands of 512-byte units -> TBW in TB
     # (approximate).
@@ -259,6 +274,12 @@ smart::capture_all() {
             smart::capture_nvme "$dev" "$sfx"
         elif [[ "$dev" == sd* ]]; then
             smart::capture_ata "$dev" "$sfx"
+        fi
+        # The CSV Firmware column reads devrow[$dev.firmware]; populate it from
+        # the identity capture (ATA hdparm / NVMe id-ctrl) or the SCSI Revision
+        # line just parsed by capture_scsi. Pre phase only — one column.
+        if [[ "$phase" == "pre" ]]; then
+            devrow["$dev.firmware"]="${firmware[$dev]:-}"
         fi
     done
 }

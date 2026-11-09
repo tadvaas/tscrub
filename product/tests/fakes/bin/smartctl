@@ -40,6 +40,9 @@ case "$mode" in
         printf 'SMART Health Status: %s\n' "${FAKE_SMART_SCSI_HEALTH:-OK}"
         printf 'Current Drive Temperature:     %s C\n' "${FAKE_SMART_TEMP:-49}"
         printf 'Accumulated power on time, hours:minutes %s:%s\n' "${FAKE_SMART_POH:-8711}" "${FAKE_SMART_POH_MIN:-19}"
+        printf 'Revision:             %s\n' "${FAKE_SMART_FIRMWARE:-SN01}"
+        printf 'Accumulated start-stop cycles:  %s\n' "${FAKE_SMART_CYCLES:-7}"
+        printf 'Elements in grown defect list: %s\n' "${FAKE_SMART_GROWN:-4}"
         exit 0
         ;;
     *)
@@ -53,6 +56,9 @@ printf 'Vendor Specific SMART Attributes with Thresholds:\n'
 printf 'ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE\n'
 printf '  1 Raw_Read_Error_Rate     0x002f   200   200   051    Pre-fail  Always       -       0\n'
 printf '  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       %s\n' "${FAKE_SMART_REALLOC:-0}"
+printf '197 Current_Pending_Sector  0x0032   100   100   000    Old_age   Always       -       %s\n' "${FAKE_SMART_PENDING:-0}"
+printf '198 Offline_Uncorrectable   0x0030   100   100   000    Old_age   Offline      -       %s\n' "${FAKE_SMART_OFFLINE_UNC:-0}"
+printf '199 UDMA_CRC_Error_Count    0x0032   200   200   000    Old_age   Always       -       %s\n' "${FAKE_SMART_UDMA_CRC:-0}"
 printf '  9 Power_On_Hours          0x0032   100   100   000    Old_age   Always       -       %s\n' "${FAKE_SMART_POH:-12345}"
 printf ' 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       %s\n' "${FAKE_SMART_CYCLES:-55}"
 printf '194 Temperature_Celsius     0x0022   112   104   000    Old_age   Always       -       %s\n' "${FAKE_SMART_TEMP:-36}"

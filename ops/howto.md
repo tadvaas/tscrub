@@ -401,13 +401,14 @@ tScrub_<COCID>_20260922T103000Z.sig    # base64 Ed25519 signature over the CSV
 tScrub_<COCID>_20260922T103000Z.json   # manifest (schema: tscrub-report/1)
 ```
 
-### 3.2 The CSV (29 columns)
+### 3.2 The CSV (36 columns)
 
 ```text
 COCID,Timestamp,Model,Serial,Size,Bus,Type,Device,Class,Certification,Method,
-FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PctUsed,
-AvailSpare,TBW_TB,SMARTPOST,TempCPost,PowerOnHoursPost,System,SystemSerial,
-BaseboardSerial,CPU,GPU,RAM
+FinalStatus,SMART,TempC,PowerOnHours,PowerCycles,ReallocSectors,PendingSectors,
+OfflineUncorrectable,UDMACRC,PctUsed,AvailSpare,TBW_TB,MediaErrors,
+UnsafeShutdowns,SpareThreshold,GrownDefects,SMARTPOST,TempCPost,
+PowerOnHoursPost,System,SystemSerial,BaseboardSerial,CPU,GPU,RAM
 ```
 
 - `Class` = NIST category (`CLEAR` / `PURGE` / `FROZEN` / `FAILED`).

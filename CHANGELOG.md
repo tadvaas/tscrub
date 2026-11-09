@@ -8,6 +8,19 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+- **SATA/NVMe/SAS SMART capture extended to the full reportable set.** SATA
+  gains pending sectors, offline uncorrectable and UDMA CRC errors; NVMe gains
+  media errors, unsafe shutdowns and the spare threshold; SAS gains power
+  cycles (accumulated start-stop cycles, filling the column that sat empty on
+  every SAS report), firmware (the SCSI `Revision:` line) and grown defects in
+  a column of their own — deliberately never in the reallocated column. Also
+  fixed: the CSV `Firmware` column read `devrow[$dev.firmware]`, a key nothing
+  ever wrote, so it was empty on every bus; capture now populates it. New CSV
+  columns `PendingSectors,OfflineUncorrectable,UDMACRC,MediaErrors,
+  UnsafeShutdowns,SpareThreshold,GrownDefects`, surfaced in the Media modal,
+  the SMART CSV export, the report history expander and JSON-LD. Grading is
+  unchanged this pass. Plan: `research/smart-max/README.md`.
+
 - **The RAID warning no longer cries wolf on IT-mode HBAs, and no longer
   overstates.** The "dismantle in controller BIOS" warning fired on any
   SAS3008/SAS3108 card — including a crossflashed HBA330 whose IT firmware

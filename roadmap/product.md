@@ -58,6 +58,11 @@ they ship and note the release that carries each. **Last reconciled with
       tab, shown on the latest report in the main row and on each diagnostics
       report row; grade attached to the diagnostics PDF. Plan:
       `research/refurb-grading/README.md` (Backblaze-threshold drive rubric).
+- [x] **SMART capture maximised** — pending/offline-uncorrectable/UDMA-CRC for
+      SATA, media errors/unsafe shutdowns/spare threshold for NVMe, start-stop
+      cycles + grown defects (its own column) + firmware for SAS; the CSV
+      Firmware column now actually populated (it was read from a devrow key
+      nothing wrote). Plan: `research/smart-max/README.md`.
 - [x] **SAS/SCSI SMART capture** — SAS drives reported no health/temperature/
       power-on hours because capture parsed only ATA-shaped output (`-d sat`
       fails on native SAS). New `smart::capture_scsi` branch reads the SCSI

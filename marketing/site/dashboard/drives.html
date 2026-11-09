@@ -415,8 +415,12 @@
           ['Erasure status', d.status], ['Class', d.cls], ['Method', d.method], ['Certification', d.cert],
           ['Erased', d.ts], ['CoC', d.cocid], ['System', d.system], ['System serial', d.sysserial],
           ['SMART (pre-erasure)', d.smart], ['Temperature °C (pre)', d.tempc], ['Power-on hours (pre)', d.poweronhours],
-          ['Power cycles', d.powercycles], ['Reallocated sectors', d.reallocsectors], ['Used %', d.pctused],
+          ['Power cycles', d.powercycles], ['Reallocated sectors', d.reallocsectors],
+          ['Pending sectors', d.pendingsectors], ['Offline uncorrectable', d.offlineuncorrectable], ['UDMA CRC errors', d.udmacrc],
+          ['Used %', d.pctused],
           ['Available spare', d.availspare], ['TBW (TB)', d.tbw_tb],
+          ['Media errors', d.mediaerrors], ['Unsafe shutdowns', d.unsafeshutdowns], ['Spare threshold', d.sparethreshold],
+          ['Grown defects', d.growndefects],
           ['SMART (post-erasure)', d.smartpost], ['Temperature °C (post)', d.tempcpost], ['Power-on hours (post)', d.poweronhourspost],
           ['Firmware', d.firmware], ['Sector size', d.sector_size], ['Sectors', d.sectors], ['HPA', d.hpa], ['DCO', d.dco],
           ['HPA result', d.hpa_result], ['DCO result', d.dco_result],
@@ -696,7 +700,10 @@
         ['grade','Grade'], ['grade_reason','Grade reason'],
         ['smart','SMART (pre)'], ['tempc','Temp C (pre)'], ['poweronhours','Power-on hours (pre)'],
         ['powercycles','Power cycles'], ['reallocsectors','Reallocated sectors'],
+        ['pendingsectors','Pending sectors'], ['offlineuncorrectable','Offline uncorrectable'], ['udmacrc','UDMA CRC errors'],
         ['pctused','Used %'], ['availspare','Available spare'], ['tbw_tb','TBW (TB)'],
+        ['mediaerrors','Media errors'], ['unsafeshutdowns','Unsafe shutdowns'], ['sparethreshold','Spare threshold'],
+        ['growndefects','Grown defects'],
         ['smartpost','SMART (post)'], ['tempcpost','Temp C (post)'], ['poweronhourspost','Power-on hours (post)'],
         ['firmware','Firmware'], ['sector_size','Sector size'], ['sectors','Sectors'],
         ['hpa','HPA'], ['dco','DCO'], ['hpa_result','HPA result'], ['dco_result','DCO result'],
@@ -1732,9 +1739,16 @@
           ['Power-on hours', d.poweronhours, d.poweronhourspost, null],
           ['Power cycles', d.powercycles, null, null],
           ['Reallocated sectors', d.reallocsectors, null, null],
+          ['Pending sectors', d.pendingsectors, null, null],
+          ['Offline uncorrectable', d.offlineuncorrectable, null, null],
+          ['UDMA CRC errors', d.udmacrc, null, null],
           ['Used %', d.pctused, null, null],
           ['Available spare', d.availspare, null, null],
-          ['TBW (TB)', d.tbw_tb, null, null]
+          ['TBW (TB)', d.tbw_tb, null, null],
+          ['Media errors', d.mediaerrors, null, null],
+          ['Unsafe shutdowns', d.unsafeshutdowns, null, null],
+          ['Spare threshold', d.sparethreshold, null, null],
+          ['Grown defects', d.growndefects, null, null]
         ].forEach(function (r) {
           if (!r[1] && !r[2]) return;
           var tr = el('tr', '');

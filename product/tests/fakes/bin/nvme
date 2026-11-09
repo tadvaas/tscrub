@@ -61,6 +61,9 @@ case "$sub" in
         printf 'data_units_written                  : %s\n' "${FAKE_NVME_DUW:-9876543}"
         printf 'power_cycles                        : %s\n' "${FAKE_NVME_CYCLES:-55}"
         printf 'power_on_hours                      : %s\n' "${FAKE_NVME_POH:-8765}"
+        printf 'media_errors                        : %s\n' "${FAKE_NVME_MEDIA_ERR:-0}"
+        printf 'unsafe_shutdowns                   : %s\n' "${FAKE_NVME_UNSAFE_SHUT:-2}"
+        printf 'available_spare_threshold          : %s%%\n' "${FAKE_NVME_SPARE_THRESH:-10}"
         ;;
     device-self-test)
         exit "${FAKE_NVME_SELFTEST_RC:-0}"

@@ -2203,6 +2203,8 @@ if ($method === 'GET' && $route === '/drives/export') {
         'grade' => 'Grade', 'grade_reason' => 'Grade reason',
         'smart' => 'SMART (pre)', 'tempc' => 'Temp C (pre)', 'poweronhours' => 'Power-on hours (pre)',
         'powercycles' => 'Power cycles', 'reallocsectors' => 'Reallocated sectors',
+        'pendingsectors' => 'Pending sectors', 'offlineuncorrectable' => 'Offline uncorrectable', 'udmacrc' => 'UDMA CRC errors',
+        'mediaerrors' => 'Media errors', 'unsafeshutdowns' => 'Unsafe shutdowns', 'sparethreshold' => 'Spare threshold', 'growndefects' => 'Grown defects',
         'pctused' => 'Used %', 'availspare' => 'Available spare', 'tbw_tb' => 'TBW (TB)',
         'smartpost' => 'SMART (post)', 'tempcpost' => 'Temp C (post)', 'poweronhourspost' => 'Power-on hours (post)',
         'firmware' => 'Firmware', 'sector_size' => 'Sector size', 'sectors' => 'Sectors',
