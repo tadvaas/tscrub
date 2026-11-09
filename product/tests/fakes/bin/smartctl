@@ -35,6 +35,13 @@ case "$mode" in
     fail)
         printf 'SMART overall-health self-assessment test result: FAILED!\n'
         ;;
+    scsi)
+        # Native SAS/SCSI: log-page wording, no ATA attribute table.
+        printf 'SMART Health Status: %s\n' "${FAKE_SMART_SCSI_HEALTH:-OK}"
+        printf 'Current Drive Temperature:     %s C\n' "${FAKE_SMART_TEMP:-49}"
+        printf 'Accumulated power on time, hours:minutes %s:%s\n' "${FAKE_SMART_POH:-8711}" "${FAKE_SMART_POH_MIN:-19}"
+        exit 0
+        ;;
     *)
         printf 'SMART overall-health self-assessment test result: PASSED\n'
         ;;

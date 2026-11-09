@@ -118,6 +118,14 @@ smart::capture_ata() {
 
     out="$(smart::run "$SMART_TIMEOUT" smartctl -a /dev/$dev)"
     rc=$?
+    # Native SAS/SCSI drives: smartctl prints SCSI log-page data ("SMART Health
+    # Status: OK") with no ATA attribute table. Parse those fields and return —
+    # the -d sat retry below is for ATA drives behind USB bridges and FAILS on
+    # native SAS ("Read Device Identity failed: unsupported scsi opcode").
+    if grep -q '^SMART Health Status:' <<<"$out"; then
+        smart::capture_scsi "$out" "$dev" "$sfx"
+        return
+    fi
     # smartctl always prints a banner, so "empty stdout" never happens — retry
     # the bridge hint only when the attribute table failed to parse.
     if [[ -z "$(smart::ata_attr_table "$out")" ]] && (( rc != 124 )); then
@@ -179,6 +187,28 @@ smart::capture_ata() {
     if [[ -n "$lbas" ]]; then
         devrow["$dev.tbw${sfx}"]="$(awk -v l="$lbas" 'BEGIN{printf "%.2f", l*512/1e12}')"
     fi
+}
+
+# SAS/SCSI SMART: SCSI log-page health data (no ATA attribute table). smartctl
+# prints it for native SAS drives; the fields that map to the report's ATA
+# columns are health status, temperature and accumulated power-on hours.
+# "Elements in grown defect list" is deliberately NOT stored in the reallocated
+# column — grown defects are not reallocated sectors, and mislabelling them
+# would put a false claim in the report.
+smart::capture_scsi() {   # <smartctl output> <dev> <suffix>
+    local out="$1" dev="$2" sfx="$3"
+    local health
+
+    health="$(grep '^SMART Health Status:' <<<"$out" | head -n 1)"
+    if grep -qi 'fail' <<<"$health"; then
+        devrow["$dev.smart${sfx}"]="FAIL"
+    elif grep -qi 'ok' <<<"$health"; then
+        devrow["$dev.smart${sfx}"]="PASS"
+    fi
+
+    devrow["$dev.temp${sfx}"]="$(smart::num "$(sed -n 's/^Current Drive Temperature:[[:space:]]*\([0-9]*\).*/\1/p' <<<"$out")")"
+    # "Accumulated power on time, hours:minutes 8711:19" -> the hours field.
+    devrow["$dev.poh${sfx}"]="$(smart::num "$(sed -n 's/^Accumulated power on time, hours:minutes[[:space:]]*\([0-9]*\):.*/\1/p' <<<"$out")")"
 }
 
 smart::capture_nvme() {

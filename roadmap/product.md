@@ -53,6 +53,12 @@ they ship and note the release that carries each. **Last reconciled with
       tab, shown on the latest report in the main row and on each diagnostics
       report row; grade attached to the diagnostics PDF. Plan:
       `research/refurb-grading/README.md` (Backblaze-threshold drive rubric).
+- [x] **SAS/SCSI SMART capture** — SAS drives reported no health/temperature/
+      power-on hours because capture parsed only ATA-shaped output (`-d sat`
+      fails on native SAS). New `smart::capture_scsi` branch reads the SCSI
+      log-page health status, current temperature and accumulated power-on
+      hours; grown defects are NOT stored as reallocated sectors. Plan:
+      `research/sas-smart/README.md`.
 - [x] **Windows key (DPK) injection into NVRAM** — shipped v1.11.1: write a new
       key into the OA3 UEFI variable (the BIOS derives the MSDM table from it at
       boot — no SPI flash, no table assembly, no checksum). Field-verified on HP:

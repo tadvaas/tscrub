@@ -50,6 +50,23 @@ smart::capture_all pre
 t::assert_eq "FAIL" "${devrow[sda.smart]}" "failing drive -> FAIL"
 t::assert_eq "36"   "${devrow[sda.temp]}"  "failing drive still records temp"
 
+# --- SAS/SCSI drives: SCSI log-page health --------------------------------
+unset FAKE_SMART_TEMP FAKE_SMART_POH FAKE_SMART_POH_MIN
+export FAKE_SMART_MODE=scsi
+devices=(sda)
+devrow=()
+smart::capture_all pre
+t::assert_eq "PASS" "${devrow[sda.smart]}" "SAS healthy -> PASS"
+t::assert_eq "49"   "${devrow[sda.temp]}"  "SAS temperature parsed"
+t::assert_eq "8711" "${devrow[sda.poh]}"   "SAS power-on hours parsed"
+t::assert_eq ""    "${devrow[sda.realloc]}" "SAS grown defects NOT stored as reallocated"
+
+export FAKE_SMART_MODE=scsi FAKE_SMART_SCSI_HEALTH=FAILED
+devrow=()
+smart::capture_all pre
+t::assert_eq "FAIL" "${devrow[sda.smart]}" "SAS failing health -> FAIL"
+unset FAKE_SMART_SCSI_HEALTH
+
 # --- A hung/dead drive must not stall capture ---------------------------------
 export FAKE_SMART_MODE=hang
 SMART_TIMEOUT=2
