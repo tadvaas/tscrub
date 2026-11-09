@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Fake sg_opcodes for tests. FAKE_SG_OPCODES_SUPPORTED=yes prints
-# "Command supported"; anything else prints "Command not supported".
-if [[ "${FAKE_SG_OPCODES_SUPPORTED:-}" == "yes" ]]; then
-    printf 'Opcode=0x48 Command_name: Sanitize Command supported [conforming to SCSI standard]\n'
+# Fake sg_opcodes for tests, speaking the wording of the REAL sg3_utils binary
+# (verified on the bench appliance, 2026-11-09):
+#   supported -> "Command is supported [conforming to SCSI standard]"
+#   refused   -> "Command is NOT supported"
+# FAKE_SG_OPCODES_LEGACY=yes emits the older "Command supported" wording so
+# the probe's legacy arm is exercised too.
+if [[ "${FAKE_SG_OPCODES_LEGACY:-}" == "yes" ]]; then
+    printf 'Opcode=0x48  Service_action=0x0001\nCommand_name: Sanitize, overwrite\nCommand supported\n'
+elif [[ "${FAKE_SG_OPCODES_SUPPORTED:-}" == "yes" ]]; then
+    printf 'Opcode=0x48  Service_action=0x0001\nCommand_name: Sanitize, overwrite\nCommand is supported [conforming to SCSI standard]\n'
 else
-    printf 'Opcode=0x48 Command_name: Sanitize Command not supported\n'
+    printf 'Opcode=0x48  Service_action=0x0001\nCommand_name: Sanitize, overwrite\nCommand is NOT supported\n'
 fi
 exit 0

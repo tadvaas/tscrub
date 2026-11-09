@@ -302,7 +302,15 @@ device::scsi_sanitize_supported() {
     command -v sg_sanitize >/dev/null 2>&1 || return 1
     command -v sg_opcodes >/dev/null 2>&1 || return 1
     out="$(sg_opcodes --opcode=0x48,0x1 "/dev/$dev" 2>/dev/null || true)"
-    [[ "$out" == *"Command supported"* ]]
+    # The sg_opcodes wording changed across sg3_utils releases: the bundled
+    # build prints "Command is supported [conforming to SCSI standard]",
+    # older builds "Command supported". Neither arm matches the refusal
+    # ("Command is NOT supported" puts the words apart), so a drive that
+    # says NO can never match.
+    case "$out" in
+        *"Command is supported"*|*"Command supported"*) return 0 ;;
+    esac
+    return 1
 }
 
 # SCSI/SAS firmware sanitise: `sg_sanitize --overwrite --zero`. Firmware

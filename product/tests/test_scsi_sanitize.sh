@@ -9,9 +9,13 @@ declare -A capability bus devrow
 
 # --- support probe ----------------------------------------------------------
 export FAKE_SG_OPCODES_SUPPORTED=yes
-t::check "probe supported" 'device::scsi_sanitize_supported sda'
+t::check "probe supported (current sg_opcodes wording)" 'device::scsi_sanitize_supported sda'
+unset FAKE_SG_OPCODES_SUPPORTED
+export FAKE_SG_OPCODES_LEGACY=yes
+t::check "probe supported (legacy sg_opcodes wording)" 'device::scsi_sanitize_supported sda'
+unset FAKE_SG_OPCODES_LEGACY
 export FAKE_SG_OPCODES_SUPPORTED=no
-t::check "probe unsupported" '! device::scsi_sanitize_supported sda'
+t::check "probe unsupported (NOT supported wording)" '! device::scsi_sanitize_supported sda'
 unset FAKE_SG_OPCODES_SUPPORTED
 
 # --- classify ---------------------------------------------------------------

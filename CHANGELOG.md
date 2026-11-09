@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.89] - 2026-11-09
+
+### Fixed
+
+- **SAS drives were never offered firmware SANITIZE.** The support probe
+  matched `sg_opcodes` output against the string "Command supported", but
+  the bundled sg3_utils prints "Command **is** supported [conforming to
+  SCSI standard]". Every SAS drive therefore fell back to software zero-fill,
+  including drives that do support SCSI SANITIZE overwrite (found on the
+  bench T140: an AL14SXL30EN supports it and was being zero-filled). The
+  probe now accepts both wordings, and the fake `sg_opcodes` used in tests
+  speaks the real binary's wording — the old fake printed the legacy string,
+  which is why the tests never caught it.
+
 ## [v1.11.88] - 2026-11-07
 
 ### Added
