@@ -6,7 +6,7 @@ tScrub is an open ITAD (IT asset disposition) platform built for compliance. One
 
 - **NVMe sanitise** — crypto, block, and overwrite sanitise, plus format fallback, with live progress monitoring.
 - **ATA secure erase** — enhanced and standard security erase for SATA/ATA drives, with frozen-drive handling.
-- **SCSI sanitise** — for SAS/SCSI drives.
+- **SCSI/SAS sanitise** — firmware overwrite sanitise (Purge) where the drive supports it, software overwrite (Clear) otherwise, with live percentage and ETA read from the drive's own sense data.
 - **USB targets** — USB-attached drives are listed, selectable and erased by software overwrite only (`Bus=USB` recorded): a bridge's advertised ERASE UNIT/SANITIZE is never trusted, no firmware-erase or IEEE 2883 claim is made over USB, the appliance's own boot stick is refused by its `TSCRUB`/`TSCRUB-USB` labels (fail-closed when unidentifiable), and hot-plug sees USB sticks.
 - **SED / OPAL unlock** — PSID revert for locked self-encrypting drives, plus detection of BIOS Block SID lockdown (0x4286).
 - **Chain of custody** — COCID, system serials, and per-drive final status in a single CSV report for the whole job.

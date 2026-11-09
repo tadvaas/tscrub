@@ -186,7 +186,7 @@
           <div class="mt-5 space-y-10">
             <div id="boot-usb">
               <h2 class="text-xl font-bold text-ink-900 dark:text-white">5. Boot the appliance from USB</h2>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~166 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The appliance download is a <strong>hybrid ISO</strong> (boots on both BIOS and UEFI, ~168 MB). Always verify its SHA-256 against the <code class="font-mono">.sha256</code> file published next to it before writing it to a stick.</p>
               <p class="mt-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 p-3 text-sm text-emerald-900 dark:text-emerald-300"><span class="font-semibold">Secure Boot supported:</span> the appliance boots with UEFI Secure Boot on, via a signed shim + MOK chain. On the <strong>first</strong> boot on a machine, shim opens <strong>MokManager</strong> — choose <em>Enroll MOK → Continue → Yes</em>, then reboot. After that it boots normally. (You can also simply disable Secure Boot or enable CSM/Legacy boot.)</p>
 
               <div class="mt-5" data-ostabs>

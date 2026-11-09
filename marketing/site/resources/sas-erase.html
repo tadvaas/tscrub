@@ -98,7 +98,7 @@
       <ol>
         <li>Boot the appliance (USB or PXE) with the drives attached to an HBA or backplane.</li>
         <li>tScrub detects each drive and checks for SCSI SANITIZE support.</li>
-        <li>It runs SANITIZE where supported, otherwise a software overwrite.</li>
+        <li>It runs SANITIZE where supported, with live progress and ETA read from the drive's own sense data; otherwise a software overwrite.</li>
         <li>Each drive's method and final status land in the report, ready to upload or push to your dashboard.</li>
       </ol>
 

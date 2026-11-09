@@ -58,7 +58,7 @@
 
 ## Key facts
 
-- Supports NVMe (crypto, block, overwrite sanitise + format fallback), ATA (enhanced/standard secure erase), and SCSI sanitise.
+- Supports NVMe (crypto, block, overwrite sanitise + format fallback), ATA (enhanced/standard secure erase), and SCSI/SAS firmware overwrite sanitise (Purge) where the drive supports it, with a software overwrite (Clear) fallback.
 - USB-attached drives are erased by software overwrite only, with `Bus=USB` recorded and no firmware-erase or IEEE 2883 claim over a USB bridge; the appliance's own boot stick is protected and never offered as a target.
 - Removes HPA/DCO hidden areas before erasing (full native capacity) and verifies the wipe by re-reading sample sectors (sampled by default, full read-back opt-in): a sector that will not read back is recorded UNREADABLE, never passed, and a drive whose firmware reports success while sentinel data survives is recorded FAILED.
 - Handles SED/OPAL drives via PSID revert and detects BIOS Block SID lockdown (0x4286).
