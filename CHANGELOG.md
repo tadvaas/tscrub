@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.90] - 2026-11-09
+
+### Fixed
+
+- **SAS/SCSI drives showed no serial in the TUI.** `hdparm -I` is ATA-only
+  (SAS drives reject IDENTIFY) and the SCSI midlayer publishes no `serial`
+  file under `/sys/block/*/device` — the unit serial lives in INQUIRY VPD
+  page 0x80. `identity_fallback` now reads it with `sg_vpd -p sn` for `sd*`
+  devices (never USB — SG_IO stays away from bridges, same policy as the
+  capability probes). Verified on the bench: AL13SXL300N `Y8R0A05SFLNE`,
+  AL14SXL30EN `Y0N0A011FX5G`.
+
+### Changed
+
+- The public claim surfaces (homepage + docs methods table, FAQ, compliance
+  page) now say what v1.11.88's SCSI/SAS firmware sanitise actually does:
+  firmware overwrite sanitise (Purge) where the drive supports it, nwipe
+  quick (Clear) otherwise — replacing the old nwipe-only wording.
+
 ## [v1.11.89] - 2026-11-09
 
 ### Fixed
