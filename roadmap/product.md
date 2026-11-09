@@ -44,6 +44,7 @@ they ship and note the release that carries each. **Last reconciled with
       warns); the warning splits "RAID member(s)" (md/vmd) from a host-level
       "RAID-capable HBA present" hint. Plan:
       `research/raid-hba-warning/README.md`.
+      → **Shipped 2026-11-09 (v1.11.95)**.
 
 ## 2. Hardware capture → intelligence
 
@@ -63,6 +64,7 @@ they ship and note the release that carries each. **Last reconciled with
       cycles + grown defects (its own column) + firmware for SAS; the CSV
       Firmware column now actually populated (it was read from a devrow key
       nothing wrote). Plan: `research/smart-max/README.md`.
+      → **Shipped 2026-11-09 (v1.11.95)**: 37 SMART checks, 96-column fixture.
 - [x] **SAS/SCSI SMART capture** — SAS drives reported no health/temperature/
       power-on hours because capture parsed only ATA-shaped output (`-d sat`
       fails on native SAS). New `smart::capture_scsi` branch reads the SCSI
