@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.92] - 2026-11-09
+
+### Fixed
+
+- **The v1.11.91 SAS progress pump never showed a percentage.** It polled
+  REQUEST SENSE from a second process while `sg_sanitize`'s own poll mode
+  ran alongside it; on SAS drives the two pollers starve each other and
+  REQUEST SENSE starts failing with data-in errors (verified live: the
+  drive answered 40.28 % to a lone poll while the pump logged nothing for
+  a whole job). The sanitize is now issued with `sg_sanitize --early` and
+  the pump is the **only** poller; completion is the drive becoming READY
+  again (`sg_readcap` fails with "Device not ready" while busy), with the
+  final sense deciding FAILED vs COMPLETED.
+
 ## [v1.11.91] - 2026-11-09
 
 ### Added
