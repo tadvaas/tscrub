@@ -45,11 +45,15 @@ Run in order, **rebooting where noted**:
 
 | Step | Command | Then |
 |---|---|---|
-| 0 | `0_INFO.BAT` | saves `H330INFO.TXT` — note the **SAS address** |
+| 0 | `0_INFO.BAT` | saves `H330INFO.TXT`, then greps Product Name / FW / **SAS address** onto the screen |
 | 1 | `1_TEMPROM.BAT` | **reboot**; card BIOS stalls 3–10 min, then "Baseport not responding. No adapter available" |
 | 2 | `2_ERASE.BAT` | **reboot** |
-| 3 | `3_FLASH.BAT` | same boot: edit `4_SASADD.BAT` with your SAS address |
-| 4 | `4_SASADD.BAT` | verify `Firmware: IT` + SAS address, reboot |
+| 3 | `3_FLASH.BAT` | flashes `HBA330.fw` + BIOS ROM; no reboot needed after |
+| 4 | `4_SASADD.BAT` | prints the `sasadd` command — type it with YOUR address, then `sas3flsh -list` to verify `Firmware: IT` |
+
+No pipes or editing needed anywhere. The live image has `grep`/`more`/`edit`
+on PATH (`find` is not installed — that is the one FreeDOS quirk to avoid).
+To read the full dump: `more < H330INFO.TXT` or `edit H330INFO.TXT`.
 
 ## Verify (appliance side)
 
