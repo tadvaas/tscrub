@@ -223,18 +223,27 @@ table::print_row() {
     printf "%s%s\n" "$TABLE_INDENT" "$(table::row_text "$dev" "$now")"
 }
 
-# One-line warning when any discovered drive is a RAID member — tScrub never
-# auto-breaks an array, so the operator is told to dismantle in the controller
-# BIOS before erasing.
+# RAID warnings on the triage screen — tScrub never auto-breaks an array, so
+# the operator is told before erasing. Definitive per-drive members (md/vmd)
+# get their own line; `hba` is a HOST-level signal ("a RAID-mode controller is
+# present"), not membership, so it gets a separate, weaker line.
 table::print_raid_warning() {
-    local dev note=""
+    local dev members="" hba=0
     for dev in "${devices[@]}"; do
-        [[ "${raid[$dev]:-none}" != "none" ]] || continue
-        note+="${note:+; }${dev} (${raid[$dev]})"
+        case "${raid[$dev]:-none}" in
+            md|vmd) members+="${members:+; }${dev} (${raid[$dev]})" ;;
+            hba)    hba=1 ;;
+        esac
     done
-    [[ -z "$note" ]] && return 0
-    printf "%s[!] RAID member(s): %s - dismantle in controller BIOS before erasing.\n" \
-        "$TABLE_INDENT" "$note"
+    if [[ -n "$members" ]]; then
+        printf "%s[!] RAID member(s): %s - erasing destroys the array; remove the drive from the array before erasing.\n" \
+            "$TABLE_INDENT" "$members"
+    fi
+    if (( hba == 1 )); then
+        printf "%s[!] RAID-capable HBA present - if any of these drives belongs to a controller array, dismantle the array in the controller BIOS first.\n" \
+            "$TABLE_INDENT"
+    fi
+    return 0
 }
 
 table::build() {

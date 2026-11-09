@@ -520,6 +520,27 @@ system::derive_identity() {
     return 0
 }
 
+# RAID-capable HBA present? Name patterns are RAID products by name. SAS3008/
+# SAS3108 is the same silicon in RAID (IR) and passthrough (IT) cards, and
+# lspci names them identically (a crossflashed Dell HBA330 reads as a plain
+# Fusion-MPT SAS3008) — the driver binding is the tell: megaraid_sas is the
+# RAID stack, mpt3sas is IT mode. TS_RAID_DRIVERS is the test seam.
+system::raid_hba_present() {
+    local _pci _bdf
+    command -v lspci >/dev/null 2>&1 || return 1
+    _pci="$(lspci 2>/dev/null)" || return 1
+    if grep -qiE 'Smart Array|MegaRAID|PERC|ServeRAID|Adaptec|SmartHBA|HBA 11|HBA 9' <<<"$_pci"; then
+        return 0
+    fi
+    while read -r _bdf; do
+        [[ -n "$_bdf" ]] || continue
+        if [[ -e "${TS_RAID_DRIVERS:-/sys/bus/pci/drivers}/megaraid_sas/$_bdf" ]]; then
+            return 0
+        fi
+    done <<<"$(awk '/SAS3008|SAS3108/ {print $1}' <<<"$_pci")"
+    return 1
+}
+
 system::gather_info() {
     # Try dmidecode first (requires root)
     if command -v dmidecode &>/dev/null && [[ $EUID -eq 0 ]]; then
@@ -871,13 +892,13 @@ system::gather_info() {
     # Intel VMD (Volume Management Device) — NVMe drives behind VMD are in
     # Intel RST "RAID mode". Detected once; per-drive flag in device::discover.
     SYS_VMD=""
-    # RAID-capable HBA present (Smart Array / MegaRAID / PERC / SAS3xxx / …).
+    # RAID-capable HBA present (name patterns; SAS3008/3108 judged by driver).
     SYS_RAID_HBA=""
     if command -v lspci >/dev/null 2>&1; then
         if lspci 2>/dev/null | grep -qi "Volume Management Device"; then
             SYS_VMD=1
         fi
-        if lspci 2>/dev/null | grep -qiE 'Smart Array|MegaRAID|PERC|ServeRAID|SAS3008|SAS3108|Adaptec|SmartHBA|HBA 11|HBA 9'; then
+        if system::raid_hba_present; then
             SYS_RAID_HBA=1
         fi
     fi

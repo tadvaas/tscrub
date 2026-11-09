@@ -10,7 +10,7 @@
 # Signals (recorded in the per-drive `raid` array):
 #   md    — Linux md superblock present (definitive software-RAID member).
 #   vmd   — NVMe drive behind Intel VMD (RST "RAID mode").
-#   hba   — a RAID-capable HBA is present (warning: drive may be a member).
+#   hba   — a RAID-mode HBA is present (its drives may be array members).
 #   none  — no RAID signal.
 
 # Fill raid[$dev] for one discovered drive.
@@ -31,8 +31,8 @@ device::raid_detect() {
         return
     fi
 
-    # RAID HBA present (host-level warning, not a per-drive definitive signal —
-    # the HBA may be in IT/passthrough mode).
+    # RAID-mode HBA present (host-level warning, not a per-drive definitive
+    # signal — IT-mode HBAs are excluded by the driver check in gather_info).
     if [[ "${SYS_RAID_HBA:-}" == "1" ]]; then
         raid[$dev]="hba"
         return

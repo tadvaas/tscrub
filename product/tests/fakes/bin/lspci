@@ -7,6 +7,9 @@ printf '01:00.0 VGA compatible controller: Fake GPU\n'
 if [[ "${FAKE_LSPCI_VMD:-}" == "1" ]]; then
     printf '00:0e.0 RAID bus controller: Intel Corporation Volume Management Device NVMe RAID Controller\n'
 fi
+if [[ "${FAKE_LSPCI_SAS3008:-}" == "1" ]]; then
+    printf '01:00.0 Serial Attached SCSI controller: Broadcom / LSI SAS3008 PCI-Express Fusion-MPT SAS-3 (rev 02)\n'
+fi
 if [[ "${FAKE_LSPCI_RAID_HBA:-}" == "1" ]]; then
     printf '04:00.0 RAID bus controller: Hewlett-Packard Company Smart Array Gen9 Controllers\n'
 fi

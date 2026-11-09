@@ -37,7 +37,7 @@ t::setup_env() {
           FAKE_WIPEFS_RC FAKE_WIPEFS_OUT FAKE_SFDISK_RC FAKE_SFDISK_OUT \
           FAKE_SGDISK_RC FAKE_SGDISK_OUT FAKE_MKFS_RC FAKE_MKFS_OUT \
           FAKE_BLKID_TYPE FAKE_BLKID_RC FAKE_FORMAT_CMDLOG \
-          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA FAKE_LSPCI_BROKEN 2>/dev/null || true
+          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA FAKE_LSPCI_SAS3008 FAKE_LSPCI_BROKEN 2>/dev/null || true
 }
 
 # Source the production functions without executing the entrypoint.
@@ -104,6 +104,17 @@ t::assert_contains() {  # <haystack> <needle> [label]
     else
         TEST_FAILURES=$((TEST_FAILURES + 1))
         printf "FAIL - %s\n      expected to contain: %q\n      got: %q\n" "${label:-assert_contains}" "$needle" "$haystack"
+    fi
+}
+
+t::assert_not_contains() {  # <haystack> <needle> [label]
+    local haystack="$1" needle="$2" label="${3:-}"
+    TEST_COUNT=$((TEST_COUNT + 1))
+    if [[ "$haystack" != *"$needle"* ]]; then
+        printf "ok   - %s\n" "${label:-assert_not_contains}"
+    else
+        TEST_FAILURES=$((TEST_FAILURES + 1))
+        printf "FAIL - %s\n      expected to NOT contain: %q\n      got: %q\n" "${label:-assert_not_contains}" "$needle" "$haystack"
     fi
 }
 

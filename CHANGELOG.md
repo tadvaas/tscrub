@@ -6,6 +6,18 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+- **The RAID warning no longer cries wolf on IT-mode HBAs, and no longer
+  overstates.** The "dismantle in controller BIOS" warning fired on any
+  SAS3008/SAS3108 card — including a crossflashed HBA330 whose IT firmware
+  cannot build arrays at all — and it said "RAID member(s)" even when the only
+  signal was the host-level HBA presence. The SAS3008/3108 class is now judged
+  by its driver binding (`megaraid_sas` = RAID stack, `mpt3sas` = IT mode), so
+  a passthrough card is silent; and the triage screen splits the wording:
+  definitive members (md/vmd) get "RAID member(s)", a present RAID-mode HBA
+  gets a separate hint line. Plan: `research/raid-hba-warning/README.md`.
+
 ## [v1.11.94] - 2026-11-09
 
 - **SAS drives now report SMART health in the diagnostics report.** SAS drives

@@ -39,6 +39,11 @@ they ship and note the release that carries each. **Last reconciled with
       → **Shipped v1.10.19** (2026-10-05). Plan: `research/raid-dismantling/README.md`
       (`device::raid_detect` in `product/src/45_device_raid.sh`; tests
       `product/tests/test_raid.sh`). (Controller-level erase stays §11.1.)
+      → **Refined (unreleased)**: SAS3008/3108 judged by driver binding
+      (`megaraid_sas` = RAID, `mpt3sas` = IT — a crossflashed HBA330 no longer
+      warns); the warning splits "RAID member(s)" (md/vmd) from a host-level
+      "RAID-capable HBA present" hint. Plan:
+      `research/raid-hba-warning/README.md`.
 
 ## 2. Hardware capture → intelligence
 

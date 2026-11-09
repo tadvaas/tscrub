@@ -39,6 +39,28 @@ t::assert_eq "vmd" "${raid[nvme0n1]}" "discover: NVMe + VMD -> raid=vmd"
 t::assert_eq "none" "${raid[sda]}" "discover: SATA + no signal -> raid=none"
 unset SYS_VMD
 
+# --- platform detection: name pattern + the SAS3008/3108 driver check -------
+system::raid_hba_present && _rc=0 || _rc=1
+t::assert_eq "1" "$_rc" "no RAID names in lspci -> no RAID HBA"
+
+export FAKE_LSPCI_RAID_HBA=1
+system::raid_hba_present && _rc=0 || _rc=1
+t::assert_eq "0" "$_rc" "Smart Array in lspci -> RAID HBA present"
+unset FAKE_LSPCI_RAID_HBA
+
+_tmpdir="$(mktemp -d)"
+mkdir -p "$_tmpdir/drivers/mpt3sas"
+export FAKE_LSPCI_SAS3008=1
+TS_RAID_DRIVERS="$_tmpdir/drivers" system::raid_hba_present && _rc=0 || _rc=1
+t::assert_eq "1" "$_rc" "SAS3008 behind mpt3sas (IT mode) -> no RAID HBA"
+
+mkdir -p "$_tmpdir/drivers/megaraid_sas"
+touch "$_tmpdir/drivers/megaraid_sas/01:00.0"
+TS_RAID_DRIVERS="$_tmpdir/drivers" system::raid_hba_present && _rc=0 || _rc=1
+t::assert_eq "0" "$_rc" "SAS3008 bound to megaraid_sas (IR mode) -> RAID HBA"
+unset FAKE_LSPCI_SAS3008 TS_RAID_DRIVERS
+rm -rf "$_tmpdir"
+
 # --- triage warning line ----------------------------------------------------
 raid[nvme0n1]="vmd"
 raid[sda]="md"
@@ -54,5 +76,21 @@ raid[nvme0n1]="none"
 raid[sda]="none"
 out="$(table::print_raid_warning)"
 t::assert_eq "" "$out" "no warning when no RAID members"
+
+# --- hba is a host-level hint, never "RAID member(s)" -----------------------
+raid[sda]="hba"
+devices=(sda)
+out="$(table::print_raid_warning)"
+t::assert_not_contains "$out" "RAID member(s)" "hba-only warning does not claim membership"
+t::assert_contains "$out" "RAID-capable HBA present" "hba-only warning names the host-level hint"
+
+# --- mixed: members line AND the host hint ---------------------------------
+raid[nvme0n1]="hba"
+raid[sda]="md"
+devices=(nvme0n1 sda)
+out="$(table::print_raid_warning)"
+t::assert_contains "$out" "RAID member(s)" "mixed warning keeps the members line"
+t::assert_contains "$out" "sda (md)" "mixed warning names the md drive"
+t::assert_contains "$out" "RAID-capable HBA present" "mixed warning keeps the host hint"
 
 t::summary
