@@ -84,6 +84,22 @@
             <h3 class="font-bold text-ink-900 dark:text-white">What if the laptop won't boot at all — can I still erase its drive?</h3>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Yes. Pull the drive and erase it on a bench machine under the same Chain of Custody ID, then record on the media item which device it came from. The dashboard refuses a device serial it has never seen and offers to add it to Devices as a <strong>declared device</strong> in the same step, so a machine that never booted is still named on the certificate. The erase is instrument-verified where it ran, the origin is labelled <em>declared by operator</em>, and the certificate states both the device and the bench that sanitised its media. The full procedure is in the <a href="/docs#non-boot" class="text-brand-600 dark:text-brand-400 hover:underline">docs</a>.</p>
           </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">How long does a wipe take?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">It depends on the drive and the method. A crypto erase finishes in seconds, a block erase in minutes, and a firmware sanitise on an old drive can legitimately run for hours (the drive itself reports the time). The console shows the live percentage and a time remaining, computed as it runs. Software overwrite scales with capacity, which is why the firmware erase is used whenever the drive supports one.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">What happens if the power is cut mid-wipe?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">tScrub writes a durable abort record the moment a run ends without completing: the journal records that the run ended before any certificate was written, with each drive's status and progress, and the note that the drive may be part-erased and must be re-run to be certified. A drive is only ever recorded COMPLETED when its erase actually finished. If an interrupted NVMe sanitize left the controller mid-erase, the next run detects it, waits for it to clear, and then issues its own wipe, so the report only ever claims what that run actually did.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">What about servers with RAID arrays?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">tScrub detects RAID members (Linux md superblocks, Intel VMD/RST RAID mode, and RAID-capable HBAs) and flags them, but it never deletes a logical drive or breaks an array. Dismantle the array in the controller BIOS, then erase each member drive individually: every drive gets its own row, its own wipe result, and a RAID flag in the report, so the audit trail shows exactly which physical disks were erased.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">How do I know the download is genuine?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Every release publishes its SHA-256 checksum next to the download, and the same values are listed in the manifest at <code class="font-mono text-xs">/downloads/manifest.json</code>. Verify the checksum before writing the image to a stick; the <a href="/docs#download" class="text-brand-600 dark:text-brand-400 hover:underline">docs</a> walk through the command.</p>
+          </div>
         </div>
       </div>
 
@@ -95,6 +111,10 @@
             <h3 class="font-bold text-ink-900 dark:text-white">How do you verify a wipe when a drive has bad sectors or its firmware reports success even though some data may remain?</h3>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Before each wipe, tScrub writes a unique per-run sentinel pattern into fixed positions across the drive (first sector, 25%, 50%, 75%, last) and reads those positions back from the media after the erase claims success. A drive whose firmware reported success but left data behind is recorded FAILED, not completed. This has caught a real drive whose PSID revert reported success without actually re-keying the media.</p>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Bad sectors can't fake a pass: a sector that can't be read back is recorded UNREADABLE, never passed, and the report records the drive's reallocated-sector count before and after. Firmware purges erase reallocated sectors as part of the purge, and tScrub removes hidden HPA/DCO areas first. Stronger evidence is available on request: a full read-back of every sector, or a sampled percentage after a software overwrite. Where a crypto erase makes a content read-back meaningless, tScrub records that exemption rather than printing a pass that proves nothing. See <a href="/resources/wipe-methods" class="text-brand-600 dark:text-brand-400 hover:underline">Verifying the erase, and hidden areas</a> for the detail.</p>
+          </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">How do I know the report's drive is the drive I gave you?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">tScrub reads the serial from the drive itself, not from a label, and every report row carries that serial, the method, and the result for that physical drive, tied together by the report's hash. The dashboard refuses a serial it has never seen and asks you to record it as a declared device, so a typo cannot become a certificate line. When media is erased on a bench machine instead of its own chassis, the report says so: the origin device is recorded and labelled, and the certificate names both the device and the host that sanitised its media.</p>
           </div>
         </div>
       </div>
