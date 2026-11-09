@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.95] - 2026-11-09
 
 - **SATA/NVMe/SAS SMART capture extended to the full reportable set.** SATA
   gains pending sectors, offline uncorrectable and UDMA CRC errors; NVMe gains
@@ -132,7 +132,7 @@ and this project uses date-based versioning (`v1.x`).
   end-to-end on the bench, including a full password round-trip. Lost
   passwords remain out of scope by policy.
 
-## [Unreleased]
+## [v1.11.95] - 2026-11-09
 
 ### Added
 
