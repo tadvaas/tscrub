@@ -37,4 +37,14 @@ t::assert_eq "1953525168" "${sectors[nvme0n1]}" "nvme total 512-byte sectors"
 t::assert_eq "512" "${secsize[nvme0n1]}" "nvme logical sector size"
 t::assert_eq "N/A" "${hpa[nvme0n1]}" "nvme HPA N/A"
 
+# --- SAS serial via sg_vpd (SAS devices have no sysfs serial file) ---------
+export FAKE_SG_VPD_SERIAL="SN-SAS-1"
+serial=()
+device::identity_fallback sda "$SYS_BLOCK_DIR"
+t::assert_eq "SN-SAS-1" "${serial[sda]:-}" "SAS serial comes from sg_vpd VPD 0x80"
+unset FAKE_SG_VPD_SERIAL
+serial=()
+device::identity_fallback sda "$SYS_BLOCK_DIR"
+t::assert_eq "" "${serial[sda]:-}" "no VPD serial -> serial stays empty"
+
 t::summary

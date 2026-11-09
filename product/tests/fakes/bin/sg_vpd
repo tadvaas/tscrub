@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake sg_vpd for tests, speaking the real tool's output shape:
+#   Unit serial number VPD page:
+#     Product serial number: <value>
+if [[ -n "${FAKE_SG_VPD_SERIAL:-}" ]]; then
+    printf 'Unit serial number VPD page:\n  Product serial number: %s\n' "$FAKE_SG_VPD_SERIAL"
+else
+    printf 'Unit serial number VPD page:\n  Product serial number: \n'
+fi
+exit 0

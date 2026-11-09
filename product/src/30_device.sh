@@ -49,6 +49,18 @@ device::identity_fallback() {
     if [[ -z "${serial[$dev]:-}" && -r "$block_dir/$dev/device/serial" ]]; then
         serial[$dev]="$(tr -d ' \000-\037\177' < "$block_dir/$dev/device/serial" 2>/dev/null)"
     fi
+    # SAS/SCSI drives publish no `serial` sysfs file (the SCSI midlayer does not
+    # surface VPD page 0x80) and hdparm's ATA IDENTIFY is rejected on them, so
+    # both paths above stay empty. Read the unit serial with sg_vpd (SCSI
+    # INQUIRY VPD) — sd* only, and never USB, keeping SG_IO away from bridges
+    # that may misbehave (same policy as the capability probes).
+    if [[ "$dev" == sd* && -z "${serial[$dev]:-}" ]] \
+        && command -v sg_vpd >/dev/null 2>&1 \
+        && ! device::is_usb_attached "$dev" "$block_dir"; then
+        serial[$dev]="$(sg_vpd -p sn "/dev/$dev" 2>/dev/null \
+            | sed -n 's/^[[:space:]]*Product serial number:[[:space:]]*//p' \
+            | tr -d ' \000-\037\177')"
+    fi
     if [[ -z "${model[$dev]:-}" && -r "$block_dir/$dev/device/model" ]]; then
         model[$dev]="$(tr -d '\000-\037\177' < "$block_dir/$dev/device/model" 2>/dev/null)"
     fi
