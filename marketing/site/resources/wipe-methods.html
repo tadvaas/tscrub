@@ -114,7 +114,7 @@
       <p><strong>Block erase</strong> physically erases the flash cells. It's slower than crypto erase but doesn't depend on the drive's encryption implementation, which is why some auditors prefer it.</p>
 
       <h2>Software overwrite and its limits</h2>
-      <p>Software overwrite — writing zeros or patterns with tools like <code>nwipe</code> or <code>dd</code> — is the fallback when a drive supports no firmware erasure (common on older SAS drives). Its limits:</p>
+      <p>Software overwrite — writing zeros or patterns from the host — is the fallback when a drive supports no firmware erasure (common on older SAS drives). Its limits:</p>
       <ul>
         <li>It can't reach reallocated or hidden sectors.</li>
         <li>On SSDs it's slower and causes more wear than a single firmware erase.</li>

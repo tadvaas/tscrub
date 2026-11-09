@@ -108,7 +108,7 @@
       <p>Spinning drives also speak ATA, so <strong>ATA Secure Erase</strong> and <strong>Enhanced Secure Erase</strong> apply here too — the drive's own controller overwrites every sector, including reallocated and bad sectors that software can't reach. When a drive doesn't support firmware erasure, a software overwrite is the fallback.</p>
 
       <h2>SAS &amp; SCSI drives</h2>
-      <p>Enterprise SAS drives use the SCSI command set. Many support <strong>SCSI SANITIZE</strong> directly; where they don't, a <strong>software overwrite</strong> (tScrub uses <code>nwipe</code> for this fallback) is the standard approach. SAS drives are common in decommissioned servers, so this path matters in data-centre work.</p>
+      <p>Enterprise SAS drives use the SCSI command set. Many support <strong>SCSI SANITIZE</strong> directly; where they don't, a <strong>software overwrite</strong> (tScrub applies this fallback itself) is the standard approach. SAS drives are common in decommissioned servers, so this path matters in data-centre work.</p>
 
       <h2>Self-encrypting drives (SED / OPAL)</h2>
       <p>Self-encrypting drives hold their own encryption key. Two things come up:</p>

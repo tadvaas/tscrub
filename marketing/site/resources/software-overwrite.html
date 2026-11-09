@@ -6,7 +6,7 @@
   <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>Software Overwrite: How It Works &amp; Its Limits — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/resources/software-overwrite" />
-  <meta name="description" content="Software overwrite (nwipe, dd) zeroes the sectors the OS can see — but misses reallocated sectors and SSD over-provisioning. When it's enough, and when it isn't." />
+  <meta name="description" content="Software overwrite (host-driven zeroing) zeroes the sectors the OS can see — but misses reallocated sectors and SSD over-provisioning. When it's enough, and when it isn't." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -82,7 +82,7 @@
     </div>
 
     <div class="prose prose-slate dark:prose-invert prose-lg max-w-none mt-8 prose-headings:text-ink-900 dark:prose-headings:text-white prose-a:text-brand-600 dark:prose-a:text-brand-400 hover:prose-a:text-brand-700 dark:hover:prose-a:text-brand-400">
-      <p><strong>Software overwrite</strong> is erasure done from the host: a tool like <code>nwipe</code> or <code>dd</code> writes zeros (or a pattern) across every sector the operating system can see. It maps to NIST 800-88 <strong>Clear</strong> and is a perfectly good fallback — but it has structural limits.</p>
+      <p><strong>Software overwrite</strong> is erasure done from the host: a host-side tool writes zeros (or a pattern) across every sector the operating system can see. It maps to NIST 800-88 <strong>Clear</strong> and is a perfectly good fallback — but it has structural limits.</p>
 
       <h2>How software overwrite works</h2>
       <p>The host asks the drive to write zeros to every logical block address, in order. On a healthy drive, that does destroy the data in those blocks. The problem is everything the operating system <em>can't</em> address.</p>

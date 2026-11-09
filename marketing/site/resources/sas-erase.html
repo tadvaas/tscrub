@@ -88,7 +88,7 @@
       <p>Modern SAS drives support the <strong>SCSI SANITIZE</strong> command — the SCSI-world equivalent of ATA Secure Erase. It tells the drive to erase itself at the hardware level, including reallocated sectors, and maps to NIST 800-88 <strong>Purge</strong>. It's the first choice when it's available.</p>
 
       <h2>Software overwrite as the fallback</h2>
-      <p>Older SAS drives often lack a firmware sanitise command. For those, the standard approach is a <strong>software overwrite</strong> — writing zeros across the visible drive. tScrub uses <code>nwipe</code> for this path, which maps to NIST 800-88 <strong>Clear</strong>.</p>
+      <p>Older SAS drives often lack a firmware sanitise command. For those, the standard approach is a <strong>software overwrite</strong> — writing zeros across the visible drive. tScrub applies this path itself, which maps to NIST 800-88 <strong>Clear</strong>.</p>
       <p>This is the one place where overwriting is genuinely the norm rather than a compromise: enterprise SAS drives frequently predate widespread firmware-erasure support.</p>
 
       <h2>Why SAS drives matter</h2>
@@ -98,7 +98,7 @@
       <ol>
         <li>Boot the appliance (USB or PXE) with the drives attached to an HBA or backplane.</li>
         <li>tScrub detects each drive and checks for SCSI SANITIZE support.</li>
-        <li>It runs SANITIZE where supported, otherwise an <code>nwipe</code> overwrite.</li>
+        <li>It runs SANITIZE where supported, otherwise a software overwrite.</li>
         <li>Each drive's method and final status land in the report, ready to upload or push to your dashboard.</li>
       </ol>
 

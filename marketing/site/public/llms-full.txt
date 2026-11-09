@@ -58,9 +58,9 @@ tScrub is the open, auditable alternative to Blancco for ITAD — erasure plus h
 
 The key differences: tScrub is open and inspectable — every line of the erasure code is auditable — while Blancco is closed. tScrub generates the chain-of-custody report and the signed Certificate of Destruction itself (CSV + JSON manifest + PDF with a verification QR, plus a signed machine-readable JSON-LD twin); Blancco routes both through its proprietary platform. tScrub also captures a full hardware profile and MDM/BIOS lock status in the same boot and renders a printable diagnostics report, so a single tool covers triage, grading, and erasure. tScrub has a self-serve free tier and transparent per-device pricing; Blancco is enterprise-quote only.
 
-### vs free wipe tools (nwipe / DBAN)
+### vs free ad-hoc overwrite tools
 
-nwipe and DBAN are a different class: free, ad-hoc overwrite tools with no signed reports, no certificates, and no NIST 800-88 outcome mapping. nwipe is actually bundled inside tScrub as the SCSI/SAS software-overwrite fallback (mapped to Clear) — it is a component of tScrub, not a competitor. The fallback can run a named standard — `zero`, `random` (PRNG stream), `dod` (DoD 5220.22-M), `dodshort` (DoD Short), `gutmann` (Gutmann), `is5enh` (HMG IS5 Enhanced) — with `--passes N`, and the report records the standard (`OverwriteStandard`), the
+Free ad-hoc overwrite tools are a different class: no signed reports, no certificates, and no NIST 800-88 outcome mapping. tScrub's own SCSI/SAS software-overwrite fallback (mapped to Clear) is a component of the appliance, not a competitor. The fallback can run a named standard — `zero`, `random` (PRNG stream), `dod` (DoD 5220.22-M), `dodshort` (DoD Short), `gutmann` (Gutmann), `is5enh` (HMG IS5 Enhanced) — with `--passes N`, and the report records the standard (`OverwriteStandard`), the
 pass count and the engine version. The standard is chosen on the appliance itself (on the triage screen, `m` cycles the standard and `p` cycles the rounds, and the footer shows the resulting number of pattern passes), from the kernel command line (`tscrub_method=`, `tscrub_passes=`), or from the CLI (`--method`, `--passes`). It applies to the software-overwrite fallback only: a drive whose firmware erase is available is never overwritten, and an overwrite is always recorded as Clear, never Purge. DBAN is effectively unmaintained and only overwrites hard drives. tScrub is the upgrade path from both: firmware-level purge for NVMe/SSD plus a signed, verifiable chain of custody.
 
 ## Pricing & download
@@ -126,7 +126,7 @@ Guides at https://tscrub.com/resources:
 - **Wipe methods** (https://tscrub.com/resources/wipe-methods) — firmware vs software erasure, Secure vs Enhanced Erase, sanitise vs format, crypto vs block erase, overwrite limits, and degaussing.
   - **Secure Erase vs Enhanced Secure Erase** (https://tscrub.com/resources/secure-vs-enhanced-erase) — Clear vs Purge, reallocated sectors.
   - **Crypto erase vs block erase** (https://tscrub.com/resources/crypto-vs-block-erase) — the two Purge-level NVMe Sanitize modes.
-  - **Software overwrite** (https://tscrub.com/resources/software-overwrite) — how it works and its limits (nwipe/dd).
+  - **Software overwrite** (https://tscrub.com/resources/software-overwrite) — how it works and its limits.
   - **Degaussing & physical destruction** (https://tscrub.com/resources/degaussing-destruction) — when erasure isn't possible.
 - **Certificates & chain of custody** (https://tscrub.com/resources/certificates) — what a certificate of destruction is, what it must include, the verification QR code, and free vs paid signing.  - **Chain of custody** (https://tscrub.com/resources/chain-of-custody) — the per-drive record, COCIDs.
   - **How reports are signed** (https://tscrub.com/resources/report-signing) — SHA-256 + Ed25519, self-signed vs vendor-signed.

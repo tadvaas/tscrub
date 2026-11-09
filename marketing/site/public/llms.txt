@@ -80,4 +80,4 @@
 - Air-gapped certificate checking: the certificate QR carries a signed code checked on the device at tscrub.com/verify-offline, so an auditor with no network can confirm the certificate was issued by tScrub and not altered, against the published Ed25519 key.
 - Every certificate is also issued as a signed machine-readable JSON-LD document (add &format=jsonld to the verification URL), so automated auditors can ingest and verify it without parsing the PDF.
 - The customer (data controller) certifies their own destruction; tScrub supplies the signed, tamper-evident evidence.
-- Open source (GPL-3.0), runs on your own hardware. Contrast: Blancco = closed, platform-only, enterprise quote; nwipe/DBAN = free ad-hoc overwrite, no signed reports or certificates.
+- Open source (GPL-3.0), runs on your own hardware. Contrast: Blancco = closed, platform-only, enterprise quote; free ad-hoc overwrite tools = no signed reports or certificates.
