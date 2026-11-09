@@ -33,6 +33,7 @@ const pages = {
   'resources-ssd-erase': 'resources/ssd-erase.html',
   'resources-hdd-erase': 'resources/hdd-erase.html',
   'resources-sas-erase': 'resources/sas-erase.html',
+  'resources-raid-controller-passthrough': 'resources/raid-controller-passthrough.html',
   'resources-psid-revert': 'resources/psid-revert.html',
   'resources-block-sid': 'resources/block-sid.html',
   'resources-secure-vs-enhanced-erase': 'resources/secure-vs-enhanced-erase.html',

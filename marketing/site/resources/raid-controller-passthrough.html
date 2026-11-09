@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
+  <title>RAID to passthrough: converting a Dell T140's PERC to an HBA — tScrub</title>
+  <link rel="canonical" href="https://tscrub.com/resources/raid-controller-passthrough" />
+  <meta name="description" content="Field note: how a RAID-only Dell PERC H330 was crossflashed to HBA330 IT firmware so every SAS drive is visible and erasable with SCSI SANITIZE." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+
+  <!-- ============ NAVBAR (absolute links — required for /resources/* pages) ============ -->
+    <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm font-semibold text-ink-900 dark:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
+        </ul>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content" tabindex="-1">
+
+  <!-- ============ BREADCRUMB ============ -->
+  <nav class="mx-auto max-w-3xl px-4 pt-8" aria-label="Breadcrumb">
+    <ol class="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+      <li><a href="/" class="hover:text-brand-600 dark:hover:text-brand-400">Home</a></li>
+      <li aria-hidden="true">/</li>
+      <li><a href="/resources" class="hover:text-brand-600 dark:hover:text-brand-400">Resources</a></li>
+      <li aria-hidden="true">/</li>
+      <li class="text-slate-700 dark:text-slate-300">RAID to passthrough</li>
+    </ol>
+  </nav>
+
+  <!-- ============ ARTICLE ============ -->
+  <article class="mx-auto max-w-3xl px-4 py-10">
+    <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">RAID to passthrough: the Dell T140 conversion</h1>
+    <p class="mt-3 text-lg leading-relaxed text-slate-600 dark:text-slate-400">How a RAID-only PERC kept a bench's SAS drives invisible, and how crossflashing it to HBA IT firmware made every drive visible and erasable with SCSI SANITIZE.</p>
+
+    <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+      <span class="inline-flex items-center gap-1.5">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white">t</span>
+        tScrub Team
+      </span>
+      <span aria-hidden="true">·</span>
+      <span>Last updated 9 Nov 2026</span>
+      <span aria-hidden="true">·</span>
+      <span>6 min read</span>
+    </div>
+
+    <div class="prose prose-slate dark:prose-invert prose-lg max-w-none mt-8 prose-headings:text-ink-900 dark:prose-headings:text-white prose-a:text-brand-600 dark:prose-a:text-brand-400 hover:prose-a:text-brand-700 dark:hover:prose-a:text-brand-400">
+      <p>Most decommissioned servers arrive with a hardware RAID controller between the drives and the operating system. That controller is the single biggest reason erasure software reports "no drives found". This is the field note from one bench conversion, a Dell PowerEdge T140 whose PERC went from hiding every SAS drive to passing them through, one by one, for firmware-level sanitise.</p>
+
+      <h2>Why a RAID card gets in the way of erasure</h2>
+      <p>A hardware RAID controller only shows the operating system <strong>virtual disks</strong>, not physical drives. Erasure is a per-drive act: a drive must be addressed directly for ATA Secure Erase or SCSI SANITIZE, and for its serial number and SMART data to be read from the device itself. Behind a virtual disk, none of that exists.</p>
+      <p>The T140's PERC H330 is a good example. It is an LSI SAS3008 chip running RAID-only firmware. Its controller profile reports <em>"Secure JBOD support: No"</em>, which means there is no supported way to present raw drives at all. Every physical disk sits behind an array layer, invisible to any tool that speaks to drives directly.</p>
+
+      <h2>What we found on the T140</h2>
+      <p>This particular card had a second problem. Its firmware had stopped answering the driver's commands, so the host never completed controller initialisation and no drives appeared, even as array members. Nothing in software could recover it. The machine's own setup screens offered a foreign configuration that could not be imported, and clearing it did not help. The card was, for erasure purposes, a locked door in front of the drives.</p>
+      <p>The fix was to stop treating the card as a RAID controller altogether.</p>
+
+      <h2>The conversion</h2>
+      <p>The PERC H330's chip is the same SAS3008 that Dell ships in its HBA330, an IT-mode host bus adapter with no RAID layer. The controller can be <strong>crossflashed</strong> with Dell's own HBA330 firmware, which we verified by SHA-256 against Dell's published checksum before touching the card. The conversion itself uses the LSI DOS toolchain (controller utility, flash tools) staged on a bootable FreeDOS image:</p>
+      <ol>
+        <li>Capture the controller identity, especially the <strong>SAS address</strong>. This is the one value that can never be recovered after the flash.</li>
+        <li>Flash a temporary ROM, then erase the controller flash clean.</li>
+        <li>Flash the official HBA330 firmware and its BIOS.</li>
+        <li>Write the SAS address back and verify the card reports IT firmware.</li>
+      </ol>
+      <p>Two things to know before trying this anywhere. First, it is a <strong>one-way conversion</strong>: the HBA330 firmware cannot be flashed back to the RAID firmware, though Dell's RAID firmware updater can restore RAID mode if it is ever needed. Second, preparation matters: drain residual power, use legacy BIOS boot mode for the DOS tools, and remove the drive caddies while flashing. A card whose firmware is already misbehaving should be updated or swapped first, never flashed in a hung state.</p>
+
+      <h2>What passthrough changed</h2>
+      <p>After the flash, the card enumerated as a plain SAS3008 host bus adapter under the standard <code>mpt3sas</code> driver. Every drive in the bays appeared as its own device, with its real model and serial number read from the drive itself. tScrub then treated each one on its own merits:</p>
+      <ul>
+        <li>Drives that support <strong>SCSI SANITIZE</strong> overwrite get a firmware-level Purge, with live progress and ETA read from the drive's own sense data.</li>
+        <li>Older drives without SANITIZE get a software overwrite, recorded honestly as Clear.</li>
+      </ul>
+      <p>The same bench showed both cases side by side: two identical-looking Toshiba SAS drives, one sanitising at firmware level, one overwritten by software. Passthrough is what makes that distinction visible and reportable at all.</p>
+
+      <h2>Rules we follow</h2>
+      <ul>
+        <li><strong>tScrub never breaks an array.</strong> If a drive is a RAID member, it is flagged on the row and the operator is told to dismantle the array in the controller BIOS first. Erasure is always per physical drive, never a logical volume.</li>
+        <li><strong>Firmware for a flash comes from the vendor.</strong> A random firmware file from a forum zip is not how you flash a controller that will produce destruction certificates.</li>
+        <li><strong>Identity first.</strong> The SAS address and serials are captured before anything is erased or flashed, and verified afterwards.</li>
+      </ul>
+
+      <h2>FAQ</h2>
+      <h3>Do I need to convert every RAID card before wiping?</h3>
+      <p>No. Many controllers offer a JBOD or passthrough mode in their own setup utility, and tScrub flags RAID members rather than touching them. Conversion is the path for cards with no passthrough mode at all, like the RAID-only H330.</p>
+
+      <h3>Is the converted card still supported by the vendor?</h3>
+      <p>The card runs Dell's own HBA330 firmware after the conversion, so the firmware is the vendor's; the conversion procedure itself is a field operation with no vendor blessing, which is why we document it and keep the checksum-verified firmware.</p>
+
+      <h3>What does the erasure report say after a conversion?</h3>
+      <p>The report is per drive, exactly as on any other machine: model, serial, method, NIST level and outcome. The conversion only changes whether the drives are reachable in the first place.</p>
+    </div>
+
+    <!-- ============ RELATED ============ -->
+    <div class="mt-12 border-t border-slate-200 dark:border-ink-700 pt-8">
+      <h2 class="text-lg font-bold text-ink-900 dark:text-white">Keep reading</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+        <a href="/resources/sas-erase" class="rounded-xl border border-slate-200 dark:border-ink-700 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900 dark:text-white">Erase SAS &amp; SCSI drives</span><span class="mt-1 block text-slate-600 dark:text-slate-400">SCSI SANITIZE where supported, software overwrite otherwise.</span></a>
+        <a href="/resources/drive-types" class="rounded-xl border border-slate-200 dark:border-ink-700 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900 dark:text-white">Drive types</span><span class="mt-1 block text-slate-600 dark:text-slate-400">The right method for NVMe, SSD, HDD &amp; SAS.</span></a>
+        <a href="/resources/wipe-methods" class="rounded-xl border border-slate-200 dark:border-ink-700 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900 dark:text-white">Wipe methods</span><span class="mt-1 block text-slate-600 dark:text-slate-400">Secure Erase, sanitise, crypto &amp; overwrite.</span></a>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ CTA ============ -->
+  <section class="relative overflow-hidden bg-gradient-to-br from-brand-600 to-brand-700 text-white">
+    <div class="pointer-events-none absolute inset-0 bg-grid-ink"></div>
+    <div class="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-16 text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Prove every wipe with tScrub</h2>
+      <p class="max-w-xl text-brand-50">Signed reports, SMART capture, and a printable Certificate of Destruction — from one auditable, bootable appliance.</p>
+      <a href="/download" class="inline-flex items-center rounded-lg bg-white dark:bg-ink-900 px-5 py-3 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30">Get tScrub</a>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
+        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
+        <li><a href="/docs" class="hover:text-white">Docs</a></li>
+        <li><a href="/resources" class="hover:text-white">Resources</a></li>
+        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="/terms" class="hover:text-white">Terms</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

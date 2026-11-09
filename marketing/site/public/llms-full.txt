@@ -124,6 +124,7 @@ Guides at https://tscrub.com/resources:
   - **How to securely erase a SATA SSD** (https://tscrub.com/resources/ssd-erase) — ATA Secure Erase and Enhanced Secure Erase, frozen-drive handling.
   - **How to wipe a hard drive** (https://tscrub.com/resources/hdd-erase) — Secure Erase vs software overwrite, reallocated sectors.
   - **How to erase SAS & SCSI drives** (https://tscrub.com/resources/sas-erase) — SCSI SANITIZE with overwrite fallback.
+  - **RAID to passthrough** (https://tscrub.com/resources/raid-controller-passthrough) — field note on crossflashing a RAID-only Dell PERC H330 to HBA330 IT firmware so SAS drives pass through for per-drive SANITIZE; covers why RAID layers hide drives, the checksum-verified firmware flow, the one-way warning, and the per-drive report outcome.
   - **PSID revert** (https://tscrub.com/resources/psid-revert) — unlock a self-encrypting drive with the label PSID.
   - **Block SID lockdown** (https://tscrub.com/resources/block-sid) — what NVMe error 0x4286 means.
 - **Wipe methods** (https://tscrub.com/resources/wipe-methods) — firmware vs software erasure, Secure vs Enhanced Erase, sanitise vs format, crypto vs block erase, overwrite limits, degaussing, and post-erase verification (sentinel read-back, bad sectors, hidden areas).

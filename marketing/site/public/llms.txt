@@ -33,6 +33,7 @@
 - [How to securely erase a SATA SSD](https://tscrub.com/resources/ssd-erase): ATA Secure Erase.
 - [How to wipe a hard drive](https://tscrub.com/resources/hdd-erase): Secure Erase vs overwrite.
 - [How to erase SAS & SCSI drives](https://tscrub.com/resources/sas-erase): SCSI SANITIZE.
+- [RAID to passthrough](https://tscrub.com/resources/raid-controller-passthrough): field note on converting a Dell T140's RAID-only PERC to HBA IT firmware so SAS drives are visible and erasable.
 - [PSID revert](https://tscrub.com/resources/psid-revert): Unlock a self-encrypting drive.
 - [Block SID lockdown](https://tscrub.com/resources/block-sid): What error 0x4286 means.
 - [Wipe methods](https://tscrub.com/resources/wipe-methods): Secure Erase, sanitise, crypto & overwrite, and post-erase verification (sentinel read-back, bad sectors, hidden areas).
