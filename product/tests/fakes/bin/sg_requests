@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake sg_requests for tests, speaking the real tool's output shape:
+#   Fixed format, current; Sense key: Not Ready
+#   Additional sense: Logical unit not ready, sanitize in progress
+#     Progress indication: <pct>%
+# FAKE_SG_REQUESTS_PCT unset -> completion (no additional sense).
+if [[ -n "${FAKE_SG_REQUESTS_PCT:-}" ]]; then
+    printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "$FAKE_SG_REQUESTS_PCT"
+else
+    printf 'Fixed format, current; Sense key: No Sense\nAdditional sense: No additional sense information\n'
+fi
+exit 0

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Fake sg_sanitize for tests. Controlled by FAKE_SG_SANITIZE_RC (default 0)
-# and FAKE_SG_SANITIZE_OUT (default "sanitize: success").
+# Fake sg_sanitize for tests. Controlled by FAKE_SG_SANITIZE_RC (default 0),
+# FAKE_SG_SANITIZE_OUT (default "sanitize: success") and an optional
+# FAKE_SG_SANITIZE_SLEEP so the progress pump gets samples before exit.
 rc="${FAKE_SG_SANITIZE_RC:-0}"
+if [[ -n "${FAKE_SG_SANITIZE_SLEEP:-}" ]]; then
+    sleep "$FAKE_SG_SANITIZE_SLEEP"
+fi
 if [[ -n "${FAKE_SG_SANITIZE_OUT:-}" ]]; then
     printf '%s\n' "$FAKE_SG_SANITIZE_OUT"
 else

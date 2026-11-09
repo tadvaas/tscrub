@@ -51,6 +51,9 @@ TS_NVME_SOFTWARE_FALLBACK=auto
 # unavailable (SCSI without SANITIZE, NVMe rejecting sanitize/format).
 #   TS_NWIPE_METHOD  zero | random | dod | dodshort | gutmann | is5enh
 #   TS_NWIPE_PASSES  1..64   (repetitions of the selected standard)
+# SAS/SCSI firmware sanitise progress: how often the pump reads the drive's
+# own percentage via REQUEST SENSE (sg_requests) and feeds the TUI/ETA.
+#   SG_SANITIZE_POLL_SECONDS  (default 30)
 # Left unset so tscrub.conf can fill them (CLI and kernel cmdline still win);
 # the effective default is applied at the use sites.
 TS_NWIPE_METHOD_SET=0

@@ -313,6 +313,17 @@ device::scsi_sanitize_supported() {
     return 1
 }
 
+# Seconds remaining for a firmware sanitise, from two progress samples
+# (pct at prev_t and pct at now). Nothing when the inputs are degenerate
+# (no progress between samples, or no time elapsed). Integer arithmetic at the
+# call sites is 10#-prefixed, never octal.
+scsi::eta_remaining() {   # <prev_pct> <prev_t> <pct> <now> -> seconds
+    local prev_pct="$1" prev_t="$2" pct="$3" now="$4"
+    local delta_pct=$(( pct - prev_pct )) delta_t=$(( now - prev_t ))
+    (( delta_t > 0 && delta_pct > 0 && pct < 100 )) || return 1
+    printf '%s' "$(( (100 - pct) * delta_t / delta_pct ))"
+}
+
 # SCSI/SAS firmware sanitise: `sg_sanitize --overwrite --zero`. Firmware
 # overwrite is a Purge per NIST 800-88, so a successful sanitize is recorded
 # as DESTRUCTION. When the drive rejects SANITIZE (invalid opcode / field in
@@ -343,11 +354,37 @@ device::exec_scsi_sanitize() {
 
     # --quick skips sg_sanitize's 15-second reconsideration delay. With neither
     # --early nor --wait it polls REQUEST SENSE every 60 s until the sanitize
-    # finishes, so this call blocks until completion. Output streams to the UI
-    # (fd 5) and is tee'd into a temp file for the unsupported fallback check.
-    sg_sanitize --overwrite --zero --quick "/dev/$dev" 2>&1 | tee "$tmp_out" >&5
-    rc=${PIPESTATUS[0]}
+    # finishes — but it prints NOTHING until then, so the TUI would sit on
+    # RUNNING with no idea how far the drive is. Run it in the background and
+    # pump the DRIVE's own percentage (REQUEST SENSE progress indication via
+    # sg_requests) into the same STATUS/ETA IPC the nwipe pump feeds.
+    sg_sanitize --overwrite --zero --quick "/dev/$dev" >"$tmp_out" 2>&1 &
+    sg_pid=$!
+
+    local _sense _pct _prev_pct=0 _prev_t=0 _now _eta
+    if command -v sg_requests >/dev/null 2>&1; then
+        while kill -0 "$sg_pid" 2>/dev/null; do
+            sleep "${SG_SANITIZE_POLL_SECONDS:-30}"
+            _sense="$(sg_requests "/dev/$dev" 2>/dev/null || true)"
+            _eta=""
+            if [[ "$_sense" =~ Progress[[:space:]]+indication:[[:space:]]*([0-9]+)(\.[0-9]+)?% ]]; then
+                _pct=$(( 10#${BASH_REMATCH[1]} ))   # decimal, never octal
+                echo "$dev STATUS ${_pct}%" >&3
+                echo "$dev PHASE WRITE" >&3
+                _now=$SECONDS
+                if _eta="$(scsi::eta_remaining "$_prev_pct" "$_prev_t" "$_pct" "$_now")"; then
+                    echo "$dev ETA $_eta" >&3
+                fi
+                _prev_pct=$_pct
+                _prev_t=$_now
+                echo "$dev LOG sanitize progress: ${_pct}%${_eta:+ (eta ${_eta}s)}" >&5
+            fi
+        done
+    fi
+
+    wait "$sg_pid"; rc=$?
     out="$(cat "$tmp_out" 2>/dev/null)"
+    cat "$tmp_out" >&5 2>/dev/null
     rm -f "$tmp_out"
 
     if (( rc == 0 )); then
