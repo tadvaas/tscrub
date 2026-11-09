@@ -400,7 +400,11 @@ device::exec_scsi_sanitize() {
         _sense=""
         while :; do
             sleep "${SG_SANITIZE_POLL_SECONDS:-30}"
-            _sense="$(sg_requests "/dev/$dev" 2>/dev/null || true)"
+            # sg_requests writes its sense decode to STDERR and an error note
+            # to stdout; 2>/dev/null discards the decode and the pump sees
+            # only the note (the real reason v1.11.91/92 never showed a
+            # percentage). Merge the streams.
+            _sense="$(sg_requests "/dev/$dev" 2>&1 || true)"
             _eta=""
             if [[ "$_sense" =~ Progress[[:space:]]+indication:[[:space:]]*([0-9]+)(\.[0-9]+)?% ]]; then
                 _pct=$(( 10#${BASH_REMATCH[1]} ))   # decimal, never octal

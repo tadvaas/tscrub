@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Fake sg_requests for tests, speaking the real tool's output shape:
+# Fake sg_requests for tests, mirroring the real tool's stream split: the
+# sense decode goes to STDERR, the error note to STDOUT. A caller that
+# redirects 2>/dev/null must therefore get NO progress text — that is the
+# regression this split guards (v1.11.91/92 lost the decode exactly that
+# way).
 #   Fixed format, current; Sense key: Not Ready
 #   Additional sense: Logical unit not ready, sanitize in progress
 #     Progress indication: <pct>%
 # A sequence file (FAKE_SG_REQUESTS_SEQ_FILE, one token per line, consumed
 # per call) drives multi-call scenarios: pct:N, busy, fail, done.
 # FAKE_SG_REQUESTS_PCT unset -> completion (no additional sense).
+NOTE='Number of data-in errors detected: 1, most recent sense_key=2'
 seq_file="${FAKE_SG_REQUESTS_SEQ_FILE:-}"
 if [[ -n "$seq_file" && -s "$seq_file" ]]; then
     token="$(head -n 1 "$seq_file" 2>/dev/null || true)"
@@ -14,22 +19,27 @@ if [[ -n "$seq_file" && -s "$seq_file" ]]; then
     printf '%s\n' "$(tail -n +2 "$seq_file" 2>/dev/null || true)" > "$seq_file" 2>/dev/null || true
     case "$token" in
         pct:*)
-            printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "${token#pct:}"
+            printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "${token#pct:}" >&2
+            printf '%s\n' "$NOTE"
             exit 0 ;;
         busy)
-            printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n'
+            printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n' >&2
+            printf '%s\n' "$NOTE"
             exit 0 ;;
         fail)
-            printf 'Fixed format, current; Sense key: Medium Error\nAdditional sense: sanitize command failed\n'
+            printf 'Fixed format, current; Sense key: Medium Error\nAdditional sense: sanitize command failed\n' >&2
+            printf '%s\n' "$NOTE"
             exit 0 ;;
         *)
-            printf 'Fixed format, current; Sense key: No Sense\nAdditional sense: No additional sense information\n'
+            printf 'Fixed format, current; Sense key: No Sense\nAdditional sense: No additional sense information\n' >&2
+            printf '%s\n' "$NOTE"
             exit 0 ;;
     esac
 fi
 if [[ -n "${FAKE_SG_REQUESTS_PCT:-}" ]]; then
-    printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "$FAKE_SG_REQUESTS_PCT"
+    printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "$FAKE_SG_REQUESTS_PCT" >&2
 else
-    printf 'Fixed format, current; Sense key: No Sense\nAdditional sense: No additional sense information\n'
+    printf 'Fixed format, current; Sense key: No Sense\nAdditional sense: No additional sense information\n' >&2
 fi
+printf '%s\n' "$NOTE"
 exit 0
