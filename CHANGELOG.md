@@ -31,7 +31,11 @@ and this project uses date-based versioning (`v1.x`).
   a whole job). The sanitize is now issued with `sg_sanitize --early` and
   the pump is the **only** poller; completion is the drive becoming READY
   again (`sg_readcap` fails with "Device not ready" while busy), with the
-  final sense deciding FAILED vs COMPLETED.
+  final sense deciding FAILED vs COMPLETED. **Correction (v1.11.93):** the
+  "poller starvation" explanation above was wrong — the real cause was
+  `sg_requests` writing its sense decode to stderr while the pump captured
+  with `2>/dev/null`. The `--early`/`sg_readcap` design here remains
+  correct.
 
 ## [v1.11.91] - 2026-11-09
 

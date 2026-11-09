@@ -354,12 +354,13 @@ device::exec_scsi_sanitize() {
 
     # When sg_requests is available, issue the sanitize with --early (IMMED set
     # in the CDB — returns once the command has STARTED) and poll REQUEST SENSE
-    # OURSELVES. sg_sanitize's own poll mode (no --early) reads the drive's
-    # sense from a SECOND process, and on SAS drives the two pollers starve
-    # each other: REQUEST SENSE starts failing with data-in errors and the TUI
-    # never sees a percentage (shipped in v1.11.91 and fixed here). Being the
-    # only poller works. Without sg_requests there is no progress to show, so
-    # let sg_sanitize block until the sanitize finishes instead.
+    # ourselves. sg_sanitize's own poll mode prints nothing until the sanitize
+    # finishes, so there is nothing to read from it anyway; issuing and polling
+    # in one process keeps the progress and the completion check in one place.
+    # Note sg_requests writes its sense decode to STDERR — always capture 2>&1
+    # (the v1.11.91/92 bug discarded it and never showed a percentage).
+    # Without sg_requests there is no progress to show, so let sg_sanitize block
+    # until the sanitize finishes instead.
     if command -v sg_requests >/dev/null 2>&1; then
         sg_sanitize --overwrite --zero --quick --early "/dev/$dev" >"$tmp_out" 2>&1
         rc=$?
