@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake sg_readcap for tests. FAKE_SG_READCAP_RC=2 emulates a drive that is
+# still busy ("READ CAPACITY (10) failed: Device not ready"); default 0.
+rc="${FAKE_SG_READCAP_RC:-0}"
+if [[ "$rc" != "0" ]]; then
+    printf 'READ CAPACITY (10) failed: Device not ready\n' >&2
+fi
+exit "$rc"

@@ -3,7 +3,30 @@
 #   Fixed format, current; Sense key: Not Ready
 #   Additional sense: Logical unit not ready, sanitize in progress
 #     Progress indication: <pct>%
+# A sequence file (FAKE_SG_REQUESTS_SEQ_FILE, one token per line, consumed
+# per call) drives multi-call scenarios: pct:N, busy, fail, done.
 # FAKE_SG_REQUESTS_PCT unset -> completion (no additional sense).
+seq_file="${FAKE_SG_REQUESTS_SEQ_FILE:-}"
+if [[ -n "$seq_file" && -s "$seq_file" ]]; then
+    token="$(head -n 1 "$seq_file" 2>/dev/null || true)"
+    # Consume the line portably (sed -i's syntax differs on macOS, where it
+    # would silently do nothing and the pump would loop forever on one token).
+    printf '%s\n' "$(tail -n +2 "$seq_file" 2>/dev/null || true)" > "$seq_file" 2>/dev/null || true
+    case "$token" in
+        pct:*)
+            printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "${token#pct:}"
+            exit 0 ;;
+        busy)
+            printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n'
+            exit 0 ;;
+        fail)
+            printf 'Fixed format, current; Sense key: Medium Error\nAdditional sense: sanitize command failed\n'
+            exit 0 ;;
+        *)
+            printf 'Fixed format, current; Sense key: No Sense\nAdditional sense: No additional sense information\n'
+            exit 0 ;;
+    esac
+fi
 if [[ -n "${FAKE_SG_REQUESTS_PCT:-}" ]]; then
     printf 'Fixed format, current; Sense key: Not Ready\nAdditional sense: Logical unit not ready, sanitize in progress\n  Progress indication: %s%%\n' "$FAKE_SG_REQUESTS_PCT"
 else

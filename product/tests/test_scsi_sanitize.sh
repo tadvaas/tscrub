@@ -7,6 +7,10 @@ t::source_src
 
 declare -A capability bus devrow
 
+# The pump sleeps SG_SANITIZE_POLL_SECONDS between samples; keep the tests
+# instant.
+export SG_SANITIZE_POLL_SECONDS=0
+
 # --- support probe ----------------------------------------------------------
 export FAKE_SG_OPCODES_SUPPORTED=yes
 t::check "probe supported (current sg_opcodes wording)" 'device::scsi_sanitize_supported sda'
@@ -42,19 +46,33 @@ captured="$(cat "$OUT")"; rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "sanitize success -> COMPLETED"
 
 # --- execute: live progress from the drive's sense data ---------------------
+# The sequence drives the pump: one progress sample, then completion.
 OUT="$(mktemp)"
+seq="$(mktemp)"
+printf 'pct:40.28\ndone\n' > "$seq"
 export FAKE_SG_SANITIZE_RC=0
-export FAKE_SG_SANITIZE_SLEEP=1
-export FAKE_SG_REQUESTS_PCT="40.28"
-export SG_SANITIZE_POLL_SECONDS=0
+export FAKE_SG_REQUESTS_SEQ_FILE="$seq"
 exec 3>"$OUT"
 device::execute sda
 exec 3>&-
-captured="$(cat "$OUT")"; rm -f "$OUT"
+captured="$(cat "$OUT")"; rm -f "$OUT" "$seq"
 t::assert_contains "$captured" "sda STATUS 40%" "sanitize progress -> STATUS %"
 t::assert_contains "$captured" "sda PHASE WRITE" "sanitize progress -> PHASE WRITE"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "progress pump still ends COMPLETED"
-unset FAKE_SG_REQUESTS_PCT FAKE_SG_SANITIZE_SLEEP SG_SANITIZE_POLL_SECONDS
+unset FAKE_SG_REQUESTS_SEQ_FILE FAKE_SG_SANITIZE_RC
+
+# --- execute: sanitize accepted, then fails in the drive --------------------
+OUT="$(mktemp)"
+seq="$(mktemp)"
+printf 'fail\n' > "$seq"
+export FAKE_SG_SANITIZE_RC=0
+export FAKE_SG_REQUESTS_SEQ_FILE="$seq"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"; rm -f "$OUT" "$seq"
+t::assert_contains "$captured" "sda STATUS FAILED" "drive-side sanitize failure -> FAILED"
+unset FAKE_SG_REQUESTS_SEQ_FILE FAKE_SG_SANITIZE_RC
 
 # --- ETA from two progress samples ------------------------------------------
 t::assert_eq "60" "$(scsi::eta_remaining 10 0 40 30)" "eta: 30pct in 30s -> 60s left"

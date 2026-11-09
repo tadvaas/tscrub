@@ -352,18 +352,53 @@ device::exec_scsi_sanitize() {
         return
     }
 
-    # --quick skips sg_sanitize's 15-second reconsideration delay. With neither
-    # --early nor --wait it polls REQUEST SENSE every 60 s until the sanitize
-    # finishes — but it prints NOTHING until then, so the TUI would sit on
-    # RUNNING with no idea how far the drive is. Run it in the background and
-    # pump the DRIVE's own percentage (REQUEST SENSE progress indication via
-    # sg_requests) into the same STATUS/ETA IPC the nwipe pump feeds.
-    sg_sanitize --overwrite --zero --quick "/dev/$dev" >"$tmp_out" 2>&1 &
-    sg_pid=$!
-
-    local _sense _pct _prev_pct=0 _prev_t=0 _now _eta
+    # When sg_requests is available, issue the sanitize with --early (IMMED set
+    # in the CDB — returns once the command has STARTED) and poll REQUEST SENSE
+    # OURSELVES. sg_sanitize's own poll mode (no --early) reads the drive's
+    # sense from a SECOND process, and on SAS drives the two pollers starve
+    # each other: REQUEST SENSE starts failing with data-in errors and the TUI
+    # never sees a percentage (shipped in v1.11.91 and fixed here). Being the
+    # only poller works. Without sg_requests there is no progress to show, so
+    # let sg_sanitize block until the sanitize finishes instead.
     if command -v sg_requests >/dev/null 2>&1; then
-        while kill -0 "$sg_pid" 2>/dev/null; do
+        sg_sanitize --overwrite --zero --quick --early "/dev/$dev" >"$tmp_out" 2>&1
+        rc=$?
+    else
+        sg_sanitize --overwrite --zero --quick "/dev/$dev" >"$tmp_out" 2>&1
+        rc=$?
+    fi
+    out="$(cat "$tmp_out" 2>/dev/null)"
+    cat "$tmp_out" >&5 2>/dev/null
+    rm -f "$tmp_out"
+
+    if (( rc != 0 )); then
+        # A drive that rejects SANITIZE (invalid opcode / field in CDB) was
+        # optimistically classified — fall back to nwipe and correct the
+        # outcome to the honest CLEAR/SANITISATION label.
+        if grep -qiE 'invalid (command operation code|field in cdb)|not supported' <<<"$out"; then
+            echo "$dev LOG sanitize unsupported; falling back to nwipe" >&3
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE unsupported -> nwipe" >> "$LOG_FILE"
+            echo "$dev CLASS CLEAR" >&3
+            echo "$dev CERT SANITISATION" >&3
+            device::exec_nwipe "$dev"
+            return
+        fi
+        device::emit_status "$dev" FAILED
+        echo "$dev LOG sanitize failed to start; manual physical destruction required" >&3
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE FAILED" >> "$LOG_FILE"
+        return
+    fi
+
+    # The --early branch: pump the drive's own percentage (REQUEST SENSE
+    # progress indication) into the same STATUS/ETA IPC the nwipe pump feeds,
+    # until the drive becomes READY again. sg_readcap fails with "Device not
+    # ready" for the whole sanitize and succeeds when it is done, so it is the
+    # completion signal. A FAILED sanitize also ends with the drive ready, so
+    # the last sense decides the outcome.
+    if command -v sg_requests >/dev/null 2>&1; then
+        local _sense _pct _prev_pct=0 _prev_t=0 _now _eta
+        _sense=""
+        while :; do
             sleep "${SG_SANITIZE_POLL_SECONDS:-30}"
             _sense="$(sg_requests "/dev/$dev" 2>/dev/null || true)"
             _eta=""
@@ -378,36 +413,23 @@ device::exec_scsi_sanitize() {
                 _prev_pct=$_pct
                 _prev_t=$_now
                 echo "$dev LOG sanitize progress: ${_pct}%${_eta:+ (eta ${_eta}s)}" >&5
+                continue
             fi
+            if [[ "$_sense" == *"sanitize in progress"* ]] \
+                || ! sg_readcap "/dev/$dev" >/dev/null 2>&1; then
+                continue
+            fi
+            break
         done
+        if grep -qi 'fail' <<<"$_sense"; then
+            device::emit_status "$dev" FAILED
+            echo "$dev LOG sanitize failed; manual physical destruction required" >&3
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE FAILED" >> "$LOG_FILE"
+            return
+        fi
     fi
 
-    wait "$sg_pid"; rc=$?
-    out="$(cat "$tmp_out" 2>/dev/null)"
-    cat "$tmp_out" >&5 2>/dev/null
-    rm -f "$tmp_out"
-
-    if (( rc == 0 )); then
-        device::emit_status "$dev" COMPLETED
-        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE COMPLETED" >> "$LOG_FILE"
-        return
-    fi
-
-    # A drive that rejects SANITIZE (invalid opcode / field in CDB) was
-    # optimistically classified — fall back to nwipe and correct the outcome.
-    if grep -qiE 'invalid (command operation code|field in cdb)|not supported' <<<"$out"; then
-        echo "$dev LOG sanitize unsupported; falling back to nwipe" >&3
-        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE unsupported -> nwipe" >> "$LOG_FILE"
-        # Correct the outcome over the fd-3 IPC pipe (same reason as the
-        # tool-vanished branch above — direct devrow writes are lost here).
-        echo "$dev CLASS CLEAR" >&3
-        echo "$dev CERT SANITISATION" >&3
-        device::exec_nwipe "$dev"
-        return
-    fi
-
-    device::emit_status "$dev" FAILED
-    echo "$dev LOG sanitize failed; manual physical destruction required" >&3
-    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE FAILED" >> "$LOG_FILE"
+    device::emit_status "$dev" COMPLETED
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] DRIVE: $dev | ACTION: SAS SANITIZE COMPLETED" >> "$LOG_FILE"
 }
 
