@@ -22,9 +22,12 @@ step links to the detailed section that follows:
    poll `build_tscrub.log` for `TSCRUB_BUILD_DONE` (§2).
 5. **Publish the ISO** — copy `output/images/tscrub-…-<hash>.iso` into
    `~/webs/tscrub/downloads/`, write its `.sha256`, repoint the
-   `tscrub-appliance.iso` symlink (§2). `<hash>` is the **build host's HEAD
-   commit**, not a content hash: commit the overlay (step 3) *before* building,
-   or a new ISO advertises the previous release's commit in its filename.
+   `tscrub-appliance.iso` symlink, and refresh the
+   `tscrub-appliance.iso.sha256` sidecar (a REGULAR file, not a symlink — §7b
+   fails on a stale one; it is not updated by any script) (§2). `<hash>` is
+   the **build host's HEAD commit**, not a content hash: commit the overlay
+   (step 3) *before* building, or a new ISO advertises the previous release's
+   commit in its filename.
 6. **Publish + sign the PXE kernel** — `bash ops/publish-netboot.sh` copies,
    signs with the iPXE vendor key, verifies the issuer and prints the SHA-256;
    `--check` re-verifies whatever is being served (§2).
