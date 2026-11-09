@@ -6,6 +6,21 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.91] - 2026-11-09
+
+### Added
+
+- **Live progress + ETA for SAS/SCSI firmware sanitise.** `sg_sanitize`
+  polls the drive but prints nothing until it finishes, so a sanitise row
+  sat on bare RUNNING for the whole erase. The drive reports its own
+  percentage in REQUEST SENSE progress indication, so the sanitise now runs
+  in the background while a pump reads that value every
+  `SG_SANITIZE_POLL_SECONDS` (default 30) and feeds the same STATUS/ETA IPC
+  the software-overwrite pump uses — the TUI shows the percentage and a time
+  remaining computed from the last two samples (`scsi::eta_remaining`).
+  Verified on the bench: the AL14 reported 40.3 % → 44.9 % across a minute
+  while host-side I/O was idle (the drive erases internally).
+
 ## [v1.11.90] - 2026-11-09
 
 ### Fixed
