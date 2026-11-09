@@ -65,6 +65,13 @@ cat /proc/partitions             # every drive present
 
 Then tScrub classifies the disks on the SAS bus with full erase passthrough.
 
+**Verified on the bench T140 (2026-11-09):** `lspci` → `1000:0097`,
+`mpt3sas` up with `sas_addr(0x5f402700e584a300)`, phys(8), port enable
+SUCCESS. Both bay drives on `host0` in `/sys/block` (Toshiba AL13SXL300N +
+AL14SXL30EN, 300 GB SAS) — the flash sequence in this runbook is
+end-to-end confirmed, including the 3–10 min POST stall after the temp ROM
+and the empty-flash reboot with no RAID BIOS at all.
+
 ## Notes
 
 - **iDRAC fan response**: after the flash iDRAC may no longer see drive
