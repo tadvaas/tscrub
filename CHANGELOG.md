@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.93] - 2026-11-09
+
+### Fixed
+
+- **SAS sanitise progress, for real this time.** The pump captured
+  `sg_requests` output with `2>/dev/null` — but `sg_requests` writes its
+  sense decode ("sanitize in progress" + `Progress indication`) to STDERR
+  and only an error note to stdout, so the pump was discarding the exact
+  text it parses on every poll (the "two pollers starve each other" theory
+  from v1.11.92 was a red herring). Capturing with `2>&1` fixed it; the
+  fake now mirrors the real stream split, and reverting the merge fails
+  the suite.
+
 ## [v1.11.92] - 2026-11-09
 
 ### Fixed
