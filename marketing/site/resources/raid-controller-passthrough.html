@@ -6,7 +6,7 @@
   <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>RAID to passthrough: converting a Dell T140's PERC to an HBA — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/resources/raid-controller-passthrough" />
-  <meta name="description" content="Field note: how a RAID-only Dell PERC H330 was crossflashed to HBA330 IT firmware so every SAS drive is visible and erasable with SCSI SANITIZE." />
+  <meta name="description" content="Field note: crossflashing a Dell PERC H330 (LSI SAS3008) to HBA330 IT firmware — megaraid_sas to mpt3sas, the PCI identity swap, the FreeDOS flash sequence, SAS address handling, and what it changes for SCSI SANITIZE and SMART capture." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -63,41 +63,68 @@
       <span aria-hidden="true">·</span>
       <span>Last updated 9 Nov 2026</span>
       <span aria-hidden="true">·</span>
-      <span>6 min read</span>
+      <span>10 min read</span>
     </div>
 
     <div class="prose prose-slate dark:prose-invert prose-lg max-w-none mt-8 prose-headings:text-ink-900 dark:prose-headings:text-white prose-a:text-brand-600 dark:prose-a:text-brand-400 hover:prose-a:text-brand-700 dark:hover:prose-a:text-brand-400">
-      <p>Most decommissioned servers arrive with a hardware RAID controller between the drives and the operating system. That controller is the single biggest reason erasure software reports "no drives found". This is the field note from one bench conversion, a Dell PowerEdge T140 whose PERC went from hiding every SAS drive to passing them through, one by one, for firmware-level sanitise.</p>
+      <p>Most decommissioned servers arrive with a hardware RAID controller between the drives and the operating system. That controller is the single biggest reason erasure software reports "no drives found". This is the field note from one bench conversion, a Dell PowerEdge T140 whose PERC H330 went from hiding every SAS drive to passing them through, one by one, for firmware-level sanitise — with the exact firmware, the exact flash sequence, and the exact boot output at the end.</p>
 
       <h2>Why a RAID card gets in the way of erasure</h2>
-      <p>A hardware RAID controller only shows the operating system <strong>virtual disks</strong>, not physical drives. Erasure is a per-drive act: a drive must be addressed directly for ATA Secure Erase or SCSI SANITIZE, and for its serial number and SMART data to be read from the device itself. Behind a virtual disk, none of that exists.</p>
-      <p>The T140's PERC H330 is a good example. It is an LSI SAS3008 chip running RAID-only firmware. Its controller profile reports <em>"Secure JBOD support: No"</em>, which means there is no supported way to present raw drives at all. Every physical disk sits behind an array layer, invisible to any tool that speaks to drives directly.</p>
+      <p>A hardware RAID controller exposes <strong>virtual disks</strong>, not physical drives. Erasure is a per-drive act: the drive must be addressed directly for ATA Secure Erase or SCSI SANITIZE, and its identity and health must be read from the device itself — the serial number lives in SCSI VPD page 0x80, the health in SCSI LOG SENSE, and the sanitise completion status in the drive's own sense data. Behind a virtual disk none of that exists, because the controller answers those queries on behalf of an array, not of a drive.</p>
+      <p>It is not just a visibility problem. Erasure evidence means per-drive facts: which serial was wiped, by what opcode, with what completion status. A tool that can only see "Virtual Disk 0" cannot produce that. The PERC H330 is a good example of the worst case: it is an LSI SAS3008 chip running RAID-only firmware, and its controller profile reports <em>"Secure JBOD support: No"</em> — there is no supported way to present raw drives at all.</p>
+
+      <h2>The controller, precisely</h2>
+      <p>The H330 and Dell's HBA330 share the same silicon: a Broadcom (LSI) <strong>SAS3008 "Fury"</strong> Fusion-MPT controller. The difference is entirely in the firmware image on the card's flash and the PCI identity it presents:</p>
+      <ul>
+        <li><strong>PERC H330</strong> — RAID (IR) firmware, PCI ID <code>1000:005f</code>, driven by the <code>megaraid_sas</code> stack. Disks appear as members of arrays, or not at all.</li>
+        <li><strong>HBA330</strong> — IT firmware, PCI ID <code>1000:0097</code>, driven by <code>mpt3sas</code>. Every phy and drive is handed straight to the OS.</li>
+      </ul>
+      <p>The conversion swaps one firmware personality for the other. The HBA firmware flashed here is Dell's own image — <code>HBA330.fw</code> from the official <code>SAS_HBA330_ADP_SF.fw</code> v16.17.01.00 A08 update package, SHA-256 <code>2be9c8b2…3a58</code> verified against Dell's published checksum — with Dell's <code>mptx64-sas3-sb.rom</code> as the card BIOS. Nothing flashed on this card came from a random zip.</p>
 
       <h2>What we found on the T140</h2>
-      <p>This particular card had a second problem. Its firmware had stopped answering the driver's commands, so the host never completed controller initialisation and no drives appeared, even as array members. Nothing in software could recover it. The machine's own setup screens offered a foreign configuration that could not be imported, and clearing it did not help. The card was, for erasure purposes, a locked door in front of the drives.</p>
-      <p>The fix was to stop treating the card as a RAID controller altogether.</p>
+      <p>This particular card had a second problem. Its RAID firmware had stopped answering the driver's commands — <code>megaraid_sas</code> DCMD timeouts and a boot log ending in <code>Failed from megasas_init_fw 6553</code> — so the host never completed controller initialisation and no drives appeared, even as array members. The machine's own setup screens offered a foreign configuration that could not be imported, and clearing it did not help. A card that cannot finish initialisation is a locked door in front of the drives: nothing in software can reach around it.</p>
+      <p>The fix was to stop treating the card as a RAID controller altogether — and since the flash is a field operation, the first rule is that a card already misbehaving gets its stock firmware updated (or the card swapped) before anything riskier is attempted. Flashing a hung card bricks it.</p>
 
       <h2>The conversion</h2>
-      <p>The PERC H330's chip is the same SAS3008 that Dell ships in its HBA330, an IT-mode host bus adapter with no RAID layer. The controller can be <strong>crossflashed</strong> with Dell's own HBA330 firmware, which we verified by SHA-256 against Dell's published checksum before touching the card. The conversion itself uses the LSI DOS toolchain (controller utility, flash tools) staged on a bootable FreeDOS image:</p>
-      <ol>
-        <li>Capture the controller identity, especially the <strong>SAS address</strong>. This is the one value that can never be recovered after the flash.</li>
-        <li>Flash a temporary ROM, then erase the controller flash clean.</li>
-        <li>Flash the official HBA330 firmware and its BIOS.</li>
-        <li>Write the SAS address back and verify the card reports IT firmware.</li>
-      </ol>
-      <p>Two things to know before trying this anywhere. First, it is a <strong>one-way conversion</strong>: the HBA330 firmware cannot be flashed back to the RAID firmware, though Dell's RAID firmware updater can restore RAID mode if it is ever needed. Second, preparation matters: drain residual power, use legacy BIOS boot mode for the DOS tools, and remove the drive caddies while flashing. A card whose firmware is already misbehaving should be updated or swapped first, never flashed in a hung state.</p>
+      <p>The toolchain is the LSI DOS set — <code>megacli.exe</code> (identity and inventory), <code>megarec3.exe</code> (flash erase), <code>sas3flsh.exe</code> (flash and SAS address) — with its DOS extenders, staged on a bootable FreeDOS image (33,554,432 bytes) along with two intermediate images: a temporary ROM and an empty SBR. Machine prep matters as much as the commands:</p>
+      <ul>
+        <li><strong>Boot mode</strong>: the DOS tools will not run under UEFI — F2 Setup, <em>Boot Mode = BIOS/Legacy</em>.</li>
+        <li><strong>Power</strong>: a full flea-power drain first (power off, mains out, hold the power button 20 seconds).</li>
+        <li><strong>Drives</strong>: pull the SAS caddies — nothing should sit on the bus while the card has no firmware.</li>
+        <li><strong>Identity first</strong>: step 0 dumps the controller inventory, including the one value that can never be recovered after the flash — the <strong>SAS address</strong>.</li>
+      </ul>
+      <p>The sequence, each step verified on the bench:</p>
+      <table>
+        <thead>
+          <tr><th>Step</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0 — inventory</td><td>Dump identity: product name, firmware build, and the SAS address.</td></tr>
+          <tr><td>1 — temporary ROM</td><td>Flash an intermediate ROM so the card still answers on the PCI bus. Reboot. The POST stalls 3–10 minutes, then reports the card has no bootable firmware — that is expected.</td></tr>
+          <tr><td>2 — erase</td><td>Empty the controller flash (SBR) so the new firmware writes into a blank region. Reboot.</td></tr>
+          <tr><td>3 — flash</td><td>Write <code>HBA330.fw</code> and the card BIOS ROM.</td></tr>
+          <tr><td>4 — SAS address</td><td>Write the recorded SAS address back, then <code>sas3flsh -list</code> to verify the card reports <code>Firmware: IT</code>.</td></tr>
+        </tbody>
+      </table>
+      <p>The SAS address deserves its own paragraph. It is the card's 64-bit world-wide identifier on the SAS fabric, reported in every IDENTIFY address frame — the controller's address, not the drives'. It lives in its own flash region, which is exactly why a clean flash destroys it and no tool can reconstruct it. The bench card's address was <code>0x5f402700e584a300</code>: captured in step 0, written back in step 4, and confirmed when the kernel logged <code>sas_addr(0x5f402700e584a300)</code> at boot. Lose it and the controller comes up with a wrong address, and any record keyed to the controller's SAS address no longer matches the hardware.</p>
+      <p>Two more things to know before trying this anywhere. First, it is a <strong>one-way conversion</strong>: the HBA330 firmware cannot be flashed back to the RAID firmware directly, though Dell's PERC H330 RAID firmware updater can restore RAID mode if it is ever needed. Second, the iDRAC may notice: with the RAID firmware gone, the BMC can no longer read drive temperatures and may hold the fans higher than before (PCI3018 in the lifecycle log). On a bench that is acceptable; on a production server, know about it before you flash.</p>
 
       <h2>What passthrough changed</h2>
-      <p>After the flash, the card enumerated as a plain SAS3008 host bus adapter under the standard <code>mpt3sas</code> driver. Every drive in the bays appeared as its own device, with its real model and serial number read from the drive itself. tScrub then treated each one on its own merits:</p>
+      <p>First boot after the flash, the card came up under <code>mpt3sas</code> with all eight phys enabled and every drive on its own <code>/dev/sdX</code>:</p>
       <ul>
-        <li>Drives that support <strong>SCSI SANITIZE</strong> overwrite get a firmware-level Purge, with live progress and ETA read from the drive's own sense data.</li>
-        <li>Older drives without SANITIZE get a software overwrite, recorded honestly as Clear.</li>
+        <li><strong>Identity</strong> — serials read straight from VPD page 0x80, instead of a controller-invented string.</li>
+        <li><strong>Health</strong> — SMART from SCSI LOG SENSE: health status, current temperature, accumulated power-on hours. (SAS drives have no ATA attribute table, which is exactly why a RAID layer that hides LOG SENSE hides the drive's health with it.)</li>
+        <li><strong>Erasure</strong> — the SANITIZE opcode probed per drive with <code>sg_opcodes</code>, and issued where supported.</li>
       </ul>
-      <p>The same bench showed both cases side by side: two identical-looking Toshiba SAS drives, one sanitising at firmware level, one overwritten by software. Passthrough is what makes that distinction visible and reportable at all.</p>
+      <p>The bench showed both outcomes side by side on one controller. The Toshiba AL14SXL30EN advertises SANITIZE, so tScrub ran a firmware-level overwrite sanitise — a Purge, with live progress and ETA read from the drive's own sense data. The AL13SXL300N, in the same bay layout, does not support SANITIZE, so it got a software overwrite recorded honestly as Clear. Passthrough is what makes that distinction visible and reportable at all; behind the RAID firmware both drives would have been one virtual disk and neither method would exist.</p>
+      <p>The captured SMART told the same story about the drives themselves: the AL14SXL30EN reported 67,285 power-on hours at 32 °C with four grown defects — the kind of per-drive fact a destruction report should contain, and that no array layer can provide.</p>
+
+      <h2>What about the card's "Non-RAID" disk mode?</h2>
+      <p>The H330 does offer a way to mark physical disks as Non-RAID from its Ctrl-R utility, which exposes them to the OS without building an array. It is not the same as IT firmware. Those disks are still presented through the <code>megaraid_sas</code> RAID driver's translation layer rather than as raw SAS devices — a mediated path that is not guaranteed to pass every CDB (VPD, LOG SENSE, SANITIZE) unmodified. The crossflash removes the translation layer entirely: the controller stops interpreting commands and just forwards them. For erasure evidence, the raw path is the one that matters.</p>
 
       <h2>Rules we follow</h2>
       <ul>
-        <li><strong>tScrub never breaks an array.</strong> If a drive is a RAID member, it is flagged on the row and the operator is told to dismantle the array in the controller BIOS first. Erasure is always per physical drive, never a logical volume.</li>
+        <li><strong>tScrub never breaks an array.</strong> If a drive is a RAID member, it is flagged on the row and the operator is told to dismantle the array in the controller BIOS first. Erasure is always per physical drive, never a logical volume. A drive behind true IT firmware is not an array member, so no dismantling applies.</li>
         <li><strong>Firmware for a flash comes from the vendor.</strong> A random firmware file from a forum zip is not how you flash a controller that will produce destruction certificates.</li>
         <li><strong>Identity first.</strong> The SAS address and serials are captured before anything is erased or flashed, and verified afterwards.</li>
       </ul>
@@ -110,7 +137,10 @@
       <p>The card runs Dell's own HBA330 firmware after the conversion, so the firmware is the vendor's; the conversion procedure itself is a field operation with no vendor blessing, which is why we document it and keep the checksum-verified firmware.</p>
 
       <h3>What does the erasure report say after a conversion?</h3>
-      <p>The report is per drive, exactly as on any other machine: model, serial, method, NIST level and outcome. The conversion only changes whether the drives are reachable in the first place.</p>
+      <p>The report is per drive, exactly as on any other machine: model, serial, method, NIST level, outcome — plus the SMART health read from the drive itself. The conversion only changes whether the drives are reachable in the first place.</p>
+
+      <h3>What happens if the SAS address is lost?</h3>
+      <p>The drives still enumerate and erase normally — the address belongs to the controller, not the drives — but the card then presents a different SAS address than the one the machine originally had, so records keyed to the controller's address no longer match the hardware. Record it before the erase step; it is in the inventory dump and on the card label.</p>
     </div>
 
     <!-- ============ RELATED ============ -->
