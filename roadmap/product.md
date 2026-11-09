@@ -354,8 +354,9 @@ with the release that carried them (per `CHANGELOG.md`).
       never report equal) and the comparison's exit status was captured from an
       assignment instead of `cmp`. Both fixed; six tests now run the real
       primitives instead of stubbing them (the stubs are why v1.11.73 shipped
-      green). Proven in a **virtio-scsi VM** — the only easy route to the nwipe
-      path, because USB-attached drives are excluded from discovery:
+      green). Proven in a **virtio-scsi VM** — at the time the easiest route to
+      the nwipe path (USB targets joined discovery and the nwipe path in
+      v1.11.79):
       `VerifyTechnique=overwrite-sample`, `VerifyCoveragePct=5` on a 2 GB disk
       (100 MB as 20 ranges), and certificate `COD-945244-FY-NIH-2986-BUSI`
       prints "Sampled 5%". This also closes §4.1(a): the virtio-scsi overwrite
@@ -538,8 +539,16 @@ with the release that carried them (per `CHANGELOG.md`).
       `--retire-boot-media` **deferred** — a mode that destroys its own root can
       only be tested on sacrificial hardware and a bug in the ordering loses the
       report.
-      → **P1 shipped 2026-10-26** (unreleased): protected-disk set + USB rows
-      visible but unselectable; suite 1235 checks. P2 (actual erase) not started.
+      → **Shipped v1.11.79** (2026-10-26): P1 protection and P2 erase both
+      released. USB targets render as normal selectable rows and are wiped by
+      software overwrite only (`device::detect()` short-circuits USB to the
+      nwipe path before any probe runs, whatever the bridge advertises),
+      `Bus=USB` is recorded, an `ieee2883` run refuses a USB target at gate G5
+      and records the shortfall, the appliance's own boot stick is refused by
+      its `TSCRUB`/`TSCRUB-USB` labels (fail-closed when unidentifiable), and
+      hot-plug now sees USB sticks. Remaining here: SD/eMMC and RAID/FC/iSCSI
+      volumes; ATA-over-USB stays deferred until proven on hardware. Plan:
+      `research/usb-target-erase/README.md`.
 - [x] **Factory reset for devices tScrub cannot boot** — switches, routers, IP phones
       and phones reset by the operator with their own facilities and put back into
       service. Recorded through the existing attested path (same modal, same
@@ -819,7 +828,8 @@ with the release that carried them (per `CHANGELOG.md`).
       no udev) diffs the device set; on change `device::rediscover` re-scans,
       probes only the newcomer (capability + pre-wipe SMART), re-renders with a
       `[+]/[-]` notice and re-pushes the diagnostics snapshot. Gated to the idle
-      triage screen (never mid-wipe); USB-attached drives stay excluded.
+      triage screen (never mid-wipe); USB-attached drives joined discovery in
+      v1.11.79, when the stale snapshot filter that dropped them was removed.
       Plan: `research/hot-plug-drive-detection/plan.md`.
 - [ ] **A machine with nothing attached must say so, not loop.** On a boot with
       no supported drives tScrub demands a COCID, discovers nothing, renders one

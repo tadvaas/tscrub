@@ -89,8 +89,9 @@ make build
 
 #### Device discovery & classification
 
-- Discovers `sd[a-z]+` and `nvme*` block devices; **USB devices are excluded**
-  so the boot stick is never a wipe target.
+- Discovers `sd[a-z]+` and `nvme*` block devices, USB included (since
+  v1.11.79, software overwrite only; the appliance's own boot stick is
+  protected by its `TSCRUB`/`TSCRUB-USB` labels and is never a wipe target).
 - Each drive is classified into a NIST class — `CLEAR`, `PURGE`, `FROZEN`
   (locked, needs a power-cycle), or `FAILED` — and a terminal status:
   `COMPLETED`, `FAILED`, `FROZEN`, `BLOCKED` (TCG Block SID lockdown), or

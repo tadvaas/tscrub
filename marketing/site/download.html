@@ -124,7 +124,7 @@ sudo dd if=&lt;downloaded-iso&gt; of=/dev/sdX bs=4M status=progress && sync
       <ul class="mt-6 space-y-2 text-sm text-slate-600 dark:text-slate-400">
         <li>• x86-64 machine with USB or PXE boot</li>
         <li>• 1 GB RAM (erasure runs in parallel)</li>
-        <li>• Directly attached NVMe, SATA, or SCSI drives (USB-attached drives are excluded by design)</li>
+        <li>• Directly attached NVMe, SATA, or SCSI drives, plus USB-attached drives erased by software overwrite (<code class="font-mono">Bus=USB</code> in the report; no firmware-erase claim over a USB bridge)</li>
       </ul>
     </div>
 
