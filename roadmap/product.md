@@ -59,6 +59,8 @@ they ship and note the release that carries each. **Last reconciled with
       log-page health status, current temperature and accumulated power-on
       hours; grown defects are NOT stored as reallocated sectors. Plan:
       `research/sas-smart/README.md`.
+      → **Shipped 2026-11-09 (v1.11.94)**: 28 SMART tests (mutation-checked
+      dispatch).
 - [x] **Windows key (DPK) injection into NVRAM** — shipped v1.11.1: write a new
       key into the OA3 UEFI variable (the BIOS derives the MSDM table from it at
       boot — no SPI flash, no table assembly, no checksum). Field-verified on HP:
