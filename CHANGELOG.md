@@ -6,6 +6,17 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.11.94] - 2026-11-09
+
+- **SAS drives now report SMART health in the diagnostics report.** SAS drives
+  used to show empty SMART columns because capture parsed only ATA-shaped
+  output (self-assessment line + attribute table); native SAS drives have
+  neither, and the `-d sat` fallback fails outright on them. Capture now
+  detects the SCSI log-page output (`SMART Health Status: OK`) and records
+  PASS/FAIL, current drive temperature and accumulated power-on hours.
+  `Elements in grown defect list` is deliberately NOT stored as reallocated
+  sectors. Plan: `research/sas-smart/README.md`.
+
 ## [v1.11.93] - 2026-11-09
 
 ### Fixed
