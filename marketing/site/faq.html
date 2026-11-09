@@ -6,7 +6,7 @@
   <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>FAQ — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/faq" />
-  <meta name="description" content="Answers about tScrub certification, running tScrub on your own hardware, and how edge-case drives are handled." />
+  <meta name="description" content="Answers about tScrub certification, running tScrub on your own hardware, edge-case drives, and how wipes are verified." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -83,6 +83,18 @@
           <div class="py-5">
             <h3 class="font-bold text-ink-900 dark:text-white">What if the laptop won't boot at all — can I still erase its drive?</h3>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Yes. Pull the drive and erase it on a bench machine under the same Chain of Custody ID, then record on the media item which device it came from. The dashboard refuses a device serial it has never seen and offers to add it to Devices as a <strong>declared device</strong> in the same step, so a machine that never booted is still named on the certificate. The erase is instrument-verified where it ran, the origin is labelled <em>declared by operator</em>, and the certificate states both the device and the bench that sanitised its media. The full procedure is in the <a href="/docs#non-boot" class="text-brand-600 dark:text-brand-400 hover:underline">docs</a>.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification -->
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">Verification</h2>
+        <div class="mt-2 divide-y divide-slate-100 dark:divide-ink-800">
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">How do you verify a wipe when a drive has bad sectors or its firmware reports success even though some data may remain?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Before each wipe, tScrub writes a unique per-run sentinel pattern into fixed positions across the drive (first sector, 25%, 50%, 75%, last) and reads those positions back from the media after the erase claims success. A drive whose firmware reported success but left data behind is recorded FAILED, not completed. This has caught a real drive whose PSID revert reported success without actually re-keying the media.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Bad sectors can't fake a pass: a sector that can't be read back is recorded UNREADABLE, never passed, and the report records the drive's reallocated-sector count before and after. Firmware purges erase reallocated sectors as part of the purge, and tScrub removes hidden HPA/DCO areas first. Stronger evidence is available on request: a full read-back of every sector, or a sampled percentage after a software overwrite. Where a crypto erase makes a content read-back meaningless, tScrub records that exemption rather than printing a pass that proves nothing. See <a href="/resources/wipe-methods" class="text-brand-600 dark:text-brand-400 hover:underline">Verifying the erase, and hidden areas</a> for the detail.</p>
           </div>
         </div>
       </div>
