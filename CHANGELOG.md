@@ -6,6 +6,18 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+- **SATA disks behind an SAS HBA now get ATA Secure Erase.** The kernel
+  reports the SAS transport for a SATA disk tunnelled through STP, so these
+  drives were labelled SCSI and erased by software overwrite even though
+  IDENTIFY answers through the SAT layer (bench-verified on the HBA330:
+  `ATA device, with non-removable media`, unfrozen). Detection now asks the
+  drive itself — an ATA IDENTIFY on a non-SATA bus reclassifies it and the
+  full ATA path engages (security feature set, purge/clear, unfreeze, HPA/DCO).
+  True SAS drives answer nothing and keep the SCSI SANITIZE path. Plan:
+  `research/ata-behind-sas/README.md`.
+
 ## [v1.11.95] - 2026-11-09
 
 - **SATA/NVMe/SAS SMART capture extended to the full reportable set.** SATA
@@ -131,10 +143,6 @@ and this project uses date-based versioning (`v1.x`).
   image), and a known-password clear is staged until the next boot. Verified
   end-to-end on the bench, including a full password round-trip. Lost
   passwords remain out of scope by policy.
-
-## [v1.11.95] - 2026-11-09
-
-### Added
 
 - **Every report in a media item's history is tagged with its current provenance.**
   The Media row states the media item's latest state, which hides the history

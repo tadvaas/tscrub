@@ -45,6 +45,11 @@ they ship and note the release that carries each. **Last reconciled with
       "RAID-capable HBA present" hint. Plan:
       `research/raid-hba-warning/README.md`.
       → **Shipped 2026-11-09 (v1.11.95)**.
+- [x] **SATA behind SAS (SAT)** — SATA disks on an SAS HBA were labelled
+      SCSI by kernel transport and erased by software overwrite even though
+      IDENTIFY answers through the SAT layer. `device::ata_identify_ok`
+      reclassifies them to the ATA secure-erase path (bench-verified on the
+      HBA330). Plan: `research/ata-behind-sas/README.md`.
 
 ## 2. Hardware capture → intelligence
 
