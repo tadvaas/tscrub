@@ -61,4 +61,40 @@ device::ata_clear_password sda
 t::check "ata_clear: unlock retried after failed disable" '[[ "${ATA_CLEAR_CALLS[*]}" == "disable unlock disable" ]]'
 unset -f hdparm
 
+# --- Interrupted-run recovery: locked with OUR temp password ---------------
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "locked with our password: unlock + erase -> COMPLETED"
+
+# --- Locked with an UNKNOWN password: honest physical-destruction outcome ---
+printf '' > "$_state"
+export FAKE_HDPARM_UNLOCK_RC=1
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "ATA security locked (password unknown)" "unknown password logged honestly"
+t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "lock_kind records the ATA password lock"
+devices=(sda)
+devrow[sda.status]="FAILED"
+device::normalize_outcome
+t::assert_eq "ATA locked — physical destruction required" "${devrow[sda.method]:-}" "honest method line for an ATA password lock"
+unset FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
+rm -f "$_state"
+
 t::summary

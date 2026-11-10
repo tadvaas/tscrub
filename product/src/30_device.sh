@@ -1046,6 +1046,8 @@ device::normalize_outcome() {
                 devrow["$dev.cert"]="NOT SANITISED"
                 if [[ "${devrow[$dev.lock_kind]:-none}" == "locked" ]]; then
                     devrow["$dev.method"]="TCG locked — physical destruction required"
+                elif [[ "${devrow[$dev.lock_kind]:-none}" == "ata-password" ]]; then
+                    devrow["$dev.method"]="ATA locked — physical destruction required"
                 else
                     devrow["$dev.method"]="Sanitisation failed"
                 fi

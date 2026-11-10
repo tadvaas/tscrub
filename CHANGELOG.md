@@ -6,6 +6,18 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+- **Interrupted ATA erases no longer poison their own retry.** A reboot
+  mid-erase leaves the drive security-enabled and LOCKED with tScrub's own
+  temporary password, and the next run failed at "Failed to set ATA security
+  password" (bench-verified on the HGST HTS541010A9: identify showed
+  `enabled` + `locked`, and `--security-unlock p` unlocked it instantly).
+  `device::exec_ata` now unlocks with the temporary password before setting
+  it; a drive locked with an UNKNOWN password is recorded honestly — method
+  "ATA locked — physical destruction required", `lock_kind=ata-password` —
+  instead of a bare FAILED. Plan: `research/ata-locked-recovery/README.md`.
+
 ## [v1.11.96] - 2026-11-10
 
 - **SATA disks behind an SAS HBA now get ATA Secure Erase.** The kernel

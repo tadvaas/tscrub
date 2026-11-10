@@ -130,10 +130,25 @@ device::exec_ata() {
     # the erase covers the full native capacity (best-effort, never aborts).
     device::reset_hpa_dco "$dev"
 
+    # An earlier tScrub run interrupted mid-erase (power loss, reboot) leaves
+    # the drive security-enabled and LOCKED with our own temporary password.
+    # Unlock it first — best-effort: harmless on a drive that was never locked,
+    # and it fails on a drive locked with a password we do not know (handled
+    # below).
+    hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
+
     # Set temporary password (required for security erase)
     if ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
-        device::emit_status "$dev" FAILED
-        echo "$dev LOG Failed to set ATA security password" >&3
+        # Locked with a password we do not know: the honest outcome is physical
+        # destruction, mirroring a TCG-locked SED.
+        if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
+            devrow["$dev.lock_kind"]="ata-password"
+            device::emit_status "$dev" FAILED
+            echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
+        else
+            device::emit_status "$dev" FAILED
+            echo "$dev LOG Failed to set ATA security password" >&3
+        fi
         return
     fi
 

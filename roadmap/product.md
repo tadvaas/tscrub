@@ -51,6 +51,12 @@ they ship and note the release that carries each. **Last reconciled with
       reclassifies them to the ATA secure-erase path (bench-verified on the
       HBA330). Plan: `research/ata-behind-sas/README.md`.
       → **Shipped 2026-11-10 (v1.11.96)**.
+- [x] **ATA locked-drive recovery** — an interrupted erase leaves the drive
+      security-enabled and LOCKED with tScrub's own temporary password, which
+      made every retry FAIL. `device::exec_ata` now unlocks with the temp
+      password first; a drive locked with an UNKNOWN password is recorded
+      honestly ("ATA locked — physical destruction required"). Plan:
+      `research/ata-locked-recovery/README.md`.
 
 ## 2. Hardware capture → intelligence
 
