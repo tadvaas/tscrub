@@ -54,9 +54,11 @@ they ship and note the release that carries each. **Last reconciled with
 - [x] **ATA locked-drive recovery** — an interrupted erase leaves the drive
       security-enabled and LOCKED with tScrub's own temporary password, which
       made every retry FAIL. `device::exec_ata` now unlocks with the temp
-      password first; a drive locked with an UNKNOWN password is recorded
-      honestly ("ATA locked — physical destruction required"). Plan:
-      `research/ata-locked-recovery/README.md`.
+      password first; a drive locked with an UNKNOWN password is recovered via
+      the factory-blank master password (identify revision 0xFFFE: unlock at
+      High level, direct SECURITY ERASE UNIT at Maximum level); only when
+      neither works is it recorded "ATA locked — physical destruction
+      required". Plan: `research/ata-locked-recovery/README.md`.
 
 ## 2. Hardware capture → intelligence
 

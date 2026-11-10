@@ -54,6 +54,9 @@ if [[ "$1" == "-I" ]]; then
             # Security-enabled AND locked at power-on — the real shape after an
             # interrupted erase run. set-pass is refused until an unlock flips
             # the state file (see the --security-unlock handling below).
+            if [[ -n "${FAKE_HDPARM_MREV:-}" ]]; then
+                printf '\tMaster password revision code = %s\n' "$FAKE_HDPARM_MREV"
+            fi
             if [[ -n "${FAKE_HDPARM_STATE_FILE:-}" && -f "$FAKE_HDPARM_STATE_FILE" && "$(<"$FAKE_HDPARM_STATE_FILE")" == unlocked ]]; then
                 printf '\t\tsupported\n'
                 printf '\t\tenabled\n'
@@ -135,6 +138,15 @@ fi
 if [[ "$1" == "--user-master" ]]; then
     case "$3" in
         --security-unlock)
+            if [[ "$2" == "m" ]]; then
+                # Blank master unlock: allowed only at High level, with the
+                # factory revision and an empty password.
+                if [[ "${FAKE_HDPARM_LEVEL:-high}" == "high" && "${FAKE_HDPARM_MREV:-}" == "65534" && "${4:-}" == "" ]]; then
+                    [[ -n "${FAKE_HDPARM_STATE_FILE:-}" ]] && printf 'unlocked\n' > "$FAKE_HDPARM_STATE_FILE"
+                    exit 0
+                fi
+                exit 2
+            fi
             if [[ "${FAKE_HDPARM_UNLOCK_RC:-0}" == "0" ]]; then
                 [[ -n "${FAKE_HDPARM_STATE_FILE:-}" ]] && printf 'unlocked\n' > "$FAKE_HDPARM_STATE_FILE"
                 exit 0
@@ -150,6 +162,16 @@ if [[ "$1" == "--user-master" ]]; then
                 exit 1
             fi
             exit "${FAKE_HDPARM_SETPASS_RC:-0}"
+            ;;
+        --security-erase|--security-erase-enhanced)
+            if [[ "$2" == "m" ]]; then
+                # Blank master erase: allowed only at Maximum level.
+                if [[ "${FAKE_HDPARM_LEVEL:-high}" == "maximum" && "${FAKE_HDPARM_MREV:-}" == "65534" && "${4:-}" == "" ]]; then
+                    exit 0
+                fi
+                exit 2
+            fi
+            exit 0
             ;;
     esac
 fi

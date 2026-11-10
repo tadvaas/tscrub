@@ -97,4 +97,53 @@ t::assert_eq "ATA locked — physical destruction required" "${devrow[sda.method
 unset FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
 rm -f "$_state"
 
+# --- Factory-blank master recovery: High level (blank master unlocks) -------
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_UNLOCK_RC=1
+export FAKE_HDPARM_MREV=65534 FAKE_HDPARM_LEVEL=high
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "blank master high: unlock + erase -> COMPLETED"
+t::assert_contains "$captured" "unlocked via blank master password" "blank master high: log says how"
+
+# --- Factory-blank master recovery: Maximum level (direct master erase) -----
+printf '' > "$_state"
+export FAKE_HDPARM_LEVEL=maximum
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "blank master maximum: direct master erase -> COMPLETED"
+t::assert_contains "$captured" "erased via blank master password" "blank master maximum: log says how"
+
+# --- Master revision changed: no blank attempts, honest locked outcome ------
+printf '' > "$_state"
+export FAKE_HDPARM_MREV=1234 FAKE_HDPARM_LEVEL=high
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "physical destruction required" "changed master revision -> honest locked outcome"
+t::assert_not_contains "$captured" "blank master" "no blank-master attempt when the revision was changed"
+unset FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
+rm -f "$_state"
+
 t::summary

@@ -105,6 +105,48 @@ device::ata_clear_password() {
     fi
 }
 
+# Unlock a LOCKED drive with the factory-blank master password. Only attempted
+# when identify reports master revision 65534 (0xFFFE = factory default, i.e.
+# the master password is blank — the state nearly all non-enterprise drives
+# ship in). Returns 0 when the drive is unlocked AND the temporary user
+# password is set (the normal erase then runs); 1 otherwise.
+device::ata_blank_master_unlock() {   # <dev>
+    local dev="$1"
+    local rev
+    rev="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/^[[:space:]]*Master password revision code = \([0-9]*\).*/\1/p' | head -n1)"
+    [[ -n "$rev" && "$rev" == "65534" ]] || return 1
+    if hdparm --user-master m --security-unlock "" /dev/$dev >&5 2>&5 \
+        && hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
+        echo "$dev LOG unlocked via blank master password" >&3
+        return 0
+    fi
+    return 1
+}
+
+# Erase a LOCKED drive directly with the blank master password — the Maximum
+# security-level path (at Maximum the master cannot unlock, but SECURITY ERASE
+# UNIT with it is allowed while locked, and a successful erase resets the user
+# password, which is why the drive comes back usable). Safe on failure: the
+# drive aborts the command untouched. Returns 0 when erased.
+device::ata_blank_master_erase() {   # <dev> <cap>
+    local dev="$1" cap="$2"
+    local rev
+    rev="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/^[[:space:]]*Master password revision code = \([0-9]*\).*/\1/p' | head -n1)"
+    [[ -n "$rev" && "$rev" == "65534" ]] || return 1
+    if [[ "$cap" == "CAP_ATA_PURGE_ENHANCED" ]] \
+        && hdparm --user-master m --security-erase-enhanced "" /dev/$dev >&5 2>&5; then
+        device::emit_status "$dev" COMPLETED
+        echo "$dev LOG erased via blank master password (enhanced)" >&3
+        return 0
+    fi
+    if hdparm --user-master m --security-erase "" /dev/$dev >&5 2>&5; then
+        device::emit_status "$dev" COMPLETED
+        echo "$dev LOG erased via blank master password" >&3
+        return 0
+    fi
+    return 1
+}
+
 device::exec_ata() {
     local dev="$1"
     local cap="$2"
@@ -139,17 +181,29 @@ device::exec_ata() {
 
     # Set temporary password (required for security erase)
     if ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
-        # Locked with a password we do not know: the honest outcome is physical
-        # destruction, mirroring a TCG-locked SED.
         if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
-            devrow["$dev.lock_kind"]="ata-password"
-            device::emit_status "$dev" FAILED
-            echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
+            # Locked with a password we do not know. The factory-blank master
+            # password (revision 0xFFFE = 65534) is the spec-defined recovery:
+            # at High level it unlocks the drive, at Maximum level it may
+            # SECURITY ERASE UNIT directly while locked — which is how a locked
+            # drive is still erasable and comes back cleared and usable.
+            if device::ata_blank_master_unlock ""; then
+                # Unlocked — the normal user-password erase below runs.
+                :
+            elif device::ata_blank_master_erase "$dev" "$cap"; then
+                return
+            else
+                # Neither password works: physical destruction is the outcome.
+                devrow["$dev.lock_kind"]="ata-password"
+                device::emit_status "$dev" FAILED
+                echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
+                return
+            fi
         else
             device::emit_status "$dev" FAILED
             echo "$dev LOG Failed to set ATA security password" >&3
+            return
         fi
-        return
     fi
 
     case "$cap" in

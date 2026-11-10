@@ -8,15 +8,20 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
-- **Interrupted ATA erases no longer poison their own retry.** A reboot
-  mid-erase leaves the drive security-enabled and LOCKED with tScrub's own
-  temporary password, and the next run failed at "Failed to set ATA security
-  password" (bench-verified on the HGST HTS541010A9: identify showed
-  `enabled` + `locked`, and `--security-unlock p` unlocked it instantly).
-  `device::exec_ata` now unlocks with the temporary password before setting
-  it; a drive locked with an UNKNOWN password is recorded honestly — method
-  "ATA locked — physical destruction required", `lock_kind=ata-password` —
-  instead of a bare FAILED. Plan: `research/ata-locked-recovery/README.md`.
+- **Interrupted ATA erases no longer poison their own retry, and a locked
+  drive with an unknown user password is still erasable.** A reboot mid-erase
+  leaves the drive security-enabled and LOCKED with tScrub's own temporary
+  password, and the next run failed at "Failed to set ATA security password"
+  (bench-verified on the HGST HTS541010A9: identify showed `enabled` +
+  `locked`, and `--security-unlock p` unlocked it instantly). `device::exec_ata`
+  now unlocks with the temporary password before setting it. If the drive is
+  locked with a password we do not know, the factory-blank master password is
+  the spec-defined recovery (identify revision 0xFFFE = 65534): at High level
+  it unlocks, at Maximum level SECURITY ERASE UNIT runs directly while locked
+  and a successful erase resets the user password — the drive comes back
+  cleared and usable. Only when neither works is the drive recorded
+  "ATA locked — physical destruction required" (`lock_kind=ata-password`).
+  Plan: `research/ata-locked-recovery/README.md`.
 
 ## [v1.11.96] - 2026-11-10
 
