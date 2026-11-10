@@ -59,6 +59,7 @@ they ship and note the release that carries each. **Last reconciled with
       High level, direct SECURITY ERASE UNIT at Maximum level); only when
       neither works is it recorded "ATA locked — physical destruction
       required". Plan: `research/ata-locked-recovery/README.md`.
+      → **Shipped 2026-11-10 (v1.11.97)**.
 
 ## 2. Hardware capture → intelligence
 
