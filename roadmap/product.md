@@ -50,6 +50,7 @@ they ship and note the release that carries each. **Last reconciled with
       IDENTIFY answers through the SAT layer. `device::ata_identify_ok`
       reclassifies them to the ATA secure-erase path (bench-verified on the
       HBA330). Plan: `research/ata-behind-sas/README.md`.
+      → **Shipped 2026-11-10 (v1.11.96)**.
 
 ## 2. Hardware capture → intelligence
 
