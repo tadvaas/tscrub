@@ -2,6 +2,11 @@
 if [[ "$1" == "-I" ]]; then
     dev="${2:-/dev/sda}"
     mode="${FAKE_HDPARM_MODE:-enhanced}"
+    if [[ "$mode" == "sas" ]]; then
+        # True SAS drive: hdparm -I returns no ATA identify (mirrors the bench
+        # AL14SXL30EN behind the HBA330).
+        exit 1
+    fi
     printf '%s:\n\n' "$dev"
     printf 'ATA device, with non-removable media\n'
     printf '\tModel Number:       %s\n' "${FAKE_HDPARM_MODEL:-FAKE DISK}"

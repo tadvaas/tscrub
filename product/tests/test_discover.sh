@@ -47,4 +47,31 @@ serial=()
 device::identity_fallback sda "$SYS_BLOCK_DIR"
 t::assert_eq "" "${serial[sda]:-}" "no VPD serial -> serial stays empty"
 
+# --- SATA behind SAS (SAT): kernel says SCSI, IDENTIFY proves ATA ----------
+_sat_tmp="$(mktemp -d)"
+mkdir -p "$_sat_tmp/block/sdq/queue" "$_sat_tmp/block/sdq/device"
+printf '1' > "$_sat_tmp/block/sdq/queue/rotational"
+# No transport file -> the readlink fallback cannot see ata/sas -> bus=SCSI,
+# which is exactly the real mpt3sas+SATA shape on the bench. (The fake
+# realpath expects a /block/ path segment, so the tmpdir mirrors the real
+# sysfs layout.)
+export SYS_BLOCK_DIR="$_sat_tmp/block"
+export FAKE_USB_DEVICES=""
+export FAKE_HDPARM_MODE=enhanced
+devices=(); unset bus
+device::discover
+device::detect
+t::assert_eq "SATA" "${bus[sdq]:-}" "SATA behind SAS reclassified by IDENTIFY"
+t::assert_eq "CAP_ATA_PURGE_ENHANCED" "${capability[sdq]:-}" "SAT SATA gets the ATA purge path"
+
+export FAKE_HDPARM_MODE=sas
+devices=(); unset bus
+device::discover
+device::detect
+t::assert_eq "SCSI" "${bus[sdq]:-}" "true SAS stays SCSI"
+t::assert_eq "CAP_SCSI_NWIPE" "${capability[sdq]:-}" "true SAS keeps the SCSI fallback"
+unset SYS_BLOCK_DIR FAKE_HDPARM_MODE
+export FAKE_HDPARM_MODE=enhanced
+rm -rf "$_sat_tmp"
+
 t::summary

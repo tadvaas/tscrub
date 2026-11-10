@@ -115,6 +115,17 @@ device::is_usb_attached() {
     grep -qi '^usb$' "$block_dir/$dev/device/transport" 2>/dev/null
 }
 
+# Does the drive answer ATA IDENTIFY through its attach? SATA disks behind a
+# SAS/SCSI HBA present through the SAT layer — the kernel reports the SAS
+# transport and cannot see the SATA inside, but hdparm prints the ATA banner
+# for them and nothing for true SAS drives. This is the signal that the ATA
+# security-erase path applies.
+device::ata_identify_ok() {   # <dev>
+    local dev="$1"
+    command -v hdparm >/dev/null 2>&1 || return 1
+    hdparm -I "/dev/$dev" 2>/dev/null | grep -q 'ATA device, with non-removable media'
+}
+
 # Was this a network (PXE) boot? Then no local boot medium exists by design and
 # "I found no boot disk" is the correct answer rather than a failure to look.
 device::is_network_boot() {
@@ -763,6 +774,15 @@ device::detect() {
             esac
 
             elif [[ "$device" == sd* ]]; then
+                # SATA disks behind a SAS/SCSI HBA (SAT): the kernel reports the
+                # SAS transport and cannot see the SATA inside, but the drive
+                # answers ATA IDENTIFY through the translation layer. Reclassify
+                # so the ATA security-erase path applies.
+                if [[ "${bus[$device]}" != "SATA" && "${bus[$device]}" != "ATA" ]] \
+                    && device::ata_identify_ok "$device"; then
+                    bus[$device]="SATA"
+                fi
+
                 if [[ "${bus[$device]}" != "SATA" && "${bus[$device]}" != "ATA" ]]; then
                     # SCSI/SAS: prefer the firmware SANITIZE (overwrite) path,
                     # falling back to software nwipe only when unsupported.
