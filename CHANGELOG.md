@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.96] - 2026-11-10
 
 - **SATA disks behind an SAS HBA now get ATA Secure Erase.** The kernel
   reports the SAS transport for a SATA disk tunnelled through STP, so these

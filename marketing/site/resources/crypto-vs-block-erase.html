@@ -113,6 +113,11 @@
       <h2>Related: PSID revert is crypto erase too</h2>
       <p>PSID revert on a self-encrypting drive is effectively a cryptographic erase — it destroys the drive's encryption key to unlock it. So the same caveat applies: it's complete and instant, but it trusts the SED's encryption implementation. See the <a href="/resources/psid-revert">PSID revert guide</a> for the details.</p>
 
+      <h2>Self-encrypting drives and full-disk encryption</h2>
+      <p>For a <strong>self-encrypting drive (SED/OPAL)</strong>, tScrub uses the drive's own crypto erase: destroying the media key is instant and maps to Purge. If the drive is <strong>TCG-locked</strong> and no key is available, tScrub records it honestly — <strong>BLOCKED</strong>, "TCG locked — physical destruction required" — unless a PSID revert is available. The revert is only the unlock: tScrub then re-issues the sanitize, so the report never mistakes the unlock for the purge.</p>
+      <p><strong>Software full-disk encryption</strong> (BitLocker, FileVault and the rest) makes no difference to the wipe: tScrub boots its own appliance and erases the media below the filesystem, so no OS key or password is ever needed.</p>
+      <p>Whichever path runs, the report records the evidence that drive actually carries. A crypto erase gets an honest <strong>exemption</strong> from the read-back check, because reading content back can neither confirm nor refute a destroyed key.</p>
+
       <h2>FAQ</h2>
       <h3>Is crypto erase "weaker" than block erase?</h3>
       <p>Both map to Purge. Crypto erase is only weaker in the narrow case where the drive's encryption was badly implemented. For most organisations the practical difference is time, not security.</p>

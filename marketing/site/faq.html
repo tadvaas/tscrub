@@ -100,6 +100,10 @@
             <h3 class="font-bold text-ink-900 dark:text-white">How do I know the download is genuine?</h3>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Every release publishes its SHA-256 checksum next to the download, and the same values are listed in the manifest at <code class="font-mono text-xs">/downloads/manifest.json</code>. Verify the checksum before writing the image to a stick; the <a href="/docs#download" class="text-brand-600 dark:text-brand-400 hover:underline">docs</a> walk through the command.</p>
           </div>
+          <div class="py-5">
+            <h3 class="font-bold text-ink-900 dark:text-white">How does tScrub handle machines with full-disk encryption or self-encrypting drives?</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">On a self-encrypting drive, tScrub uses the drive's own crypto erase: destroying the media encryption key is a NIST 800-88 Purge. A TCG-locked drive with no key is recorded BLOCKED with &ldquo;TCG locked &mdash; physical destruction required&rdquo;, unless a PSID revert is available &mdash; the revert only unlocks, and the sanitize that follows it is the purge, never the revert itself. Software full-disk encryption (BitLocker and similar) makes no difference: tScrub boots its own appliance and erases the media below the filesystem, so no OS key is needed. Verification records the evidence a drive actually carries: sentinel read-back where it applies, and for crypto erase an honest exemption, because reading content back can neither confirm nor refute a destroyed key. See <a href="/resources/crypto-vs-block-erase" class="text-brand-600 dark:text-brand-400 hover:underline">crypto erase vs block erase</a> for the detail.</p>
+          </div>
         </div>
       </div>
 
