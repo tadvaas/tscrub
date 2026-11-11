@@ -19,7 +19,7 @@ and this project uses date-based versioning (`v1.x`).
   the Intel SSDSC2KB48 (locked High, `Xyz123`): unlock + enhanced erase +
   security clear, back to full native capacity.
 
-## [Unreleased]
+## [v1.12.1] - 2026-11-11
 
 - **Recovery column + the soft-reboot "fluke" state.** Every erasure now
   records HOW a locked/security-enabled drive was recovered in a new `Recovery`
@@ -31,6 +31,8 @@ and this project uses date-based versioning (`v1.x`).
   is now handled: the operator's password erases it directly while unlocked,
   and without one the honest outcome is `ATA security enabled — physical
   destruction required` instead of the misleading "Failed to set password".
+
+## [Unreleased]
 
 ### Planned
 
