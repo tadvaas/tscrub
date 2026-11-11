@@ -6,6 +6,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 t::setup_env
 t::source_src
+export VERIFY_MODE=none   # the plant runs only in the dedicated ordering test
 
 export FAKE_NVME_MODE=crypto
 export FAKE_HDPARM_MODE=clear_notime
@@ -618,5 +619,34 @@ device::normalize_outcome
 t::assert_eq "ATA security count expired — power-cycle the drive and retry" "${devrow[sda.method]:-}" "expired count: honest method line"
 unset FAKE_HDPARM_EXPIRED FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
 rm -f "$_state"
+
+# --- worker ordering: STATUS RUNNING precedes the sentinel plant -----------
+# The plant moved into the erasure worker (after the RUNNING emit) so a drive
+# slow to accept writes can never stall the RUNNING paint. Pin the order and
+# the VERIFYPLANT channel count end-to-end through device::execute.
+export VERIFY_MODE=sampled
+verify::_total_sectors() { echo 1000000; }
+verify::_write_sector() { return 0; }
+verify::_flush() { return 0; }
+verify::plant_init
+export FAKE_HDPARM_MODE=enhanced
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+devrow[sda.class]="PURGE"
+devrow[sda.selected]=1
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+_run="$(printf '%s\n' "$captured" | grep -n "STATUS RUNNING" | head -1 | cut -d: -f1)"
+_plant="$(printf '%s\n' "$captured" | grep -n "preparing verification sentinels" | head -1 | cut -d: -f1)"
+t::check "RUNNING is emitted before the sentinel plant" "[[ -n \"$_run\" && -n \"$_plant\" && $_run -lt $_plant ]]"
+t::assert_contains "$captured" "sda VERIFYPLANT 40" "worker reports the planted sector count"
+unset -f verify::_total_sectors verify::_write_sector verify::_flush
+unset VERIFY_MODE
 
 t::summary

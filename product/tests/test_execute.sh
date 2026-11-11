@@ -2,6 +2,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 t::setup_env
 t::source_src
+export VERIFY_MODE=none   # device::execute tests must not run the real plant
 
 declare -A capability bus
 OUT="$(mktemp)"

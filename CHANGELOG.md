@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.8] - 2026-11-11
+
+- **Sentinel plant moved into the erasure workers.** Bench finding: after a
+  power-off mid-erase, the pre-erase verification planting (40 blocking
+  `dd fsync` writes per drive, run synchronously in the main process before
+  any worker spawned) queued on the recovering drives and froze the TUI for
+  ~80 s before RUNNING appeared. `verify::plant_all` is now
+  `verify::plant_init` (parent: nonce + state dir + defaults, no drive I/O)
+  plus `verify::plant_drive` (worker, right after the STATUS RUNNING emit),
+  with the planted count reported on a `VERIFYPLANT <n>` outcome channel so
+  the CSV vocabulary (`skipped`, sector counts) is unchanged and a slow drive
+  only delays its own row. Plan: `research/verify-plant-workers/README.md`.
+
 ## [v1.12.7] - 2026-11-11
 
 - **Report upload retry (store-and-forward on the appliance).** A failed

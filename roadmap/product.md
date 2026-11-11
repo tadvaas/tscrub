@@ -13,6 +13,17 @@ they ship and note the release that carries each. **Last reconciled with
       `verify=<none|sampled|full>` + result in the report. (§9.2, §11.1)
       → **Shipped v1.10.15** (2026-10-04). Plan: `research/verify-readback/README.md`
       (sentinel-based known-data verification; `product/src/43_verify.sh`).
+- [x] **Move the verify sentinel plant into the erasure workers** — bench
+      2026-11-11: after a power-off mid-erase, the pre-erase plant (40 blocking
+      `dd fsync` writes per drive, in the MAIN process before workers spawn)
+      queued on the recovering drives and froze the TUI for ~80 s before any
+      RUNNING appeared. Split `plant_all` → main-side `plant_init` (nonce +
+      state dir + defaults, no I/O) + worker-side `plant_drive` right after the
+      RUNNING emit, with a `VERIFYPLANT <n>` outcome channel so the CSV
+      vocabulary (`skipped`, sector counts) stays byte-identical.
+      → Plan: `research/verify-plant-workers/README.md`.
+      → **Shipped 2026-11-11 (v1.12.8)**: unit-tested + mutation-guarded
+      (worker call, ordering, and channel emits all covered).
 - [x] **HPA/DCO removal & erasure** — before wiping, reset HPA to native size
       (`hdparm -N p<max>`) and clear DCO (`hdparm --dco-restore`), then re-read
       to confirm both are gone; record a before/after pair. (§9.2, §11.1)

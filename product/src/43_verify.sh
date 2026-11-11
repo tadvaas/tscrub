@@ -202,7 +202,14 @@ verify::_flush() {           # <dev> -> flush write cache (best effort)
 }
 
 # --- Plant (pre-erase) -------------------------------------------------------
-verify::plant_all() {
+# Main-side init: resolve the mode, mint the per-run nonce and state dir, and
+# set the plant-time defaults for EVERY drive (unselected drives never get a
+# worker, so their CSV fields come from here). No drive I/O — the actual
+# sentinel writes run in each erasure worker (verify::plant_drive), right
+# after that worker has emitted STATUS RUNNING, so a drive that is slow to
+# accept writes (e.g. its firmware is recovering from an interrupted erase)
+# can no longer stall the whole UI before anything shows as running.
+verify::plant_init() {
     verify::resolve_mode
     verify::resolve_coverage
     [[ "$VERIFY_MODE" != "none" ]] || return 0
@@ -214,16 +221,20 @@ verify::plant_all() {
 
     local dev
     for dev in "${devices[@]}"; do
-        verify::_plant_drive "$dev"
+        devrow["$dev.verify_result"]="n/a"
+        devrow["$dev.verify_sectors"]=""
+        devrow["$dev.verify_technique"]="none"
+        devrow["$dev.verify_coverage"]=""
     done
 }
 
-verify::_plant_drive() {
+# Worker-side plant: write the sentinel windows for ONE drive and report the
+# count on the fd-3 outcome channel (`VERIFYPLANT <n>`). The worker's devrow
+# writes are lost, so the channel is what carries the count (and the
+# zero-count -> "skipped" vocabulary) back to the parent; the post-erasure
+# check re-derives everything else from the state file.
+verify::plant_drive() {   # <dev>
     local dev="$1"
-    devrow["$dev.verify_result"]="n/a"
-    devrow["$dev.verify_sectors"]=""
-    devrow["$dev.verify_technique"]="none"
-    devrow["$dev.verify_coverage"]=""
 
     [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || return 0
     [[ "${DRY_RUN:-0}" -eq 0 ]] || return 0
@@ -231,14 +242,17 @@ verify::_plant_drive() {
         FAILED|FROZEN) return 0 ;;
     esac
     [[ "${devrow[$dev.capability]:-}" == "CAP_NONE" ]] && return 0
+    [[ -n "${VERIFY_STATE_DIR:-}" ]] || { echo "$dev VERIFYPLANT 0" >&3; return 0; }
+
+    echo "$dev LOG preparing verification sentinels" >&3
 
     local ss="${secsize[$dev]:-512}" window="${VERIFY_WINDOW:-8}"
     local total
-    total="$(verify::_total_sectors "$dev")" || { devrow["$dev.verify_result"]="skipped"; return 0; }
-    (( total >= 2 )) || { devrow["$dev.verify_result"]="skipped"; return 0; }
+    total="$(verify::_total_sectors "$dev")" || { echo "$dev VERIFYPLANT 0" >&3; return 0; }
+    (( total >= 2 )) || { echo "$dev VERIFYPLANT 0" >&3; return 0; }
 
     local state_file="$VERIFY_STATE_DIR/$dev.verify"
-    : > "$state_file" 2>/dev/null || { devrow["$dev.verify_result"]="skipped"; return 0; }
+    : > "$state_file" 2>/dev/null || { echo "$dev VERIFYPLANT 0" >&3; return 0; }
 
     local pos lba w cur count=0 hash
     for pos in 0 1 2 3 4; do
@@ -261,11 +275,7 @@ verify::_plant_drive() {
     done
 
     verify::_flush "$dev"
-
-    if (( count == 0 )); then
-        devrow["$dev.verify_result"]="skipped"
-    fi
-    devrow["$dev.verify_sectors"]="$count"
+    echo "$dev VERIFYPLANT $count" >&3
 }
 
 # --- Sanitisation claim (Phase 2 of the IEEE 2883 work) ----------------------

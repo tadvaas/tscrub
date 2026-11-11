@@ -979,6 +979,14 @@ device::execute() {
 
     echo "$dev STATUS RUNNING" >&3
 
+    # Plant the post-erasure read-back sentinels BEFORE the wipe (every erase
+    # path goes through here). Runs in the worker so a drive that is slow to
+    # accept writes — its firmware recovering from an interrupted erase — can
+    # only delay its own row, never the RUNNING paint of the whole screen.
+    if [[ "${VERIFY_MODE:-none}" != "none" ]]; then
+        verify::plant_drive "$dev"
+    fi
+
     case "$cap" in
         CAP_NVME_*)
             device::exec_nvme "$dev" "$cap"

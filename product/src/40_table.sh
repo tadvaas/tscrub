@@ -912,6 +912,12 @@ ui::apply_outcome() {
         # lost, so these travel the same channel as STATUS).
         RECOVERY) devrow["$_dev.recovery"]="$_value" ;;
         LOCKKIND) devrow["$_dev.lock_kind"]="$_value" ;;
+        # Sentinel plant result from the worker: the sector count reaches the
+        # report (the post-check recomputes it from the state file), and a
+        # zero count preserves the plant-time "skipped" vocabulary — worker
+        # devrow writes are lost, so this travels the channel like STATUS.
+        VERIFYPLANT) devrow["$_dev.verify_sectors"]="$_value"
+                     [[ "$_value" == "0" ]] && devrow["$_dev.verify_result"]="skipped" ;;
         # Software-overwrite provenance (fallback paths only).
         STANDARD) devrow["$_dev.standard"]="$_value" ;;
         PASSES)   devrow["$_dev.passes"]="$_value" ;;

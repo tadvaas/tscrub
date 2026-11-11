@@ -494,7 +494,7 @@ erasure::run() {
         # Blue background while the wipe is in progress; the outcome colour
         # (green/red/amber) is painted only once everything has finished.
         UI_COMPLETE_THEME=4
-        verify::plant_all
+        verify::plant_init
         status::erase_start
         for dev in "${devices[@]}"; do
             [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || continue

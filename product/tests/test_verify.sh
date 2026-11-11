@@ -27,6 +27,25 @@ verify::_read_sector() {
 }
 verify::_flush() { return 0; }
 
+# Plant through the worker path: init in the parent, then the per-drive
+# worker emit applied via the outcome channel (ui::apply_outcome).
+PLANT_OUT="$(mktemp)"
+exec 5>/dev/null
+plant_run() {
+    verify::plant_init
+    exec 3>"$PLANT_OUT"
+    verify::plant_drive sda
+    exec 3>&-
+    PLANT_CAPTURED="$(cat "$PLANT_OUT")"
+    local _d _k _v
+    while read -r _d _k _v; do
+        [[ -n "$_d" ]] || continue
+        [[ "$_k" == "LOG" ]] && continue
+        ui::apply_outcome "$_d" "$_k" "$_v"
+    done <<< "$PLANT_CAPTURED"
+    : > "$PLANT_OUT"
+}
+
 declare -Ag secsize
 secsize[sda]=512
 
@@ -48,8 +67,9 @@ t::check "sentinel prefixed with nonce:lba:" '[[ "$s1" == "nonce1:7:"* ]]'
 
 # --- plant: 5 windows x VERIFY_WINDOW(4) = 20 sectors ---
 VERIFY_MODE=sampled
-verify::plant_all
+plant_run
 t::assert_eq "20" "${devrow[sda.verify_sectors]}" "plant writes 5 windows x VERIFY_WINDOW"
+t::assert_contains "$PLANT_CAPTURED" "sda VERIFYPLANT 20" "worker plant reports its count on the channel"
 t::check "planted state file exists" '[[ -f "$VERIFY_STATE_DIR/sda.verify" ]]'
 got="$(dd if="$FAKE_DEV" bs=512 count=1 skip=0 2>/dev/null)"
 t::assert_eq "$(verify::sentinel_bytes "$VERIFY_NONCE" "0" "512")" "$got" "LBA 0 holds sentinel"
@@ -62,13 +82,13 @@ verify::check_all
 t::assert_eq "passed" "${devrow[sda.verify_result]}" "check passed when sentinel gone"
 
 # --- check: failed when sentinel survives ---
-verify::plant_all
+plant_run
 verify::check_all
 t::assert_eq "failed" "${devrow[sda.verify_result]}" "check failed when sentinel survives"
 
 # --- check: unreadable on read error ---
 verify::_read_sector() { return 1; }
-verify::plant_all
+plant_run
 verify::check_all
 t::assert_eq "unreadable" "${devrow[sda.verify_result]}" "check unreadable on read error"
 
@@ -79,8 +99,9 @@ verify::_read_sector() {
     dd if="$FAKE_DEV" of="$out" bs=1 count="$ss" skip="$off" 2>/dev/null
 }
 verify::_write_sector() { return 1; }
-verify::plant_all
+plant_run
 t::assert_eq "skipped" "${devrow[sda.verify_result]}" "plant skipped when write fails"
+t::assert_contains "$PLANT_CAPTURED" "sda VERIFYPLANT 0" "zero count rides the channel as VERIFYPLANT 0"
 
 # --- n/a for a FAILED-class drive (no write attempted) ---
 verify::_write_sector() {
@@ -90,19 +111,19 @@ verify::_write_sector() {
     printf '%s' "$sentinel" | dd of="$FAKE_DEV" bs=1 count="$ss" seek="$off" conv=notrunc 2>/dev/null
 }
 devrow[sda.class]="FAILED"
-verify::plant_all
+plant_run
 t::assert_eq "n/a" "${devrow[sda.verify_result]}" "n/a for FAILED class"
 
 # --- n/a for an unselected drive ---
 devrow[sda.class]="PURGE"
 devrow[sda.selected]=0
-verify::plant_all
+plant_run
 t::assert_eq "n/a" "${devrow[sda.verify_result]}" "n/a for unselected drive"
 
 # --- n/a + no sector count when the erase was BLOCKED after the sentinel was planted ---
 devrow[sda.selected]=1
 devrow[sda.status]="BLOCKED"
-verify::plant_all
+plant_run
 t::assert_eq "20" "${devrow[sda.verify_sectors]}" "plant records sentinel count before erase"
 verify::check_all
 t::assert_eq "n/a" "${devrow[sda.verify_result]}" "n/a for BLOCKED drive"
@@ -112,7 +133,7 @@ devrow[sda.status]="COMPLETED"
 # --- DRY_RUN plants nothing ---
 devrow[sda.selected]=1
 DRY_RUN=1
-verify::plant_all
+plant_run
 t::assert_eq "n/a" "${devrow[sda.verify_result]}" "dry-run plants nothing"
 t::check "dry-run leaves verify_sectors empty" '[[ -z "${devrow[sda.verify_sectors]}" ]]'
 DRY_RUN=0
