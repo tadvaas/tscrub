@@ -180,6 +180,7 @@ rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "operator password: unlock + erase -> COMPLETED"
 t::assert_contains "$captured" "unlocked via operator password" "operator password: log says how"
 t::assert_eq "operator-password" "${devrow[sda.recovery]:-}" "operator password: recovery recorded as operator-password"
+t::assert_contains "$captured" "sda RECOVERY operator-password" "operator password: RECOVERY travels the fd-3 outcome channel"
 t::assert_not_contains "$captured" "Xyz123" "operator password: the value never reaches the status/log stream"
 t::check "operator password: no set-pass (security already enabled with that password)" '[[ "$(<"$_log")" != *"setpass"* ]]'
 t::check "operator password: unlock and erase both ran" '[[ "$(<"$_log")" == *"unlock"* && "$(<"$_log")" == *"erase"* ]]'
@@ -206,6 +207,7 @@ captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "operator password not accepted" "wrong operator password: logged as not accepted"
 t::assert_contains "$captured" "ATA security locked (password unknown)" "wrong operator password: honest physical-destruction outcome"
+t::assert_contains "$captured" "sda LOCKKIND ata-password" "wrong operator password: LOCKKIND travels the fd-3 outcome channel"
 t::assert_not_contains "$captured" "WrongGuess" "wrong operator password: the value never reaches the status/log stream"
 t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "wrong operator password: lock_kind still records the ATA password lock"
 t::assert_eq "" "${devrow[sda.recovery]:-}" "wrong operator password: no recovery recorded"
@@ -259,6 +261,15 @@ device::normalize_outcome
 t::assert_eq "ATA security enabled — physical destruction required" "${devrow[sda.method]:-}" "enabled-unlocked, no operator password: honest method line"
 unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_LOG FAKE_HDPARM_SETPASS_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
 rm -f "$_state" "$_log"
+
+# --- The UI applies the channel lines to the PARENT devrow (the bench gap) ---
+# Worker devrow writes are lost; ui::apply_outcome is what makes RECOVERY /
+# LOCKKIND reach the report. Pin both cases directly.
+devrow=()
+ui::apply_outcome sda RECOVERY operator-password
+ui::apply_outcome sda LOCKKIND ata-password
+t::assert_eq "operator-password" "${devrow[sda.recovery]:-}" "apply_outcome: RECOVERY applied to the parent devrow"
+t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "apply_outcome: LOCKKIND applied to the parent devrow"
 
 # --- Expired security count: honest power-cycle outcome, no attempts ---------
 export FAKE_HDPARM_MODE=locked

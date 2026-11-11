@@ -6,18 +6,17 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [v1.12.0] - 2026-11-11
+## [v1.12.2] - 2026-11-11
 
-- **Operator-supplied ATA password for locked drives.** A drive the customer
-  hands over LOCKED with its password can now be erased: `tscrub_ata_password=`
-  (kernel cmdline / `tscrub.conf`) or `--ata-password PW`. When a locked drive
-  rejects the temp password, the operator's is tried before the blank-master
-  recovery; on success the drive erases directly with it (set-pass is skipped —
-  the drive refuses a different password). The value never reaches the log,
-  the status stream or the report (hdparm output on that path is sunk to
-  /dev/null, and the no-leak is guarded by tests). Bench-proven 2026-11-11 on
-  the Intel SSDSC2KB48 (locked High, `Xyz123`): unlock + enhanced erase +
-  security clear, back to full native capacity.
+- **Bench-proven fix: `Recovery`/`LockKind` now survive the erasure worker.**
+  The v1.12.1 bench run proved the operator-password path on real hardware
+  (`unlocked via operator password`, erase COMPLETED, zero leaks) but the
+  report's `Recovery` column was EMPTY: worker devrow writes are lost, and
+  only fd-3 outcome lines reach the parent that writes the report. Recovery
+  and the ATA lock classification now travel the same channel as STATUS via
+  `ui::apply_outcome` (this also fixes a pre-existing gap where a real
+  `ata-password`/`ata-expired` failure reported the generic "Sanitisation
+  failed" method instead of the honest wording).
 
 ## [v1.12.1] - 2026-11-11
 
@@ -31,6 +30,19 @@ and this project uses date-based versioning (`v1.x`).
   is now handled: the operator's password erases it directly while unlocked,
   and without one the honest outcome is `ATA security enabled — physical
   destruction required` instead of the misleading "Failed to set password".
+
+## [v1.12.0] - 2026-11-11
+
+- **Operator-supplied ATA password for locked drives.** A drive the customer
+  hands over LOCKED with its password can now be erased: `tscrub_ata_password=`
+  (kernel cmdline / `tscrub.conf`) or `--ata-password PW`. When a locked drive
+  rejects the temp password, the operator's is tried before the blank-master
+  recovery; on success the drive erases directly with it (set-pass is skipped —
+  the drive refuses a different password). The value never reaches the log,
+  the status stream or the report (hdparm output on that path is sunk to
+  /dev/null, and the no-leak is guarded by tests). Bench-proven 2026-11-11 on
+  the Intel SSDSC2KB48 (locked High, `Xyz123`): unlock + enhanced erase +
+  security clear, back to full native capacity.
 
 ## [Unreleased]
 

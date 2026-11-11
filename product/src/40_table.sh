@@ -907,6 +907,11 @@ ui::apply_outcome() {
         CLASS)  devrow["$_dev.class"]="$_value" ;;
         CERT)   devrow["$_dev.cert"]="$_value" ;;
         PSID)   devrow["$_dev.psid_revert"]="$_value" ;;
+        # How a locked/security-enabled drive was recovered, and the ATA lock
+        # classification for honest failure methods (worker devrow writes are
+        # lost, so these travel the same channel as STATUS).
+        RECOVERY) devrow["$_dev.recovery"]="$_value" ;;
+        LOCKKIND) devrow["$_dev.lock_kind"]="$_value" ;;
         # Software-overwrite provenance (fallback paths only).
         STANDARD) devrow["$_dev.standard"]="$_value" ;;
         PASSES)   devrow["$_dev.passes"]="$_value" ;;
