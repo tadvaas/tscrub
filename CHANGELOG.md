@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.11.98] - 2026-11-11
 
 - **Locked-drive recovery: the blank-master attempt no longer requires the
   revision field.** Hardware test on the bench (Intel SSDSC2KB48 locked at
