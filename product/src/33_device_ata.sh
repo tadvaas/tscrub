@@ -198,7 +198,7 @@ device::exec_ata() {
     # spec-defined recovery: at High level it unlocks the drive, at Maximum
     # level it may SECURITY ERASE UNIT directly while locked. The ladder is
     # strictly bounded (at most three failed security commands), so one run can
-    # never reach the drive's five-attempt ey.
+    # never reach the drive's five-attempt expiry.
     if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
         if device::ata_blank_master_unlock "$dev"; then
             # Unlocked + temporary password set — the erase below runs.
