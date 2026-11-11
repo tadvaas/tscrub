@@ -89,6 +89,15 @@ taskfile path is native. SAS bay drives are unaffected (SCSI sanitize path).
 Fix: a SATL security-erase path in tScrub (ATA16 F4 via sg_raw + busy-poll
 with an ETA budget), tracked in `roadmap/product.md`.
 
+**UPDATE 2026-11-11 16:13 (v1.12.6 bench): after a clean power-cycle the
+normal hdparm erase ENGAGED and ran on both bay drives** (F4 accepted,
+hdparm blocking in the SG_IO for the full 202-min erase). So the failures
+above were **state-dependent** — the drives were carrying leftover
+temp-password/conflict state from repeated failed attempts, and TUI reads
+aborted the passthrough. The SATL fallback (v1.12.6) stays as the safety
+net for that state; do not repeat the "HBA cannot carry the erase" claim
+unqualified.
+
 ## Notes
 
 - **iDRAC fan response**: after the flash iDRAC may no longer see drive
