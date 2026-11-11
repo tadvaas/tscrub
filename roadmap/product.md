@@ -76,8 +76,14 @@ they ship and note the release that carries each. **Last reconciled with
       locked Intel completed end-to-end via `--ata-password Xyz123`, the
       report CSV carries `Recovery=operator-password`, zero password leaks,
       and the `set-password` recovery for booted-unlocked drives was added
-      after the bench disproved the set-pass-refusal claim. (b)/(c)/(d)
-      remain planned.
+      after the bench disproved the set-pass-refusal claim.
+      → **(c) shipped 2026-11-11 (v1.12.5), capability-gated:** the Security
+      log 06h QWord 48 bit 7 capability is detected, and a restricted
+      SANITIZE (B4h/11h/12h/14h via ATA16 passthrough) erases a locked drive
+      with no password, recording `Recovery=restricted-sanitize`. Unit-tested
+      + mutation-guarded; NOT hardware-proven (neither bench drive implements
+      Security log 06h — pending an RSOS-capable drive). (b)/(d) remain
+      planned.
 
 ## 2. Hardware capture → intelligence
 

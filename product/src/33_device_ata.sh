@@ -180,6 +180,104 @@ device::emit_lockkind() {   # <dev> <value>
     echo "$dev LOCKKIND $val" >&3
 }
 
+# Same channel for a worker-selected method (the restricted-sanitize path names
+# the actual operation rather than the class-default "Enhanced Erase").
+device::emit_method() {   # <dev> <value>
+    local dev="$1" val="$2"
+    devrow["$dev.method"]="$val"
+    echo "$dev METHOD $val" >&3
+}
+
+# --- ACS-4 RESTRICTED SANITIZE OVERRIDES SECURITY (RSOS) --------------------
+# A drive that implements RSOS accepts a sanitize operation command (CRYPTO
+# SCRAMBLE / BLOCK ERASE / OVERWRITE EXT, FAILURE MODE bit cleared) while in
+# SEC4: Security Enabled/Locked/Not Frozen — and a successful sanitize
+# invalidates the User password and clears SECURITY ENABLED. That is the
+# spec's passwordless recovery for a locked drive.
+# Detection: the RSOS bit is Security log page 06h, QWord 48..55, bit 7 (bit 63
+# of the QWord = MSB of log byte 48). ACS-4 r14 has NO IDENTIFY copy, so a
+# drive that does not implement the Security log reads as unsupported and the
+# ladder's honest outcome is unchanged.
+
+# Extract the raw byte at <off> from smartctl's GP-log hex dump.
+device::ata_gplog_byte() {   # <dev> <log> <off>
+    local dev="$1" log="$2" off="$3" out bytes
+    local -a arr
+    out="$(smartctl -d sat -l "gplog,0x$log" -T permissive /dev/$dev 2>/dev/null)"
+    # Only dump lines carry 16 hex pairs; strip through their 0x address.
+    bytes="$(printf '%s\n' "$out" | grep -E '([0-9a-fA-F]{2}[[:space:]]){7}[0-9a-fA-F]{2}' | sed 's/.*0x[0-9a-fA-F]*//' | grep -oE '[0-9a-fA-F]{2}' | tr '\n' ' ')"
+    read -r -a arr <<< "$bytes"
+    if (( ${#arr[@]} <= off )); then
+        return 1
+    fi
+    printf '%d' "$(( 16#${arr[$off]} ))"
+    return 0
+}
+
+device::ata_rsos_supported() {   # <dev>
+    local dev="$1" b
+    b="$(device::ata_gplog_byte "$dev" 06 48)" || return 1
+    (( b & 0x80 )) && return 0
+    return 1
+}
+
+# Issue a restricted sanitize on a SECURITY-LOCKED drive via ATA
+# PASS-THROUGH(16) through the SATL and poll SANITIZE STATUS EXT to completion.
+# Emits COMPLETED + Recovery/Method on success; returns nonzero otherwise.
+device::ata_restricted_sanitize() {   # <dev>
+    local dev="$1" sg id_out feature=0 op_name="" method_name=""
+    local tries=0 w lo_hi rc
+    sg="$(sg_map 2>/dev/null | awk -v d="/dev/$dev" '$2 == d { print $1; exit }')"
+    [[ -n "$sg" ]] || return 1
+    id_out="$(hdparm -I /dev/$dev 2>/dev/null)"
+    if printf '%s\n' "$id_out" | grep -q 'CRYPTO_SCRAMBLE_EXT'; then
+        feature=0x11; op_name="crypto"
+    elif printf '%s\n' "$id_out" | grep -q 'BLOCK_ERASE_EXT'; then
+        feature=0x12; op_name="block"
+    elif printf '%s\n' "$id_out" | grep -q 'OVERWRITE_EXT'; then
+        feature=0x14; op_name="overwrite"
+    else
+        return 1
+    fi
+    case "$op_name" in
+        crypto)    method_name="Sanitize Crypto Erase" ;;
+        block)     method_name="Sanitize Block Erase" ;;
+        overwrite) method_name="Sanitize Overwrite" ;;
+    esac
+    # ATA PASS-THROUGH(16): protocol non-data, FEATURE=<op> (FAILURE MODE bit
+    # cleared — RSOS requires it), COUNT=0, LBA=426B4572h little-endian,
+    # COMMAND=B4h.
+    if ! sg_raw "$sg" 85 06 20 00 00 "$(printf '%02x' "$feature")" 00 00 72 45 6b 42 00 b4 00 00 >/dev/null 2>&1; then
+        echo "$dev LOG restricted sanitize rejected" >&3
+        return 1
+    fi
+    echo "$dev LOG restricted sanitize started ($op_name)" >&3
+    while (( tries < ${TS_RSOS_POLL_TRIES:-120} )); do
+        # SANITIZE STATUS EXT: PIO Data-In protocol, FEATURE=0000h,
+        # LBA=46724C6Bh little-endian, COMMAND=B4h. Status word 0: bit 15
+        # completed without error, bit 14 in progress.
+        lo_hi="$(sg_raw -r 512 "$sg" 85 08 20 00 00 00 00 00 6b 4c 72 46 00 b4 00 00 2>/dev/null | od -An -tx1 | tr -s ' ' | tr -d ' ')" || { sleep 1; tries=$((tries+1)); continue; }
+        if [[ ${#lo_hi} -lt 4 ]]; then
+            sleep 1; tries=$((tries+1)); continue
+        fi
+        w=$(( 16#${lo_hi:0:2} | (16#${lo_hi:2:2} << 8) ))
+        if (( w & 0x8000 )); then
+            device::emit_recovery "$dev" restricted-sanitize
+            device::emit_method "$dev" "$method_name"
+            device::emit_status "$dev" COMPLETED
+            echo "$dev LOG erased via restricted sanitize ($op_name)" >&3
+            return 0
+        elif (( w & 0x4000 )); then
+            sleep 1; tries=$((tries+1))
+        else
+            echo "$dev LOG restricted sanitize failed" >&3
+            return 1
+        fi
+    done
+    echo "$dev LOG restricted sanitize timed out" >&3
+    return 1
+}
+
 device::exec_ata() {
     local dev="$1"
     local cap="$2"
@@ -210,6 +308,13 @@ device::exec_ata() {
     # command — even correct passwords — until a power cycle. Detect it first so
     # the ladder below never burns attempts on a drive that cannot accept them.
     if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
+        # The counter blocks every SECURITY command, but a drive with the ACS-4
+        # RESTRICTED SANITIZE OVERRIDES SECURITY capability can still be
+        # sanitized while locked — the sanitize command is not a security
+        # command and does not use the counter. Try it before giving up.
+        if device::ata_rsos_supported "$dev" && device::ata_restricted_sanitize "$dev"; then
+            return
+        fi
         device::emit_lockkind "$dev" ata-expired
         device::emit_status "$dev" FAILED
         echo "$dev LOG ATA security count expired - power-cycle the drive and retry" >&3
@@ -262,6 +367,8 @@ device::exec_ata() {
                 device::emit_recovery "$dev" blank-master
             elif device::ata_blank_master_erase "$dev" "$cap"; then
                 device::emit_recovery "$dev" blank-master
+                return
+            elif device::ata_rsos_supported "$dev" && device::ata_restricted_sanitize "$dev"; then
                 return
             elif hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
                 device::emit_lockkind "$dev" ata-expired

@@ -91,6 +91,13 @@ if [[ "$1" == "-I" ]]; then
             printf '\t90min for ENHANCED SECURITY ERASE UNIT.\n'
             ;;
     esac
+    # Sanitize feature-set lines (the RSOS path selects its operation from
+    # these) — only when the test configures one.
+    case "${FAKE_HDPARM_SANITIZE:-none}" in
+        crypto)    printf '\t*\tCRYPTO_SCRAMBLE_EXT command\n' ;;
+        block)     printf '\t*\tBLOCK_ERASE_EXT command\n' ;;
+        overwrite) printf '\t*\tOVERWRITE_EXT command\n' ;;
+    esac
     exit 0
 fi
 # -N (read HPA / max visible sectors). Only emits real output when the test

@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.5] - 2026-11-11
+
+- **Restricted Sanitize Overrides Security (ACS-4): erase a locked drive with
+  no password.** The Security log 06h QWord 48 bit 7 reports the RSOS
+  capability; while enabled+locked+not-frozen, a SANITIZE op (B4h/11h/12h/14h
+  via ATA16 passthrough, failure-mode bit cleared) is accepted, and success
+  invalidates the password and clears SECURITY ENABLED. The locked-drive
+  ladder and the expired-count pre-flight now try it before the honest
+  `ata-password` / `ata-expired` outcomes; the report records
+  `Recovery=restricted-sanitize` and the sanitize method. Capability-gated and
+  unit-tested; requires an RSOS-capable drive (neither bench drive implements
+  Security log 06h, so this path is not yet hardware-proven).
+
 ## [v1.12.4] - 2026-11-11
 
 - **Two bench-found ATA fixes (the failed operator-password run).**
@@ -78,9 +91,10 @@ and this project uses date-based versioning (`v1.x`).
   password is a vendor-set value (0xFFFE is an identifier, not proof of
   blank), so locked drives with non-blank masters are not blank-master
   recoverable. Remaining planned paths: a bounded known-password candidate
-  ladder (WinPE `AutoATAWindowsString12345678901`, `SeaChest`), ACS-4
-  Restricted Sanitize Overrides Security (erase a locked drive with no
-  password), and PSID revert for Opal drives.
+  ladder (WinPE `AutoATAWindowsString12345678901`, `SeaChest`), and PSID
+  revert for Opal drives. (ACS-4 Restricted Sanitize Overrides Security
+  shipped in v1.12.5, capability-gated; hardware proof pending an
+  RSOS-capable drive.)
 
 ## [v1.11.99] - 2026-11-11
 

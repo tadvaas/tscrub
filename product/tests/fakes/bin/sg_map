@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake sg_map: maps /dev/sg0 -> /dev/sda, /dev/sg1 -> /dev/sdb.
+printf '/dev/sg0  /dev/sda\n'
+printf '/dev/sg1  /dev/sdb\n'

@@ -3,6 +3,11 @@
 # synthetic attribute table, driven by FAKE_SMART_* env vars.
 mode="${FAKE_SMART_MODE:-pass}"
 
+# The real binary accepts -d <type> anywhere; skip that pair.
+if [[ "$1" == "-d" ]]; then
+    shift 2
+fi
+
 # Self-test subcommands (for selftest::storage_ata).
 case "$1" in
     -t)
@@ -18,6 +23,30 @@ case "$1" in
             printf 'SMART Self-test log structure revision number 1\n'
             printf 'Num  Test_Description    Status                  Remaining  LifeTime(hours)  LBA_of_first_error\n'
             printf '# 1  Short offline       %s\n' "${FAKE_SMART_SELFTEST:-Completed without error       00%}"
+        fi
+        if [[ "$2" == "gplog,0x06" || "$2" == "gplog,0x6" ]]; then
+            if [[ "${FAKE_SMARTCTL_RSOS:-0}" == "1" ]]; then
+                # 512-byte Security log: RSOS = QWord 48..55 bit 7 = byte 48
+                # (MSB) = 0x80. Emit 16 hex bytes per dump line.
+                l=0; b=0; off=0
+                for l in 0 1 2 3; do
+                    printf '  %d   0x%04x  ' "$l" "$((l*16))"
+                    for b in $(seq 0 15); do
+                        off=$((l*16+b))
+                        if [[ $off -eq 48 ]]; then printf '80 '; else printf '00 '; fi
+                    done
+                    printf '\n'
+                done
+                for l in $(seq 4 31); do
+                    printf '  %d   0x%04x  ' "$l" "$((l*16))"
+                    printf '00 %.0s' $(seq 1 16)
+                    printf '\n'
+                done
+            else
+                printf 'General Purpose Log 0x06 does not exist (override with -T permissive option)\n'
+                exit 1
+            fi
+            exit 0
         fi
         exit 0
         ;;

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Fake sg_raw for the RSOS path.
+#   sg_raw -r 512 <sg> <cdb...>            -> SANITIZE STATUS EXT read
+#   sg_raw <sg> <cdb...>                   -> sanitize operation issue
+# The non-data sanitize issue is recognised by COMMAND=b4h and a sanitize
+# FEATURE (11/12/14); FAKE_SGRAW_SANITIZE_RC controls its result.
+# The status read returns a 512-byte status block whose word 0 is 0x8000
+# (completed without error) unless FAKE_SGRAW_BUSY_FILE holds a counter >0, in
+# which case it answers 0x4000 (in progress) and decrements the FILE (env-only
+# decrements would be lost — the fake runs as a child process).
+if [[ "$1" == "-r" ]]; then
+    if [[ -n "${FAKE_SGRAW_BUSY_FILE:-}" && -f "$FAKE_SGRAW_BUSY_FILE" ]]; then
+        n="$(<"$FAKE_SGRAW_BUSY_FILE")"
+        if [[ "${n:-0}" -gt 0 ]]; then
+            printf '%s\n' "$((n-1))" > "$FAKE_SGRAW_BUSY_FILE"
+            printf '\000\100'   # word 0 = 0x4000: sanitize in progress
+            dd if=/dev/zero bs=1 count=510 2>/dev/null
+            exit 0
+        fi
+    fi
+    printf '\000\200'   # word 0 = 0x8000: completed without error
+    dd if=/dev/zero bs=1 count=510 2>/dev/null
+    exit 0
+fi
+[[ -n "${FAKE_SGRAW_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_SGRAW_LOG"
+if [[ "${15:-}" == "b4" && ( "${7:-}" == "11" || "${7:-}" == "12" || "${7:-}" == "14" ) ]]; then
+    exit "${FAKE_SGRAW_SANITIZE_RC:-0}"
+fi
+exit 0

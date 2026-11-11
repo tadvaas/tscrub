@@ -402,6 +402,102 @@ ui::apply_outcome sda LOCKKIND ata-password
 t::assert_eq "operator-password" "${devrow[sda.recovery]:-}" "apply_outcome: RECOVERY applied to the parent devrow"
 t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "apply_outcome: LOCKKIND applied to the parent devrow"
 
+# --- ACS-4 Restricted Sanitize Overrides Security (RSOS) --------------------
+# A locked drive with the RSOS capability is sanitized with NO password: a
+# sanitize op (FAILURE MODE bit = 0) is accepted while locked, and a success
+# invalidates the user password + clears SECURITY ENABLED. Detection is the
+# Security log page 06h QWord 48..55 bit 7 (no IDENTIFY copy in ACS-4 r14).
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_UNLOCK_RC=1
+export FAKE_HDPARM_MREV=1234 FAKE_HDPARM_LEVEL=high
+export FAKE_HDPARM_SANITIZE=crypto
+export FAKE_SMARTCTL_RSOS=1
+_sglog="$(mktemp)"
+export FAKE_SGRAW_LOG="$_sglog"
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "RSOS: locked drive sanitized with no password -> COMPLETED"
+t::assert_contains "$captured" "erased via restricted sanitize" "RSOS: log says how"
+t::assert_eq "restricted-sanitize" "${devrow[sda.recovery]:-}" "RSOS: recovery recorded as restricted-sanitize"
+t::assert_contains "$captured" "sda METHOD Sanitize Crypto Erase" "RSOS: method channel carries the operation name"
+t::check "RSOS: crypto sanitize issued via the SATL passthrough" 'grep -q "85 06 20 00 00 11" "$_sglog"'
+
+# --- RSOS unsupported: the honest outcome is unchanged ----------------------
+printf '' > "$_state"
+export FAKE_SMARTCTL_RSOS=0
+printf '' > "$_sglog"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "ATA security locked (password unknown)" "RSOS unsupported: honest physical-destruction outcome"
+t::check "RSOS unsupported: no sanitize command issued" '[[ ! -s "$_sglog" ]]'
+
+# --- RSOS supported but the sanitize is rejected: honest outcome ------------
+printf '' > "$_state"
+export FAKE_SMARTCTL_RSOS=1
+export FAKE_SGRAW_SANITIZE_RC=1
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "restricted sanitize rejected" "RSOS rejected: logged"
+t::assert_contains "$captured" "ATA security locked (password unknown)" "RSOS rejected: honest physical-destruction outcome"
+t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "RSOS rejected: lock_kind still records the ATA password lock"
+unset FAKE_SGRAW_SANITIZE_RC
+
+# --- RSOS busy, then completes: the poll loop works --------------------------
+printf '' > "$_state"
+_busy="$(mktemp)"
+printf '2\n' > "$_busy"
+export FAKE_SGRAW_BUSY_FILE="$_busy"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "RSOS busy then complete: poll loop -> COMPLETED"
+t::assert_eq "restricted-sanitize" "${devrow[sda.recovery]:-}" "RSOS busy then complete: recovery recorded"
+unset FAKE_SGRAW_BUSY_FILE
+rm -f "$_busy"
+
+# --- Expired counter + RSOS: the sanitize still works (no counter use) ------
+printf '' > "$_state"
+export FAKE_HDPARM_EXPIRED=1
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "expired + RSOS: sanitized despite the expired counter"
+t::assert_eq "restricted-sanitize" "${devrow[sda.recovery]:-}" "expired + RSOS: recovery recorded as restricted-sanitize"
+unset FAKE_HDPARM_EXPIRED FAKE_SMARTCTL_RSOS FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL FAKE_HDPARM_SANITIZE FAKE_SGRAW_LOG
+rm -f "$_state" "$_sglog"
+
 # --- Expired security count: honest power-cycle outcome, no attempts ---------
 export FAKE_HDPARM_MODE=locked
 _state="$(mktemp)"
