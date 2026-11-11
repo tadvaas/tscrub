@@ -6,7 +6,7 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
-## [Unreleased]
+## [v1.12.0] - 2026-11-11
 
 - **Operator-supplied ATA password for locked drives.** A drive the customer
   hands over LOCKED with its password can now be erased: `tscrub_ata_password=`
@@ -18,6 +18,8 @@ and this project uses date-based versioning (`v1.x`).
   /dev/null, and the no-leak is guarded by tests). Bench-proven 2026-11-11 on
   the Intel SSDSC2KB48 (locked High, `Xyz123`): unlock + enhanced erase +
   security clear, back to full native capacity.
+
+## [Unreleased]
 
 ### Planned
 
