@@ -559,7 +559,7 @@ rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS FAILED" "SATL erase never-enabled: honest FAILED"
 t::assert_contains "$captured" "did not engage (never enabled)" "SATL erase never-enabled: reason logged"
 
-# --- SATL erase: prepare rejected --------------------------------------------
+# --- SATL erase: prepare rejected -> the erase command is still attempted ---
 printf '' > "$_sglog"
 export FAKE_SGRAW_PREPARE_RC=1
 devrow=()
@@ -570,9 +570,9 @@ device::execute sda
 exec 3>&-
 captured="$(cat "$OUT")"
 rm -f "$OUT"
-t::assert_contains "$captured" "SATL erase prepare rejected" "SATL prepare rejected: logged"
+t::assert_contains "$captured" "SATL erase prepare rejected (continuing)" "SATL prepare rejected: logged, continues"
 t::assert_contains "$captured" "sda STATUS FAILED" "SATL prepare rejected: honest FAILED"
-t::check "SATL prepare rejected: no erase CDB issued" '! grep -q "f4" "$_sglog"'
+t::check "SATL prepare rejected: the erase CDB is still attempted" 'grep -q "f4" "$_sglog"'
 unset FAKE_SGRAW_PREPARE_RC
 
 # --- SATL erase: busy the whole budget -> timed out --------------------------

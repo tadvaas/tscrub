@@ -304,11 +304,16 @@ device::ata_satl_security_erase() {   # <dev> <pw> <plain|enhanced>
     sg="$(sg_map 2>/dev/null | awk -v d="/dev/$dev" '$2 == d { print $1; exit }')"
     [[ -n "$sg" ]] || return 1
 
-    # ERASE PREPARE (F3h): ATA16 non-data, CHECK CONDITION, dev=LBA — must
-    # immediately precede the erase.
-    if ! sg_raw "$sg" 85 03 20 00 00 00 00 00 00 00 00 00 00 40 f3 00 >/dev/null 2>&1; then
-        echo "$dev LOG SATL erase prepare rejected" >&3
-        return 1
+    # ERASE PREPARE (F3h). This SATL rejects NON_DATA ATA16 with "Invalid
+    # field in cdb" (bench-proven on mpt3sas, both the sg and block nodes),
+    # so send the prepare with the SAME PIO data-out shape as the erase,
+    # carrying a dummy 512-byte block — that shape the SATL accepts (verified
+    # on the bench: status Good). Best-effort: drives that ignore a data-phase
+    # prepare — or accept F4 without one, bench-proven on the WD/HGST — still
+    # get the erase command below, and the poll decides the honest outcome.
+    if ! dd if=/dev/zero bs=512 count=1 2>/dev/null \
+            | sg_raw -s 512 "$sg" 85 0a 06 00 00 00 01 00 00 00 00 00 00 40 f3 00 >/dev/null 2>&1; then
+        echo "$dev LOG SATL erase prepare rejected (continuing)" >&3
     fi
 
     # 512-byte security data block: byte 0 = user (0) | enhanced (2),

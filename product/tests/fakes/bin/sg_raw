@@ -29,6 +29,9 @@ if [[ "$1" == "-s" ]]; then
     if [[ "${18:-}" == "f4" ]]; then
         exit "${FAKE_SGRAW_ERASE_RC:-0}"
     fi
+    if [[ "${18:-}" == "f3" ]]; then
+        exit "${FAKE_SGRAW_PREPARE_RC:-0}"
+    fi
     exit 0
 fi
 [[ -n "${FAKE_SGRAW_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_SGRAW_LOG"

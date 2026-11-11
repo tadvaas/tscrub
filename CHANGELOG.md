@@ -6,6 +6,18 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.9] - 2026-11-11
+
+- **Fix the SATL erase prepare (bench-found).** The mpt3sas SATL rejects
+  NON_DATA ATA16 with "Illegal request: Invalid field in cdb" (both the sg
+  and block nodes), so the v1.12.6 SATL fallback's ERASE PREPARE always
+  failed and bay erases fell through to FAILED. The prepare now goes out with
+  the erase's PIO data-out shape carrying a dummy 512-byte block (bench
+  status Good) and is best-effort — drives that accept F4 without a prepare
+  still get the erase, and the poll decides the honest outcome. The RSOS
+  sanitize op (DMA non-data) returns only a warning on this SATL, so it is
+  unaffected.
+
 ## [v1.12.8] - 2026-11-11
 
 - **Sentinel plant moved into the erasure workers.** Bench finding: after a
