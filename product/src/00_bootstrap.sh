@@ -47,6 +47,11 @@ TS_RETRY_PURGE=1
 #   TS_NVME_SOFTWARE_FALLBACK auto | off   (auto = nwipe fallback when sanitize/
 #   format is rejected for a non-Block-SID reason; off = fail the drive as before)
 TS_NVME_SOFTWARE_FALLBACK=auto
+# Operator-supplied ATA password for LOCKED drives (the customer hands the
+# drive over WITH its password). SECRET: the value must never be echoed,
+# logged or reported — including in validation errors, which print only the
+# length. Used by device::exec_ata before the blank-master ladder.
+TS_ATA_PASSWORD=""
 # Software-overwrite standard. Applies ONLY when a firmware erase is
 # unavailable (SCSI without SANITIZE, NVMe rejecting sanitize/format).
 #   TS_NWIPE_METHOD  zero | random | dod | dodshort | gutmann | is5enh
@@ -944,7 +949,7 @@ ipc::close() {
 }
 
 parse_args() {
-    local arg mins v
+    local arg mins v _pw
 
     # Kernel-cmdline defaults first, so explicit CLI flags below win.
     cmdline::flr || true
@@ -952,6 +957,7 @@ parse_args() {
     cmdline::nwipe_method || true
     cmdline::nwipe_passes || true
     cmdline::standard || true
+    cmdline::ata_password || true
 
     while (($# > 0)); do
         arg="$1"
@@ -1233,6 +1239,21 @@ parse_args() {
                     *) echo "Invalid --nvme-software-fallback value: '$1' (auto|off)"; exit 1 ;;
                 esac
                 ;;
+            --ata-password=*)
+                _pw="${arg#*=}"
+                if (( ${#_pw} < 1 || ${#_pw} > 32 )); then
+                    echo "--ata-password must be 1..32 bytes (got ${#_pw})"; exit 1
+                fi
+                TS_ATA_PASSWORD="$_pw"
+                ;;
+            --ata-password)
+                shift
+                [[ $# -gt 0 ]] || { echo "--ata-password requires a password"; exit 1; }
+                if (( ${#1} < 1 || ${#1} > 32 )); then
+                    echo "--ata-password must be 1..32 bytes (got ${#1})"; exit 1
+                fi
+                TS_ATA_PASSWORD="$1"
+                ;;
             --ppi|--ppi=*|--ppi-efivar|--ppi-efivar=*|--ppi-probe|--ppi-op|--ppi-op=*|--ppi-resume)
                 # Deprecated no-op: Block SID PPI is fully automatic (TPM PPI
                 # sysfs, op 97). Accept and ignore so old PXE configs still boot.
@@ -1248,7 +1269,7 @@ parse_args() {
                 esac
                 ;;
             --help|-h)
-                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--no-report-usb] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST]"
+                echo "Usage: $0 [--dry-run] [--simulate-running-eta=MINUTES] [--license PATH] [--license-url URL] [--output DIR] [--no-report-usb] [--cocid 12345] [--autonuke] [--operator NAME] [--validator NAME] [--asset-tag TAG] [--media-source SRC] [--media-destination DST] [--ata-password PW]"
                 echo "       $0 verify <report.csv> [public-key.pem]"
                 echo ""
                 echo "Modes:"
@@ -1275,6 +1296,8 @@ parse_args() {
                 echo "  --label LABEL      Volume label for formatted drives (default TSCRUB)."
                 echo "  --flr MODE          Freeze-lock removal: auto|forced|disabled (default auto)."
                 echo "  --nvme-software-fallback M  NVMe software overwrite when firmware erase is rejected: auto|off (default auto)."
+                echo "  --ata-password PW   ATA password for a drive the customer handed over LOCKED"
+                echo "                      (tried before the blank-master recovery; never logged)."
                 echo "  --method STANDARD   Software-overwrite standard (fallback only): zero|random|dod|dodshort|gutmann|is5enh (default zero)."
                 echo "  --passes N          Repetitions of that standard, 1..64 (default 1)."
                 echo "  verify <csv>         Verify a signed report (SHA-256 + signature)."
@@ -1409,6 +1432,23 @@ cmdline::standard() {
         exit 1
     fi
     SANITIZATION_STANDARD="$param"
+    return 0
+}
+
+# Operator-supplied ATA password for locked drives (tscrub_ata_password=...),
+# the PXE-fleet way to hand a known drive password to the erase ladder.
+# SECRET: the value must never appear in any output — validation errors print
+# only the byte length.
+cmdline::ata_password() {
+    local param
+    param="$( { tr ' ' '\n' < /proc/cmdline; } 2>/dev/null | sed -nE 's/^tscrub_ata_password=//p' | head -n 1)"
+    [[ -n "$param" ]] || return 1
+    param="${param//\"/}"
+    if (( ${#param} < 1 || ${#param} > 32 )); then
+        echo "tscrub_ata_password must be 1..32 bytes (got ${#param})" >&2
+        exit 1
+    fi
+    TS_ATA_PASSWORD="$param"
     return 0
 }
 

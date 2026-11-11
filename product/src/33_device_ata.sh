@@ -97,11 +97,20 @@ device::reset_hpa_dco() {
 # the erase outcome is already decided, and a failed disable must never flip a
 # completed erase to FAILED. Some firmwares end the erase in the "locked" state,
 # so if a plain disable is rejected, unlock first and retry once.
-device::ata_clear_password() {
-    local dev="$1"
-    if ! hdparm --user-master u --security-disable p /dev/$dev >&5 2>&5; then
-        hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
-        hdparm --user-master u --security-disable p /dev/$dev >&5 2>&5 || true
+device::ata_clear_password() {   # <dev> [pw] [quiet]
+    local dev="$1" pw="${2:-p}" quiet="${3:-0}"
+    # The operator-password path passes quiet=1: hdparm echoes the password, so
+    # its output goes to /dev/null, never to fd 5 (the run log).
+    if [[ "$quiet" == "1" ]]; then
+        if ! hdparm --user-master u --security-disable "$pw" /dev/$dev >/dev/null 2>&1; then
+            hdparm --user-master u --security-unlock "$pw" /dev/$dev >/dev/null 2>&1 || true
+            hdparm --user-master u --security-disable "$pw" /dev/$dev >/dev/null 2>&1 || true
+        fi
+    else
+        if ! hdparm --user-master u --security-disable "$pw" /dev/$dev >&5 2>&5; then
+            hdparm --user-master u --security-unlock "$pw" /dev/$dev >&5 2>&5 || true
+            hdparm --user-master u --security-disable "$pw" /dev/$dev >&5 2>&5 || true
+        fi
     fi
 }
 
@@ -154,6 +163,7 @@ device::ata_blank_master_erase() {   # <dev> <cap>
 device::exec_ata() {
     local dev="$1"
     local cap="$2"
+    local opw_unlocked=0 ata_pw="p"
 
     if [[ "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ]]; then
         device::emit_status "$dev" FAILED
@@ -193,34 +203,52 @@ device::exec_ata() {
     # below).
     hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
 
-    # Still locked? The user password is not ours. The factory-blank master
-    # password (revision 0xFFFE = 65534, or an absent field) is the
-    # spec-defined recovery: at High level it unlocks the drive, at Maximum
-    # level it may SECURITY ERASE UNIT directly while locked. The ladder is
-    # strictly bounded (at most three failed security commands), so one run can
-    # never reach the drive's five-attempt expiry.
+    # Still locked? The user password is not ours. Try the operator-supplied
+    # password first (the customer knows it), then the factory-blank master
+    # (revision 0xFFFE = 65534, or an absent field): at High level it unlocks
+    # the drive, at Maximum level it may SECURITY ERASE UNIT directly while
+    # locked. The ladder is strictly bounded (at most four failed security
+    # commands), so one run can never reach the drive's five-attempt expiry.
     if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
-        if device::ata_blank_master_unlock "$dev"; then
-            # Unlocked + temporary password set — the erase below runs.
-            :
-        elif device::ata_blank_master_erase "$dev" "$cap"; then
-            return
-        elif hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
-            devrow["$dev.lock_kind"]="ata-expired"
-            device::emit_status "$dev" FAILED
-            echo "$dev LOG ATA security count expired - power-cycle the drive and retry" >&3
-            return
-        else
-            # Neither password works: physical destruction is the outcome.
-            devrow["$dev.lock_kind"]="ata-password"
-            device::emit_status "$dev" FAILED
-            echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
-            return
+        if [[ -n "${TS_ATA_PASSWORD:-}" ]]; then
+            # hdparm echoes the password, so its output goes to /dev/null —
+            # NEVER to fd 5 (the run log).
+            if hdparm --user-master u --security-unlock "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
+                opw_unlocked=1
+                echo "$dev LOG unlocked via operator password" >&3
+            else
+                echo "$dev LOG operator password not accepted" >&3
+            fi
+        fi
+        if [[ "$opw_unlocked" -eq 0 ]]; then
+            if device::ata_blank_master_unlock "$dev"; then
+                # Unlocked + temporary password set — the erase below runs.
+                :
+            elif device::ata_blank_master_erase "$dev" "$cap"; then
+                return
+            elif hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
+                devrow["$dev.lock_kind"]="ata-expired"
+                device::emit_status "$dev" FAILED
+                echo "$dev LOG ATA security count expired - power-cycle the drive and retry" >&3
+                return
+            else
+                # Neither password works: physical destruction is the outcome.
+                devrow["$dev.lock_kind"]="ata-password"
+                device::emit_status "$dev" FAILED
+                echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
+                return
+            fi
         fi
     fi
 
-    # Unlocked (or never locked): set the temporary password and erase.
-    if ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
+    # Unlocked (or never locked): erase. A drive unlocked with the OPERATOR's
+    # password skips set-pass — security is already enabled with that password
+    # and a set-pass carrying a DIFFERENT password is refused by the drive —
+    # and erases directly with the operator's password, with every hdparm
+    # output sunk to /dev/null so the password never reaches the log.
+    if [[ "$opw_unlocked" -eq 1 ]]; then
+        ata_pw="$TS_ATA_PASSWORD"
+    elif ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
         device::emit_status "$dev" FAILED
         echo "$dev LOG Failed to set ATA security password" >&3
         return
@@ -228,22 +256,34 @@ device::exec_ata() {
 
     case "$cap" in
         CAP_ATA_PURGE_ENHANCED)
-            if hdparm --user-master u --security-erase-enhanced p /dev/$dev >&5 2>&5; then
+            if [[ "$opw_unlocked" -eq 1 ]]; then
+                if hdparm --user-master u --security-erase-enhanced "$ata_pw" /dev/$dev >/dev/null 2>&1; then
+                    device::emit_status "$dev" COMPLETED
+                else
+                    device::emit_status "$dev" FAILED
+                fi
+            elif hdparm --user-master u --security-erase-enhanced "$ata_pw" /dev/$dev >&5 2>&5; then
                 device::emit_status "$dev" COMPLETED
             else
                 device::emit_status "$dev" FAILED
             fi
-            device::ata_clear_password "$dev"
+            device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             return
             ;;
 
         CAP_ATA_CLEAR)
-            if hdparm --user-master u --security-erase p /dev/$dev >&5 2>&5; then
+            if [[ "$opw_unlocked" -eq 1 ]]; then
+                if hdparm --user-master u --security-erase "$ata_pw" /dev/$dev >/dev/null 2>&1; then
+                    device::emit_status "$dev" COMPLETED
+                else
+                    device::emit_status "$dev" FAILED
+                fi
+            elif hdparm --user-master u --security-erase "$ata_pw" /dev/$dev >&5 2>&5; then
                 device::emit_status "$dev" COMPLETED
             else
                 device::emit_status "$dev" FAILED
             fi
-            device::ata_clear_password "$dev"
+            device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             return
             ;;
 

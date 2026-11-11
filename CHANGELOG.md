@@ -8,14 +8,24 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+- **Operator-supplied ATA password for locked drives.** A drive the customer
+  hands over LOCKED with its password can now be erased: `tscrub_ata_password=`
+  (kernel cmdline / `tscrub.conf`) or `--ata-password PW`. When a locked drive
+  rejects the temp password, the operator's is tried before the blank-master
+  recovery; on success the drive erases directly with it (set-pass is skipped —
+  the drive refuses a different password). The value never reaches the log,
+  the status stream or the report (hdparm output on that path is sunk to
+  /dev/null, and the no-leak is guarded by tests). Bench-proven 2026-11-11 on
+  the Intel SSDSC2KB48 (locked High, `Xyz123`): unlock + enhanced erase +
+  security clear, back to full native capacity.
+
 ### Planned
 
 - **ATA password recovery beyond the blank master** (research:
   `research/ata-password-recovery/README.md`). Bench finding: a factory master
   password is a vendor-set value (0xFFFE is an identifier, not proof of
   blank), so locked drives with non-blank masters are not blank-master
-  recoverable. Planned paths: operator-supplied password
-  (`tscrub_ata_password=` + TUI prompt), a bounded known-password candidate
+  recoverable. Remaining planned paths: a bounded known-password candidate
   ladder (WinPE `AutoATAWindowsString12345678901`, `SeaChest`), ACS-4
   Restricted Sanitize Overrides Security (erase a locked drive with no
   password), and PSID revert for Opal drives.

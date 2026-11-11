@@ -163,6 +163,16 @@ if [[ "$1" == "--user-master" ]]; then
                 fi
                 exit 2
             fi
+            if [[ -n "${FAKE_HDPARM_USERPW:-}" ]]; then
+                # Operator-password model: succeeds ONLY with the configured
+                # password; anything else is a failed attempt.
+                if [[ "${4:-}" == "$FAKE_HDPARM_USERPW" ]]; then
+                    [[ -n "${FAKE_HDPARM_LOG:-}" ]] && printf 'u unlock\n' >> "$FAKE_HDPARM_LOG"
+                    [[ -n "${FAKE_HDPARM_STATE_FILE:-}" ]] && printf 'unlocked\n' > "$FAKE_HDPARM_STATE_FILE"
+                    exit 0
+                fi
+                exit 2
+            fi
             if [[ "${FAKE_HDPARM_UNLOCK_RC:-0}" == "0" ]]; then
                 [[ -n "${FAKE_HDPARM_STATE_FILE:-}" ]] && printf 'unlocked\n' > "$FAKE_HDPARM_STATE_FILE"
                 exit 0
@@ -170,6 +180,7 @@ if [[ "$1" == "--user-master" ]]; then
             exit "${FAKE_HDPARM_UNLOCK_RC}"
             ;;
         --security-set-pass)
+            [[ -n "${FAKE_HDPARM_LOG:-}" ]] && printf 'u setpass\n' >> "$FAKE_HDPARM_LOG"
             if [[ "${FAKE_HDPARM_MODE:-enhanced}" == "locked" ]]; then
                 # Refused while still locked; succeeds once unlocked.
                 if [[ -n "${FAKE_HDPARM_STATE_FILE:-}" && -f "$FAKE_HDPARM_STATE_FILE" && "$(<"$FAKE_HDPARM_STATE_FILE")" == unlocked ]]; then
@@ -180,6 +191,7 @@ if [[ "$1" == "--user-master" ]]; then
             exit "${FAKE_HDPARM_SETPASS_RC:-0}"
             ;;
         --security-erase|--security-erase-enhanced)
+            [[ -n "${FAKE_HDPARM_LOG:-}" ]] && printf 'u erase\n' >> "$FAKE_HDPARM_LOG"
             if [[ "$2" == "m" ]]; then
                 # Blank master erase: allowed only at Maximum level.
                 if [[ "${FAKE_HDPARM_LEVEL:-high}" == "maximum" && "${FAKE_HDPARM_MREV:-65534}" == "65534" && "${4:-}" == "" ]]; then

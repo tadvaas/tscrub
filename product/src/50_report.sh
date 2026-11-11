@@ -657,6 +657,7 @@ license::detect_usb() {
 #   tscrub_media_destination=<where> (e.g. "resale", "recycle")
 #   tscrub_psids_url=<url>         (fetch the serial→PSID map from a URL)
 #   tscrub_psids=<path>            (read the serial→PSID map from a local path)
+#   tscrub_ata_password=<pw>       (ATA password for a LOCKED drive the customer supplies; never logged)
 # CLI flags always win; the file fills in only what isn't already set.
 config::load_usb() {
     local name type rm fstype dev mnt conf mounted pass line key val
@@ -716,6 +717,12 @@ config::load_usb() {
                             if [[ -z "${TS_PSIDS_PATH:-}" ]]; then
                                 TS_PSIDS_PATH="$val"
                                 CONFIG_USB_DEBUG+="  tscrub_psids: set"$'\n'
+                            fi
+                            ;;
+                        tscrub_ata_password)
+                            if [[ -z "${TS_ATA_PASSWORD:-}" ]]; then
+                                TS_ATA_PASSWORD="$val"
+                                CONFIG_USB_DEBUG+="  tscrub_ata_password: set (redacted)"$'\n'
                             fi
                             ;;
                         tscrub_api_token)

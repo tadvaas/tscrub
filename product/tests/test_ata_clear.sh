@@ -153,6 +153,58 @@ t::assert_contains "$captured" "unlocked via blank master password" "absent revi
 unset FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
 rm -f "$_state"
 
+# --- Operator-supplied password: correct password, erase runs, no leak -------
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_MREV=65534 FAKE_HDPARM_LEVEL=high
+export FAKE_HDPARM_USERPW=Xyz123
+TS_ATA_PASSWORD="Xyz123"
+_log="$(mktemp)"
+export FAKE_HDPARM_LOG="$_log"
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "operator password: unlock + erase -> COMPLETED"
+t::assert_contains "$captured" "unlocked via operator password" "operator password: log says how"
+t::assert_not_contains "$captured" "Xyz123" "operator password: the value never reaches the status/log stream"
+t::check "operator password: no set-pass (security already enabled with that password)" '[[ "$(<"$_log")" != *"setpass"* ]]'
+t::check "operator password: unlock and erase both ran" '[[ "$(<"$_log")" == *"unlock"* && "$(<"$_log")" == *"erase"* ]]'
+t::check "operator password: unlock was attempted exactly once" '[[ "$(grep -c unlock "$_log")" == "1" ]]'
+unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_LOG FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
+rm -f "$_state" "$_log"
+
+# --- Operator-supplied password: WRONG password falls through honestly -------
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_MREV=1234 FAKE_HDPARM_LEVEL=high
+export FAKE_HDPARM_USERPW=Xyz123
+TS_ATA_PASSWORD="WrongGuess"
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "operator password not accepted" "wrong operator password: logged as not accepted"
+t::assert_contains "$captured" "ATA security locked (password unknown)" "wrong operator password: honest physical-destruction outcome"
+t::assert_not_contains "$captured" "WrongGuess" "wrong operator password: the value never reaches the status/log stream"
+t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "wrong operator password: lock_kind still records the ATA password lock"
+unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
+rm -f "$_state"
+
 # --- Expired security count: honest power-cycle outcome, no attempts ---------
 export FAKE_HDPARM_MODE=locked
 _state="$(mktemp)"
