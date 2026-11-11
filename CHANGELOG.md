@@ -21,6 +21,17 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+- **Recovery column + the soft-reboot "fluke" state.** Every erasure now
+  records HOW a locked/security-enabled drive was recovered in a new `Recovery`
+  CSV column (`temp-password` / `operator-password` / `blank-master`; empty on
+  the normal path), so a completed drive's unlock story is visible on the
+  report and dashboard instead of only in log forensics. Also: a drive that
+  boots security-ENABLED but NOT locked (a soft reboot after set-pass — the
+  state that made a recent bench run complete without exercising the ladder)
+  is now handled: the operator's password erases it directly while unlocked,
+  and without one the honest outcome is `ATA security enabled — physical
+  destruction required` instead of the misleading "Failed to set password".
+
 ### Planned
 
 - **ATA password recovery beyond the blank master** (research:

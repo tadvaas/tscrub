@@ -35,6 +35,7 @@ captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "clear_notime: erase -> COMPLETED"
 t::check "clear_notime: erase does NOT emit FAILED" '[[ "$captured" != *"sda STATUS FAILED"* ]]'
+t::assert_eq "" "${devrow[sda.recovery]:-}" "clear_notime: no recovery recorded (drive was never locked)"
 
 # Password cleanup: a plain --security-disable is tried first; when it fails
 # (drive ended the erase locked), an unlock is issued and the disable retried.
@@ -76,6 +77,7 @@ exec 3>&-
 captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "locked with our password: unlock + erase -> COMPLETED"
+t::assert_eq "temp-password" "${devrow[sda.recovery]:-}" "locked with our password: recovery recorded as temp-password"
 
 # --- Locked with an UNKNOWN password + CHANGED master revision --------------
 # (a non-factory master): no blank attempts, honest physical-destruction.
@@ -93,6 +95,7 @@ rm -f "$OUT"
 t::assert_contains "$captured" "ATA security locked (password unknown)" "unknown password logged honestly"
 t::assert_not_contains "$captured" "blank master" "changed revision: no blank-master attempt"
 t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "lock_kind records the ATA password lock"
+t::assert_eq "" "${devrow[sda.recovery]:-}" "unknown password: no recovery recorded"
 devices=(sda)
 devrow[sda.status]="FAILED"
 device::normalize_outcome
@@ -118,6 +121,7 @@ captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "blank master high: unlock + erase -> COMPLETED"
 t::assert_contains "$captured" "unlocked via blank master password" "blank master high: log says how"
+t::assert_eq "blank-master" "${devrow[sda.recovery]:-}" "blank master high: recovery recorded as blank-master"
 
 # --- Factory-blank master recovery: Maximum level (direct master erase) -----
 printf '' > "$_state"
@@ -132,6 +136,7 @@ captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "blank master maximum: direct master erase -> COMPLETED"
 t::assert_contains "$captured" "erased via blank master password" "blank master maximum: log says how"
+t::assert_eq "blank-master" "${devrow[sda.recovery]:-}" "blank master maximum: recovery recorded as blank-master"
 
 # --- ABSENT revision line (Intel SSDs omit it once security is enabled) -----
 # An absent field must still get the blank-master attempt: the failed attempts
@@ -174,6 +179,7 @@ captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "sda STATUS COMPLETED" "operator password: unlock + erase -> COMPLETED"
 t::assert_contains "$captured" "unlocked via operator password" "operator password: log says how"
+t::assert_eq "operator-password" "${devrow[sda.recovery]:-}" "operator password: recovery recorded as operator-password"
 t::assert_not_contains "$captured" "Xyz123" "operator password: the value never reaches the status/log stream"
 t::check "operator password: no set-pass (security already enabled with that password)" '[[ "$(<"$_log")" != *"setpass"* ]]'
 t::check "operator password: unlock and erase both ran" '[[ "$(<"$_log")" == *"unlock"* && "$(<"$_log")" == *"erase"* ]]'
@@ -202,8 +208,57 @@ t::assert_contains "$captured" "operator password not accepted" "wrong operator 
 t::assert_contains "$captured" "ATA security locked (password unknown)" "wrong operator password: honest physical-destruction outcome"
 t::assert_not_contains "$captured" "WrongGuess" "wrong operator password: the value never reaches the status/log stream"
 t::assert_eq "ata-password" "${devrow[sda.lock_kind]:-}" "wrong operator password: lock_kind still records the ATA password lock"
+t::assert_eq "" "${devrow[sda.recovery]:-}" "wrong operator password: no recovery recorded"
 unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
 rm -f "$_state"
+
+# --- Security enabled but NOT locked (the soft-reboot "fluke" state) ---------
+# A drive that booted unlocked (e.g. a soft reboot after set-pass) refuses a
+# set-pass carrying a different password. With the operator's password it is
+# erased DIRECTLY while unlocked; without it, the outcome is honest.
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+printf 'unlocked\n' > "$_state"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_SETPASS_RC=1
+export FAKE_HDPARM_USERPW=Xyz123
+TS_ATA_PASSWORD="Xyz123"
+_log="$(mktemp)"
+export FAKE_HDPARM_LOG="$_log"
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "enabled-unlocked + operator password: direct erase -> COMPLETED"
+t::assert_eq "operator-password" "${devrow[sda.recovery]:-}" "enabled-unlocked + operator password: recovery recorded as operator-password"
+t::assert_not_contains "$captured" "Xyz123" "enabled-unlocked + operator password: the value never reaches the status/log stream"
+
+# Same state WITHOUT the operator password: honest physical-destruction.
+printf 'unlocked\n' > "$_state"
+unset TS_ATA_PASSWORD
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "ATA security enabled with unknown password" "enabled-unlocked, no operator password: honest outcome logged"
+t::assert_eq "ata-enabled" "${devrow[sda.lock_kind]:-}" "enabled-unlocked, no operator password: lock_kind records ata-enabled"
+t::assert_eq "" "${devrow[sda.recovery]:-}" "enabled-unlocked, no operator password: no recovery recorded"
+devices=(sda)
+devrow[sda.status]="FAILED"
+device::normalize_outcome
+t::assert_eq "ATA security enabled — physical destruction required" "${devrow[sda.method]:-}" "enabled-unlocked, no operator password: honest method line"
+unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_LOG FAKE_HDPARM_SETPASS_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
+rm -f "$_state" "$_log"
 
 # --- Expired security count: honest power-cycle outcome, no attempts ---------
 export FAKE_HDPARM_MODE=locked

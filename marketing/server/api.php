@@ -2216,7 +2216,7 @@ if ($method === 'GET' && $route === '/drives/export') {
         'sanitization_standard' => 'Sanitisation standard', 'sanitization_level' => 'Sanitisation level',
         'sanitization_shortfall' => 'Claim shortfall',
         'format_result' => 'Format result', 'format_fs' => 'Formatted', 'format_scheme' => 'Partition scheme', 'format_label' => 'Volume label',
-        'psid_revert' => 'PSID revert', 'lock_kind' => 'TCG lock', 'ppi_requested' => 'PPI requested', 'ppi_cleared' => 'PPI cleared',
+        'psid_revert' => 'PSID revert', 'lock_kind' => 'TCG lock', 'recovery' => 'Recovery', 'ppi_requested' => 'PPI requested', 'ppi_cleared' => 'PPI cleared',
         'start_time' => 'Start time', 'end_time' => 'End time', 'duration_secs' => 'Duration (s)',
         'sku' => 'SKU', 'asset_tag' => 'Asset tag', 'bios_vendor' => 'BIOS vendor', 'board' => 'Motherboard',
         'tpm' => 'TPM', 'macs' => 'MAC address', 'storage_controllers' => 'Storage controllers',

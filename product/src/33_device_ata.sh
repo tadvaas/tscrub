@@ -163,7 +163,7 @@ device::ata_blank_master_erase() {   # <dev> <cap>
 device::exec_ata() {
     local dev="$1"
     local cap="$2"
-    local opw_unlocked=0 ata_pw="p"
+    local opw_unlocked=0 ata_pw="p" was_locked=0
 
     if [[ "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ]]; then
         device::emit_status "$dev" FAILED
@@ -198,10 +198,18 @@ device::exec_ata() {
 
     # An earlier tScrub run interrupted mid-erase (power loss, reboot) leaves
     # the drive security-enabled and LOCKED with our own temporary password.
-    # Unlock it first — best-effort: harmless on a drive that was never locked,
-    # and it fails on a drive locked with a password we do not know (handled
-    # below).
+    # Capture the pre-unlock lock state so the report records HOW the drive was
+    # recovered, then unlock our password first — best-effort: harmless on a
+    # drive that was never locked, and it fails on a drive locked with a
+    # password we do not know (handled below).
+    if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
+        was_locked=1
+    fi
     hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
+    if [[ "$was_locked" -eq 1 ]] \
+        && ! hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
+        devrow["$dev.recovery"]="temp-password"
+    fi
 
     # Still locked? The user password is not ours. Try the operator-supplied
     # password first (the customer knows it), then the factory-blank master
@@ -215,6 +223,7 @@ device::exec_ata() {
             # NEVER to fd 5 (the run log).
             if hdparm --user-master u --security-unlock "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
                 opw_unlocked=1
+                devrow["$dev.recovery"]="operator-password"
                 echo "$dev LOG unlocked via operator password" >&3
             else
                 echo "$dev LOG operator password not accepted" >&3
@@ -223,8 +232,9 @@ device::exec_ata() {
         if [[ "$opw_unlocked" -eq 0 ]]; then
             if device::ata_blank_master_unlock "$dev"; then
                 # Unlocked + temporary password set — the erase below runs.
-                :
+                devrow["$dev.recovery"]="blank-master"
             elif device::ata_blank_master_erase "$dev" "$cap"; then
+                devrow["$dev.recovery"]="blank-master"
                 return
             elif hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
                 devrow["$dev.lock_kind"]="ata-expired"
@@ -249,6 +259,35 @@ device::exec_ata() {
     if [[ "$opw_unlocked" -eq 1 ]]; then
         ata_pw="$TS_ATA_PASSWORD"
     elif ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
+        # Security ENABLED but not locked (the drive booted unlocked — a soft
+        # reboot after set-pass, the "fluke" state): the password is not ours.
+        # The operator's password can still erase directly while unlocked.
+        if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+enabled[[:space:]]*$'; then
+            if [[ -n "${TS_ATA_PASSWORD:-}" ]]; then
+                case "$cap" in
+                    CAP_ATA_PURGE_ENHANCED)
+                        if hdparm --user-master u --security-erase-enhanced "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
+                            devrow["$dev.recovery"]="operator-password"
+                            device::emit_status "$dev" COMPLETED
+                            device::ata_clear_password "$dev" "$TS_ATA_PASSWORD" 1
+                            return
+                        fi
+                        ;;
+                    CAP_ATA_CLEAR)
+                        if hdparm --user-master u --security-erase "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
+                            devrow["$dev.recovery"]="operator-password"
+                            device::emit_status "$dev" COMPLETED
+                            device::ata_clear_password "$dev" "$TS_ATA_PASSWORD" 1
+                            return
+                        fi
+                        ;;
+                esac
+            fi
+            devrow["$dev.lock_kind"]="ata-enabled"
+            device::emit_status "$dev" FAILED
+            echo "$dev LOG ATA security enabled with unknown password - physical destruction required" >&3
+            return
+        fi
         device::emit_status "$dev" FAILED
         echo "$dev LOG Failed to set ATA security password" >&3
         return
