@@ -17,6 +17,29 @@ if [[ "$1" == "-I" ]]; then
     printf 'ATA device, with non-removable media\n'
     printf '\tModel Number:       %s\n' "${FAKE_HDPARM_MODEL:-FAKE DISK}"
     printf '\tSerial Number:      %s\n' "${FAKE_HDPARM_SERIAL:-S123456789}"
+    # SATL erase poll seam: while FAKE_HDPARM_SATL_BUSY_FILE holds a counter
+    # >0 the drive reports security ENABLED (busy erasing) and the counter is
+    # decremented (file, not env — the fake runs as a child process); at 0 it
+    # reports NOT enabled (erase completed).
+    if [[ -n "${FAKE_HDPARM_SATL_BUSY_FILE:-}" && -f "$FAKE_HDPARM_SATL_BUSY_FILE" ]]; then
+        n="$(<"$FAKE_HDPARM_SATL_BUSY_FILE")"
+        printf 'Security:\n'
+        printf '\tMaster password revision code = 65534\n'
+        if [[ "${n:-0}" -gt 0 ]]; then
+            printf '%s\n' "$((n-1))" > "$FAKE_HDPARM_SATL_BUSY_FILE"
+            printf '\t\tsupported\n'
+            printf '\t\tenabled\n'
+            printf '\tnot\tlocked\n'
+            printf '\tnot\tfrozen\n'
+        else
+            printf '\tnot\tsupported\n'
+            printf '\tnot\tenabled\n'
+            printf '\tnot\tlocked\n'
+            printf '\tnot\tfrozen\n'
+        fi
+        printf '\t214min for SECURITY ERASE UNIT. 216min for ENHANCED SECURITY ERASE UNIT.\n'
+        exit 0
+    fi
     printf 'Security:\n'
     printf '\tMaster password revision code = 65534\n'
     case "$mode" in

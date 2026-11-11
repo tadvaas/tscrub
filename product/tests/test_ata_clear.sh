@@ -498,6 +498,102 @@ t::assert_eq "restricted-sanitize" "${devrow[sda.recovery]:-}" "expired + RSOS: 
 unset FAKE_HDPARM_EXPIRED FAKE_SMARTCTL_RSOS FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL FAKE_HDPARM_SANITIZE FAKE_SGRAW_LOG
 rm -f "$_state" "$_sglog"
 
+# --- SATL security erase: hdparm's erase fails through the HBA transport -----
+# (the bench-proven mpt3sas signature), the sg_raw ATA16 path engages, the
+# drive stays busy (identify reports enabled, smartctl fails) then reports
+# not enabled -> COMPLETED.
+export FAKE_HDPARM_MODE=enhanced
+export FAKE_HDPARM_ERASE_RC=1
+_sglog="$(mktemp)"
+export FAKE_SGRAW_LOG="$_sglog"
+# 5: exec_ata itself reads identify 3x before the helper polls (expired,
+# was_locked, was_enabled) — 5 leaves 2 enabled polls for the helper.
+_busy_h="$(mktemp)"; printf '5\n' > "$_busy_h"
+export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h"
+_busy_s="$(mktemp)"; printf '2\n' > "$_busy_s"
+export FAKE_SMART_BUSY_FILE="$_busy_s"
+export TS_SATL_ERASE_POLL_SECS=0 TS_SATL_ERASE_GRACE_SECS=0 TS_SATL_ERASE_BUDGET_SECS=60
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "SATL erase: engaged and completed"
+t::assert_contains "$captured" "SATL security erase completed" "SATL erase: completion logged"
+t::check "SATL erase: prepare (f3) and erase (f4) CDBs issued" 'grep -q "f3" "$_sglog" && grep -q "f4" "$_sglog"'
+
+# --- SATL erase: the drive never engages (enabled + still serving I/O) -------
+printf '' > "$_sglog"
+_busy_h2="$(mktemp)"; printf '999\n' > "$_busy_h2"
+export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h2"
+unset FAKE_SMART_BUSY_FILE
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS FAILED" "SATL erase not engaged: honest FAILED"
+t::assert_contains "$captured" "did not engage (drive still serves I/O)" "SATL erase not engaged: reason logged"
+
+# --- SATL erase: already-disabled drive is never reported COMPLETED ----------
+printf '' > "$_sglog"
+export FAKE_HDPARM_ERASE_RC=1
+unset FAKE_HDPARM_SATL_BUSY_FILE FAKE_SMART_BUSY_FILE
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS FAILED" "SATL erase never-enabled: honest FAILED"
+t::assert_contains "$captured" "did not engage (never enabled)" "SATL erase never-enabled: reason logged"
+
+# --- SATL erase: prepare rejected --------------------------------------------
+printf '' > "$_sglog"
+export FAKE_SGRAW_PREPARE_RC=1
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "SATL erase prepare rejected" "SATL prepare rejected: logged"
+t::assert_contains "$captured" "sda STATUS FAILED" "SATL prepare rejected: honest FAILED"
+t::check "SATL prepare rejected: no erase CDB issued" '! grep -q "f4" "$_sglog"'
+unset FAKE_SGRAW_PREPARE_RC
+
+# --- SATL erase: busy the whole budget -> timed out --------------------------
+printf '' > "$_sglog"
+_busy_h3="$(mktemp)"; printf '999\n' > "$_busy_h3"
+export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h3"
+_busy_s2="$(mktemp)"; printf '999\n' > "$_busy_s2"
+export FAKE_SMART_BUSY_FILE="$_busy_s2"
+export TS_SATL_ERASE_POLL_SECS=1 TS_SATL_ERASE_BUDGET_SECS=2
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "SATL security erase timed out" "SATL timeout: logged"
+t::assert_contains "$captured" "sda STATUS FAILED" "SATL timeout: honest FAILED"
+unset FAKE_HDPARM_ERASE_RC FAKE_HDPARM_SATL_BUSY_FILE FAKE_SMART_BUSY_FILE FAKE_SGRAW_LOG TS_SATL_ERASE_POLL_SECS TS_SATL_ERASE_GRACE_SECS TS_SATL_ERASE_BUDGET_SECS
+rm -f "$_sglog" "$_busy_h" "$_busy_s" "$_busy_h2" "$_busy_h3" "$_busy_s2"
+
 # --- Expired security count: honest power-cycle outcome, no attempts ---------
 export FAKE_HDPARM_MODE=locked
 _state="$(mktemp)"

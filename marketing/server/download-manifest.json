@@ -1,15 +1,15 @@
 {
   "appliance": {
-    "version": "v1.12.5",
-    "filename": "tscrub-v1.12.5_2025.11_30_x86-64_v0.41_20261111-e41eae68.iso",
-    "url": "/downloads/tscrub-v1.12.5_2025.11_30_x86-64_v0.41_20261111-e41eae68.iso",
-    "sha256": "a840d81c317bce1544cc5a87334aac82b5f731ff5070b79e0cc513061e9b7e36",
+    "version": "v1.12.6",
+    "filename": "tscrub-v1.12.6_2025.11_30_x86-64_v0.41_20261111-9f8c7285.iso",
+    "url": "/downloads/tscrub-v1.12.6_2025.11_30_x86-64_v0.41_20261111-9f8c7285.iso",
+    "sha256": "1f644514ffd3ef5735f964c3f00620d1d5b29e739f5bf98be5a7fa25de84044f",
     "size_mb": 168
   },
   "script": {
-    "version": "v1.12.5",
+    "version": "v1.12.6",
     "url": "/downloads/tscrub.sh",
-    "sha256": "eda5c10003e59a64a9694be466da447ba8e9f1029058ed775f2c4669eca85fc2",
+    "sha256": "8c8545195c571748eecfa2af0e90f594fe2f85d3a01a73216846d8c4c399979f",
     "sig_url": "/downloads/tscrub.sh.sig",
     "pub_url": "/downloads/tscrub.pub"
   },

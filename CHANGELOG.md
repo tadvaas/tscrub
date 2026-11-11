@@ -6,6 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.6] - 2026-11-11
+
+- **SATL security erase for SATA drives behind an SAS HBA.** Bench run 33767
+  proved `hdparm --security-erase` fails through mpt3sas: the F4 is delivered
+  (the drive enters its erase state — reads answer "Security conflict") but
+  the passthrough completion comes back broken, and hdparm reports a
+  misleading "kernel lacks CONFIG_IDE_TASK_IOCTL" error. New
+  `device::ata_satl_security_erase` issues ERASE PREPARE + ERASE UNIT via
+  `sg_raw` ATA16 passthrough (hdparm's exact verified CDB shapes) and polls
+  the drive: identify `enabled` → still erasing, `not enabled` (after having
+  seen enabled) → done, still serving I/O after a grace period → never
+  engaged (honest fast FAILED). Wired as the fallback at every user-password
+  erase site; password travels only as stdin bytes, never into a log. Plan:
+  `research/ata-behind-sas/README.md` §6. Unit-tested + mutation-guarded;
+  bench proof pending a bay erase run.
+
 ## [v1.12.5] - 2026-11-11
 
 - **Restricted Sanitize Overrides Security (ACS-4): erase a locked drive with

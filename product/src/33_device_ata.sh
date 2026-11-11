@@ -278,6 +278,104 @@ device::ata_restricted_sanitize() {   # <dev>
     return 1
 }
 
+# ATA SECURITY ERASE UNIT (F4h) via SATL ATA16 passthrough — for drives whose
+# host transport cannot complete hdparm's long-running erase (bench-proven on
+# mpt3sas: the F4 is DELIVERED — the drive enters its security state and reads
+# answer "Security conflict" — but the passthrough completion comes back
+# broken, hdparm falls back to the legacy HDIO_DRIVE_TASKFILE ioctl (EINVAL on
+# any SCSI device) and reports a misleading CONFIG_IDE_TASK_IOCTL error).
+# Issues ERASE PREPARE + ERASE UNIT through sg_raw (the identical ATA16 CDB
+# shapes hdparm's working unlock uses) and polls to completion:
+#   - identify says "enabled"          -> busy / still erasing
+#   - identify says "not enabled"      -> done (a successful erase invalidates
+#     the password AND clears SECURITY ENABLED) — accepted only after we have
+#     SEEN "enabled", so a drive that was already disabled is never reported
+#     COMPLETED without an erase.
+#   - after a grace period, a drive that still shows enabled AND serves I/O
+#     never engaged the erase -> fail fast instead of waiting out the budget.
+# The password travels only as stdin bytes to sg_raw; never into any log line.
+device::ata_satl_security_erase() {   # <dev> <pw> <plain|enhanced>
+    local dev="$1" pw="$2" mode="${3:-plain}" sg tmp id mins budget
+    local -i tries=0 elapsed=0 saw_enabled=0
+    local -i poll=${TS_SATL_ERASE_POLL_SECS:-10}
+    local -i grace=${TS_SATL_ERASE_GRACE_SECS:-60}
+    local -i budget_mins=${TS_SATL_ERASE_BUDGET_MINS:-0}
+    local -i budget_secs=${TS_SATL_ERASE_BUDGET_SECS:-0}
+    sg="$(sg_map 2>/dev/null | awk -v d="/dev/$dev" '$2 == d { print $1; exit }')"
+    [[ -n "$sg" ]] || return 1
+
+    # ERASE PREPARE (F3h): ATA16 non-data, CHECK CONDITION, dev=LBA — must
+    # immediately precede the erase.
+    if ! sg_raw "$sg" 85 03 20 00 00 00 00 00 00 00 00 00 00 40 f3 00 >/dev/null 2>&1; then
+        echo "$dev LOG SATL erase prepare rejected" >&3
+        return 1
+    fi
+
+    # 512-byte security data block: byte 0 = user (0) | enhanced (2),
+    # byte 1 reserved, bytes 2..33 = password, rest zero.
+    tmp="$(mktemp)"
+    if [[ "$mode" == "enhanced" ]]; then
+        printf '\x02' > "$tmp"
+    else
+        printf '\x00' > "$tmp"
+    fi
+    printf '\x00' >> "$tmp"
+    printf '%s' "$pw" >> "$tmp"
+    dd if=/dev/zero bs=1 count=478 >> "$tmp" 2>/dev/null
+    # ERASE UNIT (F4h): PIO data-out, one 512-byte block — the exact CDB
+    # shape of hdparm's verified working unlock, with command F4.
+    if ! sg_raw -s 512 "$sg" 85 0a 06 00 00 00 01 00 00 00 00 00 00 40 f4 00 < "$tmp" >/dev/null 2>&1; then
+        echo "$dev LOG SATL erase command rejected" >&3
+    fi
+    rm -f "$tmp"
+
+    # Budget: the drive's own estimate (identify word 89/90 minutes) + a
+    # 10-minute margin, floor 30 minutes. Test seams override directly.
+    if (( budget_secs > 0 )); then
+        budget=$budget_secs
+    elif (( budget_mins > 0 )); then
+        budget=$(( budget_mins * 60 ))
+    else
+        if [[ "$mode" == "enhanced" ]]; then
+            mins="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/.*\([0-9][0-9]*\)min for ENHANCED SECURITY ERASE UNIT.*/\1/p' | head -n1)"
+        else
+            mins="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/.*\([0-9][0-9]*\)min for SECURITY ERASE UNIT.*/\1/p' | head -n1)"
+        fi
+        budget=$(( ${mins:-0} * 60 + 600 ))
+        (( budget < 1800 )) && budget=1800
+    fi
+
+    echo "$dev LOG SATL security erase started ($mode)" >&3
+    while (( elapsed < budget && tries < 12000 )); do
+        id="$(hdparm -I /dev/$dev 2>/dev/null)"
+        if printf '%s\n' "$id" | grep -qE '^[[:space:]]+enabled[[:space:]]*$'; then
+            saw_enabled=1
+            # After the grace period, an enabled drive that still serves I/O
+            # normally never engaged the erase — fail fast, don't wait.
+            if (( elapsed >= grace )) && smartctl -a /dev/$dev >/dev/null 2>&1; then
+                echo "$dev LOG SATL security erase did not engage (drive still serves I/O)" >&3
+                return 1
+            fi
+        elif printf '%s\n' "$id" | grep -qE '^[[:space:]]+not[[:space:]]+enabled[[:space:]]*$'; then
+            if (( saw_enabled == 1 )); then
+                echo "$dev LOG SATL security erase completed" >&3
+                return 0
+            fi
+            # Identify answers but the drive was never security-enabled: there
+            # is nothing the erase could have done. Fail honestly.
+            echo "$dev LOG SATL security erase did not engage (never enabled)" >&3
+            return 1
+        fi
+        # Identify empty/failed: the drive is busy — keep polling.
+        sleep "$poll"
+        tries=$((tries + 1))
+        elapsed=$(( tries * poll ))
+        (( tries % 6 == 0 )) && echo "$dev LOG SATL security erase in progress (${elapsed}s of ${budget}s)" >&3
+    done
+    echo "$dev LOG SATL security erase timed out" >&3
+    return 1
+}
+
 device::exec_ata() {
     local dev="$1"
     local cap="$2"
@@ -403,7 +501,8 @@ device::exec_ata() {
             if [[ -n "${TS_ATA_PASSWORD:-}" ]]; then
                 case "$cap" in
                     CAP_ATA_PURGE_ENHANCED)
-                        if hdparm --user-master u --security-erase-enhanced "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
+                        if hdparm --user-master u --security-erase-enhanced "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1 \
+                            || device::ata_satl_security_erase "$dev" "$TS_ATA_PASSWORD" enhanced >/dev/null 2>&1; then
                             device::emit_recovery "$dev" operator-password
                             device::emit_status "$dev" COMPLETED
                             device::ata_clear_password "$dev" "$TS_ATA_PASSWORD" 1
@@ -411,7 +510,8 @@ device::exec_ata() {
                         fi
                         ;;
                     CAP_ATA_CLEAR)
-                        if hdparm --user-master u --security-erase "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
+                        if hdparm --user-master u --security-erase "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1 \
+                            || device::ata_satl_security_erase "$dev" "$TS_ATA_PASSWORD" plain >/dev/null 2>&1; then
                             device::emit_recovery "$dev" operator-password
                             device::emit_status "$dev" COMPLETED
                             device::ata_clear_password "$dev" "$TS_ATA_PASSWORD" 1
@@ -444,10 +544,16 @@ device::exec_ata() {
                     # drive must stay locked/security-enabled at the next power
                     # cycle so a retry remains possible.
                     device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
+                elif device::ata_satl_security_erase "$dev" "$ata_pw" enhanced >/dev/null 2>&1; then
+                    device::emit_status "$dev" COMPLETED
+                    device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
                 else
                     device::emit_status "$dev" FAILED
                 fi
             elif hdparm --user-master u --security-erase-enhanced "$ata_pw" /dev/$dev >&5 2>&5; then
+                device::emit_status "$dev" COMPLETED
+                device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
+            elif device::ata_satl_security_erase "$dev" "$ata_pw" enhanced >&5 2>&5; then
                 device::emit_status "$dev" COMPLETED
                 device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             else
@@ -461,10 +567,16 @@ device::exec_ata() {
                 if hdparm --user-master u --security-erase "$ata_pw" /dev/$dev >/dev/null 2>&1; then
                     device::emit_status "$dev" COMPLETED
                     device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
+                elif device::ata_satl_security_erase "$dev" "$ata_pw" plain >/dev/null 2>&1; then
+                    device::emit_status "$dev" COMPLETED
+                    device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
                 else
                     device::emit_status "$dev" FAILED
                 fi
             elif hdparm --user-master u --security-erase "$ata_pw" /dev/$dev >&5 2>&5; then
+                device::emit_status "$dev" COMPLETED
+                device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
+            elif device::ata_satl_security_erase "$dev" "$ata_pw" plain >&5 2>&5; then
                 device::emit_status "$dev" COMPLETED
                 device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             else

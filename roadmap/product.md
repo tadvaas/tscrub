@@ -51,6 +51,14 @@ they ship and note the release that carries each. **Last reconciled with
       reclassifies them to the ATA secure-erase path (bench-verified on the
       HBA330). Plan: `research/ata-behind-sas/README.md`.
       → **Shipped 2026-11-10 (v1.11.96)**.
+      → **Part 2 (SATL erase execution) shipped 2026-11-11 (v1.12.6):**
+      bench run 33767 proved hdparm's SECURITY ERASE fails through the
+      mpt3sas SATL (F4 delivered, completion broken, misleading
+      `CONFIG_IDE_TASK_IOCTL` message). `device::ata_satl_security_erase`
+      issues ERASE PREPARE + ERASE UNIT via `sg_raw` ATA16 and polls the
+      drive (enabled → busy; cleared + not enabled → done; I/O still served
+      after grace → never engaged). Wired as a fallback at every
+      user-password erase site. Bench-proof pending a bay erase run.
 - [x] **ATA locked-drive recovery** — an interrupted erase leaves the drive
       security-enabled and LOCKED with tScrub's own temporary password, which
       made every retry FAIL. `device::exec_ata` now unlocks with the temp

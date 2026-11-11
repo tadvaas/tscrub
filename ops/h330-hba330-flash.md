@@ -72,6 +72,23 @@ AL14SXL30EN, 300 GB SAS) — the flash sequence in this runbook is
 end-to-end confirmed, including the 3–10 min POST stall after the temp ROM
 and the empty-flash reboot with no RAID BIOS at all.
 
+**Caveat (bench-proven 2026-11-11): SATA drives in the bays get Clear-only,
+not native ATA security erase.** The HBA exposes bay drives as SCSI devices
+(host0 = mpt3sas), and `hdparm`'s SECURITY ERASE through the mpt3sas SATL
+fails at the transport level: the F4 reaches the drive (dmesg shows the
+drive enter the erase state — reads answer "Security conflict in translated
+device") but the passthrough completion comes back broken, hdparm falls back
+to the legacy `HDIO_DRIVE_TASKFILE` ioctl (EINVAL on any SCSI device) and
+reports "The running kernel lacks CONFIG_IDE_TASK_IOCTL support" — a
+misleading message. Unlock/set-pass (same SG_IO ATA16 path) work fine; only
+the long-running ERASE is broken. Two bench runs failed this way (WD10JPVX +
+HGST HTS541010 in the bays, ~17–20 s stall per erase attempt, then FAILED;
+drives left enabled/not-locked with the temp password). Erases that DID work
+were drives on the onboard SATA ports (host1+ = ahci), where hdparm's
+taskfile path is native. SAS bay drives are unaffected (SCSI sanitize path).
+Fix: a SATL security-erase path in tScrub (ATA16 F4 via sg_raw + busy-poll
+with an ETA budget), tracked in `roadmap/product.md`.
+
 ## Notes
 
 - **iDRAC fan response**: after the flash iDRAC may no longer see drive
