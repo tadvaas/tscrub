@@ -6,6 +6,20 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Planned
+
+- **ATA password recovery beyond the blank master** (research:
+  `research/ata-password-recovery/README.md`). Bench finding: a factory master
+  password is a vendor-set value (0xFFFE is an identifier, not proof of
+  blank), so locked drives with non-blank masters are not blank-master
+  recoverable. Planned paths: operator-supplied password
+  (`tscrub_ata_password=` + TUI prompt), a bounded known-password candidate
+  ladder (WinPE `AutoATAWindowsString12345678901`, `SeaChest`), ACS-4
+  Restricted Sanitize Overrides Security (erase a locked drive with no
+  password), and PSID revert for Opal drives.
+
 ## [v1.11.99] - 2026-11-11
 
 - **ATA erase fixes found by the bench retest.** (1) The blank-master unlock
