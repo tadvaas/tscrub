@@ -62,7 +62,7 @@ they ship and note the release that carries each. **Last reconciled with
       → **Shipped 2026-11-10 (v1.11.97)**; revision-field gap found and fixed
       on the bench (Intel SSD hides the field — absent field now also tries
       the blank master), shipped **v1.11.98 (2026-11-11)**.
-- [ ] **ATA password recovery beyond the blank master (planned)** — bench
+- [x] **ATA password recovery beyond the blank master (planned)** — bench
       finding 2026-11-11: the Intel's factory master is a NON-blank,
       vendor-set value (0xFFFE is an *identifier*, not a blank value), so the
       blank-master path correctly failed; the drive recovered instantly with
@@ -72,6 +72,12 @@ they ship and note the release that carries each. **Last reconciled with
       5-attempt budget; (c) ACS-4 Restricted Sanitize Overrides Security —
       sanitize a locked drive with NO password; (d) PSID revert for Opal
       drives. Research: `research/ata-password-recovery/README.md`.
+      → **(a) shipped + HARDWARE-PROVEN 2026-11-11 (v1.12.0–v1.12.4):** the
+      locked Intel completed end-to-end via `--ata-password Xyz123`, the
+      report CSV carries `Recovery=operator-password`, zero password leaks,
+      and the `set-password` recovery for booted-unlocked drives was added
+      after the bench disproved the set-pass-refusal claim. (b)/(c)/(d)
+      remain planned.
 
 ## 2. Hardware capture → intelligence
 
