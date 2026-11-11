@@ -204,7 +204,7 @@ if [[ "$1" == "--user-master" ]]; then
                 fi
                 exit 2
             fi
-            exit 0
+            exit "${FAKE_HDPARM_ERASE_RC:-0}"
             ;;
     esac
 fi

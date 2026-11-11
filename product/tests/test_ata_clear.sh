@@ -62,6 +62,118 @@ device::ata_clear_password sda
 t::check "ata_clear: unlock retried after failed disable" '[[ "${ATA_CLEAR_CALLS[*]}" == "disable unlock disable" ]]'
 unset -f hdparm
 
+# --- A FAILED erase must NOT clear the password ------------------------------
+# The drive has to stay security-enabled so the next power cycle offers a
+# retry; clearing after a failure would leave an unerased drive unlocked.
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_USERPW=Xyz123
+TS_ATA_PASSWORD="Xyz123"
+ATA_CALLS=()
+hdparm() {
+    if [[ "$1" == "-I" ]]; then
+        command hdparm "$@"   # delegate identify to the real fake binary
+        return
+    fi
+    case "$3" in
+        --security-unlock)
+            if [[ "$2" == "u" && "${4:-}" == "Xyz123" ]]; then
+                ATA_CALLS+=("unlock-op")
+                printf 'unlocked\n' > "$FAKE_HDPARM_STATE_FILE"
+                return 0
+            fi
+            ATA_CALLS+=("unlock-p")
+            return 2
+            ;;
+        --security-erase|--security-erase-enhanced)
+            ATA_CALLS+=("erase")
+            return 1
+            ;;
+        --security-disable)
+            ATA_CALLS+=("disable")
+            return 0
+            ;;
+        --security-set-pass)
+            ATA_CALLS+=("setpass")
+            return 1
+            ;;
+    esac
+    return 0
+}
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS FAILED" "failed erase: drive reported FAILED"
+t::check "failed erase: password is NOT cleared" '[[ "${ATA_CALLS[*]}" == "unlock-p unlock-op erase" ]]'
+unset -f hdparm
+unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
+rm -f "$_state"
+
+# --- hdparm unlock returns 0 WITHOUT unlocking (bench-proven lie) ------------
+# Bench-proven: hdparm exits 0 on an already-unlocked drive even with a wrong
+# password, so the rc cannot be trusted — the lock state is verified via
+# identify. A stale rc=0 must NOT be treated as an unlock.
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_MREV=1234 FAKE_HDPARM_LEVEL=high
+export FAKE_HDPARM_USERPW=Xyz123
+TS_ATA_PASSWORD="Xyz123"
+ATA_CALLS=()
+hdparm() {
+    if [[ "$1" == "-I" ]]; then
+        command hdparm "$@"
+        return
+    fi
+    case "$3" in
+        --security-unlock)
+            if [[ "$2" == "m" ]]; then
+                ATA_CALLS+=("m-unlock")
+                return 2
+            fi
+            if [[ "$2" == "u" && "${4:-}" == "Xyz123" ]]; then
+                ATA_CALLS+=("unlock-op")
+                return 0   # hdparm LIED: rc=0 but the drive stays locked
+            fi
+            ATA_CALLS+=("unlock-p")
+            return 2
+            ;;
+        --security-erase|--security-erase-enhanced)
+            ATA_CALLS+=("erase")
+            return 1
+            ;;
+        --security-set-pass)
+            ATA_CALLS+=("setpass")
+            return 1
+            ;;
+    esac
+    return 0
+}
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "operator password not accepted" "unlock rc=0 but still locked: treated as not accepted"
+t::assert_contains "$captured" "ATA security locked (password unknown)" "unlock rc=0 but still locked: honest physical-destruction outcome"
+t::check "unlock rc=0 but still locked: no erase attempt after the lie" '[[ "${ATA_CALLS[*]}" == "unlock-p unlock-op m-unlock erase erase" ]]'
+unset -f hdparm
+unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
+rm -f "$_state"
+
 # --- Interrupted-run recovery: locked with OUR temp password ---------------
 export FAKE_HDPARM_MODE=locked
 _state="$(mktemp)"

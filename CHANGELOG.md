@@ -6,6 +6,18 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.4] - 2026-11-11
+
+- **Two bench-found ATA fixes (the failed operator-password run).**
+  (1) hdparm's unlock exit code is NOT a lock-state signal — it returns 0 on
+  an already-unlocked drive even with the WRONG password (bench-proven), so
+  the operator-unlock now verifies the lock is actually gone via IDENTIFY
+  before trusting it; a stale rc=0 falls through to the honest outcome.
+  (2) A FAILED erase no longer clears the password: the drive stays
+  security-enabled so the next power cycle offers a retry, instead of ending
+  unlocked and unerased. The same run also HARDWARE-PROVED the report channel:
+  the failed row carried `Recovery=operator-password` in the CSV.
+
 ## [v1.12.3] - 2026-11-11
 
 - **Correction + `set-password` recovery value (a bench-disproven claim).**

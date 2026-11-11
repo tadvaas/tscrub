@@ -243,8 +243,12 @@ device::exec_ata() {
     if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
         if [[ -n "${TS_ATA_PASSWORD:-}" ]]; then
             # hdparm echoes the password, so its output goes to /dev/null —
-            # NEVER to fd 5 (the run log).
-            if hdparm --user-master u --security-unlock "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1; then
+            # NEVER to fd 5 (the run log). NOTE: hdparm's exit code is NOT a
+            # reliable unlock signal — it returns 0 on an ALREADY-UNLOCKED
+            # drive even with the wrong password (bench-proven), so verify the
+            # lock is actually gone via identify before trusting the unlock.
+            if hdparm --user-master u --security-unlock "$TS_ATA_PASSWORD" /dev/$dev >/dev/null 2>&1 \
+                && ! hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
                 opw_unlocked=1
                 device::emit_recovery "$dev" operator-password
                 echo "$dev LOG unlocked via operator password" >&3
@@ -329,15 +333,19 @@ device::exec_ata() {
             if [[ "$opw_unlocked" -eq 1 ]]; then
                 if hdparm --user-master u --security-erase-enhanced "$ata_pw" /dev/$dev >/dev/null 2>&1; then
                     device::emit_status "$dev" COMPLETED
+                    # Clear the password ONLY on a successful erase: a FAILED
+                    # drive must stay locked/security-enabled at the next power
+                    # cycle so a retry remains possible.
+                    device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
                 else
                     device::emit_status "$dev" FAILED
                 fi
             elif hdparm --user-master u --security-erase-enhanced "$ata_pw" /dev/$dev >&5 2>&5; then
                 device::emit_status "$dev" COMPLETED
+                device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             else
                 device::emit_status "$dev" FAILED
             fi
-            device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             return
             ;;
 
@@ -345,15 +353,16 @@ device::exec_ata() {
             if [[ "$opw_unlocked" -eq 1 ]]; then
                 if hdparm --user-master u --security-erase "$ata_pw" /dev/$dev >/dev/null 2>&1; then
                     device::emit_status "$dev" COMPLETED
+                    device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
                 else
                     device::emit_status "$dev" FAILED
                 fi
             elif hdparm --user-master u --security-erase "$ata_pw" /dev/$dev >&5 2>&5; then
                 device::emit_status "$dev" COMPLETED
+                device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             else
                 device::emit_status "$dev" FAILED
             fi
-            device::ata_clear_password "$dev" "$ata_pw" "$opw_unlocked"
             return
             ;;
 
