@@ -59,7 +59,9 @@ they ship and note the release that carries each. **Last reconciled with
       High level, direct SECURITY ERASE UNIT at Maximum level); only when
       neither works is it recorded "ATA locked — physical destruction
       required". Plan: `research/ata-locked-recovery/README.md`.
-      → **Shipped 2026-11-10 (v1.11.97)**.
+      → **Shipped 2026-11-10 (v1.11.97)**; revision-field gap found and fixed
+      on the bench (Intel SSD hides the field — absent field now also tries
+      the blank master), shipped **v1.11.98 (2026-11-11)**.
 
 ## 2. Hardware capture → intelligence
 
