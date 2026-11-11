@@ -153,4 +153,29 @@ t::assert_contains "$captured" "unlocked via blank master password" "absent revi
 unset FAKE_HDPARM_UNLOCK_RC FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
 rm -f "$_state"
 
+# --- Expired security count: honest power-cycle outcome, no attempts ---------
+export FAKE_HDPARM_MODE=locked
+_state="$(mktemp)"
+export FAKE_HDPARM_STATE_FILE="$_state"
+export FAKE_HDPARM_EXPIRED=1
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "security count expired" "expired count: logged as power-cycle, not physical destruction"
+t::assert_not_contains "$captured" "unlocked via" "expired count: no unlock attempts burned"
+t::assert_eq "ata-expired" "${devrow[sda.lock_kind]:-}" "expired count: lock_kind recorded"
+devices=(sda)
+devrow[sda.status]="FAILED"
+device::normalize_outcome
+t::assert_eq "ATA security count expired — power-cycle the drive and retry" "${devrow[sda.method]:-}" "expired count: honest method line"
+unset FAKE_HDPARM_EXPIRED FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE
+rm -f "$_state"
+
 t::summary

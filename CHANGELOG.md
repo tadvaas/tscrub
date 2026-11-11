@@ -6,6 +6,21 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+- **ATA erase fixes found by the bench retest.** (1) The blank-master unlock
+  call passed an EMPTY device argument (`hdparm -I /dev/`), silently killing
+  the High-level recovery path while the suite stayed green — the fake hdparm
+  defaulted a missing device to sda. The fake now rejects anything that is not
+  a real device path and the helpers validate their argument, so this class of
+  bug fails tests. (2) A drive whose failed-attempt counter is exhausted
+  (`expired: security count`) rejects every security command until a power
+  cycle; tScrub now detects that state up front and reports
+  "ATA security count expired — power-cycle the drive and retry" instead of
+  burning attempts or claiming physical destruction. (3) The locked-drive
+  ladder is reordered and strictly bounded (at most three failed security
+  commands per run) so tScrub can never itself reach the five-attempt expiry.
+
 ## [v1.11.98] - 2026-11-11
 
 - **Locked-drive recovery: the blank-master attempt no longer requires the

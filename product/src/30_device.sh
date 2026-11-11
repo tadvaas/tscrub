@@ -1048,6 +1048,8 @@ device::normalize_outcome() {
                     devrow["$dev.method"]="TCG locked — physical destruction required"
                 elif [[ "${devrow[$dev.lock_kind]:-none}" == "ata-password" ]]; then
                     devrow["$dev.method"]="ATA locked — physical destruction required"
+                elif [[ "${devrow[$dev.lock_kind]:-none}" == "ata-expired" ]]; then
+                    devrow["$dev.method"]="ATA security count expired — power-cycle the drive and retry"
                 else
                     devrow["$dev.method"]="Sanitisation failed"
                 fi

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 if [[ "$1" == "-I" ]]; then
-    dev="${2:-/dev/sda}"
+    dev="${2:-}"
+    # A real hdparm -I needs a real device path; a missing/empty/bare one fails
+    # outright (a test that passes the wrong argument must not be rescued by
+    # a default or by a path-less synthetic device).
+    if [[ -z "$dev" || ! "$dev" =~ ^/dev/[A-Za-z0-9]+$ ]]; then
+        exit 1
+    fi
     mode="${FAKE_HDPARM_MODE:-enhanced}"
     if [[ "$mode" == "sas" ]]; then
         # True SAS drive: hdparm -I returns no ATA identify (mirrors the bench
@@ -67,7 +73,11 @@ if [[ "$1" == "-I" ]]; then
                 printf '\t\tlocked\n'
             fi
             printf '\tnot\tfrozen\n'
-            printf '\tnot\texpired: security count\n'
+            if [[ "${FAKE_HDPARM_EXPIRED:-0}" == "1" ]]; then
+                printf '\t\texpired: security count\n'
+            else
+                printf '\tnot\texpired: security count\n'
+            fi
             printf '\t\tsupported: enhanced erase\n'
             printf '\t214min for SECURITY ERASE UNIT. 216min for ENHANCED SECURITY ERASE UNIT.\n'
             ;;
@@ -136,6 +146,11 @@ fi
 
 # --user-master u --security-set-pass p | --security-erase(-enhanced) p
 if [[ "$1" == "--user-master" ]]; then
+    # An expired security count rejects EVERY security command until a power
+    # cycle — even correct passwords.
+    if [[ "${FAKE_HDPARM_EXPIRED:-0}" == "1" ]]; then
+        exit 2
+    fi
     case "$3" in
         --security-unlock)
             if [[ "$2" == "m" ]]; then

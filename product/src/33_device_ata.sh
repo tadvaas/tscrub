@@ -115,6 +115,7 @@ device::ata_clear_password() {
 device::ata_blank_master_unlock() {   # <dev>
     local dev="$1"
     local rev
+    [[ -n "$dev" ]] || return 1
     rev="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/^[[:space:]]*Master password revision code = \([0-9]*\).*/\1/p' | head -n1)"
     [[ -z "$rev" || "$rev" == "65534" ]] || return 1
     if hdparm --user-master m --security-unlock "" /dev/$dev >&5 2>&5 \
@@ -133,6 +134,7 @@ device::ata_blank_master_unlock() {   # <dev>
 device::ata_blank_master_erase() {   # <dev> <cap>
     local dev="$1" cap="$2"
     local rev
+    [[ -n "$dev" ]] || return 1
     rev="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/^[[:space:]]*Master password revision code = \([0-9]*\).*/\1/p' | head -n1)"
     [[ -z "$rev" || "$rev" == "65534" ]] || return 1
     if [[ "$cap" == "CAP_ATA_PURGE_ENHANCED" ]] \
@@ -174,6 +176,16 @@ device::exec_ata() {
     # the erase covers the full native capacity (best-effort, never aborts).
     device::reset_hpa_dco "$dev"
 
+    # A drive whose failed-attempt counter is exhausted rejects EVERY security
+    # command — even correct passwords — until a power cycle. Detect it first so
+    # the ladder below never burns attempts on a drive that cannot accept them.
+    if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
+        devrow["$dev.lock_kind"]="ata-expired"
+        device::emit_status "$dev" FAILED
+        echo "$dev LOG ATA security count expired - power-cycle the drive and retry" >&3
+        return
+    fi
+
     # An earlier tScrub run interrupted mid-erase (power loss, reboot) leaves
     # the drive security-enabled and LOCKED with our own temporary password.
     # Unlock it first — best-effort: harmless on a drive that was never locked,
@@ -181,31 +193,37 @@ device::exec_ata() {
     # below).
     hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
 
-    # Set temporary password (required for security erase)
-    if ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
-        if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
-            # Locked with a password we do not know. The factory-blank master
-            # password (revision 0xFFFE = 65534) is the spec-defined recovery:
-            # at High level it unlocks the drive, at Maximum level it may
-            # SECURITY ERASE UNIT directly while locked — which is how a locked
-            # drive is still erasable and comes back cleared and usable.
-            if device::ata_blank_master_unlock ""; then
-                # Unlocked — the normal user-password erase below runs.
-                :
-            elif device::ata_blank_master_erase "$dev" "$cap"; then
-                return
-            else
-                # Neither password works: physical destruction is the outcome.
-                devrow["$dev.lock_kind"]="ata-password"
-                device::emit_status "$dev" FAILED
-                echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
-                return
-            fi
-        else
+    # Still locked? The user password is not ours. The factory-blank master
+    # password (revision 0xFFFE = 65534, or an absent field) is the
+    # spec-defined recovery: at High level it unlocks the drive, at Maximum
+    # level it may SECURITY ERASE UNIT directly while locked. The ladder is
+    # strictly bounded (at most three failed security commands), so one run can
+    # never reach the drive's five-attempt ey.
+    if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
+        if device::ata_blank_master_unlock "$dev"; then
+            # Unlocked + temporary password set — the erase below runs.
+            :
+        elif device::ata_blank_master_erase "$dev" "$cap"; then
+            return
+        elif hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+expired: security count[[:space:]]*$'; then
+            devrow["$dev.lock_kind"]="ata-expired"
             device::emit_status "$dev" FAILED
-            echo "$dev LOG Failed to set ATA security password" >&3
+            echo "$dev LOG ATA security count expired - power-cycle the drive and retry" >&3
+            return
+        else
+            # Neither password works: physical destruction is the outcome.
+            devrow["$dev.lock_kind"]="ata-password"
+            device::emit_status "$dev" FAILED
+            echo "$dev LOG ATA security locked (password unknown) - physical destruction required" >&3
             return
         fi
+    fi
+
+    # Unlocked (or never locked): set the temporary password and erase.
+    if ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
+        device::emit_status "$dev" FAILED
+        echo "$dev LOG Failed to set ATA security password" >&3
+        return
     fi
 
     case "$cap" in
