@@ -7,6 +7,28 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 t::setup_env
 t::source_src
 export VERIFY_MODE=none   # the plant runs only in the dedicated ordering test
+# File-wide SATL-poll fast path: any test that reaches the fallback fails fast
+# through the io-probe gate instead of sleeping the production poll interval.
+export TS_SATL_ERASE_POLL_SECS=0 TS_SATL_ERASE_GRACE_SECS=0
+
+# Test seam for the SATL "still serving I/O" gate: fails while
+# SATL_IO_BUSY_FILE holds a counter >0 (decrementing the file), succeeds
+# otherwise — mirrors a busy drive answering reads with a security conflict.
+# (The real probe is a dd sector read; smartctl cannot be the signal — its
+# exit code encodes SMART health, not I/O responsiveness, which disabled the
+# gate on the bench WD/HGST drives.) Defined file-wide so ANY test that
+# reaches the SATL fallback fails fast through the gate instead of polling.
+device::ata_satl_io_probe() {
+    if [[ -n "${SATL_IO_BUSY_FILE:-}" && -f "$SATL_IO_BUSY_FILE" ]]; then
+        local n
+        n="$(<"$SATL_IO_BUSY_FILE")"
+        if [[ "${n:-0}" -gt 0 ]]; then
+            printf '%s\n' "$((n-1))" > "$SATL_IO_BUSY_FILE"
+            return 1
+        fi
+    fi
+    return 0
+}
 
 export FAKE_NVME_MODE=crypto
 export FAKE_HDPARM_MODE=clear_notime
@@ -501,8 +523,8 @@ rm -f "$_state" "$_sglog"
 
 # --- SATL security erase: hdparm's erase fails through the HBA transport -----
 # (the bench-proven mpt3sas signature), the sg_raw ATA16 path engages, the
-# drive stays busy (identify reports enabled, smartctl fails) then reports
-# not enabled -> COMPLETED.
+# drive stays busy (identify reports enabled, sector reads refused) then
+# reports not enabled -> COMPLETED.
 export FAKE_HDPARM_MODE=enhanced
 export FAKE_HDPARM_ERASE_RC=1
 _sglog="$(mktemp)"
@@ -511,8 +533,8 @@ export FAKE_SGRAW_LOG="$_sglog"
 # was_locked, was_enabled) — 5 leaves 2 enabled polls for the helper.
 _busy_h="$(mktemp)"; printf '5\n' > "$_busy_h"
 export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h"
-_busy_s="$(mktemp)"; printf '2\n' > "$_busy_s"
-export FAKE_SMART_BUSY_FILE="$_busy_s"
+_busy_io="$(mktemp)"; printf '2\n' > "$_busy_io"
+export SATL_IO_BUSY_FILE="$_busy_io"
 export TS_SATL_ERASE_POLL_SECS=0 TS_SATL_ERASE_GRACE_SECS=0 TS_SATL_ERASE_BUDGET_SECS=60
 declare -A bus
 bus[sda]="SATA"
@@ -532,7 +554,7 @@ t::check "SATL erase: prepare (f3) and erase (f4) CDBs issued" 'grep -q "f3" "$_
 printf '' > "$_sglog"
 _busy_h2="$(mktemp)"; printf '999\n' > "$_busy_h2"
 export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h2"
-unset FAKE_SMART_BUSY_FILE
+unset SATL_IO_BUSY_FILE
 devrow=()
 devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
 OUT="$(mktemp)"
@@ -547,7 +569,7 @@ t::assert_contains "$captured" "did not engage (drive still serves I/O)" "SATL e
 # --- SATL erase: already-disabled drive is never reported COMPLETED ----------
 printf '' > "$_sglog"
 export FAKE_HDPARM_ERASE_RC=1
-unset FAKE_HDPARM_SATL_BUSY_FILE FAKE_SMART_BUSY_FILE
+unset FAKE_HDPARM_SATL_BUSY_FILE
 devrow=()
 devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
 OUT="$(mktemp)"
@@ -579,8 +601,8 @@ unset FAKE_SGRAW_PREPARE_RC
 printf '' > "$_sglog"
 _busy_h3="$(mktemp)"; printf '999\n' > "$_busy_h3"
 export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h3"
-_busy_s2="$(mktemp)"; printf '999\n' > "$_busy_s2"
-export FAKE_SMART_BUSY_FILE="$_busy_s2"
+_busy_io2="$(mktemp)"; printf '999\n' > "$_busy_io2"
+export SATL_IO_BUSY_FILE="$_busy_io2"
 export TS_SATL_ERASE_POLL_SECS=1 TS_SATL_ERASE_BUDGET_SECS=2
 devrow=()
 devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
@@ -592,8 +614,27 @@ captured="$(cat "$OUT")"
 rm -f "$OUT"
 t::assert_contains "$captured" "SATL security erase timed out" "SATL timeout: logged"
 t::assert_contains "$captured" "sda STATUS FAILED" "SATL timeout: honest FAILED"
-unset FAKE_HDPARM_ERASE_RC FAKE_HDPARM_SATL_BUSY_FILE FAKE_SMART_BUSY_FILE FAKE_SGRAW_LOG TS_SATL_ERASE_POLL_SECS TS_SATL_ERASE_GRACE_SECS TS_SATL_ERASE_BUDGET_SECS
-rm -f "$_sglog" "$_busy_h" "$_busy_s" "$_busy_h2" "$_busy_h3" "$_busy_s2"
+
+# --- SATL erase: default budget still fails fast when nothing engaged --------
+# No budget seam: the budget comes from the drive's identify estimate (or the
+# 12 h fallback) — the io-probe gate must still fire, not a 12-hour timeout.
+printf '' > "$_sglog"
+unset TS_SATL_ERASE_POLL_SECS TS_SATL_ERASE_GRACE_SECS TS_SATL_ERASE_BUDGET_SECS SATL_IO_BUSY_FILE
+_busy_h4="$(mktemp)"; printf '999\n' > "$_busy_h4"
+export FAKE_HDPARM_SATL_BUSY_FILE="$_busy_h4"
+export TS_SATL_ERASE_POLL_SECS=0 TS_SATL_ERASE_GRACE_SECS=0
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "did not engage (drive still serves I/O)" "SATL default budget: io-probe gate fires"
+t::assert_not_contains "$captured" "timed out" "SATL default budget: no false timeout"
+unset FAKE_HDPARM_ERASE_RC FAKE_HDPARM_SATL_BUSY_FILE FAKE_SGRAW_LOG TS_SATL_ERASE_POLL_SECS TS_SATL_ERASE_GRACE_SECS TS_SATL_ERASE_BUDGET_SECS
+rm -f "$_sglog" "$_busy_h" "$_busy_io" "$_busy_h2" "$_busy_h3" "$_busy_io2" "$_busy_h4"
 
 # --- Expired security count: honest power-cycle outcome, no attempts ---------
 export FAKE_HDPARM_MODE=locked

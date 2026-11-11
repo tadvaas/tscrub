@@ -221,6 +221,15 @@ device::ata_rsos_supported() {   # <dev>
     return 1
 }
 
+# Can the drive answer a media read right now? The "did not engage" gate.
+# Overridable as a shell function in tests. NOT smartctl: smartctl's exit
+# code encodes SMART HEALTH, not I/O responsiveness — a drive with failing
+# SMART attributes returns nonzero even while serving reads perfectly, which
+# (bench-proven on the WD/HGST) silently disabled the gate.
+device::ata_satl_io_probe() {   # <dev> -> 0 when a sector read is answered
+    dd if="/dev/$dev" of=/dev/null bs=512 count=1 >/dev/null 2>&1
+}
+
 # Issue a restricted sanitize on a SECURITY-LOCKED drive via ATA
 # PASS-THROUGH(16) through the SATL and poll SANITIZE STATUS EXT to completion.
 # Emits COMPLETED + Recovery/Method on success; returns nonzero otherwise.
@@ -295,7 +304,7 @@ device::ata_restricted_sanitize() {   # <dev>
 #     never engaged the erase -> fail fast instead of waiting out the budget.
 # The password travels only as stdin bytes to sg_raw; never into any log line.
 device::ata_satl_security_erase() {   # <dev> <pw> <plain|enhanced>
-    local dev="$1" pw="$2" mode="${3:-plain}" sg tmp id mins budget
+    local dev="$1" pw="$2" mode="${3:-plain}" sg tmp id mins rmin budget
     local -i tries=0 elapsed=0 saw_enabled=0
     local -i poll=${TS_SATL_ERASE_POLL_SECS:-10}
     local -i grace=${TS_SATL_ERASE_GRACE_SECS:-60}
@@ -335,7 +344,12 @@ device::ata_satl_security_erase() {   # <dev> <pw> <plain|enhanced>
     rm -f "$tmp"
 
     # Budget: the drive's own estimate (identify word 89/90 minutes) + a
-    # 10-minute margin, floor 30 minutes. Test seams override directly.
+    # 10-minute margin. When identify is unavailable right now, default to
+    # 12 h — the poll fails fast on a non-engaging drive via the io-probe,
+    # and the loop below RAISES the budget once identify starts answering
+    # with a bigger estimate, so a real multi-hour erase is never cut off.
+    # The test seams (BUDGET_SECS / BUDGET_MINS) disable both the parse and
+    # the refresh.
     if (( budget_secs > 0 )); then
         budget=$budget_secs
     elif (( budget_mins > 0 )); then
@@ -347,17 +361,31 @@ device::ata_satl_security_erase() {   # <dev> <pw> <plain|enhanced>
             mins="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/.*\([0-9][0-9]*\)min for SECURITY ERASE UNIT.*/\1/p' | head -n1)"
         fi
         budget=$(( ${mins:-0} * 60 + 600 ))
-        (( budget < 1800 )) && budget=1800
+        (( budget < 1800 )) && budget=43200   # 12 h fallback when unknown
     fi
 
     echo "$dev LOG SATL security erase started ($mode)" >&3
     while (( elapsed < budget && tries < 12000 )); do
         id="$(hdparm -I /dev/$dev 2>/dev/null)"
+        # Identify finally answering? Raise the budget to the drive's own
+        # estimate when it is longer than what we started with (only when no
+        # explicit test seam pinned the budget).
+        if (( budget_secs == 0 && budget_mins == 0 )) && [[ -n "$id" ]]; then
+            if [[ "$mode" == "enhanced" ]]; then
+                rmin="$(printf '%s\n' "$id" | sed -n 's/.*\([0-9][0-9]*\)min for ENHANCED SECURITY ERASE UNIT.*/\1/p' | head -n1)"
+            else
+                rmin="$(printf '%s\n' "$id" | sed -n 's/.*\([0-9][0-9]*\)min for SECURITY ERASE UNIT.*/\1/p' | head -n1)"
+            fi
+            if [[ "$rmin" =~ ^[0-9]+$ && $(( rmin * 60 + 600 )) -gt budget ]]; then
+                budget=$(( rmin * 60 + 600 ))
+                echo "$dev LOG SATL security erase budget extended to ${budget}s" >&3
+            fi
+        fi
         if printf '%s\n' "$id" | grep -qE '^[[:space:]]+enabled[[:space:]]*$'; then
             saw_enabled=1
             # After the grace period, an enabled drive that still serves I/O
             # normally never engaged the erase — fail fast, don't wait.
-            if (( elapsed >= grace )) && smartctl -a /dev/$dev >/dev/null 2>&1; then
+            if (( elapsed >= grace )) && device::ata_satl_io_probe "$dev"; then
                 echo "$dev LOG SATL security erase did not engage (drive still serves I/O)" >&3
                 return 1
             fi

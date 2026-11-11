@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.10] - 2026-11-11
+
+- **Fix the SATL erase poll (bench-found, run 33767 at 18:34).** Two defects
+  combined into a false FAILED after 30 min: (1) the "did not engage" gate
+  probed I/O with `smartctl -a`'s exit code, which encodes SMART HEALTH not
+  I/O responsiveness — on the bench drives it returns 64 even while serving
+  reads, so the gate could never fire; the probe is now a sector read
+  (`device::ata_satl_io_probe`, test-seam). (2) The poll budget floored at
+  30 min while these drives erase in 202 min, so an engaged erase would have
+  been cut off — the budget now derives from identify word 89/90 with a 12 h
+  fallback, and is RAISED from identify once it starts answering mid-poll
+  (test seams pin it explicitly).
+
 ## [v1.12.9] - 2026-11-11
 
 - **Fix the SATL erase prepare (bench-found).** The mpt3sas SATL rejects
