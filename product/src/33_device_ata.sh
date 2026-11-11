@@ -183,7 +183,7 @@ device::emit_lockkind() {   # <dev> <value>
 device::exec_ata() {
     local dev="$1"
     local cap="$2"
-    local opw_unlocked=0 ata_pw="p" was_locked=0
+    local opw_unlocked=0 ata_pw="p" was_locked=0 was_enabled=0
 
     if [[ "${bus[$dev]}" != "SATA" && "${bus[$dev]}" != "ATA" ]]; then
         device::emit_status "$dev" FAILED
@@ -218,12 +218,15 @@ device::exec_ata() {
 
     # An earlier tScrub run interrupted mid-erase (power loss, reboot) leaves
     # the drive security-enabled and LOCKED with our own temporary password.
-    # Capture the pre-unlock lock state so the report records HOW the drive was
-    # recovered, then unlock our password first — best-effort: harmless on a
-    # drive that was never locked, and it fails on a drive locked with a
+    # Capture the pre-unlock security state so the report records HOW the drive
+    # was recovered, then unlock our password first — best-effort: harmless on
+    # a drive that was never locked, and it fails on a drive locked with a
     # password we do not know (handled below).
     if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+locked[[:space:]]*$'; then
         was_locked=1
+    fi
+    if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+enabled[[:space:]]*$'; then
+        was_enabled=1
     fi
     hdparm --user-master u --security-unlock p /dev/$dev >&5 2>&5 || true
     if [[ "$was_locked" -eq 1 ]] \
@@ -272,16 +275,19 @@ device::exec_ata() {
     fi
 
     # Unlocked (or never locked): erase. A drive unlocked with the OPERATOR's
-    # password skips set-pass — security is already enabled with that password
-    # and a set-pass carrying a DIFFERENT password is refused by the drive —
-    # and erases directly with the operator's password, with every hdparm
-    # output sunk to /dev/null so the password never reaches the log.
+    # password skips set-pass and erases directly with that password, with
+    # every hdparm output sunk to /dev/null so the password never reaches the
+    # log. NOTE (bench-proven on the Intel): an UNLOCKED drive accepts a
+    # SECURITY SET PASSWORD with ANY new value — it replaces the password
+    # without needing the old one — so a drive that boots security-enabled but
+    # NOT locked (a soft reboot after set-pass) is recovered by the plain
+    # set-pass below, no password needed at all.
     if [[ "$opw_unlocked" -eq 1 ]]; then
         ata_pw="$TS_ATA_PASSWORD"
     elif ! hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
-        # Security ENABLED but not locked (the drive booted unlocked — a soft
-        # reboot after set-pass, the "fluke" state): the password is not ours.
-        # The operator's password can still erase directly while unlocked.
+        # Set-pass failed on a drive that was enabled but not locked (e.g. a
+        # Maximum-level drive, where the security level cannot be lowered): the
+        # operator's password can still erase directly while unlocked.
         if hdparm -I /dev/$dev 2>/dev/null | grep -qE '^[[:space:]]+enabled[[:space:]]*$'; then
             if [[ -n "${TS_ATA_PASSWORD:-}" ]]; then
                 case "$cap" in
@@ -311,6 +317,11 @@ device::exec_ata() {
         device::emit_status "$dev" FAILED
         echo "$dev LOG Failed to set ATA security password" >&3
         return
+    elif [[ "$was_enabled" -eq 1 && "$was_locked" -eq 0 ]]; then
+        # The drive booted security-enabled but NOT locked with a password we
+        # never knew: the set-pass above just REPLACED it with ours (allowed
+        # while unlocked, no old password needed). Record how it was recovered.
+        device::emit_recovery "$dev" set-password
     fi
 
     case "$cap" in

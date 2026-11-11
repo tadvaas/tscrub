@@ -214,21 +214,40 @@ t::assert_eq "" "${devrow[sda.recovery]:-}" "wrong operator password: no recover
 unset TS_ATA_PASSWORD FAKE_HDPARM_USERPW FAKE_HDPARM_MODE FAKE_HDPARM_STATE_FILE FAKE_HDPARM_MREV FAKE_HDPARM_LEVEL
 rm -f "$_state"
 
-# --- Security enabled but NOT locked (the soft-reboot "fluke" state) ---------
-# A drive that booted unlocked (e.g. a soft reboot after set-pass) refuses a
-# set-pass carrying a different password. With the operator's password it is
-# erased DIRECTLY while unlocked; without it, the outcome is honest.
+# --- Security enabled but NOT locked (the soft-reboot state) -----------------
+# BENCH-PROVEN Intel semantics: an UNLOCKED drive ACCEPTS a new password via
+# SECURITY SET PASSWORD without knowing the old one — the normal set-pass path
+# replaces the unknown password and the erase then runs with ours. Two variants
+# below: the real-drive case (set-pass succeeds -> recovery recorded as
+# set-password) and the fallback (set-pass fails, e.g. a Maximum-level drive
+# where the level cannot be lowered -> the operator's password erases directly).
 export FAKE_HDPARM_MODE=locked
 _state="$(mktemp)"
 printf 'unlocked\n' > "$_state"
 export FAKE_HDPARM_STATE_FILE="$_state"
-export FAKE_HDPARM_SETPASS_RC=1
 export FAKE_HDPARM_USERPW=Xyz123
+declare -A bus
+bus[sda]="SATA"
+devrow=()
+devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
+OUT="$(mktemp)"
+exec 3>"$OUT"
+device::execute sda
+exec 3>&-
+captured="$(cat "$OUT")"
+rm -f "$OUT"
+t::assert_contains "$captured" "sda STATUS COMPLETED" "enabled-unlocked: set-pass replaces the password -> COMPLETED"
+t::assert_eq "set-password" "${devrow[sda.recovery]:-}" "enabled-unlocked: recovery recorded as set-password"
+t::assert_contains "$captured" "sda RECOVERY set-password" "enabled-unlocked: RECOVERY travels the fd-3 outcome channel"
+
+# Fallback: set-pass FAILS on the enabled-unlocked drive (Maximum-level or I/O
+# error). With the operator's password it is erased DIRECTLY while unlocked;
+# without it, the outcome is honest.
+printf 'unlocked\n' > "$_state"
+export FAKE_HDPARM_SETPASS_RC=1
 TS_ATA_PASSWORD="Xyz123"
 _log="$(mktemp)"
 export FAKE_HDPARM_LOG="$_log"
-declare -A bus
-bus[sda]="SATA"
 devrow=()
 devrow[sda.capability]="CAP_ATA_PURGE_ENHANCED"
 OUT="$(mktemp)"

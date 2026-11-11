@@ -181,6 +181,11 @@ if [[ "$1" == "--user-master" ]]; then
             ;;
         --security-set-pass)
             [[ -n "${FAKE_HDPARM_LOG:-}" ]] && printf 'u setpass\n' >> "$FAKE_HDPARM_LOG"
+            # Real drives: refused while LOCKED; ACCEPTED while unlocked even
+            # with a different current password (bench-proven on the Intel —
+            # SET PASSWORD replaces the password, it does not compare).
+            # FAKE_HDPARM_SETPASS_RC models the drives where it DOES fail
+            # unlocked (Maximum-level drives cannot lower the level).
             if [[ "${FAKE_HDPARM_MODE:-enhanced}" == "locked" ]]; then
                 # Refused while still locked; succeeds once unlocked.
                 if [[ -n "${FAKE_HDPARM_STATE_FILE:-}" && -f "$FAKE_HDPARM_STATE_FILE" && "$(<"$FAKE_HDPARM_STATE_FILE")" == unlocked ]]; then
