@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.3] - 2026-11-11
+
+- **Correction + `set-password` recovery value (a bench-disproven claim).**
+  The v1.12.2 bench re-run on the Intel showed that an UNLOCKED drive ACCEPTS
+  SECURITY SET PASSWORD with ANY new value — it replaces the password without
+  needing the old one — so a drive that boots security-enabled but not locked
+  (a soft reboot) is recovered by the plain set-pass, no password needed. The
+  `Recovery` column now records that as `set-password`; the "set-pass is
+  refused" wording in comments and test narration is corrected, and the
+  operator-erase branch is documented as the fallback for drives where
+  set-pass genuinely fails (e.g. Maximum-level drives, whose security level
+  cannot be lowered).
+
 ## [v1.12.2] - 2026-11-11
 
 - **Bench-proven fix: `Recovery`/`LockKind` now survive the erasure worker.**
@@ -43,19 +56,6 @@ and this project uses date-based versioning (`v1.x`).
   /dev/null, and the no-leak is guarded by tests). Bench-proven 2026-11-11 on
   the Intel SSDSC2KB48 (locked High, `Xyz123`): unlock + enhanced erase +
   security clear, back to full native capacity.
-
-## [v1.12.3] - 2026-11-11
-
-- **Correction + `set-password` recovery value (a bench-disproven claim).**
-  The v1.12.2 bench re-run on the Intel showed that an UNLOCKED drive ACCEPTS
-  SECURITY SET PASSWORD with ANY new value — it replaces the password without
-  needing the old one — so a drive that boots security-enabled but not locked
-  (a soft reboot) is recovered by the plain set-pass, no password needed. The
-  `Recovery` column now records that as `set-password`; the "set-pass is
-  refused" wording in comments and test narration is corrected, and the
-  operator-erase branch is documented as the fallback for drives where
-  set-pass genuinely fails (e.g. Maximum-level drives, whose security level
-  cannot be lowered).
 
 ## [Unreleased]
 
