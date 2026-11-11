@@ -125,5 +125,16 @@ if [[ -n "${FAKE_CURL_FAIL:-}" ]]; then
     echo "curl: connection refused" >&2
     exit 7
 fi
+# Retry-loop seam: while FAKE_CURL_FAIL_FILE holds a counter >0 the upload
+# FAILS and decrements the file (a file, not env — the fake runs as a child
+# process); at 0 it succeeds.
+if [[ -n "${FAKE_CURL_FAIL_FILE:-}" && -f "$FAKE_CURL_FAIL_FILE" ]]; then
+    n="$(<"$FAKE_CURL_FAIL_FILE")"
+    if [[ "${n:-0}" -gt 0 ]]; then
+        printf '%s\n' "$((n-1))" > "$FAKE_CURL_FAIL_FILE"
+        echo "curl: connection refused" >&2
+        exit 7
+    fi
+fi
 printf '{"ok":true,"certificates":["COD-000001-XX-YY-0001-ABCD"],"count":2}\n'
 exit 0

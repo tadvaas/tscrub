@@ -6,6 +6,18 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.7] - 2026-11-11
+
+- **Report upload retry (store-and-forward on the appliance).** A failed
+  dashboard/FTP upload at run end no longer gives up: a background loop
+  retries every 60 s (`TS_REPORT_RETRY_SECS`) while the finish screen stays
+  up, re-requesting DHCP each attempt, so unplugging the cable during the
+  erasure and reconnecting it a day later still delivers the report (the
+  server dedupes by CSV SHA). The footer shows "Dash …" while pending and
+  flips to "Dash ✓" on delivery, promoting the amber finish screen to green.
+  The loop stops when the report file vanishes or the parent exits, and a new
+  erasure kills the previous loop. Plan: `research/report-upload-retry/README.md`.
+
 ## [v1.12.6] - 2026-11-11
 
 - **SATL security erase for SATA drives behind an SAS HBA.** Bench run 33767

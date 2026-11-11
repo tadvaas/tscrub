@@ -395,6 +395,14 @@ erasure::run() {
     REPORT_DASH_REASON=""
     REPORT_NET_STATUS=""
     REPORT_NET_REASON=""
+    # A previous cycle's background upload-retry loop must not keep trying to
+    # deliver a report that this new erasure is about to supersede.
+    if [[ -n "${REPORT_RETRY_PID:-}" ]]; then
+        kill "$REPORT_RETRY_PID" 2>/dev/null || true
+    fi
+    REPORT_RETRY_PID=""
+    REPORT_RETRY_PENDING=0
+    rm -f "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}"
 
     # Re-mount the report destination if a previous cycle unmounted it (the
     # boot-time mount is consumed by each erasure's sync_out).
@@ -620,6 +628,17 @@ erasure::run() {
                 network::ensure
             fi
             report::upload "$report_file"
+            if [[ -n "${TSCRUB_API_TOKEN:-}" || -n "${TSCRUB_NET_PROTO:-}" ]] \
+                && [[ "${REPORT_DASH_STATUS:-}" != "ok" && "${REPORT_NET_STATUS:-}" != "ok" ]]; then
+                # Store-and-forward: keep retrying in the background while the
+                # finish screen stays up. The operator can pull the cable and
+                # reconnect it a day later — the next retry delivers (the
+                # server dedupes by CSV SHA, so a re-send is safe).
+                rm -f "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}"
+                REPORT_RETRY_PENDING=1
+                { report::upload_retry_forever "$report_file"; } 3>&- &
+                REPORT_RETRY_PID=$!
+            fi
         fi
     else
         if ! report::has_targets; then

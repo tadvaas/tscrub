@@ -5,7 +5,7 @@
 # =============================================================================
 
 SCRIPT_NAME="tScrub"
-SCRIPT_VERSION="v1.12.6"
+SCRIPT_VERSION="v1.12.7"
 REPORT_DIR="/"
 REPORT_USB_MNT=""
 # Durable append-only record of the run in progress (see report::journal).
@@ -95,6 +95,11 @@ REPORT_DASH_STATUS=""
 REPORT_DASH_REASON=""
 REPORT_NET_STATUS=""
 REPORT_NET_REASON=""
+# Background upload-retry loop (store-and-forward): PID while running, and a
+# flag that paints the footer as "Dash …" until delivery succeeds.
+REPORT_RETRY_PID=""
+REPORT_RETRY_PENDING=0
+REPORT_RETRY_MARKER="/tmp/tscrub-report-retry-ok"
 UI_RUNTIME_ROW=0
 UI_RUNTIME_COL=0
 UI_RUNTIME_VALUE_W=0

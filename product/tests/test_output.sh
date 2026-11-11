@@ -214,6 +214,43 @@ t::check "upload: dashboard fail + ftp fail -> rc 1" "[[ $rc -eq 1 ]]"
 t::assert_eq "fail" "${REPORT_NET_STATUS:-}" "network status fail"
 unset FAKE_CURL_FAIL FAKE_LFTP_FAIL
 
+# --- upload retry loop: fails N times, then delivers + writes the marker -----
+: > "$FAKE_CURL_LOG"
+_failfile="$(mktemp)"
+printf '2\n' > "$_failfile"
+export FAKE_CURL_FAIL_FILE="$_failfile"
+export TS_REPORT_RETRY_SECS=0
+_marker="$(mktemp)"
+rm -f "$_marker"
+REPORT_RETRY_MARKER="$_marker"
+TSCRUB_API_TOKEN="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+TSCRUB_NET_PROTO=""
+report::upload_retry_forever "$csv"
+rc=$?
+t::check "retry loop exits 0 after a later attempt succeeds" "[[ $rc -eq 0 ]]"
+t::assert_eq "dash" "$(cat "$_marker" 2>/dev/null)" "retry marker records the dashboard delivery"
+t::check "retry loop re-attempted before succeeding" "[[ \$(grep -c -- '-fsS' \"$FAKE_CURL_LOG\") -eq 3 ]]"
+t::assert_contains "$(cat "$LOGFILE")" "retry 1 failed" "retry failure logged"
+unset FAKE_CURL_FAIL_FILE
+
+# --- upload retry loop: report gone -> stops without touching the network ----
+: > "$FAKE_CURL_LOG"
+rm -f "$_marker"
+report::upload_retry_forever "/nonexistent-report.csv"
+rc=$?
+t::check "retry loop exits immediately when the report is gone" "[[ $rc -eq 0 ]]"
+t::check "no curl calls for a missing report" "[[ ! -s "$FAKE_CURL_LOG" ]]"
+t::check "no marker for a missing report" "[[ ! -e "$_marker" ]]"
+
+# --- upload retry loop: nothing configured -> stops --------------------------
+TSCRUB_API_TOKEN=""
+rm -f "$_marker"
+report::upload_retry_forever "$csv"
+t::check "retry loop exits when nothing is configured" "[[ $? -eq 0 ]]"
+t::check "no marker when nothing is configured" "[[ ! -e "$_marker" ]]"
+unset TS_REPORT_RETRY_SECS REPORT_RETRY_MARKER
+rm -f "$_failfile" "$_marker"
+
 # --- network::ensure: no-op when a default route already exists ---
 ip() { [[ "$1" == "route" ]] && echo "default via 192.168.1.1 dev eth0"; }
 network::ensure && t::check "network::ensure no-op when default route exists" true

@@ -1551,6 +1551,44 @@ report::upload() {
     return 0
 }
 
+# Background retry loop (store-and-forward): after the initial upload attempt
+# failed (cable out, network down), keep trying every TS_REPORT_RETRY_SECS
+# (default 60) until a configured destination accepts the report. Writes
+# REPORT_RETRY_MARKER ("dash" or "net") on success — the parent's triage tick
+# consumes it, because a child cannot touch the parent's shell variables.
+# Stops when the report file vanishes or the parent process is gone (an
+# orphaned loop must never upload a stale report after the operator exits).
+# The server dedupes reports by CSV SHA, so a successful re-send is safe.
+report::upload_retry_forever() {   # <file>
+    local file="$1" parent=$PPID attempt=0
+    [[ -f "$file" ]] || return 0
+    while :; do
+        sleep "${TS_REPORT_RETRY_SECS:-60}"
+        # Stop when the parent process is gone (an orphaned loop must never
+        # upload a stale report after the operator exits). /proc is Linux —
+        # skip the check where it does not exist (tests run on macOS).
+        if [[ -d /proc ]] && [[ ! -e "/proc/$parent" ]]; then
+            return 0
+        fi
+        [[ -f "$file" ]] || return 0         # report vanished — stop
+        if [[ -z "${TSCRUB_API_TOKEN:-}" && -z "${TSCRUB_NET_PROTO:-}" ]]; then
+            return 0
+        fi
+        network::ensure >/dev/null 2>&1 || true
+        attempt=$((attempt + 1))
+        if [[ -n "${TSCRUB_API_TOKEN:-}" ]] && report::upload_http "$file"; then
+            printf 'dash\n' > "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}"
+            return 0
+        fi
+        if [[ -n "${TSCRUB_NET_PROTO:-}" ]] && report::upload_net "$file"; then
+            printf 'net\n' > "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}"
+            return 0
+        fi
+        printf "%sReport upload retry %d failed — retrying in %ss.\n" \
+            "$TABLE_INDENT" "$attempt" "${TS_REPORT_RETRY_SECS:-60}" >&5
+    done
+}
+
 # One-line report status for the sticky footer (the finish screen's result
 # view). Replaces the old multi-line, per-drive summary, which scaled 3×N with
 # the drive count and pushed the footer off the bottom of the screen. The full
@@ -1574,13 +1612,21 @@ report::footer_status() {
     if [[ -n "${TSCRUB_API_TOKEN:-}" ]]; then
         case "${REPORT_DASH_STATUS:-}" in
             ok)   s+="${s:+ · }Dash ✓" ;;
-            fail) s+="${s:+ · }Dash ✗" ;;
+            fail) if [[ "${REPORT_RETRY_PENDING:-0}" == "1" ]]; then
+                      s+="${s:+ · }Dash …"
+                  else
+                      s+="${s:+ · }Dash ✗"
+                  fi ;;
         esac
     fi
     if [[ -n "${TSCRUB_NET_PROTO:-}" ]]; then
         case "${REPORT_NET_STATUS:-}" in
             ok)   s+="${s:+ · }Net ✓" ;;
-            fail) s+="${s:+ · }Net ✗" ;;
+            fail) if [[ "${REPORT_RETRY_PENDING:-0}" == "1" ]]; then
+                      s+="${s:+ · }Net …"
+                  else
+                      s+="${s:+ · }Net ✗"
+                  fi ;;
         esac
     fi
     [[ -n "$s" ]] && segs+=("Report: $s")

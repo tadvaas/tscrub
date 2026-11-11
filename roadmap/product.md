@@ -718,6 +718,18 @@ with the release that carried them (per `CHANGELOG.md`).
       unsupported. Boot chain and image are unchanged.
       → Plan: `research/netboot-appliance/README.md` (DHCP coexistence
       analysis in §2; open decisions in §12).
+- [x] **Report upload retry (appliance-side store-and-forward)** — a failed
+      dashboard/FTP upload at run end currently gives up forever. Retry every
+      60 s in the background while the finish screen stays up: footer shows
+      "Dash …", and when the operator reconnects the network the report is
+      delivered (server-side dedupe by CSV SHA), the footer flips to "Dash ✓"
+      and the amber finish promotes to green. Works while the appliance stays
+      powered (the report lives in RAM without a USB stick).
+      → Plan: `research/report-upload-retry/README.md`.
+      → **Shipped 2026-11-11 (v1.12.7)**: `report::upload_retry_forever`
+      (60 s loop + `network::ensure` per attempt + `/proc` parent guard),
+      marker consumed by the triage tick, footer pending state, amber→green
+      promotion. Unit-tested + mutation-guarded.
 
 ### 4.5 Inventory & MDM (§6)
 

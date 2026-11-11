@@ -214,6 +214,9 @@ REPORT_DASH_STATUS="ok"
 t::assert_eq "Report: USB ✓ · Dash ✓" "$(report::footer_status)" "footer_status USB+Dash"
 REPORT_DASH_STATUS="fail"
 t::assert_eq "Report: USB ✓ · Dash ✗" "$(report::footer_status)" "footer_status Dash fail"
+REPORT_RETRY_PENDING=1
+t::assert_eq "Report: USB ✓ · Dash …" "$(report::footer_status)" "footer_status Dash pending retry"
+REPORT_RETRY_PENDING=0
 TSCRUB_API_TOKEN=""; REPORT_DASH_STATUS=""
 
 # verify aggregate

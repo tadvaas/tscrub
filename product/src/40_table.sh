@@ -1685,6 +1685,35 @@ triage::run() {
                 continue
             fi
 
+            # Report-upload retry succeeded in the background: consume the
+            # marker (a child cannot set the parent's variables), flip the
+            # footer "Dash …" to "Dash ✓", and promote the amber finish to
+            # green when every configured destination is now delivered.
+            if [[ -f "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}" ]]; then
+                case "$(cat "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}" 2>/dev/null)" in
+                    dash) REPORT_DASH_STATUS="ok"; REPORT_DASH_REASON="uploaded on retry" ;;
+                    net)  REPORT_NET_STATUS="ok";  REPORT_NET_REASON="uploaded on retry" ;;
+                esac
+                REPORT_RETRY_PENDING=0
+                REPORT_RETRY_PID=""
+                rm -f "${REPORT_RETRY_MARKER:-/tmp/tscrub-report-retry-ok}"
+                if [[ "${UI_COMPLETE_THEME:-0}" == "3" ]]; then
+                    local retry_all_ok=1
+                    [[ -n "${TSCRUB_API_TOKEN:-}" && "${REPORT_DASH_STATUS:-}" != "ok" ]] && retry_all_ok=0
+                    [[ -n "${TSCRUB_NET_PROTO:-}" && "${REPORT_NET_STATUS:-}" != "ok" ]] && retry_all_ok=0
+                    if (( retry_all_ok == 1 )); then
+                        UI_COMPLETE_THEME=1
+                        FINISH_MSG="Sanitization process finished"
+                    fi
+                fi
+                if [[ "$on_finish" -eq 1 ]]; then
+                    ui::paint_finish
+                else
+                    table::render
+                fi
+                continue
+            fi
+
             # Timeout — refresh the elapsed timer in place; re-render only when
             # the MDM verdict label changes. On the finish screen (the result
             # view after an erasure) re-render via ui::paint_finish so the
