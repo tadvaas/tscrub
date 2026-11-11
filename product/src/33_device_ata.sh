@@ -105,16 +105,18 @@ device::ata_clear_password() {
     fi
 }
 
-# Unlock a LOCKED drive with the factory-blank master password. Only attempted
-# when identify reports master revision 65534 (0xFFFE = factory default, i.e.
-# the master password is blank — the state nearly all non-enterprise drives
-# ship in). Returns 0 when the drive is unlocked AND the temporary user
-# password is set (the normal erase then runs); 1 otherwise.
+# Unlock a LOCKED drive with the factory-blank master password. Attempted when
+# identify reports master revision 65534 (0xFFFE = factory default, i.e. the
+# master password is blank) OR omits the field entirely — some drives (e.g.
+# Intel SSDs) stop reporting it once security is enabled, and the blank-master
+# attempt is a clean abort on failure, so an absent field must not block it.
+# Returns 0 when the drive is unlocked AND the temporary user password is set
+# (the normal erase then runs); 1 otherwise.
 device::ata_blank_master_unlock() {   # <dev>
     local dev="$1"
     local rev
     rev="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/^[[:space:]]*Master password revision code = \([0-9]*\).*/\1/p' | head -n1)"
-    [[ -n "$rev" && "$rev" == "65534" ]] || return 1
+    [[ -z "$rev" || "$rev" == "65534" ]] || return 1
     if hdparm --user-master m --security-unlock "" /dev/$dev >&5 2>&5 \
         && hdparm --user-master u --security-set-pass p /dev/$dev >&5 2>&5; then
         echo "$dev LOG unlocked via blank master password" >&3
@@ -132,7 +134,7 @@ device::ata_blank_master_erase() {   # <dev> <cap>
     local dev="$1" cap="$2"
     local rev
     rev="$(hdparm -I /dev/$dev 2>/dev/null | sed -n 's/^[[:space:]]*Master password revision code = \([0-9]*\).*/\1/p' | head -n1)"
-    [[ -n "$rev" && "$rev" == "65534" ]] || return 1
+    [[ -z "$rev" || "$rev" == "65534" ]] || return 1
     if [[ "$cap" == "CAP_ATA_PURGE_ENHANCED" ]] \
         && hdparm --user-master m --security-erase-enhanced "" /dev/$dev >&5 2>&5; then
         device::emit_status "$dev" COMPLETED

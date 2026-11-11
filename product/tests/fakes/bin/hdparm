@@ -140,8 +140,9 @@ if [[ "$1" == "--user-master" ]]; then
         --security-unlock)
             if [[ "$2" == "m" ]]; then
                 # Blank master unlock: allowed only at High level, with the
-                # factory revision and an empty password.
-                if [[ "${FAKE_HDPARM_LEVEL:-high}" == "high" && "${FAKE_HDPARM_MREV:-}" == "65534" && "${4:-}" == "" ]]; then
+                # factory revision (or an absent revision line — Intel SSDs
+                # omit it once security is enabled) and an empty password.
+                if [[ "${FAKE_HDPARM_LEVEL:-high}" == "high" && "${FAKE_HDPARM_MREV:-65534}" == "65534" && "${4:-}" == "" ]]; then
                     [[ -n "${FAKE_HDPARM_STATE_FILE:-}" ]] && printf 'unlocked\n' > "$FAKE_HDPARM_STATE_FILE"
                     exit 0
                 fi
@@ -166,7 +167,7 @@ if [[ "$1" == "--user-master" ]]; then
         --security-erase|--security-erase-enhanced)
             if [[ "$2" == "m" ]]; then
                 # Blank master erase: allowed only at Maximum level.
-                if [[ "${FAKE_HDPARM_LEVEL:-high}" == "maximum" && "${FAKE_HDPARM_MREV:-}" == "65534" && "${4:-}" == "" ]]; then
+                if [[ "${FAKE_HDPARM_LEVEL:-high}" == "maximum" && "${FAKE_HDPARM_MREV:-65534}" == "65534" && "${4:-}" == "" ]]; then
                     exit 0
                 fi
                 exit 2

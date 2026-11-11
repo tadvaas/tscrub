@@ -6,6 +6,17 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+- **Locked-drive recovery: the blank-master attempt no longer requires the
+  revision field.** Hardware test on the bench (Intel SSDSC2KB48 locked at
+  High level with an unknown password) showed the Intel drive omits the
+  `Master password revision code` line entirely once security is enabled, so
+  the revision==65534 gate skipped the blank-master attempt and the drive
+  FAILED — while the Samsung MZ7TE512 locked at Maximum level completed via
+  the direct blank-master erase, exactly as designed. An absent field now
+  also triggers the attempt (every failed attempt is a clean abort).
+
 ## [v1.11.97] - 2026-11-10
 
 - **Interrupted ATA erases no longer poison their own retry, and a locked
