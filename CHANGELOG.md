@@ -6,6 +6,17 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.16] - 2026-11-12
+
+- **Tape media health in the report and dashboard.** Four new report columns —
+  `TapeMediaLife` (the TapeAlert media-life verdict: `ok` / `nearing` /
+  `expired`, from flags 0x13 and 0x07), `TapeLoadCount`, `TapeWrittenMiB` and
+  `TapeManufactured` (the cartridge's MAM wear counters) — the tape analogue of
+  SMART. They are read from MAM, whose attribute names and the TapeAlert flag
+  numbering are the same across every LTO generation, so they carry forward to
+  LTO-5 and newer unchanged. Surfaced on the dashboard Media record view, the
+  SMART CSV download and the export picker.
+
 ## [v1.12.15] - 2026-11-12
 
 - **Tape temperature: NORM/OVER in the TEMP cell + mid-erase over-temperature

@@ -100,6 +100,23 @@ device::detect
 t::assert_eq "OVER" "${devrow[st0.tape_temp]:-}" "detect: flag 0x24 -> TEMP OVER"
 unset FAKE_SGREADATTR_OUT
 
+# --- tape::media_life + wear counters (the SMART analogue for the report) ---
+t::assert_eq "ok"      "$(tape::media_life $'TapeAlert flags: 0')" "media life: clear -> ok"
+t::assert_eq "nearing" "$(tape::media_life $'TapeAlert flags: 262144')" "media life: flag 0x13 -> nearing"
+t::assert_eq "expired" "$(tape::media_life $'TapeAlert flags: 64')" "media life: flag 0x07 -> expired"
+t::assert_eq "expired" "$(tape::media_life $'TapeAlert flags: 262208')" "media life: both flags -> expired wins"
+
+devrow=()
+devices=(st0)
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nTapeAlert flags: 0\nLoad count: 108\nTotal MiB written in medium life: 45962838\nMedium manufacture date: 20100602'
+capability=(); type=(); serial=(); size=()
+device::detect
+t::assert_eq "ok"         "${devrow[st0.tape_media_life]:-}" "detect: media life ok"
+t::assert_eq "108"        "${devrow[st0.tape_loads]:-}"      "detect: load count"
+t::assert_eq "45962838"   "${devrow[st0.tape_written_mib]:-}" "detect: total MiB written"
+t::assert_eq "2010-06-02" "${devrow[st0.tape_manufactured]:-}" "detect: manufacture date formatted"
+unset FAKE_SGREADATTR_OUT
+
 # --- tape::emit_fail + tape::temp_poll --------------------------------------
 OUT="$(mktemp)"; exec 3>"$OUT"
 tape::emit_fail st0 "Long erase failed — tape rewind failed"

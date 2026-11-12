@@ -907,6 +907,13 @@ device::detect() {
                 # TEMP cell: no numeric temperature (0x0D page unsupported) —
                 # show the TapeAlert 0x24 "drive temperature" state instead.
                 devrow["$device.tape_temp"]="$(tape::temp_state "$_mam" 2>/dev/null || true)"
+                # Tape media-life verdict + wear counters (the tape analogue of
+                # SMART) — all from MAM, so they work across every LTO
+                # generation (the flags numbering is the TapeAlert standard).
+                devrow["$device.tape_media_life"]="$(tape::media_life "$_mam" 2>/dev/null || true)"
+                devrow["$device.tape_loads"]="$(sed -n 's/^[[:space:]]*Load count:[[:space:]]*\([0-9][0-9]*\).*/\1/p' <<<"$_mam" | head -n1)"
+                devrow["$device.tape_written_mib"]="$(sed -n 's/^[[:space:]]*Total MiB written in medium life:[[:space:]]*\([0-9][0-9]*\).*/\1/p' <<<"$_mam" | head -n1)"
+                devrow["$device.tape_manufactured"]="$(sed -n 's/^[[:space:]]*Medium manufacture date:[[:space:]]*\([0-9]\{8\}\).*/\1/p' <<<"$_mam" | head -n1 | sed -E 's/([0-9]{4})([0-9]{2})([0-9]{2})/\1-\2-\3/')"
                 if [[ -n "$_dens" && "$_dens" =~ ^[0-9A-Fa-f][13579bdfBDF]$ ]]; then
                     capability[$device]="CAP_TAPE_WORM"
                 else

@@ -559,6 +559,10 @@ function parse_reports(array $files, array $licencePubKeys = [], array $ingested
                 'psid_revert' => clip_str($get($row, 'psidrevert'), 16),
                 'lock_kind' => clip_str($get($row, 'lockkind'), 16),
                 'recovery' => clip_str($get($row, 'recovery'), 24),
+                'tapemedialife' => clip_str($get($row, 'tapemedialife'), 32),
+                'tapeloadcount' => clip_str($get($row, 'tapeloadcount'), 16),
+                'tapewrittenmib' => clip_str($get($row, 'tapewrittenmib'), 32),
+                'tapemanufactured' => clip_str($get($row, 'tapemanufactured'), 16),
                 'ppi_requested' => clip_str($get($row, 'ppirequested'), 16),
                 // Derivable only across reports (prior BLOCKED -> now COMPLETED);
                 // computed in merge_group(). A single report is always 'no'.

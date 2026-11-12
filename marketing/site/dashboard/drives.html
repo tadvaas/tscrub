@@ -438,6 +438,10 @@
           ['PSID revert', d.psid_revert],
           ['TCG lock', d.lock_kind],
           ['Recovery', d.recovery],
+          ['Tape media life', d.tapemedialife],
+          ['Tape load count', d.tapeloadcount],
+          ['Tape written (MiB)', d.tapewrittenmib],
+          ['Tape manufactured', d.tapemanufactured],
           ['PPI requested', d.ppi_requested],
           ['Start time', d.start_time], ['End time', d.end_time], ['Duration (s)', d.duration_secs],
           ['SKU', d.sku], ['Asset tag', d.asset_tag], ['BIOS vendor', d.bios_vendor], ['Motherboard', d.board], ['TPM', d.tpm],
@@ -718,6 +722,8 @@
         ['psid_revert','PSID revert'],
         ['lock_kind','TCG lock'],
         ['recovery','Recovery'],
+        ['tapemedialife','Tape media life'], ['tapeloadcount','Tape load count'],
+        ['tapewrittenmib','Tape written (MiB)'], ['tapemanufactured','Tape manufactured'],
         ['ppi_requested','PPI requested'],
         ['start_time','Start time'], ['end_time','End time'], ['duration_secs','Duration (s)'],
         ['sku','SKU'], ['asset_tag','Asset tag'], ['bios_vendor','BIOS vendor'], ['board','Motherboard'],
@@ -1750,7 +1756,11 @@
           ['Media errors', d.mediaerrors, null, null],
           ['Unsafe shutdowns', d.unsafeshutdowns, null, null],
           ['Spare threshold', d.sparethreshold, null, null],
-          ['Grown defects', d.growndefects, null, null]
+          ['Grown defects', d.growndefects, null, null],
+          ['Tape media life', d.tapemedialife, null, null],
+          ['Tape load count', d.tapeloadcount, null, null],
+          ['Tape written (MiB)', d.tapewrittenmib, null, null],
+          ['Tape manufactured', d.tapemanufactured, null, null]
         ].forEach(function (r) {
           if (!r[1] && !r[2]) return;
           var tr = el('tr', '');

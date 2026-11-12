@@ -100,13 +100,10 @@ tape::erase_eta_mins() {
     printf '%d' "$(( (secs + 59) / 60 ))"
 }
 
-# TapeAlert temperature state for the TUI TEMP cell. This drive generation has
-# NO numeric temperature (the SCSI Temperature log page 0x0D is absent from its
-# supported-pages list — bench-verified), so the cell carries the binary
-# TapeAlert flag 0x24 "drive temperature above recommended range" instead. The
-# MAM "TapeAlert flags" field is a 64-bit bitmap (flag N = bit N-1). Returns
-# OVER / NORM, or "" when the flags value is absent or unparseable.
-tape::temp_state() {   # <mam>
+# The raw TapeAlert flags bitmap from the MAM dump (flag N = bit N-1) as a
+# decimal integer, or "" when the field is absent or unparseable. Accepts both
+# decimal and 0x-prefixed hex, so it is future-proof across LTO generations.
+tape::tapealert_value() {   # <mam>
     local mam="${1:-}" raw val
     raw="$(sed -n 's/^[[:space:]]*TapeAlert flags:[[:space:]]*\([0-9A-Fa-f][0-9A-Fa-fx]*\).*/\1/p' <<<"$mam" | head -n1)"
     [[ -n "$raw" ]] || return 0
@@ -120,10 +117,38 @@ tape::temp_state() {   # <mam>
     else
         return 0
     fi
+    printf '%d' "$val"
+}
+
+# TapeAlert temperature state for the TUI TEMP cell. This drive generation has
+# NO numeric temperature (the SCSI Temperature log page 0x0D is absent from its
+# supported-pages list — bench-verified), so the cell carries the binary
+# TapeAlert flag 0x24 "drive temperature above recommended range" instead.
+# Returns OVER / NORM, or "" when the flags value is absent or unparseable.
+tape::temp_state() {   # <mam>
+    local mam="${1:-}" val
+    val="$(tape::tapealert_value "$mam")"
+    [[ "$val" =~ ^[0-9]+$ ]] || return 0
     if (( val & (1 << 35) )); then
         printf 'OVER'
     else
         printf 'NORM'
+    fi
+}
+
+# Media-life verdict for the report: TapeAlert flag 0x07 "media life" (the
+# cartridge is past its useful life) and flag 0x13 "nearing media life".
+# Expired wins when both are set; "" when the flags value is unreadable.
+tape::media_life() {   # <mam>
+    local mam="${1:-}" val
+    val="$(tape::tapealert_value "$mam")"
+    [[ "$val" =~ ^[0-9]+$ ]] || return 0
+    if (( val & (1 << 6) )); then    # flag 0x07 = bit 6
+        printf 'expired'
+    elif (( val & (1 << 18) )); then # flag 0x13 = bit 18
+        printf 'nearing'
+    else
+        printf 'ok'
     fi
 }
 

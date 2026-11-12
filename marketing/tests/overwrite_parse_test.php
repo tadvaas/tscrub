@@ -192,6 +192,10 @@ foreach (['overwritestandard', 'passes', 'eraseengine', 'verifytechnique',
     t_check("the appliance writes a column the parser reads ($col)",
         array_key_exists($col, $fmap));
 }
+foreach (['tapemedialife', 'tapeloadcount', 'tapewrittenmib', 'tapemanufactured'] as $col) {
+    t_check("the appliance writes a tape column the parser reads ($col)",
+        array_key_exists($col, $fmap));
+}
 t_check('the fixture predates no legacy Standard column',
     !array_key_exists('standard', $fmap));
 
