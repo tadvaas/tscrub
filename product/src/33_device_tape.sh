@@ -28,7 +28,9 @@
 
 # The sg node behind a tape device (sysfs: .../0:0:0:0/generic/ contains sg0).
 tape::sg_device() {   # <stdev> -> e.g. st0 -> sg0
-    local dev="$1" dir="${SYS_TAPE_DIR:-/sys/class/scsi_tape}/$dev/device/generic"
+    local dev dir
+    dev="$1"
+    dir="${SYS_TAPE_DIR:-/sys/class/scsi_tape}/$dev/device/generic"
     ls "$dir" 2>/dev/null | grep -m1 -E '^sg[0-9]+$'
 }
 

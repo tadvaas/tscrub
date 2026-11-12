@@ -32,7 +32,7 @@ t::assert_eq "SN-DRIVE-1" "${serial[st0]:-}" "tape drive serial from sg_vpd VPD 
 unset FAKE_SG_VPD_SERIAL
 
 # --- capability + type (MAM density) ----------------------------------------
-declare -A capability type
+declare -A capability type serial size
 devices=(st0)
 
 unset FAKE_SGREADATTR_OUT
@@ -40,11 +40,13 @@ capability=()
 device::detect
 t::assert_eq "CAP_TAPE_LONG_ERASE" "${capability[st0]:-}" "no MAM -> still erasable (worker re-checks medium)"
 
-export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 3100602003'
-capability=(); type=()
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 3100602003\nMaximum capacity in partition [MiB]: 762939'
+capability=(); type=(); serial=(); size=()
 device::detect
 t::assert_eq "CAP_TAPE_LONG_ERASE" "${capability[st0]:-}" "LTO-4 RW -> long erase"
 t::assert_eq "LTO-4" "${type[st0]:-}" "density 0x46 -> LTO-4"
+t::assert_eq "800 GB" "${size[st0]:-}" "MAM capacity -> 800 GB"
+t::assert_eq "3100602003" "${serial[st0]:-}" "MAM medium serial fills the report serial"
 
 export FAKE_SGREADATTR_OUT=$'Format density code: 0x47\nMedium serial number: 3100602003'
 capability=(); type=()

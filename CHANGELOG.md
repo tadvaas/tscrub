@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.12] - 2026-11-12
+
+- **Fix the tape row's identity at detection (bench-found).** The tape row
+  rendered with SIZE `N/A`, an empty SERIAL and TYPE `TAPE` because the drive
+  sits in 02/04 "initializing command required" after power-on and
+  `sg_read_attr` reads nothing until the drive is ready. Detection now
+  initialises the drive through the sg node (START/LOAD + TEST UNIT READY)
+  before reading MAM, so the triage row shows the medium density (TYPE LTO-4),
+  capacity (SIZE 800 GB, rounded to the manufacturer figure) and medium serial.
+  Also fixed a bash `local` gotcha in `tape::sg_device` (`$dev` expanded before
+  assignment, so the sg-node path lost the `stN` component and the probe
+  silently found nothing).
+
 ## [v1.12.11] - 2026-11-12
 
 - **LTO tape erasure (P1).** Tape drives are now discovered, classified and

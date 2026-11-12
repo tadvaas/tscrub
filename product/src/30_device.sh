@@ -868,16 +868,41 @@ device::detect() {
                 # LTO tape (see 33_device_tape.sh): the purge is the drive's
                 # firmware LONG ERASE. WORM cartridges reject any overwrite by
                 # design — classify them honestly (physical destruction), never
-                # retry-erase into a fake success. The medium density comes from
-                # MAM; an unloaded/unreadable medium is NOT a failure here — the
-                # worker re-checks and fails honestly with "load a tape" if
-                # nothing is loaded at run time.
-                local _mam _dens
-                _mam="$(tape::mam "$(tape::sg_device "$device")" 2>/dev/null || true)"
+                # retry-erase into a fake success. The medium identity (density,
+                # serial, capacity) comes from MAM, which needs the drive READY:
+                # after power-on an LTO drive answers 02/04 "initializing command
+                # required" and the st driver's open() blocks ~2 min, so the
+                # drive is initialised through the sg node (START/LOAD + TUR)
+                # first — the same init the erase worker performs. An unloaded
+                # medium is NOT a failure here: the worker re-checks and fails
+                # honestly with "load a tape" if nothing is loaded at run time.
+                local _mam _dens _sg _tries _serial _cap_mib _bytes
+                _sg="$(tape::sg_device "$device")"
+                _mam=""
+                if [[ -n "$_sg" ]]; then
+                    sg_raw "/dev/$_sg" 1b 00 00 00 01 00 >/dev/null 2>/dev/null || true
+                    _tries=0
+                    while (( _tries < ${TS_TAPE_READY_TRIES:-6} )); do
+                        tape::ready "$_sg" && break
+                        _tries=$(( _tries + 1 ))
+                        sleep "${TS_TAPE_READY_POLL_SECS:-10}"
+                    done
+                    _mam="$(tape::mam "$_sg" 2>/dev/null || true)"
+                fi
                 _dens="$(sed -n 's/^[[:space:]]*Format density code:[[:space:]]*0x\([0-9A-Fa-f][0-9A-Fa-f]\).*/\1/p' <<<"$_mam" | head -n1)"
                 if [[ -n "$_dens" ]]; then
                     type[$device]="$(tape::density_label "$_dens")"
+                    _cap_mib="$(sed -n 's/^[[:space:]]*Maximum capacity in partition \[MiB\]:[[:space:]]*\([0-9][0-9]*\).*/\1/p' <<<"$_mam" | head -n1)"
+                    if [[ "$_cap_mib" =~ ^[0-9]+$ ]]; then
+                        # Same "decimal GB" convention as the block-device rows;
+                        # round to the nearest GB so an LTO-4's 762,939 MiB
+                        # (799.9995 GB) reads as its manufacturer figure, 800 GB.
+                        _bytes=$(( _cap_mib * 1048576 ))
+                        size[$device]="$(( ( _bytes + 500000000 ) / 1000000000 )) GB"
+                    fi
                 fi
+                _serial="$(sed -n 's/^[[:space:]]*Medium serial number:[[:space:]]*//p' <<<"$_mam" | head -n1 | tr -d ' \000-\037\177')"
+                [[ -n "$_serial" ]] && serial[$device]="$_serial"
                 if [[ -n "$_dens" && "$_dens" =~ ^[0-9A-Fa-f][13579bdfBDF]$ ]]; then
                     capability[$device]="CAP_TAPE_WORM"
                 else
