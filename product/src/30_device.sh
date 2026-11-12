@@ -562,6 +562,7 @@ device::tape_discover() {
         type[$dev]="TAPE"
         size[$dev]="N/A"
         opal_locked[$dev]="NA"
+        devrow["$dev.tape_temp"]=""
         _ven="$(cat "$path/device/vendor" 2>/dev/null | xargs | tr -d '\000-\037\177')"
         _mod="$(cat "$path/device/model" 2>/dev/null | xargs | tr -d '\000-\037\177')"
         model[$dev]="$(printf '%s %s' "$_ven" "$_mod" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
@@ -903,6 +904,9 @@ device::detect() {
                 fi
                 _serial="$(sed -n 's/^[[:space:]]*Medium serial number:[[:space:]]*//p' <<<"$_mam" | head -n1 | tr -d ' \000-\037\177')"
                 [[ -n "$_serial" ]] && serial[$device]="$_serial"
+                # TEMP cell: no numeric temperature (0x0D page unsupported) —
+                # show the TapeAlert 0x24 "drive temperature" state instead.
+                devrow["$device.tape_temp"]="$(tape::temp_state "$_mam" 2>/dev/null || true)"
                 if [[ -n "$_dens" && "$_dens" =~ ^[0-9A-Fa-f][13579bdfBDF]$ ]]; then
                     capability[$device]="CAP_TAPE_WORM"
                 else
@@ -1116,7 +1120,7 @@ device::execute() {
 # "Frozen Drive"), so it is left untouched. DRY-RUN wipes nothing, so it is
 # normalised to an explicit "Dry run" outcome too.
 device::normalize_outcome() {
-    local dev
+    local dev _m
     for dev in "${devices[@]}"; do
         case "${devrow[$dev.status]:-}" in
             COMPLETED|FROZEN)
@@ -1151,7 +1155,13 @@ device::normalize_outcome() {
             *)
                 devrow["$dev.class"]="FAILED"
                 devrow["$dev.cert"]="NOT SANITISED"
-                if [[ "${devrow[$dev.lock_kind]:-none}" == "locked" ]]; then
+                if [[ "${bus[$dev]:-}" == "TAPE" ]]; then
+                    # Tape workers persist their specific failure method beside
+                    # the STATUS file (the fd-3 line can be lost in the SIGCHLD
+                    # race) — fold it back in instead of the generic label.
+                    _m="$(cat "/tmp/tscrub-device-status/$dev.method" 2>/dev/null || true)"
+                    devrow["$dev.method"]="${_m:-Sanitisation failed}"
+                elif [[ "${devrow[$dev.lock_kind]:-none}" == "locked" ]]; then
                     devrow["$dev.method"]="TCG locked — physical destruction required"
                 elif [[ "${devrow[$dev.lock_kind]:-none}" == "ata-password" ]]; then
                     devrow["$dev.method"]="ATA locked — physical destruction required"

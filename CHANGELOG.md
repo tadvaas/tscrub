@@ -6,6 +6,25 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.15] - 2026-11-12
+
+- **Tape temperature: NORM/OVER in the TEMP cell + mid-erase over-temperature
+  detection.** LTO-4 drives have no numeric temperature (the SCSI Temperature
+  log page 0x0D is absent from their supported-pages list), so the TEMP cell
+  now carries the binary TapeAlert flag 0x24 "drive temperature above
+  recommended range" — `NORM` when clear, red `OVER` when set — read from MAM
+  at detection. A background watcher polls the same flag every 30 s while the
+  long erase runs (READ ATTRIBUTE stays serviced during the erase) and flips
+  the cell to `OVER` the moment the drive overheats.
+- **Honest tape failure methods (bench-found).** The `.16` drive aborted its
+  long erase after ~26 min with sense "specified temperature exceeded"; the
+  report row said only "Sanitisation failed" because `device::normalize_outcome`
+  overwrote every worker-emitted failure method. Tape workers now persist their
+  specific method (e.g. "Long erase failed — drive temperature exceeded") beside
+  the per-drive STATUS file, and `normalize_outcome` folds it back in for TAPE
+  rows. A drive that aborts from overheating is now named, with a "let it cool
+  and retry" log line.
+
 ## [v1.12.14] - 2026-11-12
 
 - **LTO long-erase ETA estimate.** The firmware long erase reports no progress

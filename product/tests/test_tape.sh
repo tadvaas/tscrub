@@ -81,6 +81,58 @@ t::assert_eq "FAILED"       "${devrow[st0.class]:-}"  "WORM class FAILED"
 t::assert_eq "PHYS_DESTR"   "${devrow[st0.cert]:-}"   "WORM cert PHYS_DESTR"
 t::assert_eq "WORM media — physical destruction required" "${devrow[st0.method]:-}" "WORM method"
 
+# --- TapeAlert temperature state (TEMP cell for tape) ------------------------
+t::assert_eq "NORM" "$(tape::temp_state $'TapeAlert flags: 0')" "flags clear -> NORM"
+t::assert_eq "OVER" "$(tape::temp_state $'TapeAlert flags: 34359738368')" "flag 0x24 (bit 35) -> OVER"
+t::assert_eq "OVER" "$(tape::temp_state $'TapeAlert flags: 0x800000000')" "hex 0x800000000 -> OVER"
+t::assert_eq "NORM" "$(tape::temp_state $'TapeAlert flags: 0x10')" "hex 0x10 (flag 5) -> NORM"
+t::assert_eq ""     "$(tape::temp_state $'Format density code: 0x46')" "no flags line -> unknown"
+
+devrow=()
+devices=(st0)
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nTapeAlert flags: 0'
+capability=(); type=(); serial=(); size=()
+device::detect
+t::assert_eq "NORM" "${devrow[st0.tape_temp]:-}" "detect: flags clear -> TEMP NORM"
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nTapeAlert flags: 34359738368'
+capability=(); type=(); serial=(); size=()
+device::detect
+t::assert_eq "OVER" "${devrow[st0.tape_temp]:-}" "detect: flag 0x24 -> TEMP OVER"
+unset FAKE_SGREADATTR_OUT
+
+# --- tape::emit_fail + tape::temp_poll --------------------------------------
+OUT="$(mktemp)"; exec 3>"$OUT"
+tape::emit_fail st0 "Long erase failed — tape rewind failed"
+exec 3>&-
+t::assert_contains "$(cat "$OUT")" "st0 METHOD Long erase failed — tape rewind failed" "emit_fail writes the fd-3 line"
+t::assert_eq "Long erase failed — tape rewind failed" "$(cat /tmp/tscrub-device-status/st0.method 2>/dev/null)" "emit_fail persists the method file"
+
+OUT="$(mktemp)"; exec 3>"$OUT"
+export FAKE_SGREADATTR_OUT=$'TapeAlert flags: 34359738368'
+tape::temp_poll st0 sg0 $$
+exec 3>&-
+captured="$(cat "$OUT")"
+t::assert_contains "$captured" "st0 TAPEALERT OVER" "watcher emits TAPEALERT when flag 0x24 turns on"
+t::assert_contains "$captured" "drive temperature exceeded during long erase" "watcher logs the over-temp"
+unset FAKE_SGREADATTR_OUT
+
+# --- normalize_outcome keeps the tape's specific failure method --------------
+devices=(st0)
+declare -A bus devrow
+bus[st0]="TAPE"
+devrow[st0.status]="FAILED"
+devrow[st0.method]="LTO Long Erase"
+printf 'Long erase failed — drive temperature exceeded\n' > /tmp/tscrub-device-status/st0.method
+device::normalize_outcome
+t::assert_eq "Long erase failed — drive temperature exceeded" "${devrow[st0.method]:-}" "tape method preserved from the persisted file"
+
+rm -f /tmp/tscrub-device-status/st0.method
+devrow=()
+devrow[st0.status]="FAILED"
+devrow[st0.method]="LTO Long Erase"
+device::normalize_outcome
+t::assert_eq "Sanitisation failed" "${devrow[st0.method]:-}" "tape fallback when no method was persisted"
+
 # --- ETA estimate (tape::erase_eta_mins) ------------------------------------
 t::assert_eq "112" "$(tape::erase_eta_mins 762939 46)" "LTO-4 800 GB @120 MB/s -> 112 min"
 t::assert_eq "112" "$(tape::erase_eta_mins 762939 47)" "WORM density shares the rate table"
@@ -122,6 +174,7 @@ export FAKE_SGREADATTR_OUT="$_ok_mam"
 MTLOG="$(mktemp)"
 export FAKE_MT_LOG="$MTLOG"
 tape::readback() { echo 0; }   # seam: a blank tape reads back 0 bytes
+tape::temp_poll() { :; }       # seam: the watcher is unit-tested separately
 
 captured="$(run_tape)"
 t::assert_contains "$captured" "st0 TAPESERIAL 3100602003" "worker emits MAM medium serial"
@@ -146,6 +199,18 @@ export FAKE_MT_ERASE_RC=1
 captured="$(run_tape)"
 t::assert_contains "$captured" "st0 STATUS FAILED"          "erase rc!=0 -> FAILED"
 t::assert_contains "$captured" "st0 METHOD Long erase failed" "erase failure method"
+t::assert_eq "Long erase failed" "$(cat /tmp/tscrub-device-status/st0.method 2>/dev/null)" "failure method persisted beside the status file"
+unset FAKE_MT_ERASE_RC
+
+# drive aborted by over-temperature -> the reason is named, not generic
+: > "$MTLOG"
+export FAKE_MT_ERASE_RC=1
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 3100602003\nTapeAlert flags: 34359738368'
+captured="$(run_tape)"
+t::assert_contains "$captured" "st0 METHOD Long erase failed — drive temperature exceeded" "over-temp abort named in the method"
+t::assert_contains "$captured" "let it cool and retry" "cool-and-retry advice logged"
+t::assert_eq "Long erase failed — drive temperature exceeded" "$(cat /tmp/tscrub-device-status/st0.method 2>/dev/null)" "over-temp method persisted"
+export FAKE_SGREADATTR_OUT="$_ok_mam"
 unset FAKE_MT_ERASE_RC
 
 # data survives -> FAILED, never COMPLETED

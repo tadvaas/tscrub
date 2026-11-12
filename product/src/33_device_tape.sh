@@ -100,6 +100,33 @@ tape::erase_eta_mins() {
     printf '%d' "$(( (secs + 59) / 60 ))"
 }
 
+# TapeAlert temperature state for the TUI TEMP cell. This drive generation has
+# NO numeric temperature (the SCSI Temperature log page 0x0D is absent from its
+# supported-pages list — bench-verified), so the cell carries the binary
+# TapeAlert flag 0x24 "drive temperature above recommended range" instead. The
+# MAM "TapeAlert flags" field is a 64-bit bitmap (flag N = bit N-1). Returns
+# OVER / NORM, or "" when the flags value is absent or unparseable.
+tape::temp_state() {   # <mam>
+    local mam="${1:-}" raw val
+    raw="$(sed -n 's/^[[:space:]]*TapeAlert flags:[[:space:]]*\([0-9A-Fa-f][0-9A-Fa-fx]*\).*/\1/p' <<<"$mam" | head -n1)"
+    [[ -n "$raw" ]] || return 0
+    raw="${raw,,}"
+    if [[ "$raw" == 0x* ]]; then
+        raw="${raw#0x}"
+        [[ "$raw" =~ ^[0-9a-f]+$ ]] || return 0
+        val=$(( 16#$raw ))
+    elif [[ "$raw" =~ ^[0-9]+$ ]]; then
+        val=$(( 10#$raw ))
+    else
+        return 0
+    fi
+    if (( val & (1 << 35) )); then
+        printf 'OVER'
+    else
+        printf 'NORM'
+    fi
+}
+
 # MAM attribute dump for the loaded medium (overridable seam for tests).
 tape::mam() {   # <sgdev>
     sg_read_attr --lvn=0 "/dev/$1" 2>/dev/null
@@ -122,13 +149,43 @@ tape::ready() {   # <sgdev>
     sg_raw -r 6 "/dev/$sg" 00 00 00 00 00 00 2>&1 | grep -q "Good"
 }
 
+# Persist a tape failure method the same way device::emit_status persists the
+# STATUS: the fd-3 METHOD line can be lost when a SIGCHLD cuts the parent's
+# read short, so the file survives the worker subshell and
+# device::normalize_outcome folds it back in for an honest report row.
+tape::emit_fail() {   # <dev> <method>
+    local dev="$1" method="$2"
+    echo "$dev METHOD $method" >&3
+    mkdir -p /tmp/tscrub-device-status 2>/dev/null
+    printf '%s\n' "$method" > "/tmp/tscrub-device-status/$dev.method" 2>/dev/null || true
+}
+
+# Background watcher for the TEMP cell: while the long erase runs, poll the
+# drive's MAM TapeAlert flags and emit TAPEALERT OVER when flag 0x24 (drive
+# temperature) turns on. READ ATTRIBUTE (MAM) stays serviced during the erase
+# even though LOG SENSE is not. The loop self-terminates if the worker dies
+# (kill -0 on the worker pid) and is otherwise killed by the parent when the
+# erase command returns.
+tape::temp_poll() {   # <dev> <sgdev> <worker_pid>
+    local dev="$1" sg="$2" worker_pid="$3" state
+    while kill -0 "$worker_pid" 2>/dev/null; do
+        state="$(tape::temp_state "$(tape::mam "$sg" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ "$state" == "OVER" ]]; then
+            echo "$dev TAPEALERT OVER" >&3
+            echo "$dev LOG drive temperature exceeded during long erase" >&3
+            break
+        fi
+        sleep "${TS_TAPE_TEMP_POLL_SECS:-30}"
+    done
+}
+
 device::exec_tape() {
     local dev="$1"
-    local sg nst tries mam dens serial cap_mib eta_mins bytes
+    local sg nst tries mam dens serial cap_mib eta_mins bytes _mam_fail _poll_pid
 
     sg="$(tape::sg_device "$dev")"
     if [[ -z "$sg" ]]; then
-        echo "$dev METHOD No sg node for tape — check the drive's cabling" >&3
+        tape::emit_fail "$dev" "No sg node for tape — check the drive's cabling"
         device::emit_status "$dev" FAILED
         return
     fi
@@ -146,7 +203,7 @@ device::exec_tape() {
         sleep "${TS_TAPE_READY_POLL_SECS:-10}"
     done
     if (( tries >= ${TS_TAPE_READY_TRIES:-6} )); then
-        echo "$dev METHOD Tape drive not ready — power-cycle and re-run" >&3
+        tape::emit_fail "$dev" "Tape drive not ready — power-cycle and re-run"
         device::emit_status "$dev" FAILED
         return
     fi
@@ -156,7 +213,7 @@ device::exec_tape() {
     # cannot read it) — an honest failure, never a blind erase of /dev/st0.
     mam="$(tape::mam "$sg" 2>/dev/null || true)"
     if [[ -z "$mam" ]]; then
-        echo "$dev METHOD No tape loaded — load a tape and re-run" >&3
+        tape::emit_fail "$dev" "No tape loaded — load a tape and re-run"
         device::emit_status "$dev" FAILED
         return
     fi
@@ -165,7 +222,7 @@ device::exec_tape() {
     # Odd density code = WORM cartridge. WORM media rejects overwrite/erase by
     # design — report physical destruction, never retry-erase into a fake pass.
     if [[ -n "$dens" ]] && [[ "$dens" =~ ^[0-9A-Fa-f][13579bdfBDF]$ ]]; then
-        echo "$dev METHOD WORM media — physical destruction required" >&3
+        tape::emit_fail "$dev" "WORM media — physical destruction required"
         device::emit_status "$dev" FAILED
         return
     fi
@@ -182,7 +239,7 @@ device::exec_tape() {
     fi
 
     if ! mt -f "/dev/$nst" rewind >/dev/null 2>&5; then
-        echo "$dev METHOD Long erase failed — tape rewind failed" >&3
+        tape::emit_fail "$dev" "Long erase failed — tape rewind failed"
         device::emit_status "$dev" FAILED
         return
     fi
@@ -192,23 +249,43 @@ device::exec_tape() {
     # `mt erase 1` = MTERASE with a nonzero count = the ERASE LONG bit, per
     # drivers/scsi/st.c. The st driver applies its long timeout (hours) to it.
     echo "$dev LOG starting LTO long erase — the whole tape is overwritten in the drive (takes hours)" >&3
+
+    # While the erase runs, watch the drive's TapeAlert flags so an
+    # over-temperature shows in the TEMP cell the moment it happens (the drive
+    # aborts the erase itself with "specified temperature exceeded", and READ
+    # ATTRIBUTE stays serviced even though LOG SENSE is not).
+    tape::temp_poll "$dev" "$sg" "$$" &
+    _poll_pid=$!
+
     if ! mt -f "/dev/$nst" erase 1 >/dev/null 2>&5; then
-        echo "$dev METHOD Long erase failed" >&3
+        kill "$_poll_pid" 2>/dev/null || true
+        wait "$_poll_pid" 2>/dev/null || true
+        # The drive aborts on over-temperature; re-read MAM now it is idle and
+        # name the real reason rather than the generic "Sanitisation failed".
+        _mam_fail="$(tape::mam "$sg" 2>/dev/null || true)"
+        if [[ "$(tape::temp_state "$_mam_fail")" == "OVER" ]]; then
+            tape::emit_fail "$dev" "Long erase failed — drive temperature exceeded"
+            echo "$dev LOG the drive aborted the long erase after overheating — let it cool and retry" >&3
+        else
+            tape::emit_fail "$dev" "Long erase failed"
+        fi
         device::emit_status "$dev" FAILED
         return
     fi
+    kill "$_poll_pid" 2>/dev/null || true
+    wait "$_poll_pid" 2>/dev/null || true
 
     # Verification: rewind, then read back. Blank = 0 bytes.
     mt -f "/dev/$nst" rewind >/dev/null 2>&5 || true
     bytes="$(tape::readback "$nst" 2>/dev/null || true)"
     echo "$dev TAPEEVID ${bytes:-unknown}" >&3
     if [[ -z "$bytes" ]] || [[ ! "$bytes" =~ ^[0-9]+$ ]]; then
-        echo "$dev METHOD Long erase verify failed — tape unreadable" >&3
+        tape::emit_fail "$dev" "Long erase verify failed — tape unreadable"
         device::emit_status "$dev" FAILED
         return
     fi
     if (( bytes > 0 )); then
-        echo "$dev METHOD Long erase verify failed — $bytes bytes of data remain" >&3
+        tape::emit_fail "$dev" "Long erase verify failed — $bytes bytes of data remain"
         device::emit_status "$dev" FAILED
         return
     fi

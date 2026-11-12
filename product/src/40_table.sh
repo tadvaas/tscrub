@@ -126,9 +126,14 @@ table::row_text() {
     eta_col="$(ui::eta_text_for "$dev" "$now")"
     smart_col="${devrow[$dev.smart]:--}"
     temp_col="${devrow[$dev.temp]:-}"
-    if [[ -n "$temp_col" ]]; then
+    if [[ -z "$temp_col" ]]; then
+        # Tape drives have no numeric temperature (the 0x0D log page is not
+        # supported); their TEMP cell carries the TapeAlert state instead.
+        temp_col="${devrow[$dev.tape_temp]:-}"
+    fi
+    if [[ "$temp_col" =~ ^[0-9]+$ ]]; then
         temp_col="${temp_col}C"
-    else
+    elif [[ -z "$temp_col" ]]; then
         temp_col="-"
     fi
 
@@ -201,9 +206,13 @@ table::row_text() {
         # Drives hotter than 75C show a red temperature reading. Red foreground
         # only (background untouched), reset back to the active theme colour.
         if [[ "$label" == "TEMP" && -t 1 && "$val" != "-" ]]; then
-            hot="${val%C}"
-            if [[ "$hot" =~ ^[0-9]+$ ]] && (( hot > 75 )); then
+            if [[ "$val" == "OVER" ]]; then
                 printf -v cell "\033[31m%s%s" "$cell" "$fg_reset"
+            else
+                hot="${val%C}"
+                if [[ "$hot" =~ ^[0-9]+$ ]] && (( hot > 75 )); then
+                    printf -v cell "\033[31m%s%s" "$cell" "$fg_reset"
+                fi
             fi
         fi
 
@@ -623,11 +632,12 @@ table::paint_row() {
 # full row string (btop's "data_same" short-circuit).
 ui::state_key() {
     local dev="$1"
-    printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' \
+    printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' \
         "${devrow[$dev.status]:-}" \
         "${devrow[$dev.class]:-}" \
         "${devrow[$dev.method]:-}" \
         "${devrow[$dev.temp]:-}" \
+        "${devrow[$dev.tape_temp]:-}" \
         "${devrow[$dev.smart]:-}" \
         "${devrow[$dev.model]:-}" \
         "${devrow[$dev.serial]:-}" \
@@ -927,6 +937,8 @@ ui::apply_outcome() {
                     devrow["$_dev.verify_sectors"]="$_value"
                     if [[ "$_value" == "0" ]]; then devrow["$_dev.verify_result"]="passed"
                     else devrow["$_dev.verify_result"]="failed"; fi ;;
+        # Live tape over-temperature from the erase worker's MAM watcher.
+        TAPEALERT)  devrow["$_dev.tape_temp"]="OVER" ;;
         # Software-overwrite provenance (fallback paths only).
         STANDARD) devrow["$_dev.standard"]="$_value" ;;
         PASSES)   devrow["$_dev.passes"]="$_value" ;;
