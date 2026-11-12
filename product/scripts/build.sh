@@ -28,6 +28,7 @@ for part in \
   "$SRC_DIR/30_device.sh" \
   "$SRC_DIR/31_device_nvme.sh" \
   "$SRC_DIR/32_device_scsi.sh" \
+  "$SRC_DIR/33_device_tape.sh" \
   "$SRC_DIR/33_device_ata.sh" \
   "$SRC_DIR/34_smart.sh" \
   "$SRC_DIR/35_mdm.sh" \

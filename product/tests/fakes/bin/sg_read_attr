@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Fake sg_read_attr: prints FAKE_SGREADATTR_OUT verbatim (one attribute dump)
+# or nothing with rc 5, matching the real tool's no-medium behaviour. Enough
+# for the MAM density/serial parsing in device::detect and device::exec_tape.
+if [[ -n "${FAKE_SGREADATTR_OUT:-}" ]]; then
+    printf '%s\n' "$FAKE_SGREADATTR_OUT"
+    exit 0
+fi
+exit 5

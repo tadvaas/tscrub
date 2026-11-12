@@ -918,6 +918,15 @@ ui::apply_outcome() {
         # devrow writes are lost, so this travels the channel like STATUS.
         VERIFYPLANT) devrow["$_dev.verify_sectors"]="$_value"
                      [[ "$_value" == "0" ]] && devrow["$_dev.verify_result"]="skipped" ;;
+        # Tape erasure evidence (worker devrow writes are lost): the MAM medium
+        # serial is the identity being erased (it replaces the drive-level
+        # serial on the report row), and the read-back byte count is the tape's
+        # post-erase verification — 0 bytes = blank = passed, any byte = failed.
+        TAPESERIAL) devrow["$_dev.serial"]="$_value" ;;
+        TAPEEVID)   devrow["$_dev.verify_technique"]="blank-read"
+                    devrow["$_dev.verify_sectors"]="$_value"
+                    if [[ "$_value" == "0" ]]; then devrow["$_dev.verify_result"]="passed"
+                    else devrow["$_dev.verify_result"]="failed"; fi ;;
         # Software-overwrite provenance (fallback paths only).
         STANDARD) devrow["$_dev.standard"]="$_value" ;;
         PASSES)   devrow["$_dev.passes"]="$_value" ;;

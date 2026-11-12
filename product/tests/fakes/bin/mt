@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Fake busybox mt for the LTO tape path.
+#   mt [-f DEV] OP [VALUE]   -> logs every call, exits FAKE_MT_* per op.
+# The erase arm honours FAKE_MT_ERASE_SLEEP (a fake long erase) and
+# FAKE_MT_ERASE_RC; rewind/offline have their own RCs falling back to FAKE_MT_RC.
+[[ -n "${FAKE_MT_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_MT_LOG"
+if [[ "${1:-}" == "-f" ]]; then
+    shift 2
+fi
+case "${1:-}" in
+    erase)
+        [[ -n "${FAKE_MT_ERASE_SLEEP:-}" ]] && sleep "${FAKE_MT_ERASE_SLEEP}"
+        exit "${FAKE_MT_ERASE_RC:-0}"
+        ;;
+    offline) exit "${FAKE_MT_OFFLINE_RC:-${FAKE_MT_RC:-0}}" ;;
+    rewind)  exit "${FAKE_MT_REWIND_RC:-${FAKE_MT_RC:-0}}" ;;
+    *)       exit "${FAKE_MT_RC:-0}" ;;
+esac

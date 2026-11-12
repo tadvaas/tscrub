@@ -10,6 +10,25 @@
 # which case it answers 0x4000 (in progress) and decrements the FILE (env-only
 # decrements would be lost — the fake runs as a child process).
 if [[ "$1" == "-r" ]]; then
+    # TEST UNIT READY (CDB 00 00 00 00 00 00) for the tape readiness gate:
+    # "Good" unless FAKE_SGRAW_TUR_SEQ decrements to zero (then not ready).
+    if [[ "${4:-}${5:-}${6:-}${7:-}${8:-}" == "0000000000" ]]; then
+        if [[ -n "${FAKE_SGRAW_TUR_SEQ:-}" && -f "$FAKE_SGRAW_TUR_SEQ" ]]; then
+            n="$(<"$FAKE_SGRAW_TUR_SEQ")"
+            if [[ "${n:-0}" -gt 0 ]]; then
+                printf '%s\n' "$((n-1))" > "$FAKE_SGRAW_TUR_SEQ"
+                echo "SCSI Status: Good"
+                exit 0
+            fi
+            echo "SCSI Status: Check Condition"
+            echo "Sense Information:"
+            echo "Fixed format, current; Sense key: Not Ready"
+            echo "Additional sense: Logical unit not ready, initializing command required"
+            exit 0
+        fi
+        echo "SCSI Status: Good"
+        exit 0
+    fi
     if [[ -n "${FAKE_SGRAW_BUSY_FILE:-}" && -f "$FAKE_SGRAW_BUSY_FILE" ]]; then
         n="$(<"$FAKE_SGRAW_BUSY_FILE")"
         if [[ "${n:-0}" -gt 0 ]]; then
@@ -35,6 +54,10 @@ if [[ "$1" == "-s" ]]; then
     exit 0
 fi
 [[ -n "${FAKE_SGRAW_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_SGRAW_LOG"
+if [[ "${2:-}" == "1b" ]]; then
+    # START STOP UNIT (Load) for the tape init step.
+    exit "${FAKE_SGRAW_LOAD_RC:-0}"
+fi
 if [[ "${15:-}" == "b4" && ( "${7:-}" == "11" || "${7:-}" == "12" || "${7:-}" == "14" ) ]]; then
     exit "${FAKE_SGRAW_SANITIZE_RC:-0}"
 fi

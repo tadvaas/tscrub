@@ -16,6 +16,8 @@ device::capability_label() {
         # stale literal after the standards became selectable (v1.11.70).
         CAP_SCSI_NWIPE)              echo "nwipe $(nwipe::method_short "${TS_NWIPE_METHOD:-zero}")" ;;
         CAP_OPAL_CRYPTO)             echo "SED Purge (OPAL Crypto Erase)" ;;
+        CAP_TAPE_LONG_ERASE)         echo "Tape Purge (LTO Long Erase)" ;;
+        CAP_TAPE_WORM)               echo "WORM Media (no software erase)" ;;
         CAP_NONE)                    echo "No Supported Wipe" ;;
     esac
 }
@@ -523,6 +525,10 @@ device::discover() {
         device::raid_detect "$dev"
     done
 
+    # LTO tape drives are SCSI char devices, not block devices — a separate
+    # scan of /sys/class/scsi_tape.
+    device::tape_discover
+
     # USB targets are listed but NOT selectable (plan phase P1): this ships the
     # visibility and the safety property with no erase capability behind it.
     device::usb_candidates "$block_dir"
@@ -538,6 +544,38 @@ device::discover() {
         DISCOVERY_NOTICE="No supported drives found."
         return 1
     fi
+}
+
+# Discover LTO tape drives under /sys/class/scsi_tape. Only the primary stN
+# alias is one device; the st driver also creates mode aliases (st0a/l/m) and
+# non-rewind twins (nstN) for the same drive, which must not become rows.
+device::tape_discover() {
+    local tape_dir="${SYS_TAPE_DIR:-/sys/class/scsi_tape}"
+    local path dev sg _ven _mod
+    [[ -d "$tape_dir" ]] || return 0
+    for path in "$tape_dir"/*; do
+        [[ -e "$path" ]] || continue
+        dev="${path##*/}"
+        [[ "$dev" =~ ^st[0-9]+$ ]] || continue
+        devices+=("$dev")
+        bus[$dev]="TAPE"
+        type[$dev]="TAPE"
+        size[$dev]="N/A"
+        opal_locked[$dev]="NA"
+        _ven="$(cat "$path/device/vendor" 2>/dev/null | xargs | tr -d '\000-\037\177')"
+        _mod="$(cat "$path/device/model" 2>/dev/null | xargs | tr -d '\000-\037\177')"
+        model[$dev]="$(printf '%s %s' "$_ven" "$_mod" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        firmware[$dev]="$(cat "$path/device/rev" 2>/dev/null | tr -d '\000-\037\177')"
+        # Drive-level serial via the SCSI generic node (VPD 0x80). The MEDIUM
+        # serial (MAM) is read by the worker once a tape is loaded and
+        # replaces this value on the report row via the TAPESERIAL IPC line.
+        sg="$(tape::sg_device "$dev")"
+        if [[ -n "$sg" ]] && command -v sg_vpd >/dev/null 2>&1; then
+            serial[$dev]="$(sg_vpd -p sn "/dev/$sg" 2>/dev/null \
+                | sed -n 's/^[[:space:]]*Product serial number:[[:space:]]*//p' | head -n1 \
+                | tr -d ' \000-\037\177')"
+        fi
+    done
 }
 
 # Re-run discovery after a hot-plug change, probing ONLY the newly arrived
@@ -826,6 +864,25 @@ device::detect() {
                     # previously misclassified such drives as CAP_NONE -> FAILED.
                     capability[$device]="CAP_ATA_CLEAR"
                 fi
+            elif [[ "$device" == st* ]]; then
+                # LTO tape (see 33_device_tape.sh): the purge is the drive's
+                # firmware LONG ERASE. WORM cartridges reject any overwrite by
+                # design — classify them honestly (physical destruction), never
+                # retry-erase into a fake success. The medium density comes from
+                # MAM; an unloaded/unreadable medium is NOT a failure here — the
+                # worker re-checks and fails honestly with "load a tape" if
+                # nothing is loaded at run time.
+                local _mam _dens
+                _mam="$(tape::mam "$(tape::sg_device "$device")" 2>/dev/null || true)"
+                _dens="$(sed -n 's/^[[:space:]]*Format density code:[[:space:]]*0x\([0-9A-Fa-f][0-9A-Fa-f]\).*/\1/p' <<<"$_mam" | head -n1)"
+                if [[ -n "$_dens" ]]; then
+                    type[$device]="$(tape::density_label "$_dens")"
+                fi
+                if [[ -n "$_dens" && "$_dens" =~ ^[0-9A-Fa-f][13579bdfBDF]$ ]]; then
+                    capability[$device]="CAP_TAPE_WORM"
+                else
+                    capability[$device]="CAP_TAPE_LONG_ERASE"
+                fi
             fi
 
         # Unlocked SED (OPAL) fallback: a drive with no firmware NVMe/ATA/SCSI
@@ -898,6 +955,18 @@ device::classify() {
             devrow["$dev.class"]="PURGE"
             devrow["$dev.cert"]="DESTRUCTION"
             devrow["$dev.method"]="OPAL Crypto Erase"
+            ;;
+
+        CAP_TAPE_LONG_ERASE)
+            devrow["$dev.class"]="PURGE"
+            devrow["$dev.cert"]="DESTRUCTION"
+            devrow["$dev.method"]="LTO Long Erase"
+            ;;
+
+        CAP_TAPE_WORM)
+            devrow["$dev.class"]="FAILED"
+            devrow["$dev.cert"]="PHYS_DESTR"
+            devrow["$dev.method"]="WORM media — physical destruction required"
             ;;
 
         CAP_NVME_CLEAR_ONLY)
@@ -983,7 +1052,9 @@ device::execute() {
     # path goes through here). Runs in the worker so a drive that is slow to
     # accept writes — its firmware recovering from an interrupted erase — can
     # only delay its own row, never the RUNNING paint of the whole screen.
-    if [[ "${VERIFY_MODE:-none}" != "none" ]]; then
+    # Tapes are skipped: a sentinel write through dd would write data onto the
+    # tape, and tape verification is a full blank read-back (see exec_tape).
+    if [[ "${VERIFY_MODE:-none}" != "none" && "${bus[$dev]:-}" != "TAPE" ]]; then
         verify::plant_drive "$dev"
     fi
 
@@ -1002,6 +1073,9 @@ device::execute() {
             ;;
         CAP_ATA_*)
             device::exec_ata "$dev" "$cap"
+            ;;
+        CAP_TAPE_*)
+            device::exec_tape "$dev"
             ;;
         *)
             device::emit_status "$dev" FAILED

@@ -6,6 +6,21 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.11] - 2026-11-12
+
+- **LTO tape erasure (P1).** Tape drives are now discovered, classified and
+  erased: `device::tape_discover` scans `/sys/class/scsi_tape` for the primary
+  `stN` alias; capability `CAP_TAPE_LONG_ERASE` (PURGE / DESTRUCTION / "LTO
+  Long Erase") and `CAP_TAPE_WORM` (honest "physical destruction required");
+  worker `device::exec_tape` initialises the drive through the sg node
+  (START/LOAD + TEST UNIT READY gate — the st driver's open() blocks ~2 min
+  while the drive reports 02/04), then `mt erase 1` (a nonzero MTERASE count
+  sets the ERASE LONG bit per st.c), then a full blank read-back (0 bytes =
+  verified) and `mt offline`. Medium identity comes from MAM (`sg_read_attr`)
+  and reaches the report over new `TAPESERIAL` / `TAPEEVID` IPC keys
+  (`VerifyTechnique=blank-read`). Tapes are never sentinel-planted or
+  auto-formatted. Tests: `tests/test_tape.sh` (46 checks, guards mutation-tested).
+
 ## [v1.12.10] - 2026-11-11
 
 - **Fix the SATL erase poll (bench-found, run 33767 at 18:34).** Two defects

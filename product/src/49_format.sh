@@ -190,6 +190,10 @@ format::format_drive() {
     [[ "${devrow[$dev.selected]:-0}" -eq 1 ]] || { devrow["$dev.format_result"]="n/a"; return 0; }
     [[ "${devrow[$dev.status]:-}" == "COMPLETED" ]] || { devrow["$dev.format_result"]="n/a"; return 0; }
     [[ "${devrow[$dev.capability]:-}" != "CAP_NONE" ]] || { devrow["$dev.format_result"]="n/a"; return 0; }
+    # Tapes are not block devices: the signature wipe + partitioner would write
+    # onto the (now-blank) tape and destroy its value. Formatting is a disk
+    # convenience step and never applies to tape media.
+    [[ "${bus[$dev]:-}" != "TAPE" ]] || { devrow["$dev.format_result"]="n/a"; return 0; }
 
     if [[ "${FORMAT_MODE:-auto}" != "auto" || "${DRY_RUN:-0}" -eq 1 ]]; then
         devrow["$dev.format_result"]="skipped"

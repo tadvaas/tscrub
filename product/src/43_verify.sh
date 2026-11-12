@@ -241,6 +241,9 @@ verify::plant_drive() {   # <dev>
     case "${devrow[$dev.class]:-}" in
         FAILED|FROZEN) return 0 ;;
     esac
+    # Tapes are never sentinel-planted: writing through dd would put data onto
+    # the tape, and their verification is a full blank read-back in exec_tape.
+    [[ "${bus[$dev]:-}" != "TAPE" ]] || return 0
     [[ "${devrow[$dev.capability]:-}" == "CAP_NONE" ]] && return 0
     [[ -n "${VERIFY_STATE_DIR:-}" ]] || { echo "$dev VERIFYPLANT 0" >&3; return 0; }
 

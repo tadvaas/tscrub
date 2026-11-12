@@ -48,7 +48,10 @@ t::setup_env() {
           FAKE_WIPEFS_RC FAKE_WIPEFS_OUT FAKE_SFDISK_RC FAKE_SFDISK_OUT \
           FAKE_SGDISK_RC FAKE_SGDISK_OUT FAKE_MKFS_RC FAKE_MKFS_OUT \
           FAKE_BLKID_TYPE FAKE_BLKID_RC FAKE_FORMAT_CMDLOG \
-          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA FAKE_LSPCI_SAS3008 FAKE_LSPCI_BROKEN 2>/dev/null || true
+          FAKE_LSPCI_VMD FAKE_LSPCI_RAID_HBA FAKE_LSPCI_SAS3008 FAKE_LSPCI_BROKEN \
+          FAKE_MT_RC FAKE_MT_ERASE_RC FAKE_MT_ERASE_SLEEP FAKE_MT_OFFLINE_RC FAKE_MT_REWIND_RC FAKE_MT_LOG \
+          FAKE_SGREADATTR_OUT FAKE_SGRAW_TUR_SEQ FAKE_SGRAW_LOAD_RC \
+          TS_TAPE_READY_TRIES TS_TAPE_READY_POLL_SECS SYS_TAPE_DIR 2>/dev/null || true
 }
 
 # Source the production functions without executing the entrypoint.
@@ -61,6 +64,7 @@ t::source_src() {
         "$ROOT_DIR/src/30_device.sh" \
         "$ROOT_DIR/src/31_device_nvme.sh" \
         "$ROOT_DIR/src/32_device_scsi.sh" \
+        "$ROOT_DIR/src/33_device_tape.sh" \
         "$ROOT_DIR/src/33_device_ata.sh" \
         "$ROOT_DIR/src/34_smart.sh" \
         "$ROOT_DIR/src/35_mdm.sh" \
