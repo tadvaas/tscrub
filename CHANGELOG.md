@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.14] - 2026-11-12
+
+- **LTO long-erase ETA estimate.** The firmware long erase reports no progress
+  (REQUEST SENSE answers with no progress descriptor, and the MAM
+  remaining-capacity field does not decrement during the erase), so the row
+  could only show `N/A`. The worker now emits a static estimate in the same
+  class as ATA word-89 — the medium capacity divided by the generation's native
+  data rate (an LTO-4 800 GB cartridge ≈ 112 min) — over a new `TAPEETA` IPC
+  key, and the TUI counts it down from the moment the estimate lands.
+  Per-generation rates are overridable via `TAPE_ERASE_RATE_LTO1..9`. The
+  estimate can be underrun by a slower-than-native erase (the row then holds
+  `~0s` while still erasing, exactly as a slow ATA erase outruns word-89).
+
 ## [v1.12.13] - 2026-11-12
 
 - **Fix the tape sg-node resolution (bench-found, v1.12.12 still showed no

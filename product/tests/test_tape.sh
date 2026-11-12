@@ -81,6 +81,13 @@ t::assert_eq "FAILED"       "${devrow[st0.class]:-}"  "WORM class FAILED"
 t::assert_eq "PHYS_DESTR"   "${devrow[st0.cert]:-}"   "WORM cert PHYS_DESTR"
 t::assert_eq "WORM media — physical destruction required" "${devrow[st0.method]:-}" "WORM method"
 
+# --- ETA estimate (tape::erase_eta_mins) ------------------------------------
+t::assert_eq "112" "$(tape::erase_eta_mins 762939 46)" "LTO-4 800 GB @120 MB/s -> 112 min"
+t::assert_eq "112" "$(tape::erase_eta_mins 762939 47)" "WORM density shares the rate table"
+t::assert_eq "56"  "$(TAPE_ERASE_RATE_LTO4=240 tape::erase_eta_mins 762939 46)" "rate override halves the estimate"
+t::assert_eq ""    "$(tape::erase_eta_mins 762939 ZZ)" "unknown density -> no estimate"
+t::assert_eq ""    "$(tape::erase_eta_mins nope 46)"   "non-numeric capacity -> no estimate"
+
 # --- IPC evidence mapping ----------------------------------------------------
 devrow=()
 ui::apply_outcome st0 TAPESERIAL 3100602003
@@ -124,6 +131,14 @@ mtlog="$(cat "$MTLOG")"
 t::assert_contains "$mtlog" "rewind"  "worker rewinds before erase"
 t::assert_contains "$mtlog" "erase 1" "worker issues LONG erase (nonzero count)"
 t::assert_contains "$mtlog" "offline" "worker ejects the tape at the end"
+
+# ETA estimate emitted when MAM reports a capacity (static, word-89 class)
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 3100602003\nMaximum capacity in partition [MiB]: 762939'
+: > "$MTLOG"
+captured="$(run_tape)"
+t::assert_contains "$captured" "st0 TAPEETA 112"              "worker emits long-erase ETA estimate"
+t::assert_contains "$captured" "long erase ETA ~112min"        "worker logs the ETA estimate"
+export FAKE_SGREADATTR_OUT="$_ok_mam"
 
 # erase failure -> honest FAILED
 : > "$MTLOG"

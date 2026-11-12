@@ -67,6 +67,39 @@ tape::density_label() {   # <hex byte>
     printf '%s' "$label"
 }
 
+# Estimated long-erase duration in minutes. The firmware long erase reports no
+# progress (REQUEST SENSE answers Good with no progress descriptor, and MAM's
+# remaining-capacity field does not decrement during the erase), so the ETA is
+# a static estimate in the same class as ATA word-89: the medium capacity
+# divided by the generation's native data rate, rounded up to the minute. The
+# drive can erase slower than its data rate, so the countdown is approximate —
+# a slow erase may outrun it (the row then holds ~0s, exactly as a slow ATA
+# erase outruns word-89). <capacity_mib> <density_hex> -> minutes, or "".
+tape::erase_eta_mins() {
+    local cap_mib="${1:-}" dens="${2:-}" rate bytes secs
+    [[ "$cap_mib" =~ ^[0-9]+$ ]] || return 0
+    case "${dens^^}" in
+        40|41) rate="${TAPE_ERASE_RATE_LTO1:-15}" ;;
+        42|43) rate="${TAPE_ERASE_RATE_LTO2:-40}" ;;
+        44|45) rate="${TAPE_ERASE_RATE_LTO3:-80}" ;;
+        46|47) rate="${TAPE_ERASE_RATE_LTO4:-120}" ;;
+        58|59) rate="${TAPE_ERASE_RATE_LTO5:-140}" ;;
+        5A|5B) rate="${TAPE_ERASE_RATE_LTO6:-160}" ;;
+        5C|5D) rate="${TAPE_ERASE_RATE_LTO7:-300}" ;;
+        5E|5F) rate="${TAPE_ERASE_RATE_LTO8:-360}" ;;
+        60|61) rate="${TAPE_ERASE_RATE_LTO9:-400}" ;;
+        *) return 0 ;;
+    esac
+    if [[ ! "$rate" =~ ^[0-9]+$ ]] || (( rate <= 0 )); then
+        return 0
+    fi
+    # MiB -> bytes, then seconds at rate MB/s, rounded UP, then minutes UP.
+    bytes=$(( cap_mib * 1048576 ))
+    secs=$(( bytes / (rate * 1000000) ))
+    (( bytes % (rate * 1000000) )) && secs=$(( secs + 1 ))
+    printf '%d' "$(( (secs + 59) / 60 ))"
+}
+
 # MAM attribute dump for the loaded medium (overridable seam for tests).
 tape::mam() {   # <sgdev>
     sg_read_attr --lvn=0 "/dev/$1" 2>/dev/null
@@ -91,7 +124,7 @@ tape::ready() {   # <sgdev>
 
 device::exec_tape() {
     local dev="$1"
-    local sg nst tries mam dens serial bytes
+    local sg nst tries mam dens serial cap_mib eta_mins bytes
 
     sg="$(tape::sg_device "$dev")"
     if [[ -z "$sg" ]]; then
@@ -138,6 +171,15 @@ device::exec_tape() {
     fi
     [[ -n "$serial" ]] && echo "$dev TAPESERIAL $serial" >&3
     echo "$dev LOG tape loaded: $(tape::density_label "$dens")${serial:+ (medium $serial)}" >&3
+
+    # ETA estimate: capacity / native data rate (see tape::erase_eta_mins).
+    # Emitted so the TUI can count it down; the parent stamps wipe_start on it.
+    cap_mib="$(sed -n 's/^[[:space:]]*Maximum capacity in partition \[MiB\]:[[:space:]]*\([0-9][0-9]*\).*/\1/p' <<<"$mam" | head -n1)"
+    eta_mins="$(tape::erase_eta_mins "$cap_mib" "$dens" 2>/dev/null || true)"
+    if [[ "$eta_mins" =~ ^[0-9]+$ ]] && (( eta_mins > 0 )); then
+        echo "$dev TAPEETA $eta_mins" >&3
+        echo "$dev LOG long erase ETA ~${eta_mins}min (capacity / native data rate estimate)" >&3
+    fi
 
     if ! mt -f "/dev/$nst" rewind >/dev/null 2>&5; then
         echo "$dev METHOD Long erase failed — tape rewind failed" >&3

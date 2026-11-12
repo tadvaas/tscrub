@@ -1029,6 +1029,15 @@ ui::loop() {
                 # aggregate picks the slowest running drive's estimate.
                 [[ "$_value" =~ ^[0-9]+$ ]] && devrow["$_dev.progress_eta_sec"]="$_value"
                 status::recompute_progress
+            elif [[ "$_key" == "TAPEETA" ]]; then
+                # LTO long erase: the firmware erase reports no progress, so the
+                # worker emits a static estimate (capacity / native data rate —
+                # same class as ATA word-89). RUNNING arrived BEFORE the MAM
+                # read, so the RUNNING handler could not stamp wipe_start; stamp
+                # it here so the existing eta_mins countdown path takes over.
+                [[ "$_value" =~ ^[0-9]+$ ]] && devrow["$_dev.eta_mins"]="$_value"
+                [[ -z "${devrow[$_dev.wipe_start]}" ]] && devrow["$_dev.wipe_start"]="$(ts::now)"
+                status::recompute_progress
             else
                 # METHOD/CLASS/CERT outcome corrections (workers run in a
                 # subshell, so their direct devrow writes are lost and arrive
