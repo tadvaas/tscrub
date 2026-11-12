@@ -4,13 +4,17 @@ t::setup_env
 t::source_src
 export VERIFY_MODE=none
 
+# The fake readlink cannot simulate symlink-target resolution, so the sg-node
+# mapping is stubbed: st0 -> sg0 (real resolution is bench-verified).
+# FAKE_TAPE_NO_SG=1 exercises the "no sg node" cabling failure.
+tape::sg_device() { [[ "${FAKE_TAPE_NO_SG:-}" == "1" ]] && return 0; [[ "$1" == "st0" ]] && echo "sg0"; }
+
 # --- discovery (char-device class, not /sys/block) --------------------------
 _tdir="$(mktemp -d)"
-mkdir -p "$_tdir/st0/device/generic"
+mkdir -p "$_tdir/st0/device"
 printf 'IBM     '      > "$_tdir/st0/device/vendor"
 printf 'ULTRIUM-HH4   ' > "$_tdir/st0/device/model"
 printf '97F1'          > "$_tdir/st0/device/rev"
-touch "$_tdir/st0/device/generic/sg0"
 ln -s st0 "$_tdir/st0a"    # mode alias — must NOT become a second device
 
 export SYS_TAPE_DIR="$_tdir"
@@ -158,6 +162,14 @@ captured="$(run_tape)"
 t::assert_contains "$captured" "st0 METHOD Tape drive not ready" "not-ready drive -> honest FAILED"
 t::assert_contains "$captured" "st0 STATUS FAILED" "not-ready drive -> FAILED"
 unset FAKE_SGREADATTR_OUT FAKE_SGRAW_TUR_SEQ TS_TAPE_READY_TRIES
+
+# no sg node (cabling/driver problem) -> honest FAILED
+export FAKE_SGREADATTR_OUT="$_ok_mam"
+export FAKE_TAPE_NO_SG=1
+captured="$(run_tape)"
+t::assert_contains "$captured" "st0 METHOD No sg node for tape" "no sg node -> honest FAILED"
+t::assert_contains "$captured" "st0 STATUS FAILED" "no sg node -> FAILED"
+unset FAKE_SGREADATTR_OUT FAKE_TAPE_NO_SG
 
 # --- execute dispatch + sentinel-plant skip --------------------------------
 export VERIFY_MODE=sampled

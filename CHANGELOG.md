@@ -6,6 +6,19 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.13] - 2026-11-12
+
+- **Fix the tape sg-node resolution (bench-found, v1.12.12 still showed no
+  serial/capacity).** `tape::sg_device` assumed the sg node name lived inside
+  `/sys/class/scsi_tape/stN/device/generic`, which actually holds only the
+  standard kobject files (`dev`/`device`/`power`/…). The node name lives in the
+  `scsi_generic` class dir: `st0/device -> ../../../0:0:0:0` and
+  `/sys/class/scsi_generic/sg0 -> …/0:0:0:0/scsi_generic/sg0`. Resolution now
+  matches the tape's SCSI device name (the last component of its `device`
+  symlink) against each `scsi_generic/sg*` target — bench-verified live before
+  the rebuild. Tests stub the mapping (the fake `readlink` cannot simulate
+  symlink-target resolution) and add a no-sg-node cabling failure case.
+
 ## [v1.12.12] - 2026-11-12
 
 - **Fix the tape row's identity at detection (bench-found).** The tape row

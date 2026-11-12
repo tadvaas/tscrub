@@ -26,12 +26,26 @@
 # being erased — replaces the drive-level serial on the report row) and
 # TAPEEVID (the blank read-back byte count).
 
-# The sg node behind a tape device (sysfs: .../0:0:0:0/generic/ contains sg0).
+# The sg node behind a tape device. Real sysfs shape (bench-verified):
+#   /sys/class/scsi_tape/st0/device  -> ../../../0:0:0:0
+#   /sys/class/scsi_generic/sg0      -> .../0:0:0:0/scsi_generic/sg0
+# so the node is the scsi_generic entry whose target path contains the tape's
+# SCSI device name (0:0:0:0). The old "device/generic contains sg0" assumption
+# was wrong: that dir holds only the standard kobject files (dev/device/power/…)
+# — the node NAME lives in the scsi_generic class dir, not under the device.
 tape::sg_device() {   # <stdev> -> e.g. st0 -> sg0
-    local dev dir
+    local dev scsi sg
     dev="$1"
-    dir="${SYS_TAPE_DIR:-/sys/class/scsi_tape}/$dev/device/generic"
-    ls "$dir" 2>/dev/null | grep -m1 -E '^sg[0-9]+$'
+    scsi="$(readlink "${SYS_TAPE_DIR:-/sys/class/scsi_tape}/$dev/device" 2>/dev/null)"
+    scsi="${scsi##*/}"       # e.g. 0:0:0:0
+    [[ -n "$scsi" ]] || return 0
+    for sg in "${SYS_SG_DIR:-/sys/class/scsi_generic}"/sg[0-9]*; do
+        [[ -e "$sg" ]] || continue
+        case "$(readlink "$sg" 2>/dev/null)" in
+            */"$scsi"/*) printf '%s' "${sg##*/}"; return 0 ;;
+        esac
+    done
+    return 0
 }
 
 # SCSI density code -> human LTO generation. Even code = writable generation,
