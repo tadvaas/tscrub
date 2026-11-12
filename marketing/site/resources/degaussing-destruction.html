@@ -87,6 +87,7 @@
       <h2>Degaussing</h2>
       <p><strong>Degaussing</strong> subjects the media to a powerful magnetic field, scrambling the magnetic domains that store data. It works on <strong>magnetic media</strong> — hard drives and tapes. Crucially, it does <em>not</em> work on solid-state drives, which store data as electrical charge in flash cells rather than magnetic orientation.</p>
       <p>A degaussed drive is usually unrecoverable — but also unusable, since the servo tracks that let the drive operate are typically destroyed along with the data.</p>
+      <p>One exception worth knowing: <strong>LTO tapes</strong> are magnetic, but they don't need a degausser when a drive is available. An LTO drive's <strong>long erase</strong> overwrites the entire tape in firmware and leaves the cartridge reusable — tScrub issues it and verifies the result with a full blank read-back. A tape is only degaussed or destroyed when it's a WORM cartridge or no drive is available.</p>
 
       <h2>Physical destruction</h2>
       <p><strong>Physical destruction</strong> — shredding, disintegration, or crushing — works on <em>everything</em>, including SSDs. It's the universal answer for drives that can't be erased: failed drives, frozen drives, or drives whose Block SID lock can't be lifted.</p>

@@ -1,6 +1,6 @@
 # tScrub
 
-> tScrub is an open ITAD (IT asset disposition) platform built for compliance. It erases NVMe, SATA, and SCSI drives to NIST 800-88 Clear, Purge, and Destroy levels and produces a verifiable, signed chain-of-custody report — while triaging and grading every machine it boots on (hardware profile, battery health, display, and MDM or BIOS lock status) with a printable diagnostics report. Boot the ready-to-go appliance image from USB or PXE on hardware you already own.
+> tScrub is an open ITAD (IT asset disposition) platform built for compliance. It erases NVMe, SATA, SCSI and LTO tape media to NIST 800-88 Clear, Purge, and Destroy levels and produces a verifiable, signed chain-of-custody report — while triaging and grading every machine it boots on (hardware profile, battery health, display, and MDM or BIOS lock status) with a printable diagnostics report. Boot the ready-to-go appliance image from USB or PXE on hardware you already own.
 
 ## Pages
 
@@ -28,7 +28,7 @@
 - [GDPR data erasure](https://tscrub.com/resources/gdpr-data-erasure): The right to erasure.
 - [HIPAA data disposal](https://tscrub.com/resources/hipaa-data-disposal): Erasing ePHI.
 - [ISO 27001 information deletion](https://tscrub.com/resources/iso-27001-data-erasure): Control 8.10.
-- [Drive types](https://tscrub.com/resources/drive-types): NVMe, SSD, HDD, SAS, SED/OPAL.
+- [Drive types](https://tscrub.com/resources/drive-types): NVMe, SSD, HDD, SAS, LTO tape, SED/OPAL.
 - [How to wipe an NVMe SSD](https://tscrub.com/resources/nvme-erase): Sanitize vs Format NVM.
 - [How to securely erase a SATA SSD](https://tscrub.com/resources/ssd-erase): ATA Secure Erase.
 - [How to wipe a hard drive](https://tscrub.com/resources/hdd-erase): Secure Erase vs overwrite.

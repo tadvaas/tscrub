@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="/logo.png?v=2" />
-  <title>How to Securely Erase NVMe, SSD, HDD &amp; SAS Drives — tScrub</title>
+  <title>How to Securely Erase NVMe, SSD, HDD, SAS &amp; LTO Tape Drives — tScrub</title>
   <link rel="canonical" href="https://tscrub.com/resources/drive-types" />
-  <meta name="description" content="The right erasure method for every drive: NVMe sanitise, ATA secure erase for SSDs and HDDs, SCSI sanitise, and PSID revert for OPAL drives." />
+  <meta name="description" content="The right erasure method for every drive: NVMe sanitise, ATA secure erase for SSDs and HDDs, SCSI sanitise, LTO long erase for tape, and PSID revert for OPAL drives." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -14,8 +14,8 @@
   {
     "@context": "https://schema.org",
     "@type": "Article",
-    "headline": "How to Securely Erase NVMe, SSD, HDD & SAS Drives",
-    "description": "The right erasure method for every drive type: NVMe sanitise, ATA secure erase, SCSI sanitise, and PSID revert for OPAL drives.",
+    "headline": "How to Securely Erase NVMe, SSD, HDD, SAS & LTO Tape Drives",
+    "description": "The right erasure method for every drive type: NVMe sanitise, ATA secure erase, SCSI sanitise, LTO long erase for tape, and PSID revert for OPAL drives.",
     "datePublished": "2026-09-22",
     "dateModified": "2026-09-22",
     "author": {"@type": "Organization", "name": "tScrub"},
@@ -65,7 +65,7 @@
 
   <!-- ============ ARTICLE ============ -->
   <article class="mx-auto max-w-3xl px-4 py-10">
-    <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">How to securely erase any drive: NVMe, SSD, HDD &amp; SAS</h1>
+    <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">How to securely erase any drive: NVMe, SSD, HDD, SAS &amp; LTO tape</h1>
     <p class="mt-3 text-lg leading-relaxed text-slate-600 dark:text-slate-400">There's no single "wipe" command that's right for every drive. The correct method depends on what the drive is — and each type erases differently.</p>
 
     <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
@@ -110,6 +110,9 @@
       <h2>SAS &amp; SCSI drives</h2>
       <p>Enterprise SAS drives use the SCSI command set. Many support <strong>SCSI SANITIZE</strong> directly; where they don't, a <strong>software overwrite</strong> (tScrub applies this fallback itself) is the standard approach. SAS drives are common in decommissioned servers, so this path matters in data-centre work. If a RAID-only controller is hiding the drives entirely, see <a href="/resources/raid-controller-passthrough">how we converted a Dell T140's PERC to passthrough</a>.</p>
 
+      <h2>LTO tape</h2>
+      <p>LTO tapes are erased with the drive's <strong>long erase</strong> command, which overwrites the entire tape in firmware — no host software involved, and it works regardless of encryption. tScrub verifies the result with a full blank read-back (zero bytes read), and WORM cartridges, which refuse overwrite by design, are flagged for physical destruction rather than faked as erased.</p>
+
       <h2>Self-encrypting drives (SED / OPAL)</h2>
       <p>Self-encrypting drives hold their own encryption key. Two things come up:</p>
       <ul>
@@ -131,6 +134,7 @@
             <tr><td>SATA SSD</td><td>Enhanced Secure Erase</td><td>Secure Erase</td><td>Purge / Clear</td></tr>
             <tr><td>HDD</td><td>Enhanced Secure Erase</td><td>Secure Erase, overwrite</td><td>Purge / Clear</td></tr>
             <tr><td>SAS / SCSI</td><td>SCSI Sanitize</td><td>Software overwrite</td><td>Purge / Clear</td></tr>
+            <tr><td>LTO tape</td><td>Long erase</td><td>—</td><td>Purge (WORM: Destroy)</td></tr>
             <tr><td>Locked SED</td><td>PSID revert, then erase</td><td>—</td><td>Purge</td></tr>
             <tr><td>Frozen</td><td>Power-cycle &amp; retry</td><td>Physical destruction</td><td>Destroy</td></tr>
             <tr><td>Block SID locked</td><td>Clear SID, re-run</td><td>Physical destruction</td><td>Recoverable</td></tr>

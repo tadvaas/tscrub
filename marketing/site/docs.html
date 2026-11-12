@@ -143,7 +143,7 @@
                 <li>x86-64 machine with USB or PXE boot</li>
                 <li>1 GB RAM (erasure runs in parallel)</li>
                 <li>Dependencies are bundled in the appliance image: <code class="font-mono">nvme-cli</code>, <code class="font-mono">hdparm</code>, software overwrite (SCSI), <code class="font-mono">sedutil-cli</code> (SED/OPAL), <code class="font-mono">smartctl</code> (SMART), <code class="font-mono">curl</code> (dashboard upload), <code class="font-mono">lftp</code> (FTP/SFTP), <code class="font-mono">openssl</code> (signing)</li>
-                <li>Directly attached NVMe, SATA, or SCSI drives, plus USB-attached drives (software overwrite only — the report records <code class="font-mono">Bus=USB</code> and no firmware-erase or IEEE 2883 claim is made over a USB bridge)</li>
+                <li>Directly attached NVMe, SATA, SCSI and LTO tape drives, plus USB-attached drives (software overwrite only — the report records <code class="font-mono">Bus=USB</code> and no firmware-erase or IEEE 2883 claim is made over a USB bridge)</li>
               </ul>
             </div>
           </div>
@@ -508,6 +508,7 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
                     <tr><td class="px-6 py-4">NVMe</td><td class="px-6 py-4">Crypto / block / overwrite sanitise, or format</td><td class="px-6 py-4">Purge / Clear</td></tr>
                     <tr><td class="px-6 py-4">SATA / ATA</td><td class="px-6 py-4">Enhanced or standard security erase</td><td class="px-6 py-4">Purge / Clear</td></tr>
                     <tr><td class="px-6 py-4">SCSI / SAS</td><td class="px-6 py-4">Firmware sanitise (overwrite) where supported, else software overwrite</td><td class="px-6 py-4">Purge / Clear</td></tr>
+                    <tr><td class="px-6 py-4">LTO tape</td><td class="px-6 py-4">Long erase (full-tape overwrite in the drive firmware) + blank read-back</td><td class="px-6 py-4">Purge (WORM → destroy)</td></tr>
                     <tr><td class="px-6 py-4">Frozen / blocked / unsupported</td><td class="px-6 py-4">—</td><td class="px-6 py-4">Flagged — recover or destroy (see <a href="#report" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">drive statuses</a>)</td></tr>
                   </tbody>
                 </table>

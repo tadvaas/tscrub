@@ -109,6 +109,9 @@
         <li><strong>Format NVM</strong> — clears the namespace. Maps to <strong>Clear</strong>; it's the fallback when Sanitize isn't supported.</li>
       </ul>
 
+      <h2>LTO tape long erase</h2>
+      <p>LTO tapes aren't block devices — they're erased with the drive's <strong>long erase</strong> command, which overwrites the entire tape inside the drive's firmware. It works regardless of encryption and leaves the cartridge reusable, so a tape holding backup data doesn't have to be shredded. Verification is a full read-back: an erased tape yields zero bytes before blank check, so any byte read means data survived and the job fails honestly. WORM cartridges reject overwrite by design and are reported for physical destruction instead.</p>
+
       <h2>Cryptographic erase vs block erase</h2>
       <p><strong>Cryptographic erase</strong> is elegant: the drive has always stored data encrypted with an internal key. Destroying that key makes every stored byte unreadable, instantly and irreversibly. It's fast and complete — assuming the encryption was implemented correctly in the first place.</p>
       <p><strong>Block erase</strong> physically erases the flash cells. It's slower than crypto erase but doesn't depend on the drive's encryption implementation, which is why some auditors prefer it.</p>
