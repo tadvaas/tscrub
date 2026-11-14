@@ -27,7 +27,16 @@ tests/proxmox/config.sh
 tests/proxmox/test.lic
 
 # Customer debug snapshots — diagnostics, never commit.
-research/
+research/*
+# ... except the BIOS-unlock research docs + unlock tool.
+# Firmware dumps (BINs/), efivars sweeps and raw HP data stay local:
+# they contain unit identity data and vendor firmware images.
+!research/bios-unlock/
+research/bios-unlock/BINs/
+research/bios-unlock/efivars-sweep/
+research/bios-unlock/hpraw/
+research/bios-unlock/*.bin
+research/bios-unlock/fleet-bios.tsv
 
 # Secrets — never commit (service-account keys, etc.).
 gsc-service-account.json
