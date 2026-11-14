@@ -62,6 +62,11 @@ devrow[d1.status]="RUNNING"
 devrow[d1.eta_mins]="10"
 devrow[d1.wipe_start]="100"
 t::assert_eq "~9m0s" "$(ui::eta_text_for d1 160)" "eta RUNNING countdown"
+# The estimate ran out while the drive is still erasing — flip to elapsed so
+# the cell keeps ticking instead of freezing at ~0s.
+devrow[d1.eta_mins]="1"
+t::assert_eq "+1m40s" "$(ui::eta_text_for d1 200)" "eta RUNNING expired -> elapsed"
+devrow[d1.eta_mins]="10"
 devrow[d1.status]="42%"
 t::assert_eq "~9m0s" "$(ui::eta_text_for d1 160)" "eta percentage countdown"
 devrow[d1.wipe_start]=""

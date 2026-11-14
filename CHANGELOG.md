@@ -6,6 +6,22 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.17] - 2026-11-14
+
+- **Tape resale grading.** Tape rows now grade from the TapeAlert media-life
+  verdict instead of the misleading "SMART unavailable — reconnect via
+  SATA/NVMe" fallback: `expired` → D, `nearing` → C, `ok` → A, unreadable → ?.
+  MAM wear counters are surfaced as reasons — an estimated full-pass count
+  (`TapeWrittenMiB` ÷ native capacity), load count and manufacture date — never
+  as hard fails (the drive's own verdict is authoritative).
+- **Tape ETA recalibrated.** The long-erase rate is now ~0.9× the native data
+  rate (a long erase runs slightly slower than a data write); LTO-4 is
+  calibrated from six bench erasures (800 GB ≈ 123 min, was estimating 112).
+  The same factor is applied across LTO-1..9.
+- **ETA countdown flips to elapsed on expiry.** When a static firmware-erase
+  estimate (tape, or ATA word-89) runs out while the drive is still erasing,
+  the ETA cell now shows elapsed time instead of freezing at `~0s`.
+
 ## [v1.12.16] - 2026-11-12
 
 - **Tape media health in the report and dashboard.** Four new report columns —

@@ -492,7 +492,7 @@ ui::footer() {
 ui::eta_text_for() {
     local dev="$1"
     local now="$2"
-    local eta_mins wipe_start dev_status remain rh rm rs
+    local eta_mins wipe_start dev_status remain rh rm rs elapsed eh em es
 
     eta_mins="${devrow[$dev.eta_mins]}"
     wipe_start="${devrow[$dev.wipe_start]}"
@@ -514,16 +514,34 @@ ui::eta_text_for() {
             if [[ "$eta_mins" =~ ^[0-9]+$ ]]; then
                 if [[ "$wipe_start" =~ ^[0-9]+$ ]]; then
                     remain=$(( eta_mins * 60 - (now - wipe_start) ))
-                    (( remain < 0 )) && remain=0
-                    rh=$(( remain / 3600 ))
-                    rm=$(( (remain % 3600) / 60 ))
-                    rs=$(( remain % 60 ))
-                    if (( rh > 0 )); then
-                        printf "~%dh%dm%ds" "$rh" "$rm" "$rs"
-                    elif (( rm > 0 )); then
-                        printf "~%dm%ds" "$rm" "$rs"
+                    if (( remain <= 0 )); then
+                        # The static estimate ran out while the drive is still
+                        # erasing (firmware erases have no progress signal, so
+                        # the estimate can be short). Show elapsed instead of a
+                        # frozen ~0s, so the cell keeps proving the wipe is live.
+                        elapsed=$(( now - wipe_start ))
+                        (( elapsed < 0 )) && elapsed=0
+                        eh=$(( elapsed / 3600 ))
+                        em=$(( (elapsed % 3600) / 60 ))
+                        es=$(( elapsed % 60 ))
+                        if (( eh > 0 )); then
+                            printf "+%dh%dm" "$eh" "$em"
+                        elif (( em > 0 )); then
+                            printf "+%dm%ds" "$em" "$es"
+                        else
+                            printf "+%ds" "$es"
+                        fi
                     else
-                        printf "~%ds" "$rs"
+                        rh=$(( remain / 3600 ))
+                        rm=$(( (remain % 3600) / 60 ))
+                        rs=$(( remain % 60 ))
+                        if (( rh > 0 )); then
+                            printf "~%dh%dm%ds" "$rh" "$rm" "$rs"
+                        elif (( rm > 0 )); then
+                            printf "~%dm%ds" "$rm" "$rs"
+                        else
+                            printf "~%ds" "$rs"
+                        fi
                     fi
                 else
                     if (( eta_mins >= 60 )); then

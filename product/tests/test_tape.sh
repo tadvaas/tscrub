@@ -151,8 +151,8 @@ device::normalize_outcome
 t::assert_eq "Sanitisation failed" "${devrow[st0.method]:-}" "tape fallback when no method was persisted"
 
 # --- ETA estimate (tape::erase_eta_mins) ------------------------------------
-t::assert_eq "112" "$(tape::erase_eta_mins 762939 46)" "LTO-4 800 GB @120 MB/s -> 112 min"
-t::assert_eq "112" "$(tape::erase_eta_mins 762939 47)" "WORM density shares the rate table"
+t::assert_eq "123" "$(tape::erase_eta_mins 762939 46)" "LTO-4 800 GB @109 MB/s -> 123 min"
+t::assert_eq "123" "$(tape::erase_eta_mins 762939 47)" "WORM density shares the rate table"
 t::assert_eq "56"  "$(TAPE_ERASE_RATE_LTO4=240 tape::erase_eta_mins 762939 46)" "rate override halves the estimate"
 t::assert_eq ""    "$(tape::erase_eta_mins 762939 ZZ)" "unknown density -> no estimate"
 t::assert_eq ""    "$(tape::erase_eta_mins nope 46)"   "non-numeric capacity -> no estimate"
@@ -206,8 +206,8 @@ t::assert_contains "$mtlog" "offline" "worker ejects the tape at the end"
 export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 3100602003\nMaximum capacity in partition [MiB]: 762939'
 : > "$MTLOG"
 captured="$(run_tape)"
-t::assert_contains "$captured" "st0 TAPEETA 112"              "worker emits long-erase ETA estimate"
-t::assert_contains "$captured" "long erase ETA ~112min"        "worker logs the ETA estimate"
+t::assert_contains "$captured" "st0 TAPEETA 123"              "worker emits long-erase ETA estimate"
+t::assert_contains "$captured" "long erase ETA ~123min"        "worker logs the ETA estimate"
 export FAKE_SGREADATTR_OUT="$_ok_mam"
 
 # erase failure -> honest FAILED

@@ -71,23 +71,25 @@ tape::density_label() {   # <hex byte>
 # progress (REQUEST SENSE answers Good with no progress descriptor, and MAM's
 # remaining-capacity field does not decrement during the erase), so the ETA is
 # a static estimate in the same class as ATA word-89: the medium capacity
-# divided by the generation's native data rate, rounded up to the minute. The
-# drive can erase slower than its data rate, so the countdown is approximate —
-# a slow erase may outrun it (the row then holds ~0s, exactly as a slow ATA
-# erase outruns word-89). <capacity_mib> <density_hex> -> minutes, or "".
+# divided by an empirical erase rate, rounded up to the minute. The rate is
+# ~0.9x the generation's native data rate because a long erase runs slightly
+# slower than a data write — LTO-4 is calibrated from six bench erasures
+# (800 GB in ~123 min ≈ 109 MB/s). The countdown is approximate: a slow erase
+# can outrun it, and the UI then flips to elapsed (see ui::eta_text_for).
+# <capacity_mib> <density_hex> -> minutes, or "".
 tape::erase_eta_mins() {
     local cap_mib="${1:-}" dens="${2:-}" rate bytes secs
     [[ "$cap_mib" =~ ^[0-9]+$ ]] || return 0
     case "${dens^^}" in
-        40|41) rate="${TAPE_ERASE_RATE_LTO1:-15}" ;;
-        42|43) rate="${TAPE_ERASE_RATE_LTO2:-40}" ;;
-        44|45) rate="${TAPE_ERASE_RATE_LTO3:-80}" ;;
-        46|47) rate="${TAPE_ERASE_RATE_LTO4:-120}" ;;
-        58|59) rate="${TAPE_ERASE_RATE_LTO5:-140}" ;;
-        5A|5B) rate="${TAPE_ERASE_RATE_LTO6:-160}" ;;
-        5C|5D) rate="${TAPE_ERASE_RATE_LTO7:-300}" ;;
-        5E|5F) rate="${TAPE_ERASE_RATE_LTO8:-360}" ;;
-        60|61) rate="${TAPE_ERASE_RATE_LTO9:-400}" ;;
+        40|41) rate="${TAPE_ERASE_RATE_LTO1:-14}" ;;
+        42|43) rate="${TAPE_ERASE_RATE_LTO2:-36}" ;;
+        44|45) rate="${TAPE_ERASE_RATE_LTO3:-72}" ;;
+        46|47) rate="${TAPE_ERASE_RATE_LTO4:-109}" ;;
+        58|59) rate="${TAPE_ERASE_RATE_LTO5:-126}" ;;
+        5A|5B) rate="${TAPE_ERASE_RATE_LTO6:-144}" ;;
+        5C|5D) rate="${TAPE_ERASE_RATE_LTO7:-270}" ;;
+        5E|5F) rate="${TAPE_ERASE_RATE_LTO8:-324}" ;;
+        60|61) rate="${TAPE_ERASE_RATE_LTO9:-360}" ;;
         *) return 0 ;;
     esac
     if [[ ! "$rate" =~ ^[0-9]+$ ]] || (( rate <= 0 )); then

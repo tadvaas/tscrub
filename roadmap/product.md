@@ -13,17 +13,6 @@ they ship and note the release that carries each. **Last reconciled with
       `verify=<none|sampled|full>` + result in the report. (§9.2, §11.1)
       → **Shipped v1.10.15** (2026-10-04). Plan: `research/verify-readback/README.md`
       (sentinel-based known-data verification; `product/src/43_verify.sh`).
-- [x] **Move the verify sentinel plant into the erasure workers** — bench
-      2026-11-11: after a power-off mid-erase, the pre-erase plant (40 blocking
-      `dd fsync` writes per drive, in the MAIN process before workers spawn)
-      queued on the recovering drives and froze the TUI for ~80 s before any
-      RUNNING appeared. Split `plant_all` → main-side `plant_init` (nonce +
-      state dir + defaults, no I/O) + worker-side `plant_drive` right after the
-      RUNNING emit, with a `VERIFYPLANT <n>` outcome channel so the CSV
-      vocabulary (`skipped`, sector counts) stays byte-identical.
-      → Plan: `research/verify-plant-workers/README.md`.
-      → **Shipped 2026-11-11 (v1.12.8)**: unit-tested + mutation-guarded
-      (worker call, ordering, and channel emits all covered).
 - [x] **HPA/DCO removal & erasure** — before wiping, reset HPA to native size
       (`hdparm -N p<max>`) and clear DCO (`hdparm --dco-restore`), then re-read
       to confirm both are gone; record a before/after pair. (§9.2, §11.1)
@@ -62,14 +51,6 @@ they ship and note the release that carries each. **Last reconciled with
       reclassifies them to the ATA secure-erase path (bench-verified on the
       HBA330). Plan: `research/ata-behind-sas/README.md`.
       → **Shipped 2026-11-10 (v1.11.96)**.
-      → **Part 2 (SATL erase execution) shipped 2026-11-11 (v1.12.6):**
-      bench run 33767 proved hdparm's SECURITY ERASE fails through the
-      mpt3sas SATL (F4 delivered, completion broken, misleading
-      `CONFIG_IDE_TASK_IOCTL` message). `device::ata_satl_security_erase`
-      issues ERASE PREPARE + ERASE UNIT via `sg_raw` ATA16 and polls the
-      drive (enabled → busy; cleared + not enabled → done; I/O still served
-      after grace → never engaged). Wired as a fallback at every
-      user-password erase site. Bench-proof pending a bay erase run.
 - [x] **ATA locked-drive recovery** — an interrupted erase leaves the drive
       security-enabled and LOCKED with tScrub's own temporary password, which
       made every retry FAIL. `device::exec_ata` now unlocks with the temp
@@ -78,31 +59,7 @@ they ship and note the release that carries each. **Last reconciled with
       High level, direct SECURITY ERASE UNIT at Maximum level); only when
       neither works is it recorded "ATA locked — physical destruction
       required". Plan: `research/ata-locked-recovery/README.md`.
-      → **Shipped 2026-11-10 (v1.11.97)**; revision-field gap found and fixed
-      on the bench (Intel SSD hides the field — absent field now also tries
-      the blank master), shipped **v1.11.98 (2026-11-11)**.
-- [x] **ATA password recovery beyond the blank master (planned)** — bench
-      finding 2026-11-11: the Intel's factory master is a NON-blank,
-      vendor-set value (0xFFFE is an *identifier*, not a blank value), so the
-      blank-master path correctly failed; the drive recovered instantly with
-      the known user password. Planned: (a) operator-supplied password
-      (`tscrub_ata_password=` + TUI prompt); (b) bounded candidate ladder
-      (WinPE `AutoATAWindowsString12345678901`, `SeaChest`, spaces) within the
-      5-attempt budget; (c) ACS-4 Restricted Sanitize Overrides Security —
-      sanitize a locked drive with NO password; (d) PSID revert for Opal
-      drives. Research: `research/ata-password-recovery/README.md`.
-      → **(a) shipped + HARDWARE-PROVEN 2026-11-11 (v1.12.0–v1.12.4):** the
-      locked Intel completed end-to-end via `--ata-password Xyz123`, the
-      report CSV carries `Recovery=operator-password`, zero password leaks,
-      and the `set-password` recovery for booted-unlocked drives was added
-      after the bench disproved the set-pass-refusal claim.
-      → **(c) shipped 2026-11-11 (v1.12.5), capability-gated:** the Security
-      log 06h QWord 48 bit 7 capability is detected, and a restricted
-      SANITIZE (B4h/11h/12h/14h via ATA16 passthrough) erases a locked drive
-      with no password, recording `Recovery=restricted-sanitize`. Unit-tested
-      + mutation-guarded; NOT hardware-proven (neither bench drive implements
-      Security log 06h — pending an RSOS-capable drive). (b)/(d) remain
-      planned.
+      → **Shipped 2026-11-10 (v1.11.97)**.
 
 ## 2. Hardware capture → intelligence
 
@@ -729,18 +686,6 @@ with the release that carried them (per `CHANGELOG.md`).
       unsupported. Boot chain and image are unchanged.
       → Plan: `research/netboot-appliance/README.md` (DHCP coexistence
       analysis in §2; open decisions in §12).
-- [x] **Report upload retry (appliance-side store-and-forward)** — a failed
-      dashboard/FTP upload at run end currently gives up forever. Retry every
-      60 s in the background while the finish screen stays up: footer shows
-      "Dash …", and when the operator reconnects the network the report is
-      delivered (server-side dedupe by CSV SHA), the footer flips to "Dash ✓"
-      and the amber finish promotes to green. Works while the appliance stays
-      powered (the report lives in RAM without a USB stick).
-      → Plan: `research/report-upload-retry/README.md`.
-      → **Shipped 2026-11-11 (v1.12.7)**: `report::upload_retry_forever`
-      (60 s loop + `network::ensure` per attempt + `/proc` parent guard),
-      marker consumed by the triage tick, footer pending state, amber→green
-      promotion. Unit-tested + mutation-guarded.
 
 ### 4.5 Inventory & MDM (§6)
 

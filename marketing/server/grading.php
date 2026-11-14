@@ -37,6 +37,12 @@ function grade_normalize(array $d): array {
         'spare'        => grade_num((string)($d['spare'] ?? $d['availspare'] ?? '')),
         'tbw'          => grade_num((string)($d['tbw'] ?? $d['tbw_tb'] ?? '')),
         'selftest'     => strtoupper(trim((string)($d['selftest'] ?? ''))),
+        // Tape media health (the tape analogue of SMART) — keyed from the
+        // report columns, which are generation-independent (MAM + TapeAlert).
+        'tape_life'    => strtolower(trim((string)($d['tapemedialife'] ?? ''))),
+        'tape_loads'   => grade_num((string)($d['tapeloadcount'] ?? '')),
+        'tape_written' => grade_num((string)($d['tapewrittenmib'] ?? '')),
+        'tape_manufactured' => trim((string)($d['tapemanufactured'] ?? '')),
     ];
 }
 
@@ -48,6 +54,12 @@ function drive_grade(array $d): array {
     $n = grade_normalize($d);
     $reasons = [];
     $grade = 'A';
+
+    // Tape cartridges have no SMART; grade them from the TapeAlert media-life
+    // verdict and MAM wear instead (the tape analogue of SMART).
+    if (strtoupper(trim((string)($d['bus'] ?? ''))) === 'TAPE') {
+        return tape_grade($d, $n);
+    }
 
     // No usable SMART (USB bridge, unsupported device, or never captured) →
     // ungraded. Never a false pass.
@@ -89,6 +101,71 @@ function drive_grade(array $d): array {
         $deg[] = 'reallocated sectors increased during wipe';
     }
     if ($deg !== []) { $reasons[] = implode('; ', $deg); }
+
+    return ['grade' => $grade, 'reasons' => $reasons, 'graded' => true];
+}
+
+/**
+ * Native cartridge capacity (MiB) for an LTO generation, parsed from the
+ * "LTO-N" / "LTO-N WORM" Type label. Used to turn the MAM "Total MiB written
+ * in medium life" counter into an approximate full-pass count (a wear signal,
+ * surfaced as a reason — never a grade input). Native capacities are the
+ * decimal TB/GB specs converted to MiB, matching the MAM "Maximum capacity in
+ * partition [MiB]" figures.
+ */
+function tape_native_capacity_mib(string $type): ?int {
+    if (!preg_match('/LTO-([1-9])/i', $type, $m)) return null;
+    static $cap = [
+        1 => 95367,      // 100 GB
+        2 => 190734,     // 200 GB
+        3 => 381469,     // 400 GB
+        4 => 762939,     // 800 GB (bench-verified MAM figure)
+        5 => 1430511,    // 1.5 TB
+        6 => 2384185,    // 2.5 TB
+        7 => 5722045,    // 6 TB
+        8 => 11444091,   // 12 TB
+        9 => 17166137,   // 18 TB
+    ];
+    return $cap[(int)$m[1]] ?? null;
+}
+
+/**
+ * Cartridge resale grade from the TapeAlert media-life verdict plus the MAM
+ * wear counters. The drive's own verdict is authoritative: `expired` is a
+ * recycle (D), `nearing` is reusable-with-caution (C), `ok` is reusable (A).
+ * Wear context (full passes, load count, age) is surfaced as reasons, never as
+ * hard fails — LTO media is archival and the vendor verdict is the health call.
+ */
+function tape_grade(array $d, array $n): array {
+    $reasons = [];
+    $life = $n['tape_life'];
+    if ($life === 'expired') {
+        $grade = 'D';
+        $reasons[] = 'tape media life expired';
+    } elseif ($life === 'nearing') {
+        $grade = 'C';
+        $reasons[] = 'tape media life nearing end';
+    } elseif ($life === 'ok') {
+        $grade = 'A';
+    } else {
+        return [
+            'grade'   => '?',
+            'reasons' => ['tape health unavailable — check the drive and cartridge'],
+            'graded'  => false,
+        ];
+    }
+
+    $cap = tape_native_capacity_mib((string)($d['type'] ?? ''));
+    if ($n['tape_written'] !== null && $cap !== null && $cap > 0) {
+        $passes = (int)round($n['tape_written'] / $cap);
+        if ($passes > 0) $reasons[] = "~$passes full passes written";
+    }
+    if ($n['tape_loads'] !== null) {
+        $reasons[] = 'load count ' . (int)$n['tape_loads'];
+    }
+    if ($n['tape_manufactured'] !== '') {
+        $reasons[] = 'manufactured ' . $n['tape_manufactured'];
+    }
 
     return ['grade' => $grade, 'reasons' => $reasons, 'graded' => true];
 }
