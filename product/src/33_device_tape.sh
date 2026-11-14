@@ -206,6 +206,25 @@ tape::temp_poll() {   # <dev> <sgdev> <worker_pid>
     done
 }
 
+# Emit the tape's media-life verdict + wear counters over the worker->UI
+# channel, from the MAM dump the worker already fetched. Detection captures
+# these only when a tape is loaded at BOOT; emitting them here too means a tape
+# loaded after the triage screen still lands in the report with its grade
+# inputs. Also seeds the TEMP cell's NORM/OVER state for the same reason.
+tape::emit_health() {   # <dev> <mam>
+    local dev="$1" mam="$2" life loads written mfg state
+    life="$(tape::media_life "$mam" 2>/dev/null || true)"
+    [[ -n "$life" ]] && echo "$dev TAPELIFE $life" >&3
+    loads="$(sed -n 's/^[[:space:]]*Load count:[[:space:]]*\([0-9][0-9]*\).*/\1/p' <<<"$mam" | head -n1)"
+    [[ -n "$loads" ]] && echo "$dev TAPELOADS $loads" >&3
+    written="$(sed -n 's/^[[:space:]]*Total MiB written in medium life:[[:space:]]*\([0-9][0-9]*\).*/\1/p' <<<"$mam" | head -n1)"
+    [[ -n "$written" ]] && echo "$dev TAPEWRITTEN $written" >&3
+    mfg="$(sed -n 's/^[[:space:]]*Medium manufacture date:[[:space:]]*\([0-9]\{8\}\).*/\1/p' <<<"$mam" | head -n1 | sed -E 's/([0-9]{4})([0-9]{2})([0-9]{2})/\1-\2-\3/')"
+    [[ -n "$mfg" ]] && echo "$dev TAPEMFG $mfg" >&3
+    state="$(tape::temp_state "$mam" 2>/dev/null || true)"
+    [[ -n "$state" ]] && echo "$dev TAPEALERT $state" >&3
+}
+
 device::exec_tape() {
     local dev="$1"
     local sg nst tries mam dens serial cap_mib eta_mins bytes _mam_fail _poll_pid
@@ -254,6 +273,7 @@ device::exec_tape() {
         return
     fi
     [[ -n "$serial" ]] && echo "$dev TAPESERIAL $serial" >&3
+    tape::emit_health "$dev" "$mam"
     echo "$dev LOG tape loaded: $(tape::density_label "$dens")${serial:+ (medium $serial)}" >&3
 
     # ETA estimate: capacity / native data rate (see tape::erase_eta_mins).

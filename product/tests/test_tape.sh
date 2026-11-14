@@ -169,6 +169,20 @@ devrow=()
 ui::apply_outcome st0 TAPEEVID 1048576
 t::assert_eq "failed"      "${devrow[st0.verify_result]:-}"  "data remains -> verify failed"
 
+devrow=()
+ui::apply_outcome st0 TAPELIFE nearing
+t::assert_eq "nearing"    "${devrow[st0.tape_media_life]:-}" "TAPELIFE sets the media-life verdict"
+ui::apply_outcome st0 TAPELOADS 108
+t::assert_eq "108"        "${devrow[st0.tape_loads]:-}"      "TAPELOADS sets the load count"
+ui::apply_outcome st0 TAPEWRITTEN 45962838
+t::assert_eq "45962838"   "${devrow[st0.tape_written_mib]:-}" "TAPEWRITTEN sets the written MiB"
+ui::apply_outcome st0 TAPEMFG 2010-06-02
+t::assert_eq "2010-06-02" "${devrow[st0.tape_manufactured]:-}" "TAPEMFG sets the manufacture date"
+ui::apply_outcome st0 TAPEALERT NORM
+t::assert_eq "NORM"       "${devrow[st0.tape_temp]:-}"       "TAPEALERT NORM sets the temp cell"
+ui::apply_outcome st0 TAPEALERT OVER
+t::assert_eq "OVER"       "${devrow[st0.tape_temp]:-}"       "TAPEALERT OVER sets the temp cell"
+
 # --- worker ----------------------------------------------------------------
 run_tape() {   # -> captured fd-3 output
     local OUT
@@ -208,6 +222,18 @@ export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 31
 captured="$(run_tape)"
 t::assert_contains "$captured" "st0 TAPEETA 123"              "worker emits long-erase ETA estimate"
 t::assert_contains "$captured" "long erase ETA ~123min"        "worker logs the ETA estimate"
+export FAKE_SGREADATTR_OUT="$_ok_mam"
+
+# Tape health emitted over IPC, so a tape loaded after boot still reports its
+# media-life + wear counters and seeds the TEMP cell.
+export FAKE_SGREADATTR_OUT=$'Format density code: 0x46\nMedium serial number: 3100602003\nTapeAlert flags: 0\nLoad count: 108\nTotal MiB written in medium life: 45962838\nMedium manufacture date: 20100602'
+: > "$MTLOG"
+captured="$(run_tape)"
+t::assert_contains "$captured" "st0 TAPELIFE ok"            "worker emits the media-life verdict"
+t::assert_contains "$captured" "st0 TAPELOADS 108"          "worker emits the load count"
+t::assert_contains "$captured" "st0 TAPEWRITTEN 45962838"   "worker emits the total MiB written"
+t::assert_contains "$captured" "st0 TAPEMFG 2010-06-02"     "worker emits the manufacture date"
+t::assert_contains "$captured" "st0 TAPEALERT NORM"         "worker seeds the TEMP cell NORM"
 export FAKE_SGREADATTR_OUT="$_ok_mam"
 
 # erase failure -> honest FAILED

@@ -955,8 +955,14 @@ ui::apply_outcome() {
                     devrow["$_dev.verify_sectors"]="$_value"
                     if [[ "$_value" == "0" ]]; then devrow["$_dev.verify_result"]="passed"
                     else devrow["$_dev.verify_result"]="failed"; fi ;;
-        # Live tape over-temperature from the erase worker's MAM watcher.
-        TAPEALERT)  devrow["$_dev.tape_temp"]="OVER" ;;
+        # Live tape temperature state (NORM/OVER) and media health, emitted by
+        # the erase worker over the fd-3 channel so a tape loaded AFTER boot
+        # detection still reaches the report and the TEMP cell.
+        TAPEALERT)  devrow["$_dev.tape_temp"]="$_value" ;;
+        TAPELIFE)   devrow["$_dev.tape_media_life"]="$_value" ;;
+        TAPELOADS)  devrow["$_dev.tape_loads"]="$_value" ;;
+        TAPEWRITTEN) devrow["$_dev.tape_written_mib"]="$_value" ;;
+        TAPEMFG)    devrow["$_dev.tape_manufactured"]="$_value" ;;
         # Software-overwrite provenance (fallback paths only).
         STANDARD) devrow["$_dev.standard"]="$_value" ;;
         PASSES)   devrow["$_dev.passes"]="$_value" ;;

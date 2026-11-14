@@ -6,6 +6,16 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [v1.12.18] - 2026-11-14
+
+- **Tape health captured at erase time.** A tape loaded after the triage screen
+  used to report empty media-life and wear columns (the health was only read at
+  detection). The erase worker now emits `TAPELIFE`, `TAPELOADS`,
+  `TAPEWRITTEN`, `TAPEMFG` and the `TAPEALERT` temperature state over the
+  worker→UI channel from the MAM dump it already fetches, so a late-inserted
+  tape lands in the report with its full grade inputs and a correct NORM/OVER
+  temperature cell.
+
 ## [v1.12.17] - 2026-11-14
 
 - **Tape resale grading.** Tape rows now grade from the TapeAlert media-life
