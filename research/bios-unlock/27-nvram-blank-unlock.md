@@ -250,6 +250,16 @@ along in ONE flash, no MUD screen expected. B is experimental (a 01.28-format
 store read by 01.09 code — worst case it reinitialises and behaves like A);
 flash B first, fall back to A + OA3 re-inject if anything misbehaves.
 
+**Variant B RESULT — WORKED (2026-11-16, unit 4 / 5CG832347D):** after-flash
+re-read (`W25Q256FV_SOIC8-5CG832347D-afterkeepbb-keepstore.BIN`) shows the
+unit's OWN store survived the old-code boot: `HP_OA3` still
+`TNQYQ-4X2TT-BCM8G-WGW8G-TQ722`, `HP_MUD` 5CG832347D, BuildId
+17WWCSAT601 intact. The 01.09 BIOS rebuilt a single `UserCred` as the EMPTY
+skeleton (3536 B, no AdminPW) — password gone — and GC'd our three 0xFD
+copies. Version recorded 0x09. **B is now the PREFERRED fleet recipe:** one
+flash keeps identity + Windows key + settings, no MUD screen, no OA3
+re-injection step. Remaining check: Windows activation with the unit's key.
+
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
