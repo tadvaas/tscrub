@@ -214,6 +214,20 @@ computer name `DESKTOP-RHTFF08`; HKL's `AdminPW` record has no hash-like bytes
 EC-side — so the main dump cannot be cracked; the EC dump (or an official flow
 that clears the EC) is required.
 
+**EC interface & factory channel (2026-11-16):** OEMs do NOT write the EC flash
+directly from OS tools — the BIOS firmware is the master writer over the EC
+mailbox and syncs MUD + the credential mirror at boot. Factory provisioning
+works by setting NVRAM command vars that the BIOS executes at next boot:
+`HP_FactoryControlCommand` (4 B, value 0 in JYH) and `HP_LabProductionModeVar`
+(2 B, `00 01`) — both present in every dump. The Windows key is NOT EC-side:
+it lives in the main BIOS as `HP_OA3` (49 B, visible key text) + `HP_OA3_LOCK`=1
+and the MSDM ACPI table. Untried EC-trick candidates: (a) set
+`HP_FactoryControlCommand` / `HP_LabProductionModeVar` to candidate opcodes in
+the patched image — the BIOS may run a factory security/credential clear WITH
+EC cooperation; (b) disassemble the DXE/SMM credential driver in the dump we
+already hold to find the EC command the Setup "clear password" flow uses, then
+invoke it from a UEFI shell app or a KEEPBB-patched image.
+
 **"Finishing BIOS update" progress bar on first boot — investigated (2026-11-16).**
 91229SG's pre-flash dump carried NO staged update state: `BiosUpdateCmdSts`,
 `FwUpdateCmdSts`, `HP_FwUpdate`, `HP_FlashTargetVersion` are absent on 01.06,
