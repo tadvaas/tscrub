@@ -11,7 +11,8 @@
 #                     every UserCred copy deleted. Keeps serial/UUID/BuildId,
 #                     Windows key (HP_OA3) and settings. Requires
 #                     -DonorRegion <16 MiB region file>.
-#   BIOS 01.07..01.26 -> unverified; refuses unless -ForceV2 (then V2).
+#   BIOS 01.07..01.26 -> unverified; refuses unless -ForceV2 (V2 patch) or
+#                        -ForceKEEPBB (KEEPBB recipe, needs -DonorRegion).
 #
 # Usage (PowerShell 5.1 or 7, 64-bit):
 #   .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC8-XXX.BIN
@@ -31,7 +32,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Bin,
     [string]$Out,
     [string]$DonorRegion,
-    [switch]$ForceV2
+    [switch]$ForceV2,
+    [switch]$ForceKEEPBB
 )
 
 $ErrorActionPreference = 'Stop'
@@ -187,10 +189,11 @@ if ($ver -le 6) {
 } elseif ($ver -ge 27) {
     Write-Host "BIOS 01.27+: applying the KEEPBB keep-store recipe (verified)."
 } else {
-    if (-not $ForceV2) {
-        Fail "BIOS version is in the UNVERIFIED range (01.07-01.26) - no recipe is proven there. Re-run with -ForceV2 to apply the V2 patch anyway." 6
+    if (-not $ForceV2 -and -not $ForceKEEPBB) {
+        Fail "BIOS version is in the UNVERIFIED range (01.07-01.26) - no recipe is proven there. Re-run with -ForceV2 (V2 patch) or -ForceKEEPBB (KEEPBB keep-store, needs -DonorRegion)." 6
     }
-    Write-Warning "Forcing the V2 patch on an unverified BIOS version."
+    if ($ForceV2) { Write-Warning "Forcing the V2 patch on an unverified BIOS version." }
+    if ($ForceKEEPBB) { Write-Warning "Forcing the KEEPBB recipe on an unverified BIOS version." }
 }
 
 $authLive = @($authCredOffsets | Where-Object { $_.State -eq 0x3F })
@@ -198,7 +201,7 @@ if ($authLive.Count -gt 0) {
     Write-Host "AuthNextCredential* live entries to delete: $($authLive.Count)"
 }
 
-if ($ver -ge 27) {
+if ($ver -ge 27 -or $ForceKEEPBB) {
     # ============ KEEPBB keep-store recipe ============
     if ([string]::IsNullOrEmpty($DonorRegion)) {
         Fail "BIOS 01.27+ needs the donor region file. Run with -DonorRegion <path to Region_BIOS_BIOS_region.rgn>" 6
