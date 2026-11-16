@@ -301,7 +301,10 @@ It strips the 272-byte Xgpro trailer, validates the header, locates `UserCred`
 dynamically (offset varies per unit), flips its state byte, deletes staged
 `AuthNextCredential*` variables, sets `ClearSecurityOperation` = 1, verifies
 exactly N bytes changed, prints the unit serial read from `HP_MUD`, and writes
-`<input>-UNLOCKED-V5.BIN`. Acceptance test on the bench PC — the MD5 of the
+`<input>-UNLOCKED-V5.BIN`. Both tools also print the **BIOS version + release
+date** (`LastCheckedBiosVerForBatteryRecall` byte 0 + a Q78 release table) and
+warn when the BIOS is 01.27+ (EC credential mirror). Acceptance test on the
+bench PC — the MD5 of the
 output for the two known dumps must equal:
 
 ```

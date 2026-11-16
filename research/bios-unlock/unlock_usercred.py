@@ -77,7 +77,22 @@ def main(argv):
     bid = [e for e in entries if 'BuildId' in e[2]]
     if bid:
         bp, bst, bn, bds, bns = bid[0]
-        print(f'BIOS BuildId: {data[bp + 0x3C + bns:bp + 0x3C + bns + bds].rstrip(chr(0).encode()).decode("utf-16-le", "replace")}')
+        print(f'BIOS BuildId: {data[bp + 0x3C + bns:bp + 0x3C + bns + bds].decode("utf-16-le", "replace").rstrip(chr(0))}')
+
+    q78_dates = {1: 'Jun 2018', 3: 'Jul 2018', 4: 'Sep 2018', 6: 'Jan 2019',
+                 7: 'Apr 2019', 8: 'Jul 2019', 20: 'Mar 2022', 24: 'Mar 2023',
+                 25: 'Jun 2023', 26: 'Oct 2023', 27: 'Dec 2023', 28: 'Apr 2024',
+                 29: 'Sep 2024', 31: 'Mar 2025'}
+    bv = [e for e in entries if 'LastCheckedBiosVerForBatteryRecall' in e[2]]
+    if bv:
+        vp, vst, vn, vds, vns = bv[0]
+        vbyte = data[vp + 0x3C + vns]
+        yr = q78_dates.get(vbyte)
+        print(f'BIOS version: 01.{vbyte:02d}' + (f' ({yr})' if yr else ' (release date unknown)'))
+        if vbyte >= 27:
+            print('WARNING: BIOS 01.27+ - the EC holds the admin credential and re-injects it after a UserCred-only patch.')
+    else:
+        print('BIOS version: unknown (LastCheckedBiosVerForBatteryRecall not found)')
 
     pol = [e for e in entries if 'AdminAtPowerOnAuthPolicy' in e[2]]
     if pol:

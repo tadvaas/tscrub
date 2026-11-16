@@ -92,6 +92,7 @@ $mudSerial = $null
 $powerOnPolicy = $null
 $buildId = $null
 $clearSecurity = $null
+$biosVerByte = $null
 $totalEntries = 0
 
 foreach ($off in $hits) {
@@ -119,6 +120,8 @@ foreach ($off in $hits) {
             $powerOnPolicy = $img[$p + 0x3C + $ns]
         } elseif ($name -like '*ClearSecurityOperation*') {
             $clearSecurity = [pscustomobject]@{ Offset = $p; NameSize = $ns }
+        } elseif ($name -like '*LastCheckedBiosVerForBatteryRecall*' -and $null -eq $biosVerByte) {
+            $biosVerByte = $img[$p + 0x3C + $ns]
         } elseif ($name -like '*BuildId*') {
             $buildId = [System.Text.Encoding]::Unicode.GetString($img, $p + 0x3C + $ns, $ds).TrimEnd([char]0)
         } elseif ($name -like '*HP_MUD*' -and $null -eq $mudSerial) {
@@ -133,6 +136,22 @@ foreach ($off in $hits) {
 Write-Host "Store entries walked: $totalEntries"
 if ($mudSerial) { Write-Host "Unit serial (from HP_MUD): $mudSerial" }
 if ($buildId) { Write-Host "BIOS BuildId: $buildId" }
+
+# Q78 release dates (from HP release notes / fleet records)
+$q78Dates = @{ 1 = 'Jun 2018'; 3 = 'Jul 2018'; 4 = 'Sep 2018'; 6 = 'Jan 2019'; 7 = 'Apr 2019'; 8 = 'Jul 2019'; 20 = 'Mar 2022'; 24 = 'Mar 2023'; 25 = 'Jun 2023'; 26 = 'Oct 2023'; 27 = 'Dec 2023'; 28 = 'Apr 2024'; 29 = 'Sep 2024'; 31 = 'Mar 2025' }
+if ($null -ne $biosVerByte) {
+    $yr = $q78Dates[[int]$biosVerByte]
+    if ($yr) {
+        Write-Host "BIOS version: 01.$('{0:D2}' -f [int]$biosVerByte) ($yr)" -ForegroundColor Cyan
+    } else {
+        Write-Host "BIOS version: 01.$('{0:D2}' -f [int]$biosVerByte) (release date unknown)" -ForegroundColor Cyan
+    }
+    if ([int]$biosVerByte -ge 27) {
+        Write-Warning "BIOS 01.27+ - the EC holds the admin credential and re-injects it after a UserCred-only patch."
+    }
+} else {
+    Write-Host "BIOS version: unknown (LastCheckedBiosVerForBatteryRecall not found)"
+}
 
 # A password change leaves a stale DELETED (0xFD) copy behind; only the LIVE
 # (0x3F) entry carries the current password.
