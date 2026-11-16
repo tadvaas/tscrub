@@ -199,6 +199,20 @@ test one first. Open checks: serial/UUID restored, BIOS version reported,
 Windows activation (donor region has no `HP_OA3`/MSDM key for this unit),
 second-boot behaviour.
 
+**After-KEEPBB re-read analysed (`W25Q256FV_SOIC8-5CG8528JYH-AfterKEEPBBPatch.BIN`):**
+identity intact (`HP_MUD` 5CG8528JYH + `BuildId` 17WWCSBT602 restored from the
+EC), `UserCred` rebuilt as an EMPTY skeleton (3536 B, 140 non-zero bytes at
+slot markers only, NO AdminPW record) — password gone. **The donor code is
+Q78 01.09.00** (its `LastCheckedBiosVerForBatteryRecall` reads 0x09; the
+`01.01.07` string in the donor's ME region was the donor unit's PRE-update
+version — stale). Store re-initialised to 294 entries (75,199 bytes changed
+vs the flashed file, all in the store + FV housekeeping). **Caveat: `HP_OA3`
+is now all zeros** — the Windows key was in the unit's own store and did not
+survive the blank-store swap (the EC does not hold it). The key IS recoverable
+from the pre-flash dump (JYH: `PH89H-NPDRT-P4CP9-72FFW-TQ722`). Fleet
+procedure: extract each unit's `HP_OA3` key before flashing, re-inject after
+unlock via OA3 tooling.
+
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
