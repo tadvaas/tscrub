@@ -250,6 +250,16 @@ along in ONE flash, no MUD screen expected. B is experimental (a 01.28-format
 store read by 01.09 code — worst case it reinitialises and behaves like A);
 flash B first, fall back to A + OA3 re-inject if anything misbehaves.
 
+**Boundary probe: 01.24 HAS the mirror machinery (2026-11-16, 5CG8403VSN):**
+zero-cost dump scan (decompress root FV, grep module blobs) shows 01.24
+carries the full credential-sync stack: `SmcInProgress` (31 blobs), SMC
+protocol GUID `fd4e7631-3558-4c24-add3-c47ebeab9267` (204), Beam credential
+markers, `AuthNextCredentialId`, 4544 B `UserCred`, and the 01.27-era store
+vars (`HP_FwUpdate`, `HP_FlashTargetVersion`, `BiosUpdateCmdSts`). So 01.24
+must be treated as mirror-present — **skip V2, use KEEPBB**. The boundary is
+between 01.06 and 01.24 (likely at or below 01.20); for future in-range units
+run the same decompress-and-grep scan instead of a trial flash.
+
 **Variant B RESULT — WORKED (2026-11-16, unit 4 / 5CG832347D):** after-flash
 re-read (`W25Q256FV_SOIC8-5CG832347D-afterkeepbb-keepstore.BIN`) shows the
 unit's OWN store survived the old-code boot: `HP_OA3` still
