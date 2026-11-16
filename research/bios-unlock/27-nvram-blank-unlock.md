@@ -379,26 +379,38 @@ method, but possible on other revisions):
 
 ## Windows patching tool
 
-`Unlock-Bios.ps1` (this folder) is the Windows-native, zero-dependency port of
-`unlock_usercred.py`:
+`Unlock-Bios.ps1` (this folder) is the Windows-native, zero-dependency patcher.
+**Version-aware (2026-11-16):**
 
 ```powershell
+# old BIOS (<= 01.06): V2 patch
 powershell -ExecutionPolicy Bypass -File .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC8-XXX.BIN
+
+# EC-mirror BIOS (>= 01.27): KEEPBB keep-store recipe
+powershell -ExecutionPolicy Bypass -File .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC8-XXX.BIN -DonorRegion .\Region_BIOS_BIOS_region.rgn
 ```
 
-It strips the 272-byte Xgpro trailer, validates the header, locates `UserCred`
-dynamically (offset varies per unit), flips its state byte, deletes staged
-`AuthNextCredential*` variables, verifies exactly N bytes changed, prints the
-unit serial read from `HP_MUD`, and writes `<input>-UNLOCKED-V2.BIN`. Both
-tools also print the **BIOS version + release date**
-(`LastCheckedBiosVerForBatteryRecall` byte 0 + a Q78 release table) and warn
-when the BIOS is 01.27+ (EC credential mirror). Acceptance test on the bench
-PC — the MD5 of the
-output for the two known dumps must equal:
+It strips the 272-byte Xgpro trailer, validates the header, walks the store,
+prints serial / BuildId / BIOS version + release year, then picks the recipe:
+
+- **≤ 01.06** → V2: flip the live `UserCred` state byte + staged
+  `AuthNextCredential*` → `-UNLOCKED-V2.BIN` (exact changed-byte check).
+- **≥ 01.27** → KEEPBB keep-store: splice the donor region under the unit's
+  own boot block and transplant the unit's own store with every `UserCred`
+  copy 0xFD → `-KEEPBB-KEEPSTORE.BIN` (structural verification + output-store
+  re-walk; prints whether `HP_OA3` survived).
+- **01.07–01.26** → refuses with exit 6 unless `-ForceV2` (then V2 with a
+  warning).
+
+Exit codes: 0 ok | 2 bad image | 3 UserCred missing/duplicate | 4 already
+deleted | 5 write error | 6 donor region missing / unverified BIOS range.
+Acceptance test on the bench PC — output MD5s for the known dumps:
 
 ```
-W25Q256FV@SOIC8-5CG8528HKL.BIN -> d292236faef559bbae082a9283e7cd81
-W25Q256FV@SOIC8-5CG8403V0S.BIN -> 873309c68ca93a1b5e574b74ae9ced81
+W25Q256FV@SOIC8-5CG8528HKL.BIN -> d292236faef559bbae082a9283e7cd81            (V2)
+W25Q256FV@SOIC8-5CG8403V0S.BIN -> 873309c68ca93a1b5e574b74ae9ced81            (V2)
+W25Q256FV_SOIC8-5cg832347d.BIN + Region_BIOS_BIOS_region.rgn
+                                -> d4c60489b4064f6645b92171eb82b023            (KEEPBB)
 ```
 
 Writing back stays in Xgpro (Erase -> Blank Check -> Program -> Verify).
