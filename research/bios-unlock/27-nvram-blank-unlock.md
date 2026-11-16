@@ -154,6 +154,28 @@ method, but possible on other revisions):
 2. Return to the EC route: desolder `QN800` (W25Q128JV, WSON 6×5) and apply the
    same store-blank analysis to the 16 MB EC dump.
 
+## Windows patching tool
+
+`Unlock-Bios.ps1` (this folder) is the Windows-native, zero-dependency port of
+`unlock_usercred.py`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC8-XXX.BIN
+```
+
+It strips the 272-byte Xgpro trailer, validates the header, locates `UserCred`
+dynamically (offset varies per unit), flips its state byte, verifies exactly
+1 byte changed, prints the unit serial read from `HP_MUD`, and writes
+`<input>-UNLOCKED-V2.BIN`. Acceptance test on the bench PC — the MD5 of the
+output for the two known dumps must equal:
+
+```
+W25Q256FV@SOIC8-5CG8528HKL.BIN -> d292236faef559bbae082a9283e7cd81
+W25Q256FV@SOIC8-5CG8403V0S.BIN -> 873309c68ca93a1b5e574b74ae9ced81
+```
+
+Writing back stays in Xgpro (Erase -> Blank Check -> Program -> Verify).
+
 ## Verification notes
 
 - Store header, sizes and GUIDs verified with `uefi_firmware` FV parsing; the
