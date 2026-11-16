@@ -206,5 +206,7 @@ Write-Host "Wrote $Out"
 Write-Host "Patch OK (V5): UserCred deleted, AuthNextCredential* deleted, ClearSecurityOperation=1, identity intact, $($patched.Length) bytes"
 Write-Host "Flash it with Xgpro: Erase -> Blank Check -> Program -> Verify"
 Write-Host "Note: first boot may show a 'finishing BIOS update' progress bar - that is normal."
-Write-Host "If the password still returns, the EC holds the credential - dump QN800 (16 MB) and send it."
+Write-Host "Note: on first boot the EC may ask to reset security settings and the TPM -"
+Write-Host "      accepting both is expected; those prompts are the EC processing the clear request."
+Write-Host "If the password still returns, the EC credential mirror survives the clear - dump QN800 (16 MB EC) and send it."
 exit 0

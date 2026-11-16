@@ -149,10 +149,15 @@ image, no `AuthNextCredential*` vars — so the EC mirror exists from BIOS 01.27
 at the latest. The tools now emit the **V5 recipe** (V2 plus
 `ClearSecurityOperation = 1`, the variable the Setup "restore security defaults"
 flow sets; may make the EC drop its copy): `Unlock-Bios.ps1` and
-`unlock_usercred.py` write `-UNLOCKED-V5.BIN`. Ready to flash:
-`BINs/W25Q256FV_SOIC8-5cg8528gqt-UNLOCKED-V5.BIN` and
-`BINs/W25Q256FV_SOIC8-5cg8528jyh-UNLOCKED-V5.BIN`. If V5 still returns the
-prompt: dump the EC `QN800` (16 MB W25Q128JV) via pogo and locate the mirror.
+`unlock_usercred.py` write `-UNLOCKED-V5.BIN`. **V5 tested on JYH (2026-11-16):
+the EC DID honour the request** — first boot showed "request to reset security
+settings" and a TPM reset prompt (both accepted) — so the
+`ClearSecurityOperation` channel works, but **the admin password still
+returned**: the EC credential mirror survives the clear-security flow. V5 stays
+the default (harmless on ≤01.06 BIOS, the prompts are normal). Definitive next
+step: dump the EC `QN800` (16 MB W25Q128JV) via pogo, locate the mirror there,
+patch it, and reflash both chips. Send a post-V5 re-read of the main chip too
+(UserCred state, `ClearSecurityOperation` byte) for the record.
 
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
