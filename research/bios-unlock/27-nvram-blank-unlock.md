@@ -174,6 +174,20 @@ original JYH dump (non-destructive). Outcomes: (a) boots 01.06.00 with no
 password = downgrade is the fleet fix for 01.27+ units; (b) boots but prompt
 persists = EC enforces independently of the main BIOS = EC dump route.
 
+**"Finishing BIOS update" progress bar on first boot — investigated (2026-11-16).**
+91229SG's pre-flash dump carried NO staged update state: `BiosUpdateCmdSts`,
+`FwUpdateCmdSts`, `HP_FwUpdate`, `HP_FlashTargetVersion` are absent on 01.06,
+`HP_FactoryControlCommand` = 0, `BiosInstallDate` = 2019-03-19 (factory). The
+patch changed exactly one byte, so the bar was triggered by the `UserCred`
+deletion itself: the first boot runs a variable-store reclaim (offsets move in
+the afterflash dumps) plus a security-state sync. It is NOT a BIOS reset — on
+JYH the before/after pair shows only `MTC` (monotonic counter) changed besides
+`UserCred`. The bar's text does not exist anywhere in the 32 MB main image
+(ASCII/UTF-16 scans + decompressed FV scan of 01.06: 44 blobs, 37 MB, no
+"finishing"/"progress"/"BIOS update" UI strings) — it is EC/Sure
+Start-rendered. Likely the same first-boot sync that re-injects the credential
+on 01.27+ units. Benign; the PS1 prints the operator note.
+
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
 UTF-16 name rather than hardcoding. 289 entries, exactly 1 byte changed
