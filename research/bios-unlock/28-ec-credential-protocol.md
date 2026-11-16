@@ -55,6 +55,55 @@ role, FFS GUID:
    `SmcSmm` inside a **KEEPBB** image (requires KEEPBB to boot first, i.e.
    Sure Start only hashes the boot block).
 
+## Credential SET path — fully mapped (2026-11-16)
+
+Traced in `CredentialServicesSmm` (mod_19, VAs as before):
+
+- `0x1870` = internal **set-UserCred**: `SmmSetVariable("UserCred",
+  f66687ff-8cf3-4a19-b4ac-f5f0b78e4d18, Attr=7, Size=0x11C0/4544, Buf@0x7920)`
+  (protocol call at `[r10+0x10]`, name @0x74E0, GUID @0x7200). 12 callers.
+- `0x191c` = internal **get-UserCred** (`[r10]` = SmmGetVariable).
+- `0x30d0` = SMC-busy gate (`SmcInProgress` flag @0x7730 checked everywhere).
+- `0x52cc` = the **credential set handler** (input = credential record struct):
+  1. `LocateProtocol(34f87330-8f1b-c963-e38e-35af08b3404f)` @0x7130 — this data
+     blob is `{comm GUID, 8367013a-b7ab-4410-bb85-2f5cfaefa27d}` → the SMM
+     communication channel record for this driver.
+  2. `0x36ac` = find-credential-by-name; names seen: `BeamRemoteUser`
+     @0x7528, `BeamLocalUser1` @0x7508, `AdminPW` @0x74F8.
+  3. **`0x2214` = the EC/SMC credential WRITE** — called with
+     `(foundData, size+8, r9+0x16, r9+0xe, opcode=2)`.
+  4. `LocateProtocol(b7e6cc0e-6132-4fd8-8992-026727351d81)` @0x71C0 → `call [p](0)`
+     = **commit/flush** to the EC.
+- `0x63f8` = SmcInProgress query (SMC protocol `fd4e7631-3558-4c24-add3-c47ebeab9267`
+  Fn0 with `{descriptor "CredentialServicesSmm", L"SmcInProgress", GUID
+  fb3b9ece-4aba-4933-b49d-b4d67d892351, 0, &byte, &flag}`).
+- `0x613c`/`0x7220` path: `LocateProtocol(cabf469a-4e65-34fc-5b48-fbbd993c681e)`
+  + `call [p+0x48]` — a second check before write.
+
+So a "clear password" = credential set with EMPTY data via the 0x52cc path
+(with the AdminPW record), which drives the EC write (0x2214) + commit. The
+re-injection we see at boot is the mirror image of this: EC read → 0x1870.
+
+## Boot block size (Sure Start hash scope)
+
+The top FV at `0x1FFE000` (starts with the x86 reset vector `EB CE` in its
+header region) has `FvLength = 0x2000` (8 KB) — the SEC boot block is tiny.
+KEEPBB preserved the top 0x20000 (128 KB), so **if Sure Start hashes only the
+boot block, the KEEPBB variants already satisfy it** with 16× margin.
+
+## Exploit vehicles (updated ranking)
+
+1. **KEEPBB + patch `CredentialServicesSmm`** (or its callers) to skip the
+   EC-restore handler / force the empty-credential EC write at boot. Requires
+   the KEEPBB flash test (unreported) — flash
+   `W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-VIDEO-KEEPBB.BIN` first; if it boots,
+   this route is open.
+2. **UEFI shell app via `EFI_MM_COMMUNICATION`** keyed on
+   `8367013a-b7ab-4410-bb85-2f5cfaefa27d` — needs the SMM handler opcode table
+   recovered from the handler registration in mod_19 (next session) and the
+   message buffer format.
+3. EC dump route (unchanged, highest certainty, needs 6×5 pogo).
+
 ## Notes / cautions
 
 - Everything is grounded in the 01.27 dump; offsets are per-module VAs
