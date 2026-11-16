@@ -207,6 +207,15 @@ are low-probability: if Sure Start hashes beyond the boot block they
 black-screen the same way (recover = reflash V5). If either boots, JYH's 01.27
 boot block may reject the older FVs with an on-screen version error.
 
+**UserCred structure — the blob is NOT the hash (2026-11-16):** byte-diffing
+blobs across units shows `UserCred` holds credential REGISTRATION records, not
+the password hash: WTX's blob literally contains the Windows account
+`defaultuser0`, the SID `S-1-5-21-224614338-12078856-3342784731-1001` and the
+computer name `DESKTOP-RHTFF08`; HKL's `AdminPW` record has no hash-like bytes
+(JYH vs GQT blobs are byte-identical, HKL vs V0S too). The hash itself is
+EC-side — so the main dump cannot be cracked; the EC dump (or an official flow
+that clears the EC) is required.
+
 **"Finishing BIOS update" progress bar on first boot — investigated (2026-11-16).**
 91229SG's pre-flash dump carried NO staged update state: `BiosUpdateCmdSts`,
 `FwUpdateCmdSts`, `HP_FwUpdate`, `HP_FlashTargetVersion` are absent on 01.06,
