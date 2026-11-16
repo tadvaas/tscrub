@@ -117,13 +117,19 @@ foreach ($off in $hits) {
 Write-Host "Store entries walked: $totalEntries"
 if ($mudSerial) { Write-Host "Unit serial (from HP_MUD): $mudSerial" }
 
-if ($userCredOffsets.Count -eq 0) {
-    Fail "UserCred not found - already unlocked or not an 830 G5 dump" 3
+# A password change leaves a stale DELETED (0xFD) copy behind; only the LIVE
+# (0x3F) entry carries the current password.
+$ucLive = @($userCredOffsets | Where-Object { $_.State -eq 0x3F })
+if ($userCredOffsets.Count -gt $ucLive.Count) {
+    Write-Host "UserCred entries: $($userCredOffsets.Count) total, $($ucLive.Count) live (stale deleted copies ignored)"
 }
-if ($userCredOffsets.Count -gt 1) {
-    Fail "Found $($userCredOffsets.Count) UserCred entries - refusing to patch" 3
+if ($ucLive.Count -eq 0) {
+    Fail "UserCred has no live (0x3F) entry - already unlocked?" 4
 }
-$uc = $userCredOffsets[0]
+if ($ucLive.Count -gt 1) {
+    Fail "Found $($ucLive.Count) live UserCred entries - refusing to patch" 3
+}
+$uc = $ucLive[0]
 if ($uc.State -ne 0x3F) {
     Fail "UserCred state is 0x$('{0:X2}' -f $uc.State), expected 0x3F (already deleted?)" 4
 }

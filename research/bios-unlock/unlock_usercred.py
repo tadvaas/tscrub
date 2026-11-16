@@ -62,8 +62,11 @@ def main(argv):
     print(f'stores: {len(stores)}, entries: {len(entries)}')
 
     creds = [e for e in entries if 'UserCred' in e[2]]
-    assert len(creds) == 1, f'expected exactly one UserCred, found {len(creds)}'
-    p, state, name, dsize = creds[0]
+    live = [e for e in creds if e[1] == 0x3F]
+    if len(creds) != len(live):
+        print(f'UserCred entries: {len(creds)} total, {len(live)} live (stale deleted copies ignored)')
+    assert len(live) == 1, f'expected exactly one live UserCred, found {len(live)} of {len(creds)}'
+    p, state, name, dsize = live[0]
     assert state == 0x3F, f'UserCred state 0x{state:02X}, expected 0x3F (already unlocked?)'
     print(f'UserCred @0x{p:X} data={dsize} B')
 
