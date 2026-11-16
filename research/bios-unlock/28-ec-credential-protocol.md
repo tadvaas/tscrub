@@ -103,18 +103,26 @@ header region) has `FvLength = 0x2000` (8 KB) — the SEC boot block is tiny.
 KEEPBB preserved the top 0x20000 (128 KB), so **if Sure Start hashes only the
 boot block, the KEEPBB variants already satisfy it** with 16× margin.
 
+## RESULT (2026-11-16) — KEEPBB worked on JYH
+
+The reversal's goal is achieved by a different route: old code under JYH's
+boot block (see doc 27). The EC credential mirror becomes irrelevant because
+the old BIOS neither validates against it nor re-injects it. This CONFIRMS the
+gate analysis: Sure Start hash scope = boot block only, and no version floor.
+Remaining uses for this reversal: (a) a patched-01.27-code variant that keeps
+identity + Windows key (better fleet recipe) and (b) the EC protocol map for
+the EC-dump route if ever needed.
+
 ## Exploit vehicles (updated ranking)
 
-1. **KEEPBB + patch `CredentialServicesSmm`** (or its callers) to skip the
-   EC-restore handler / force the empty-credential EC write at boot. Requires
-   the KEEPBB flash test (unreported) — flash
-   `W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-VIDEO-KEEPBB.BIN` first; if it boots,
-   this route is open.
-2. **UEFI shell app via `EFI_MM_COMMUNICATION`** keyed on
+1. **KEEPBB done — worked.**
+2. **Patched 01.27 code** (identity-preserving fleet recipe): decompress →
+   patch `CredentialServicesSmm` → recompress via UEFIReplace; only worth it
+   if the donor-store variant loses the Windows key.
+3. **UEFI shell app via `EFI_MM_COMMUNICATION`** keyed on
    `8367013a-b7ab-4410-bb85-2f5cfaefa27d` — needs the SMM handler opcode table
-   recovered from the handler registration in mod_19 (next session) and the
-   message buffer format.
-3. EC dump route (unchanged, highest certainty, needs 6×5 pogo).
+   recovered from the handler registration in mod_19.
+4. EC dump route (unchanged, highest certainty, needs 6×5 pogo).
 
 ## Notes / cautions
 

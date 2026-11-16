@@ -184,6 +184,21 @@ locked state. Downgrade route suspended; the EC dump (`QN800`, 16 MB) is now
 required for BOTH open problems: the credential mirror and the Sure Start
 state (hash records / rollback floor).
 
+**KEEPBB downgrade — WORKS (2026-11-16, JYH):** flashed
+`W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-VIDEO-KEEPBB.BIN` (JYH bottom 16 MB +
+video donor region under JYH's own boot block). The unit BOOTED, showed the
+"finishing BIOS update" progress bar, rebooted — **the admin password is
+GONE.** This single experiment proves: (1) Sure Start hashes ONLY the boot
+block (code below 0x1FFE000 is freely modifiable), (2) no EC version floor
+blocks 01.01-era code. The fleet recipe for BIOS 01.27+ units: KEEPBB splice
+= unit's bottom 16 MB + unit's top 128 KB + donor region (blank store) in
+between; first boot runs MUD recovery from the EC, password does not return.
+CAUTION: these units' ECs still hold the credential mirror — a later HP BIOS
+update could resurrect the password; avoid BIOS updates on unlocked units, or
+test one first. Open checks: serial/UUID restored, BIOS version reported,
+Windows activation (donor region has no `HP_OA3`/MSDM key for this unit),
+second-boot behaviour.
+
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
