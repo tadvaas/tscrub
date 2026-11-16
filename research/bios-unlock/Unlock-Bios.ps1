@@ -27,12 +27,28 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $StoreSig = [byte[]](0x78, 0x2C, 0xF3, 0xAA, 0x7B, 0x94, 0x9A, 0x43, 0xA1, 0x80, 0x2E, 0x14, 0x4E, 0xC3, 0x77, 0x92)
-$SigStr = -join ($StoreSig | ForEach-Object { [char]$_ })
 
 function Fail([string]$msg, [int]$code) {
     Write-Error $msg
     exit $code
 }
+
+# Latin1 encoder: Windows PowerShell 5.1 (.NET Framework) has NO
+# [System.Text.Encoding]::Latin1 (that is .NET Core only). Use codepage 28591
+# (ISO-8859-1, byte<->char identity). PS 7 needs the code-pages provider
+# registered first. Fallback to the system default encoding — since the needle
+# is built with the SAME encoding as the haystack, matching still works.
+$latinEnc = $null
+try {
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        [System.Text.Encoding]::RegisterProvider([System.Text.CodePagesEncodingProvider]::Instance)
+    }
+    $latinEnc = [System.Text.Encoding]::GetEncoding(28591)
+} catch {
+    $latinEnc = [System.Text.Encoding]::Default
+}
+if ($null -eq $latinEnc) { Fail 'Could not resolve a Latin1 encoding' 2 }
+$SigStr = $latinEnc.GetString($StoreSig)
 
 if (-not (Test-Path -LiteralPath $Bin)) { Fail "Input not found: $Bin" 2 }
 
@@ -54,8 +70,9 @@ if ($img[0x10] -ne 0x5A -or $img[0x11] -ne 0xA5 -or $img[0x12] -ne 0xF0 -or $img
     Fail "Not an Intel SPI image (header missing 5A A5 F0 0F)" 2
 }
 
-# Search for the authenticated variable-store signature (Latin1 string IndexOf = fast)
-$latin = [System.Text.Encoding]::Latin1.GetString($img)
+# Search for the authenticated variable-store signature (single-byte-encoding
+# string IndexOf = fast over 32 MB)
+$latin = $latinEnc.GetString($img)
 $hits = New-Object System.Collections.ArrayList
 $idx = $latin.IndexOf($SigStr)
 while ($idx -ge 0) {
