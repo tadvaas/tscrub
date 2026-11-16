@@ -1,13 +1,17 @@
 # Unlock-Bios.ps1 — HP EliteBook 830 G5 BIOS admin password removal (offline patch)
 #
-# Deletes the `UserCred` UEFI NVRAM variable by flipping its state byte
-# 0x3F (added) -> 0xFD (deleted) inside the W25Q256 (32 MiB) main-BIOS dump.
-# One byte changes. Identity variables (HP_MUD, FactoryConfig, BuildId, ...)
-# stay intact, so there is no "BIOS Identity Data" screen after flashing.
+# V5 recipe (2026-11-16):
+#   1. delete the `UserCred` NVRAM variable (state byte 0x3F -> 0xFD),
+#   2. delete any staged `AuthNextCredential*` variables (SAT601 revisions),
+#   3. set `ClearSecurityOperation` = 1 so the EC drops its own copy.
+#      On BIOS >= 01.27 the EC re-injects the password at boot after a
+#      UserCred-only patch (proven by afterflash dumps of 5CG8528JYH and
+#      5CG8528GQT) - see research/bios-unlock/27-nvram-blank-unlock.md.
+# Identity variables (HP_MUD, FactoryConfig, BuildId, ...) stay intact, so
+# there is no "BIOS Identity Data" screen after flashing.
 #
-# Confirmed on units 5CG8528HKL and 5CG8403V0S (see
-# research/bios-unlock/27-nvram-blank-unlock.md). The UserCred offset varies
-# per unit, so it is located dynamically by walking the variable store.
+# The UserCred offset varies per unit, so it is located dynamically by
+# walking the variable store.
 #
 # Usage (PowerShell 5.1 or 7, 64-bit):
 #   powershell -ExecutionPolicy Bypass -File .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC8-XXX.BIN
@@ -16,8 +20,8 @@
 # Exit codes: 0 ok | 2 bad image | 3 UserCred missing/duplicate | 4 already deleted | 5 write error
 #
 # Acceptance test (bench PC): the output for the known dumps must match
-#   W25Q256FV@SOIC8-5CG8528HKL.BIN  -> MD5 d292236faef559bbae082a9283e7cd81
-#   W25Q256FV@SOIC8-5CG8403V0S.BIN  -> MD5 873309c68ca93a1b5e574b74ae9ced81
+#   W25Q256FV@SOIC8-5CG8528HKL.BIN  -> MD5 1e75e62788338667b54c3b432f56f7d7
+#   W25Q256FV@SOIC8-5CG8403V0S.BIN  -> MD5 27790d3db99671f5ca3d8e60ea88a14b
 
 param(
     [Parameter(Mandatory = $true)][string]$Bin,
@@ -87,6 +91,7 @@ $authCredOffsets = New-Object System.Collections.ArrayList
 $mudSerial = $null
 $powerOnPolicy = $null
 $buildId = $null
+$clearSecurity = $null
 $totalEntries = 0
 
 foreach ($off in $hits) {
@@ -112,6 +117,8 @@ foreach ($off in $hits) {
             [void]$authCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st })
         } elseif ($name -like '*AdminAtPowerOnAuthPolicy*') {
             $powerOnPolicy = $img[$p + 0x3C + $ns]
+        } elseif ($name -like '*ClearSecurityOperation*') {
+            $clearSecurity = [pscustomobject]@{ Offset = $p; NameSize = $ns }
         } elseif ($name -like '*BuildId*') {
             $buildId = [System.Text.Encoding]::Unicode.GetString($img, $p + 0x3C + $ns, $ds).TrimEnd([char]0)
         } elseif ($name -like '*HP_MUD*' -and $null -eq $mudSerial) {
@@ -160,11 +167,20 @@ if ($authLive.Count -gt 0) {
     Write-Host "AuthNextCredential* live entries to delete: $($authLive.Count)"
 }
 
-# Patch: one byte per entry
+if ($null -ne $clearSecurity) {
+    $csDataOff = $clearSecurity.Offset + 0x3C + $clearSecurity.NameSize
+    Write-Host "ClearSecurityOperation @0x$('{0:X}' -f $clearSecurity.Offset) data=0x$('{0:X2}' -f $img[$csDataOff]) -> will set 0x01"
+} else {
+    Write-Host "ClearSecurityOperation not found - EC clear request skipped"
+}
+
+# Patch: one byte per entry + ClearSecurityOperation = 1
 $patched = [byte[]]$img.Clone()
 $patched[$uc.Offset + 2] = 0xFD
 foreach ($a in $authLive) { $patched[$a.Offset + 2] = 0xFD }
+if ($null -ne $clearSecurity) { $patched[$csDataOff] = 0x01 }
 $expectedChanges = 1 + $authLive.Count
+if ($null -ne $clearSecurity) { $expectedChanges++ }
 
 # Verify exactly one byte differs (chunked compare, fast)
 $diffCount = 0
@@ -182,12 +198,13 @@ for ($i = 0; $i -lt $img.Length; $i += $block) {
 if ($diffCount -ne $expectedChanges) { Fail "Expected exactly $expectedChanges changed byte(s), got $diffCount" 5 }
 
 if (-not $Out) {
-    $Out = [regex]::Replace($Bin, '(?i)\.bin$', '-UNLOCKED-V2.BIN')
+    $Out = [regex]::Replace($Bin, '(?i)\.bin$', '-UNLOCKED-V5.BIN')
 }
 [System.IO.File]::WriteAllBytes($Out, $patched)
 
 Write-Host "Wrote $Out"
-Write-Host "Patch OK: UserCred deleted (0xFD), staged credentials removed, identity intact, $($patched.Length) bytes"
+Write-Host "Patch OK (V5): UserCred deleted, AuthNextCredential* deleted, ClearSecurityOperation=1, identity intact, $($patched.Length) bytes"
 Write-Host "Flash it with Xgpro: Erase -> Blank Check -> Program -> Verify"
 Write-Host "Note: first boot may show a 'finishing BIOS update' progress bar - that is normal."
+Write-Host "If the password still returns, the EC holds the credential - dump QN800 (16 MB) and send it."
 exit 0

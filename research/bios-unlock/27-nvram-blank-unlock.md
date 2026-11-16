@@ -121,17 +121,16 @@ it (value 1), and those trains have unlocked fine before. **Test matrix (updated
 | 5CG8403V0S | SBT601 | 01.03.00 (2018) | ✓ V2 |
 | 5CG8528HKL | SBT602 | 01.04.00 (2018) | ✓ V1 + BIOS update |
 | 5CG91229SG | SCT601 | 01.06.00 (2019) | ✓ V2, "finishing BIOS update" bar on first boot |
-| 5CG8528JYH | SBT602 | 01.27.00 (2023) | pending |
+| 5CG8528JYH | SBT602 | 01.27.00 (2023) | ✗ prompt persists — credential restored byte-identical |
 | 5CG832347D | SAT601 | 01.28.00 (2024) | ✗ prompt persists (EC-side, empty skeleton rebuilt) |
 | 5CG8528GQT | SBT602 | 01.31.00 (2025) | ✗ prompt persists — credential RESTORED byte-identical |
 
 The train rule is **broken**: GQT is `17WWCSBT602` — the "good" train — and the
 EC re-injected the credential. The axis that correlates is the **BIOS vintage**:
-2018-2019 revisions (≤01.06) clear; 2024-2025 revisions (01.28/01.31) hold the
-credential EC-side. JYH (01.27) will mark the boundary. `AdminAtPowerOnAuthPolicy`
-is NOT a predictor. For any unit where the prompt returns, send the post-boot
-re-read. EC routes unchanged: Sure Start pin-2 short (doc 24) or desolder QN800
-+ patch the 16 MB EC dump.
+2018-2019 revisions (≤01.06) clear; 2023-2025 revisions (01.27/01.28/01.31) hold
+the credential EC-side. `AdminAtPowerOnAuthPolicy` is NOT a predictor. For any
+unit where the prompt returns, send the post-boot re-read. EC routes unchanged:
+Sure Start pin-2 short (doc 24) or desolder QN800 + patch the 16 MB EC dump.
 
 **GQT afterflash analysis (2026-11-16, `BINs/W25Q256FV_SOIC8-5cg8528gqt*`):**
 the V2 patch was verifiably ON the chip at boot — the post-boot re-read shows
@@ -144,11 +143,16 @@ Searches for the credential header/slot bytes across all 32 MiB find **no
 second copy** outside the variable store, and no `AuthNextCredential*` staging
 vars exist. Conclusion: the 01.31 BIOS re-injects the password from the **EC**
 (the same EC→BIOS backup mechanism that preserves the password across normal
-BIOS updates). Queued experiments: (1) **V5** =
-`W25Q256FV_SOIC8-5cg8528gqt-UNLOCKED-V5.BIN` — V2 plus `ClearSecurityOperation = 1`
-(the variable the Setup "restore security defaults" flow sets; may make the EC
-drop its copy); (2) dump the EC `QN800` (16 MB W25Q128JV) via pogo and locate
-the mirror there.
+BIOS updates). **JYH afterflash (01.27.00, 2023) shows the identical signature** —
+rebuilt UserCred byte-for-byte equal to the original, no second copy in the
+image, no `AuthNextCredential*` vars — so the EC mirror exists from BIOS 01.27
+at the latest. The tools now emit the **V5 recipe** (V2 plus
+`ClearSecurityOperation = 1`, the variable the Setup "restore security defaults"
+flow sets; may make the EC drop its copy): `Unlock-Bios.ps1` and
+`unlock_usercred.py` write `-UNLOCKED-V5.BIN`. Ready to flash:
+`BINs/W25Q256FV_SOIC8-5cg8528gqt-UNLOCKED-V5.BIN` and
+`BINs/W25Q256FV_SOIC8-5cg8528jyh-UNLOCKED-V5.BIN`. If V5 still returns the
+prompt: dump the EC `QN800` (16 MB W25Q128JV) via pogo and locate the mirror.
 
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
@@ -218,14 +222,15 @@ powershell -ExecutionPolicy Bypass -File .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC
 ```
 
 It strips the 272-byte Xgpro trailer, validates the header, locates `UserCred`
-dynamically (offset varies per unit), flips its state byte, verifies exactly
-1 byte changed, prints the unit serial read from `HP_MUD`, and writes
-`<input>-UNLOCKED-V2.BIN`. Acceptance test on the bench PC — the MD5 of the
+dynamically (offset varies per unit), flips its state byte, deletes staged
+`AuthNextCredential*` variables, sets `ClearSecurityOperation` = 1, verifies
+exactly N bytes changed, prints the unit serial read from `HP_MUD`, and writes
+`<input>-UNLOCKED-V5.BIN`. Acceptance test on the bench PC — the MD5 of the
 output for the two known dumps must equal:
 
 ```
-W25Q256FV@SOIC8-5CG8528HKL.BIN -> d292236faef559bbae082a9283e7cd81
-W25Q256FV@SOIC8-5CG8403V0S.BIN -> 873309c68ca93a1b5e574b74ae9ced81
+W25Q256FV@SOIC8-5CG8528HKL.BIN -> 1e75e62788338667b54c3b432f56f7d7
+W25Q256FV@SOIC8-5CG8403V0S.BIN -> 27790d3db99671f5ca3d8e60ea88a14b
 ```
 
 Writing back stays in Xgpro (Erase -> Blank Check -> Program -> Verify).
