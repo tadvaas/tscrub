@@ -4,15 +4,18 @@
 #   BIOS <= 01.06  -> V2 patch: delete the live `UserCred` variable (state
 #                     byte 0x3F -> 0xFD) and any staged `AuthNextCredential*`
 #                     variables. One byte per entry; identity intact.
-#   BIOS >= 01.27  -> KEEPBB keep-store recipe: the EC re-injects the
+#   BIOS >= 01.24  -> KEEPBB keep-store recipe: the EC re-injects the
 #                     credential on these units, so splice the donor BIOS
 #                     region (older Q78 code) under the unit's OWN boot block
 #                     while transplanting the unit's OWN variable store with
 #                     every UserCred copy deleted. Keeps serial/UUID/BuildId,
 #                     Windows key (HP_OA3) and settings. Requires
 #                     -DonorRegion <16 MiB region file>.
-#   BIOS 01.07..01.26 -> unverified; refuses unless -ForceV2 (V2 patch) or
+#                     Verified on 01.24, 01.27, 01.28 and 01.31.
+#   BIOS 01.07..01.23 -> unverified; refuses unless -ForceV2 (V2 patch) or
 #                        -ForceKEEPBB (KEEPBB recipe, needs -DonorRegion).
+#                        Tip: a dump scan (decompress + grep for SmcInProgress)
+#                        settles the boundary with zero flash cycles.
 #
 # Usage (PowerShell 5.1 or 7, 64-bit):
 #   .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC8-XXX.BIN
@@ -27,6 +30,8 @@
 #   W25Q256FV@SOIC8-5CG8403V0S.BIN -> MD5 873309c68ca93a1b5e574b74ae9ced81   (V2)
 #   W25Q256FV_SOIC8-5cg832347d.BIN + Region_BIOS_BIOS_region.rgn
 #                                   -> MD5 d4c60489b4064f6645b92171eb82b023   (KEEPBB)
+#   W25Q256FV_SOIC8-5CG8403VSN.BIN  + Region_BIOS_BIOS_region.rgn
+#                                   -> MD5 90f18197b261b4416bfc2d9570b50275   (KEEPBB)
 
 param(
     [Parameter(Mandatory = $true)][string]$Bin,
@@ -151,8 +156,8 @@ if ($null -ne $biosVerByte) {
     } else {
         Write-Host "BIOS version: 01.$('{0:D2}' -f [int]$biosVerByte) (release date unknown)" -ForegroundColor Cyan
     }
-    if ([int]$biosVerByte -ge 27) {
-        Write-Host "BIOS 01.27+ - using the KEEPBB keep-store recipe (the EC holds the credential mirror)." -ForegroundColor Yellow
+    if ([int]$biosVerByte -ge 24) {
+        Write-Host "BIOS 01.24+ - using the KEEPBB keep-store recipe (the EC holds the credential mirror)." -ForegroundColor Yellow
     }
 } else {
     Write-Host "BIOS version: unknown (LastCheckedBiosVerForBatteryRecall not found)"
@@ -186,11 +191,11 @@ $ver = -1
 if ($null -ne $biosVerByte) { $ver = [int]$biosVerByte }
 if ($ver -le 6) {
     Write-Host "BIOS <= 01.06: applying the V2 patch (verified recipe)."
-} elseif ($ver -ge 27) {
-    Write-Host "BIOS 01.27+: applying the KEEPBB keep-store recipe (verified)."
+} elseif ($ver -ge 24) {
+    Write-Host "BIOS 01.24+: applying the KEEPBB keep-store recipe (verified)."
 } else {
     if (-not $ForceV2 -and -not $ForceKEEPBB) {
-        Fail "BIOS version is in the UNVERIFIED range (01.07-01.26) - no recipe is proven there. Re-run with -ForceV2 (V2 patch) or -ForceKEEPBB (KEEPBB keep-store, needs -DonorRegion)." 6
+        Fail "BIOS version is in the UNVERIFIED range (01.07-01.23) - no recipe is proven there. Re-run with -ForceV2 (V2 patch) or -ForceKEEPBB (KEEPBB keep-store, needs -DonorRegion)." 6
     }
     if ($ForceV2) { Write-Warning "Forcing the V2 patch on an unverified BIOS version." }
     if ($ForceKEEPBB) { Write-Warning "Forcing the KEEPBB recipe on an unverified BIOS version." }
@@ -201,7 +206,7 @@ if ($authLive.Count -gt 0) {
     Write-Host "AuthNextCredential* live entries to delete: $($authLive.Count)"
 }
 
-if ($ver -ge 27 -or $ForceKEEPBB) {
+if ($ver -ge 24 -or $ForceKEEPBB) {
     # ============ KEEPBB keep-store recipe ============
     if ([string]::IsNullOrEmpty($DonorRegion)) {
         Fail "BIOS 01.27+ needs the donor region file. Run with -DonorRegion <path to Region_BIOS_BIOS_region.rgn>" 6

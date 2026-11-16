@@ -260,6 +260,11 @@ must be treated as mirror-present — **skip V2, use KEEPBB**. The boundary is
 between 01.06 and 01.24 (likely at or below 01.20); for future in-range units
 run the same decompress-and-grep scan instead of a trial flash.
 
+**KEEPBB verified on 01.24 too (2026-11-16, 5CG8403VSN):** flashed the
+keep-store output (`-ForceKEEPBB`, expected md5 `90f18197…`) — password gone.
+The patcher now applies KEEPBB AUTOMATICALLY for BIOS ≥ 01.24; the unverified
+range shrinks to 01.07–01.23. Windows key on VSN: `2XKNF-RM24Q-CXR7D-HRK92-8XCKC`.
+
 **Variant B RESULT — WORKED (2026-11-16, unit 4 / 5CG832347D):** after-flash
 re-read (`W25Q256FV_SOIC8-5CG832347D-afterkeepbb-keepstore.BIN`) shows the
 unit's OWN store survived the old-code boot: `HP_OA3` still
