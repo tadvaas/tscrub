@@ -114,15 +114,41 @@ main-BIOS copy is clean, yet the Setup prompt persists -> **the admin credential
 on this unit is held EC-side** and the BIOS re-creates an empty main-BIOS record
 that is simply unused. `AdminAtPowerOnAuthPolicy` presence is **NOT a reliable
 predictor**: new dumps of SBT602/SCT601 units (5CG8528JYH, 5CG91229SG) also carry
-it (value 1), and those trains have unlocked fine before. **Test matrix (updated 2026-11-16):** SCT601 unit 5CG91229SG (policy=1, UserCred
-3536 B) **UNLOCKED OK** with the V2 patch — first boot showed a **"finishing
-BIOS update" progress bar**, then the Setup password was gone. Scoreboard:
-SBT601 ✓ (unit 2), SBT602 ✓ (unit 1, via V1 + BIOS update), SCT601 ✓ (91229SG),
-SAT601 ✗ (unit 4 — prompt persists, EC-side credential). `AdminAtPowerOnAuthPolicy`
-is NOT a predictor (present on working units too). Current rule: **SAT-train
-units are the suspect set**; SBT/SCT use the normal recipe. For any unit where
-the prompt returns, send the post-boot re-read. EC routes unchanged: Sure Start
-pin-2 short (doc 24) or desolder QN800 + patch the 16 MB EC dump.
+it (value 1), and those trains have unlocked fine before. **Test matrix (updated 2026-11-16):**
+
+| Serial | BuildId | BIOS (Q78) | Result |
+|---|---|---|---|
+| 5CG8403V0S | SBT601 | 01.03.00 (2018) | ✓ V2 |
+| 5CG8528HKL | SBT602 | 01.04.00 (2018) | ✓ V1 + BIOS update |
+| 5CG91229SG | SCT601 | 01.06.00 (2019) | ✓ V2, "finishing BIOS update" bar on first boot |
+| 5CG8528JYH | SBT602 | 01.27.00 (2023) | pending |
+| 5CG832347D | SAT601 | 01.28.00 (2024) | ✗ prompt persists (EC-side, empty skeleton rebuilt) |
+| 5CG8528GQT | SBT602 | 01.31.00 (2025) | ✗ prompt persists — credential RESTORED byte-identical |
+
+The train rule is **broken**: GQT is `17WWCSBT602` — the "good" train — and the
+EC re-injected the credential. The axis that correlates is the **BIOS vintage**:
+2018-2019 revisions (≤01.06) clear; 2024-2025 revisions (01.28/01.31) hold the
+credential EC-side. JYH (01.27) will mark the boundary. `AdminAtPowerOnAuthPolicy`
+is NOT a predictor. For any unit where the prompt returns, send the post-boot
+re-read. EC routes unchanged: Sure Start pin-2 short (doc 24) or desolder QN800
++ patch the 16 MB EC dump.
+
+**GQT afterflash analysis (2026-11-16, `BINs/W25Q256FV_SOIC8-5cg8528gqt*`):**
+the V2 patch was verifiably ON the chip at boot — the post-boot re-read shows
+the variable store recompacted (`UserCred` moved 0x1B00EAC → 0x1B0AA7C,
+`AdminAtPowerOnAuthPolicy` 0x1B00A40 → 0x1B009C4, deleted entry gone). Yet the
+BIOS rebuilt a LIVE `UserCred` whose 4,544-byte body is **byte-for-byte
+identical** to the original (all 180 non-zero bytes in the same positions, 0
+diffs) — the real credential hash, not the empty skeleton SAT601 rebuilds.
+Searches for the credential header/slot bytes across all 32 MiB find **no
+second copy** outside the variable store, and no `AuthNextCredential*` staging
+vars exist. Conclusion: the 01.31 BIOS re-injects the password from the **EC**
+(the same EC→BIOS backup mechanism that preserves the password across normal
+BIOS updates). Queued experiments: (1) **V5** =
+`W25Q256FV_SOIC8-5cg8528gqt-UNLOCKED-V5.BIN` — V2 plus `ClearSecurityOperation = 1`
+(the variable the Setup "restore security defaults" flow sets; may make the EC
+drop its copy); (2) dump the EC `QN800` (16 MB W25Q128JV) via pogo and locate
+the mirror there.
 
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
