@@ -258,7 +258,8 @@ unit's OWN store survived the old-code boot: `HP_OA3` still
 skeleton (3536 B, no AdminPW) — password gone — and GC'd our three 0xFD
 copies. Version recorded 0x09. **B is now the PREFERRED fleet recipe:** one
 flash keeps identity + Windows key + settings, no MUD screen, no OA3
-re-injection step. Remaining check: Windows activation with the unit's key.
+re-injection step. **Windows 11 installed and ACTIVATED on unit 4 with its own
+key (2026-11-16) — the recipe is closed end-to-end.**
 
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
