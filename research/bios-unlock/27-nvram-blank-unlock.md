@@ -225,6 +225,20 @@ dump) written into the live variable — 32 bytes changed, `UserCred` still an
 empty skeleton. Flash this instead of OA3 tooling: same unlocked state, and
 the MSDM/`HP_OA3` key is back so Windows activates with the unit's own key.
 
+**What the KEEPBB unlock wipes (store diff, 2026-11-16):** the donor region's
+blank store is re-initialised at first boot, so everything that lived only in
+the BIOS NVRAM is reset. Survives (EC-synced or outside the store): serial /
+SKU / UUID (`HP_MUD`), `BuildId`, **feature byte** (`FactoryConfig` — verified
+byte-equal), MAC (GbE region kept), ME/AMT identity (bottom 16 MB kept).
+Wiped: `HP_OA3`/MSDM Windows key (recoverable from the pre-flash dump),
+ALL Setup settings (factory defaults), custom boot entries, Secure Boot extra
+keys (`MokList`, `SbatLevel`, `RevocationList`, `Kernel_*SiStatus` — defaults
+rebuilt), `HpBiosAuditLog` (cleared — a plus), `UnlockID`/`UnlockIDCopy`,
+`HP_TAGS` (blank), `BornOnDate` (00/00/0000, cosmetic), TPM state
+(`PhysicalPresence*` gone — TPM effectively cleared; BitLocker keys die,
+irrelevant for ITAD wipe). Fleet action items: re-inject `HP_OA3`, set Asset
+Tag if required — everything else is acceptable or beneficial for ITAD.
+
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
