@@ -213,6 +213,13 @@ from the pre-flash dump (JYH: `PH89H-NPDRT-P4CP9-72FFW-TQ722`). Fleet
 procedure: extract each unit's `HP_OA3` key before flashing, re-inject after
 unlock via OA3 tooling.
 
+**OA3 key restored by store patch (2026-11-16):**
+`W25Q256FV_SOIC8-5CG8528JYH-AfterKEEPBB-OA3.BIN` (md5 `144d3439…`) = the
+after-KEEPBB dump with JYH's own 49-byte `HP_OA3` payload (from the pre-flash
+dump) written into the live variable — 32 bytes changed, `UserCred` still an
+empty skeleton. Flash this instead of OA3 tooling: same unlocked state, and
+the MSDM/`HP_OA3` key is back so Windows activates with the unit's own key.
+
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
