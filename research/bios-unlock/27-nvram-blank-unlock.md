@@ -146,15 +146,13 @@ vars exist. Conclusion: the 01.31 BIOS re-injects the password from the **EC**
 BIOS updates). **JYH afterflash (01.27.00, 2023) shows the identical signature** —
 rebuilt UserCred byte-for-byte equal to the original, no second copy in the
 image, no `AuthNextCredential*` vars — so the EC mirror exists from BIOS 01.27
-at the latest. The tools now emit the **V5 recipe** (V2 plus
-`ClearSecurityOperation = 1`, the variable the Setup "restore security defaults"
-flow sets; may make the EC drop its copy): `Unlock-Bios.ps1` and
-`unlock_usercred.py` write `-UNLOCKED-V5.BIN`. **V5 tested on JYH (2026-11-16):
+at the latest. **V5 tested on JYH (2026-11-16):
 the EC DID honour the request** — first boot showed "request to reset security
 settings" and a TPM reset prompt (both accepted) — so the
 `ClearSecurityOperation` channel works, but **the admin password still
-returned**: the EC credential mirror survives the clear-security flow. V5 stays
-the default (harmless on ≤01.06 BIOS, the prompts are normal). Definitive next
+returned**: the EC credential mirror survives the clear-security flow.
+**V5 is therefore retired** — the tools emit the **V2 recipe** (UserCred +
+`AuthNextCredential*` only) and write `-UNLOCKED-V2.BIN` again. Definitive next
 step: dump the EC `QN800` (16 MB W25Q128JV) via pogo, locate the mirror there,
 patch it, and reflash both chips. Send a post-V5 re-read of the main chip too
 (UserCred state, `ClearSecurityOperation` byte) for the record.
@@ -299,17 +297,17 @@ powershell -ExecutionPolicy Bypass -File .\Unlock-Bios.ps1 -Bin .\W25Q256FV@SOIC
 
 It strips the 272-byte Xgpro trailer, validates the header, locates `UserCred`
 dynamically (offset varies per unit), flips its state byte, deletes staged
-`AuthNextCredential*` variables, sets `ClearSecurityOperation` = 1, verifies
-exactly N bytes changed, prints the unit serial read from `HP_MUD`, and writes
-`<input>-UNLOCKED-V5.BIN`. Both tools also print the **BIOS version + release
-date** (`LastCheckedBiosVerForBatteryRecall` byte 0 + a Q78 release table) and
-warn when the BIOS is 01.27+ (EC credential mirror). Acceptance test on the
-bench PC — the MD5 of the
+`AuthNextCredential*` variables, verifies exactly N bytes changed, prints the
+unit serial read from `HP_MUD`, and writes `<input>-UNLOCKED-V2.BIN`. Both
+tools also print the **BIOS version + release date**
+(`LastCheckedBiosVerForBatteryRecall` byte 0 + a Q78 release table) and warn
+when the BIOS is 01.27+ (EC credential mirror). Acceptance test on the bench
+PC — the MD5 of the
 output for the two known dumps must equal:
 
 ```
-W25Q256FV@SOIC8-5CG8528HKL.BIN -> 1e75e62788338667b54c3b432f56f7d7
-W25Q256FV@SOIC8-5CG8403V0S.BIN -> 27790d3db99671f5ca3d8e60ea88a14b
+W25Q256FV@SOIC8-5CG8528HKL.BIN -> d292236faef559bbae082a9283e7cd81
+W25Q256FV@SOIC8-5CG8403V0S.BIN -> 873309c68ca93a1b5e574b74ae9ced81
 ```
 
 Writing back stays in Xgpro (Erase -> Blank Check -> Program -> Verify).

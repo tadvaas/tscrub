@@ -1,14 +1,16 @@
 # Unlock-Bios.ps1 — HP EliteBook 830 G5 BIOS admin password removal (offline patch)
 #
-# V5 recipe (2026-11-16):
+# V2 recipe:
 #   1. delete the `UserCred` NVRAM variable (state byte 0x3F -> 0xFD),
-#   2. delete any staged `AuthNextCredential*` variables (SAT601 revisions),
-#   3. set `ClearSecurityOperation` = 1 so the EC drops its own copy.
-#      On BIOS >= 01.27 the EC re-injects the password at boot after a
-#      UserCred-only patch (proven by afterflash dumps of 5CG8528JYH and
-#      5CG8528GQT) - see research/bios-unlock/27-nvram-blank-unlock.md.
+#   2. delete any staged `AuthNextCredential*` variables (SAT601 revisions).
 # Identity variables (HP_MUD, FactoryConfig, BuildId, ...) stay intact, so
 # there is no "BIOS Identity Data" screen after flashing.
+#
+# On BIOS 01.27+ the EC re-injects the password at boot after this patch
+# (proven by the afterflash dumps of 5CG8528JYH and 5CG8528GQT); the
+# ClearSecurityOperation=1 experiment (V5) was tested and RETIRED - the EC
+# honoured the reset prompts but the credential mirror survived them. See
+# research/bios-unlock/27-nvram-blank-unlock.md.
 #
 # The UserCred offset varies per unit, so it is located dynamically by
 # walking the variable store.
@@ -20,8 +22,8 @@
 # Exit codes: 0 ok | 2 bad image | 3 UserCred missing/duplicate | 4 already deleted | 5 write error
 #
 # Acceptance test (bench PC): the output for the known dumps must match
-#   W25Q256FV@SOIC8-5CG8528HKL.BIN  -> MD5 1e75e62788338667b54c3b432f56f7d7
-#   W25Q256FV@SOIC8-5CG8403V0S.BIN  -> MD5 27790d3db99671f5ca3d8e60ea88a14b
+#   W25Q256FV@SOIC8-5CG8528HKL.BIN  -> MD5 d292236faef559bbae082a9283e7cd81
+#   W25Q256FV@SOIC8-5CG8403V0S.BIN  -> MD5 873309c68ca93a1b5e574b74ae9ced81
 
 param(
     [Parameter(Mandatory = $true)][string]$Bin,
@@ -91,7 +93,6 @@ $authCredOffsets = New-Object System.Collections.ArrayList
 $mudSerial = $null
 $powerOnPolicy = $null
 $buildId = $null
-$clearSecurity = $null
 $biosVerByte = $null
 $totalEntries = 0
 
@@ -118,8 +119,6 @@ foreach ($off in $hits) {
             [void]$authCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st })
         } elseif ($name -like '*AdminAtPowerOnAuthPolicy*') {
             $powerOnPolicy = $img[$p + 0x3C + $ns]
-        } elseif ($name -like '*ClearSecurityOperation*') {
-            $clearSecurity = [pscustomobject]@{ Offset = $p; NameSize = $ns }
         } elseif ($name -like '*LastCheckedBiosVerForBatteryRecall*' -and $null -eq $biosVerByte) {
             $biosVerByte = $img[$p + 0x3C + $ns]
         } elseif ($name -like '*BuildId*') {
@@ -186,20 +185,11 @@ if ($authLive.Count -gt 0) {
     Write-Host "AuthNextCredential* live entries to delete: $($authLive.Count)"
 }
 
-if ($null -ne $clearSecurity) {
-    $csDataOff = $clearSecurity.Offset + 0x3C + $clearSecurity.NameSize
-    Write-Host "ClearSecurityOperation @0x$('{0:X}' -f $clearSecurity.Offset) data=0x$('{0:X2}' -f $img[$csDataOff]) -> will set 0x01"
-} else {
-    Write-Host "ClearSecurityOperation not found - EC clear request skipped"
-}
-
-# Patch: one byte per entry + ClearSecurityOperation = 1
+# Patch: one byte per entry
 $patched = [byte[]]$img.Clone()
 $patched[$uc.Offset + 2] = 0xFD
 foreach ($a in $authLive) { $patched[$a.Offset + 2] = 0xFD }
-if ($null -ne $clearSecurity) { $patched[$csDataOff] = 0x01 }
 $expectedChanges = 1 + $authLive.Count
-if ($null -ne $clearSecurity) { $expectedChanges++ }
 
 # Verify exactly one byte differs (chunked compare, fast)
 $diffCount = 0
@@ -217,15 +207,13 @@ for ($i = 0; $i -lt $img.Length; $i += $block) {
 if ($diffCount -ne $expectedChanges) { Fail "Expected exactly $expectedChanges changed byte(s), got $diffCount" 5 }
 
 if (-not $Out) {
-    $Out = [regex]::Replace($Bin, '(?i)\.bin$', '-UNLOCKED-V5.BIN')
+    $Out = [regex]::Replace($Bin, '(?i)\.bin$', '-UNLOCKED-V2.BIN')
 }
 [System.IO.File]::WriteAllBytes($Out, $patched)
 
 Write-Host "Wrote $Out"
-Write-Host "Patch OK (V5): UserCred deleted, AuthNextCredential* deleted, ClearSecurityOperation=1, identity intact, $($patched.Length) bytes"
+Write-Host "Patch OK (V2): UserCred deleted, AuthNextCredential* deleted, identity intact, $($patched.Length) bytes"
 Write-Host "Flash it with Xgpro: Erase -> Blank Check -> Program -> Verify"
 Write-Host "Note: first boot may show a 'finishing BIOS update' progress bar - that is normal."
-Write-Host "Note: on first boot the EC may ask to reset security settings and the TPM -"
-Write-Host "      accepting both is expected; those prompts are the EC processing the clear request."
-Write-Host "If the password still returns, the EC credential mirror survives the clear - dump QN800 (16 MB EC) and send it."
+Write-Host "If the password still returns (BIOS 01.27+), the EC holds the credential - dump QN800 (16 MB EC) and send it."
 exit 0
