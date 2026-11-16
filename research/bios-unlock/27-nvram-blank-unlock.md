@@ -239,6 +239,17 @@ rebuilt), `HpBiosAuditLog` (cleared — a plus), `UnlockID`/`UnlockIDCopy`,
 irrelevant for ITAD wipe). Fleet action items: re-inject `HP_OA3`, set Asset
 Tag if required — everything else is acceptable or beneficial for ITAD.
 
+**Keep-OA3 variant (2026-11-16, SAT601 unit 5CG832347D):** two images built.
+(A) `W25Q256FV_SOIC8-5cg832347d-DOWNGRADE-KEEPBB.BIN` (md5 `14584a5d…`) = the
+proven blank-store recipe. (B) `W25Q256FV_SOIC8-5cg832347d-KEEPBB-KEEPSTORE.BIN`
+(md5 `d4c60489…`) = same splice but the donor region carries the UNIT'S OWN
+store with every `UserCred` copy flipped 0xFD (three copies: 0x1B024D8,
+0x1B0B840, 0x1B0CB14) and `AuthNextCredential*` 0xFD — so `HP_OA3`
+(`TNQYQ-4X2TT-BCM8G-WGW8G-TQ722`), `HP_MUD` (5CG832347D) and all settings ride
+along in ONE flash, no MUD screen expected. B is experimental (a 01.28-format
+store read by 01.09 code — worst case it reinitialises and behaves like A);
+flash B first, fall back to A + OA3 re-inject if anything misbehaves.
+
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
