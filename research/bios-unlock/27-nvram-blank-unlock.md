@@ -186,6 +186,21 @@ locked state. Downgrade route suspended; the EC dump (`QN800`, 16 MB) is now
 required for BOTH open problems: the credential mirror and the Sure Start
 state (hash records / rollback floor).
 
+**Region file & boot-block-preserving variants (2026-11-16):**
+`Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
+NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
+Its store is blanked (the video's wipe), it carries no readable version strings,
+and its FV layout matches JYH's (SBT602) better than the 91229SG donor's. Since
+the EC gate appears keyed to the boot block (top FV at 0x1FFE000; V2/V5 which
+only touch the store boot fine), two variants keep JYH's own boot block and swap
+only the FVs below: `W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-0106-KEEPBB.BIN`
+(md5 `f3b1469b…`, 91229SG code, FV layout mismatch) and
+`W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-VIDEO-KEEPBB.BIN` (md5 `9cac6021…`, video
+code, layout match, store already blank → MUD recovery expected on boot). Both
+are low-probability: if Sure Start hashes beyond the boot block they
+black-screen the same way (recover = reflash V5). If either boots, JYH's 01.27
+boot block may reject the older FVs with an on-screen version error.
+
 **"Finishing BIOS update" progress bar on first boot — investigated (2026-11-16).**
 91229SG's pre-flash dump carried NO staged update state: `BiosUpdateCmdSts`,
 `FwUpdateCmdSts`, `HP_FwUpdate`, `HP_FlashTargetVersion` are absent on 01.06,
