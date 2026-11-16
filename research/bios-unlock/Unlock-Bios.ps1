@@ -148,8 +148,9 @@ Write-Host "UserCred @0x$('{0:X}' -f $uc.Offset) data=$($uc.DataSize) B state=0x
 
 if ($null -ne $powerOnPolicy) {
     Write-Warning "AdminAtPowerOnAuthPolicy is PRESENT (value $powerOnPolicy)."
-    Write-Warning "This unit is EC-managed: the EC holds the password and restores it on boot -"
-    Write-Warning "the patch will be applied but may NOT stick. Route this unit to the EC list."
+    Write-Warning "Info: this flag alone does NOT predict the outcome - on SOME units"
+    Write-Warning "the EC also holds the admin credential and the prompt returns after flash."
+    Write-Warning "Flash and verify; if the password returns, re-read the chip and send the dump."
 }
 
 # Staged credential: some BIOS revisions (e.g. 17WWCSAT601) re-apply the

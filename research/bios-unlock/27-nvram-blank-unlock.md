@@ -105,21 +105,21 @@ as gone → no password. This mirrors what "clear password" in Setup does.
 `BINs/CG8528HKL/W25Q256FV@SOIC8-5CG8528HKL-UNLOCKED-V2.BIN` — 32 MiB, 1 byte
 changed vs the original read, all 241 entries still walkable, ME untouched.
 
-**EC restore — PROVEN (re-read after failed V3 boot):** the post-boot dump
-(`W25Q256FV_SOIC8-5CG832347D-REREAD.BIN`) shows a NEW live `UserCred` entry at a
-new offset (`0x1B0CB14`, state 0x3F) whose password block is byte-identical to
-the old record (shared 32 B segments at old+160 -> new+61), while the
-`AuthNextCredential*` entries stayed deleted and the Windows cred strings were
-dropped. The BIOS rebuilt `UserCred` from an EC-held copy at boot. **The EC
-holds the admin password and re-syncs it into NVRAM — the main-BIOS route is
-exhausted for this unit.**
-
-Remaining routes: (1) Sure Start pin-2 short (doc 24, proven on desktops,
-unproven on 830 G5 laptops), (2) BIOS update to latest on top of V3 (cheap to
-try — unit 1's update fixed its MUD loop; may reset EC security state), (3)
-desolder `QN800` + patch the 16 MB EC dump (needs hot-air station + WSON socket).
-`SECURITY_VIOLATION` read `"26"` — Sure Start logs the tamper events, boots
-anyway. Both tools now print a warning when `AdminAtPowerOnAuthPolicy != 0`.
+**EC restore — retracted (analysis correction):** the post-boot re-read
+(`W25Q256FV_SOIC8-5CG832347D-REREAD.BIN`) shows the BIOS rebuilt `UserCred` as a
+**fresh EMPTY credential structure** — header + `AdminPW` name + a 10-slot table
+(markers every 456 B), with **no password hash carried over** (the earlier
+"byte-identical block" claim was zero-padding + the `AdminPW` name only). So the
+main-BIOS copy is clean, yet the Setup prompt persists -> **the admin credential
+on this unit is held EC-side** and the BIOS re-creates an empty main-BIOS record
+that is simply unused. `AdminAtPowerOnAuthPolicy` presence is **NOT a reliable
+predictor**: new dumps of SBT602/SCT601 units (5CG8528JYH, 5CG91229SG) also carry
+it (value 1), and those trains have unlocked fine before. Open question: what
+makes the EC hold the credential on some units and not others. Test matrix:
+flash-test 5CG8528JYH (SBT602, policy=1, UserCred 4544 B) and 5CG91229SG
+(SCT601, policy=1, UserCred 3536 B); for any unit where the prompt returns,
+send the post-boot re-read. EC routes unchanged: Sure Start pin-2 short (doc 24)
+or desolder QN800 + patch the 16 MB EC dump.
 
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
