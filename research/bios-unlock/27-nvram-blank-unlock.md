@@ -159,6 +159,21 @@ step: dump the EC `QN800` (16 MB W25Q128JV) via pogo, locate the mirror there,
 patch it, and reflash both chips. Send a post-V5 re-read of the main chip too
 (UserCred state, `ClearSecurityOperation` byte) for the record.
 
+**BIOS downgrade experiment (queued 2026-11-16):** flashing an old BIOS is the
+cheapest way around the EC re-injection — the ≤01.06 BIOS code does not restore
+`UserCred` from the EC. HP's own updater blocks rollbacks (rollback prevention;
+the floor is EC-enforced, no floor string visible in the image), but the
+programmer does not care. Image:
+`BINs/W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-0106.BIN` (md5
+`4f7a8a439d533aa11b96b9ac3a5ea38c`) = JYH bottom 16 MB (descriptor + ME,
+identity, GbE) + 91229SG `-UNLOCKED-V2` top 16 MB (BIOS 01.06.00, `UserCred`
+already 0xFD, donor MUD present). Expected first boot: MUD recovery screen —
+press Restore to pull JYH identity from the EC. If the EC enforces a rollback
+floor the unit will halt with a Sure Start error — recover by reflashing the
+original JYH dump (non-destructive). Outcomes: (a) boots 01.06.00 with no
+password = downgrade is the fleet fix for 01.27+ units; (b) boots but prompt
+persists = EC enforces independently of the main BIOS = EC dump route.
+
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
 UTF-16 name rather than hardcoding. 289 entries, exactly 1 byte changed
