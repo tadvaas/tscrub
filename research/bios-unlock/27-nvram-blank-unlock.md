@@ -174,6 +174,18 @@ original JYH dump (non-destructive). Outcomes: (a) boots 01.06.00 with no
 password = downgrade is the fleet fix for 01.27+ units; (b) boots but prompt
 persists = EC enforces independently of the main BIOS = EC dump route.
 
+**Downgrade RESULT (2026-11-16): BLACK SCREEN, no POST.** The splice was
+structurally correct (doc 11: BIOS region = top 16 MB, same recipe the
+`bios_region.bin` extraction uses) and the donor region is known-good code
+(91229SG boots it) — so the EC halted the platform before video init:
+Sure Start hash / rollback-floor rejection of the 01.06 code. Any full-code
+swap to older BIOS will hit this unless the EC cooperates (only a real HP
+update flow registers new code with Sure Start). Recovery: reflash the
+original JYH dump (`W25Q256FV_SOIC8-5cg8528jyh.BIN`) — unit returns to its
+locked state. Downgrade route suspended; the EC dump (`QN800`, 16 MB) is now
+required for BOTH open problems: the credential mirror and the Sure Start
+state (hash records / rollback floor).
+
 **"Finishing BIOS update" progress bar on first boot — investigated (2026-11-16).**
 91229SG's pre-flash dump carried NO staged update state: `BiosUpdateCmdSts`,
 `FwUpdateCmdSts`, `HP_FwUpdate`, `HP_FlashTargetVersion` are absent on 01.06,
