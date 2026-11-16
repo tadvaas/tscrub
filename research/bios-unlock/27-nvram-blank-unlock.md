@@ -189,8 +189,14 @@ state (hash records / rollback floor).
 **Region file & boot-block-preserving variants (2026-11-16):**
 `Region_BIOS_BIOS_region.rgn` is the video image's 16 MB top half — code FVs +
 NVRAM store area + GbE tail; it does NOT contain the descriptor/ME (bottom half).
-Its store is blanked (the video's wipe), it carries no readable version strings,
-and its FV layout matches JYH's (SBT602) better than the 91229SG donor's. Since
+The video donor unit was on **Q78 Ver. 01.01.07** (string in its ME-region
+metadata). Its store is blanked (the video's wipe), and its FV layout matches
+JYH's (SBT602) better than the 91229SG donor's. Historical note: on HKL
+(01.04.00, 2018 EC) the region swap BOOTED (MUD mismatch screen → Restore →
+later BIOS-update-to-latest finished it, password stayed gone) — the 2018-era
+EC did not gate code changes. JYH (01.27) black-screens the same swap, so the
+EC code-acceptance gate shares the same BIOS-vintage boundary as the credential
+mirror. Since
 the EC gate appears keyed to the boot block (top FV at 0x1FFE000; V2/V5 which
 only touch the store boot fine), two variants keep JYH's own boot block and swap
 only the FVs below: `W25Q256FV_SOIC8-5cg8528jyh-DOWNGRADE-0106-KEEPBB.BIN`
