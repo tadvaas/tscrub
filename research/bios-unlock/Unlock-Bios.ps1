@@ -85,6 +85,7 @@ Write-Host "Signature hits: $($hits.Count)"
 $userCredOffsets = New-Object System.Collections.ArrayList
 $authCredOffsets = New-Object System.Collections.ArrayList
 $mudSerial = $null
+$powerOnPolicy = $null
 $totalEntries = 0
 
 foreach ($off in $hits) {
@@ -108,6 +109,8 @@ foreach ($off in $hits) {
             [void]$userCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st; DataSize = $ds })
         } elseif ($name -like 'AuthNextCredential*') {
             [void]$authCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st })
+        } elseif ($name -like '*AdminAtPowerOnAuthPolicy*') {
+            $powerOnPolicy = $img[$p + 0x3C + $ns]
         } elseif ($name -like '*HP_MUD*' -and $null -eq $mudSerial) {
             $sn = [System.Text.Encoding]::Unicode.GetString($img, $p + 0x3C + $ns, 40).TrimEnd([char]0)
             $mudSerial = $sn
@@ -138,6 +141,10 @@ if ($uc.State -ne 0x3F) {
 }
 
 Write-Host "UserCred @0x$('{0:X}' -f $uc.Offset) data=$($uc.DataSize) B state=0x3F"
+
+if ($null -ne $powerOnPolicy -and $powerOnPolicy -ne 0) {
+    Write-Warning "AdminAtPowerOnAuthPolicy=$powerOnPolicy - admin-at-power-on auth is EC-side; UserCred removal may NOT clear the prompt on this unit (may need the EC route)."
+}
 
 # Staged credential: some BIOS revisions (e.g. 17WWCSAT601) re-apply the
 # staged AuthNextCredential* variable on boot and bring the password back.

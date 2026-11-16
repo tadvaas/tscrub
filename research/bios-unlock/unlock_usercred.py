@@ -41,7 +41,7 @@ def parse_store(data, off):
         name_size = struct.unpack('<I', data[p + 0x24:p + 0x28])[0]
         data_size = struct.unpack('<I', data[p + 0x28:p + 0x2C])[0]
         name = data[p + 0x3C:p + 0x3C + name_size].decode('utf-16-le', 'replace')
-        entries.append((p, state, name, data_size))
+        entries.append((p, state, name, data_size, name_size))
         p += 0x3C + name_size + data_size
         p = (p + 3) & ~3
     return entries
@@ -71,17 +71,26 @@ def main(argv):
     if len(creds) != len(live):
         print(f'UserCred entries: {len(creds)} total, {len(live)} live (stale deleted copies ignored)')
     assert len(live) == 1, f'expected exactly one live UserCred, found {len(live)} of {len(creds)}'
-    p, state, name, dsize = live[0]
+    p, state, name, dsize, _ = live[0]
+
+    pol = [e for e in entries if 'AdminAtPowerOnAuthPolicy' in e[2]]
+    if pol:
+        pp, pst, pn, pds, pns = pol[0]
+        pv = data[pp + 0x3C + pns]
+        if pv != 0:
+            print(f'WARNING: AdminAtPowerOnAuthPolicy={pv} - admin-at-power-on auth is'
+                  f' EC-side; UserCred removal may NOT clear the prompt on this unit'
+                  f' (may need the EC route).')
 
     auth = [e for e in entries if e[1] == 0x3F and e[2].startswith('AuthNextCredential')]
     if auth:
         print(f'AuthNextCredential* live entries to delete: {len(auth)}')
-        for ap, ast, an, ad in auth:
+        for ap, ast, an, ad, ans in auth:
             print(f'  {an.rstrip(chr(0))!r} @0x{ap:X}')
 
     patched = bytearray(data)
     patched[p + 2] = DELETED
-    for ap, ast, an, ad in auth:
+    for ap, ast, an, ad, ans in auth:
         patched[ap + 2] = DELETED
     open(out, 'wb').write(patched)
 

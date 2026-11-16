@@ -105,6 +105,20 @@ as gone → no password. This mirrors what "clear password" in Setup does.
 `BINs/CG8528HKL/W25Q256FV@SOIC8-5CG8528HKL-UNLOCKED-V2.BIN` — 32 MiB, 1 byte
 changed vs the original read, all 241 entries still walkable, ME untouched.
 
+**Power-on auth = EC-side (unit 5CG832347D):** even V3 (UserCred + AuthNext*)
+failed to clear the password. Decisive difference: this unit has
+`AdminAtPowerOnAuthPolicy = 01` (admin-at-power-on authentication enabled); the
+working units have the variable ABSENT (0). HP enforces power-on admin auth in
+the **EC at power-on**, before the main BIOS NVRAM is consulted — the credential
+lives in the EC (Sure Start), so no main-BIOS NVRAM patch can remove it.
+`V4` (`W25Q256FV_SOIC8-5cg832347d-UNLOCKED-V4.BIN`) additionally zeroes the
+policy byte (01->00) — cheap test; if the EC caches the policy it will not help.
+If V4 fails: EC route — Sure Start pin-2 short (doc 24, unproven on 830 G5) or
+desolder QN800 + patch the 16 MB EC dump. `SECURITY_VIOLATION` read `"26"` after
+the tamper tests — Sure Start logs the events, boots anyway. Both unlock tools
+now print a warning when `AdminAtPowerOnAuthPolicy != 0`; the V1/V2/V3 recipe
+remains valid for the majority of units with the policy off.
+
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
 UTF-16 name rather than hardcoding. 289 entries, exactly 1 byte changed
