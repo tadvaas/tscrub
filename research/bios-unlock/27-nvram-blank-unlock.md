@@ -193,17 +193,22 @@ block (code below 0x1FFE000 is freely modifiable), (2) no EC version floor
 blocks 01.01-era code. The fleet recipe for BIOS 01.27+ units: KEEPBB splice
 = unit's bottom 16 MB + unit's top 128 KB + donor region (blank store) in
 between; first boot runs MUD recovery from the EC, password does not return.
-CAUTION: these units' ECs still hold the credential mirror — a later HP BIOS
-update could resurrect the password; avoid BIOS updates on unlocked units, or
-test one first. Open checks: serial/UUID restored, BIOS version reported,
-Windows activation (donor region has no `HP_OA3`/MSDM key for this unit),
+**BIOS update AFTER unlock is SAFE (verified 2026-11-16, photos IMG_1458-1460):**
+JYH was updated 01.09.01 → **01.31.00** via the official Network BIOS Update;
+the update completed and the unit entered Setup with NO password prompt, serial
+`5CG8528JYH` + SKU + UUID intact. The earlier caution ("avoid BIOS updates") is
+RETRACTED — the official update flow preserves the empty credential state (and
+the EC mirror does not resurrect it). Fleet recipe is now: KEEPBB splice →
+optional update to latest → done. Open checks: serial/UUID restored, Windows
+activation (donor region has no `HP_OA3`/MSDM key for this unit),
 second-boot behaviour.
 
 **After-KEEPBB re-read analysed (`W25Q256FV_SOIC8-5CG8528JYH-AfterKEEPBBPatch.BIN`):**
 identity intact (`HP_MUD` 5CG8528JYH + `BuildId` 17WWCSBT602 restored from the
 EC), `UserCred` rebuilt as an EMPTY skeleton (3536 B, 140 non-zero bytes at
 slot markers only, NO AdminPW record) — password gone. **The donor code is
-Q78 01.09.00** (its `LastCheckedBiosVerForBatteryRecall` reads 0x09; the
+Q78 01.09.01** (photo evidence: Setup reported 01.09.01 before the update; its
+`LastCheckedBiosVerForBatteryRecall` reads 0x09; the
 `01.01.07` string in the donor's ME region was the donor unit's PRE-update
 version — stale). Store re-initialised to 294 entries (75,199 bytes changed
 vs the flashed file, all in the store + FV housekeeping). **Caveat: `HP_OA3`
