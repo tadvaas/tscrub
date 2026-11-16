@@ -81,8 +81,9 @@ while ($idx -ge 0) {
 }
 Write-Host "Signature hits: $($hits.Count)"
 
-# Walk every valid store; collect UserCred and HP_MUD
+# Walk every valid store; collect UserCred, AuthNextCredential* and HP_MUD
 $userCredOffsets = New-Object System.Collections.ArrayList
+$authCredOffsets = New-Object System.Collections.ArrayList
 $mudSerial = $null
 $totalEntries = 0
 
@@ -105,6 +106,8 @@ foreach ($off in $hits) {
         $totalEntries++
         if ($name -like '*UserCred*') {
             [void]$userCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st; DataSize = $ds })
+        } elseif ($name -like 'AuthNextCredential*') {
+            [void]$authCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st })
         } elseif ($name -like '*HP_MUD*' -and $null -eq $mudSerial) {
             $sn = [System.Text.Encoding]::Unicode.GetString($img, $p + 0x3C + $ns, 40).TrimEnd([char]0)
             $mudSerial = $sn
@@ -136,9 +139,18 @@ if ($uc.State -ne 0x3F) {
 
 Write-Host "UserCred @0x$('{0:X}' -f $uc.Offset) data=$($uc.DataSize) B state=0x3F"
 
-# Patch: one byte
+# Staged credential: some BIOS revisions (e.g. 17WWCSAT601) re-apply the
+# staged AuthNextCredential* variable on boot and bring the password back.
+$authLive = @($authCredOffsets | Where-Object { $_.State -eq 0x3F })
+if ($authLive.Count -gt 0) {
+    Write-Host "AuthNextCredential* live entries to delete: $($authLive.Count)"
+}
+
+# Patch: one byte per entry
 $patched = [byte[]]$img.Clone()
 $patched[$uc.Offset + 2] = 0xFD
+foreach ($a in $authLive) { $patched[$a.Offset + 2] = 0xFD }
+$expectedChanges = 1 + $authLive.Count
 
 # Verify exactly one byte differs (chunked compare, fast)
 $diffCount = 0
@@ -153,7 +165,7 @@ for ($i = 0; $i -lt $img.Length; $i += $block) {
     for ($j = 0; $j -lt $n; $j++) { if ($a[$j] -ne $b[$j]) { $diff++ } }
     $diffCount += $diff
 }
-if ($diffCount -ne 1) { Fail "Expected exactly 1 changed byte, got $diffCount" 5 }
+if ($diffCount -ne $expectedChanges) { Fail "Expected exactly $expectedChanges changed byte(s), got $diffCount" 5 }
 
 if (-not $Out) {
     $Out = [regex]::Replace($Bin, '(?i)\.bin$', '-UNLOCKED-V2.BIN')
@@ -161,6 +173,6 @@ if (-not $Out) {
 [System.IO.File]::WriteAllBytes($Out, $patched)
 
 Write-Host "Wrote $Out"
-Write-Host "Patch OK: UserCred deleted (0xFD), identity intact, $($patched.Length) bytes"
+Write-Host "Patch OK: UserCred deleted (0xFD), staged credentials removed, identity intact, $($patched.Length) bytes"
 Write-Host "Flash it with Xgpro: Erase -> Blank Check -> Program -> Verify"
 exit 0

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """830 G5 BIOS unlock: delete the HP `UserCred` NVRAM variable (one byte).
 
-Confirmed 2026-11-14 on units 5CG8528HKL and 5CG8403V0S:
+On SAT601-class BIOS revisions also delete the staged `AuthNextCredential*`
+variables, otherwise the BIOS re-applies the staged credential on boot and
+the password returns.
+
+Confirmed 2026-11-14/16 on units 5CG8528HKL, 5CG8403V0S (UserCred only) and
+5CG832347D (UserCred + AuthNextCredential*).
 - The BIOS admin password lives in the UEFI authenticated variable `UserCred`
   (GUID f66687ff-8cf3-4a19-b4ac-f5f0..., data starts with UTF-16 "AdminPW")
   inside the NVRAM store (signature aaf32c78-947b-439a-a180-2e144ec37792).
@@ -67,20 +72,24 @@ def main(argv):
         print(f'UserCred entries: {len(creds)} total, {len(live)} live (stale deleted copies ignored)')
     assert len(live) == 1, f'expected exactly one live UserCred, found {len(live)} of {len(creds)}'
     p, state, name, dsize = live[0]
-    assert state == 0x3F, f'UserCred state 0x{state:02X}, expected 0x3F (already unlocked?)'
-    print(f'UserCred @0x{p:X} data={dsize} B')
 
-    mud = [e for e in entries if 'HP_MUD' in e[2]]
-    print(f'HP_MUD entries: {len(mud)}')
+    auth = [e for e in entries if e[1] == 0x3F and e[2].startswith('AuthNextCredential')]
+    if auth:
+        print(f'AuthNextCredential* live entries to delete: {len(auth)}')
+        for ap, ast, an, ad in auth:
+            print(f'  {an.rstrip(chr(0))!r} @0x{ap:X}')
 
     patched = bytearray(data)
     patched[p + 2] = DELETED
+    for ap, ast, an, ad in auth:
+        patched[ap + 2] = DELETED
     open(out, 'wb').write(patched)
 
     v = open(out, 'rb').read()
     changed = [i for i in range(len(data)) if data[i] != v[i]]
-    assert changed == [p + 2], f'unexpected changed bytes: {[hex(i) for i in changed]}'
-    print(f'wrote {out}: 1 byte changed @0x{p + 2:X}, UserCred deleted (0x{DELETED:02X})')
+    expected = sorted([p + 2] + [ap + 2 for ap, *_ in auth])
+    assert changed == expected, f'unexpected changed bytes: {[hex(i) for i in changed]} vs {[hex(i) for i in expected]}'
+    print(f'wrote {out}: {len(changed)} byte(s) changed, UserCred deleted (0x{DELETED:02X})')
     print('ME/identity untouched.')
 
 

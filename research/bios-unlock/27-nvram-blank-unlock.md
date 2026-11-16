@@ -112,6 +112,15 @@ UTF-16 name rather than hardcoding. 289 entries, exactly 1 byte changed
 BIOS update to latest (update did not re-add the password), so BIOS-update is
 the fallback if the MUD screen ever persists.
 
+**SAT601 BIOS revision gotcha (unit 5CG832347D, BuildId `17WWCSAT601`):**
+deleting `UserCred` alone did NOT clear the password. That revision keeps a
+staged credential in `AuthNextCredentialId` (8 B) + `AuthNextCredentialNumber_1`
+(1,260 B, binary) and re-applies it on boot, resurrecting the password.
+Working units (`17WWCSBT602`) have no `AuthNext*` variables. **V3 recipe: also
+flip every live `AuthNextCredential*` entry to `0xFD`** — 3 bytes changed on
+this unit, confirmed in `W25Q256FV@SOIC8-5cg832347d-UNLOCKED-V3.BIN`. Both
+`unlock_usercred.py` and `Unlock-Bios.ps1` now do this automatically.
+
 ## Confirmed result (2026-11-14, unit 5CG8528HKL)
 
 `830_G5.unlocked.bin` was programmed (Erase → Blank Check → Program → Verify
