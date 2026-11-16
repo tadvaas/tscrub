@@ -160,3 +160,20 @@ method, but possible on other revisions):
   FV map of both images is identical (7 FVs in the BIOS region, same offsets).
 - Marker `NvramActiveRegn` appears 4× in **both** files (inside compressed
   BIOS modules, not in the variable store) — it is a red herring for patching.
+
+## Runtime deletion experiment — CONFIRMED DEAD (2026-11-16, unit 5CG832347D)
+
+Tested deleting `UserCred` from a running system (tScrub netboot env, telnet
+shell, efivarfs) instead of offline patching:
+
+- `UserCred-f66687ff-8cf3-4a19-b4ac-f5f0b78e4d18` is exposed read-only with the
+  kernel **immutable** flag; the appliance also mounts efivarfs `ro`.
+- After `mount -o remount,rw` + `chattr -i` (both succeed), both `rm` (delete =
+  SetVariable size 0) and writing back the identical data fail with
+  **EINVAL / "Invalid argument"**.
+- Conclusion: **HP firmware rejects every runtime SetVariable on `UserCred`**
+  (delete and write). The variable is firmware-protected, so no runtime route
+  exists — the offline state-byte flip via external programmer is the only
+  method. The unit was left untouched (all writes failed), no restore needed.
+- Side note: the tScrub appliance mounts efivarfs `ro` deliberately; the
+  remount was transient (netboot RAM image).
