@@ -189,4 +189,5 @@ if (-not $Out) {
 Write-Host "Wrote $Out"
 Write-Host "Patch OK: UserCred deleted (0xFD), staged credentials removed, identity intact, $($patched.Length) bytes"
 Write-Host "Flash it with Xgpro: Erase -> Blank Check -> Program -> Verify"
+Write-Host "Note: first boot may show a 'finishing BIOS update' progress bar - that is normal."
 exit 0

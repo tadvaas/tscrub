@@ -114,12 +114,15 @@ main-BIOS copy is clean, yet the Setup prompt persists -> **the admin credential
 on this unit is held EC-side** and the BIOS re-creates an empty main-BIOS record
 that is simply unused. `AdminAtPowerOnAuthPolicy` presence is **NOT a reliable
 predictor**: new dumps of SBT602/SCT601 units (5CG8528JYH, 5CG91229SG) also carry
-it (value 1), and those trains have unlocked fine before. Open question: what
-makes the EC hold the credential on some units and not others. Test matrix:
-flash-test 5CG8528JYH (SBT602, policy=1, UserCred 4544 B) and 5CG91229SG
-(SCT601, policy=1, UserCred 3536 B); for any unit where the prompt returns,
-send the post-boot re-read. EC routes unchanged: Sure Start pin-2 short (doc 24)
-or desolder QN800 + patch the 16 MB EC dump.
+it (value 1), and those trains have unlocked fine before. **Test matrix (updated 2026-11-16):** SCT601 unit 5CG91229SG (policy=1, UserCred
+3536 B) **UNLOCKED OK** with the V2 patch — first boot showed a **"finishing
+BIOS update" progress bar**, then the Setup password was gone. Scoreboard:
+SBT601 ✓ (unit 2), SBT602 ✓ (unit 1, via V1 + BIOS update), SCT601 ✓ (91229SG),
+SAT601 ✗ (unit 4 — prompt persists, EC-side credential). `AdminAtPowerOnAuthPolicy`
+is NOT a predictor (present on working units too). Current rule: **SAT-train
+units are the suspect set**; SBT/SCT use the normal recipe. For any unit where
+the prompt returns, send the post-boot re-read. EC routes unchanged: Sure Start
+pin-2 short (doc 24) or desolder QN800 + patch the 16 MB EC dump.
 
 **Fleet note (unit 2, 5CG8403V0S):** same procedure, `UserCred` sits at a
 different offset (`0x1B0058C`) — always locate it by walking the store for the
