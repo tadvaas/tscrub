@@ -84,6 +84,18 @@ So a "clear password" = credential set with EMPTY data via the 0x52cc path
 (with the AdminPW record), which drives the EC write (0x2214) + commit. The
 re-injection we see at boot is the mirror image of this: EC read → 0x1870.
 
+**DXE modules are COMPRESSED on-chip (2026-11-16):** the ASCII names
+"CredentialServicesSmm" / "SmcSmm" / "UserCred" do NOT exist anywhere in the
+raw chip image — every module body sits in compressed FFS sections. Patching
+JYH's own 01.27 code therefore requires decompress → patch → recompress with
+FFS/FV header fixes = UEFIReplace (`brew install uefitool` provides it). Two
+rollback gates to keep separate: (a) the HP updater's capsule check (irrelevant
+— we flash via T48) and (b) the EC/Sure Start version floor (EC-enforced,
+version-based — KEEPBB does NOT bypass it; only the boot-block hash gate is
+addressed). If VIDEO-KEEPBB boots, that single experiment proves BOTH no floor
+and hash scope = boot block; if it black-screens, the two gates cannot be
+distinguished without the EC dump.
+
 ## Boot block size (Sure Start hash scope)
 
 The top FV at `0x1FFE000` (starts with the x86 reset vector `EB CE` in its
