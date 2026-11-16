@@ -86,6 +86,7 @@ $userCredOffsets = New-Object System.Collections.ArrayList
 $authCredOffsets = New-Object System.Collections.ArrayList
 $mudSerial = $null
 $powerOnPolicy = $null
+$buildId = $null
 $totalEntries = 0
 
 foreach ($off in $hits) {
@@ -111,6 +112,8 @@ foreach ($off in $hits) {
             [void]$authCredOffsets.Add([pscustomobject]@{ Offset = $p; State = $st })
         } elseif ($name -like '*AdminAtPowerOnAuthPolicy*') {
             $powerOnPolicy = $img[$p + 0x3C + $ns]
+        } elseif ($name -like '*BuildId*') {
+            $buildId = [System.Text.Encoding]::Unicode.GetString($img, $p + 0x3C + $ns, $ds).TrimEnd([char]0)
         } elseif ($name -like '*HP_MUD*' -and $null -eq $mudSerial) {
             $sn = [System.Text.Encoding]::Unicode.GetString($img, $p + 0x3C + $ns, 40).TrimEnd([char]0)
             $mudSerial = $sn
@@ -122,6 +125,7 @@ foreach ($off in $hits) {
 
 Write-Host "Store entries walked: $totalEntries"
 if ($mudSerial) { Write-Host "Unit serial (from HP_MUD): $mudSerial" }
+if ($buildId) { Write-Host "BIOS BuildId: $buildId" }
 
 # A password change leaves a stale DELETED (0xFD) copy behind; only the LIVE
 # (0x3F) entry carries the current password.

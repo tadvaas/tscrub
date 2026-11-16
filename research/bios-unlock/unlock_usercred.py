@@ -73,6 +73,11 @@ def main(argv):
     assert len(live) == 1, f'expected exactly one live UserCred, found {len(live)} of {len(creds)}'
     p, state, name, dsize, _ = live[0]
 
+    bid = [e for e in entries if 'BuildId' in e[2]]
+    if bid:
+        bp, bst, bn, bds, bns = bid[0]
+        print(f'BIOS BuildId: {data[bp + 0x3C + bns:bp + 0x3C + bns + bds].rstrip(chr(0).encode()).decode("utf-16-le", "replace")}')
+
     pol = [e for e in entries if 'AdminAtPowerOnAuthPolicy' in e[2]]
     if pol:
         pp, pst, pn, pds, pns = pol[0]
