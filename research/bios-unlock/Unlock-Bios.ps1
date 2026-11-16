@@ -14,6 +14,7 @@
 #   (optional) -Out .\output.BIN
 #
 # Exit codes: 0 ok | 2 bad image | 3 UserCred missing/duplicate | 4 already deleted | 5 write error
+#             6 AdminAtPowerOnAuthPolicy present (EC-managed) - use -Force to patch anyway
 #
 # Acceptance test (bench PC): the output for the known dumps must match
 #   W25Q256FV@SOIC8-5CG8528HKL.BIN  -> MD5 d292236faef559bbae082a9283e7cd81
@@ -21,7 +22,8 @@
 
 param(
     [Parameter(Mandatory = $true)][string]$Bin,
-    [string]$Out
+    [string]$Out,
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -146,8 +148,15 @@ if ($uc.State -ne 0x3F) {
 
 Write-Host "UserCred @0x$('{0:X}' -f $uc.Offset) data=$($uc.DataSize) B state=0x3F"
 
-if ($null -ne $powerOnPolicy -and $powerOnPolicy -ne 0) {
-    Write-Warning "AdminAtPowerOnAuthPolicy=$powerOnPolicy - admin-at-power-on auth is EC-side; UserCred removal may NOT clear the prompt on this unit (may need the EC route)."
+if ($null -ne $powerOnPolicy) {
+    Write-Warning "AdminAtPowerOnAuthPolicy is PRESENT (value $powerOnPolicy)."
+    Write-Warning "This unit is EC-managed: the EC holds the password and restores it on boot."
+    Write-Warning "Patching the 32 MB chip will NOT remove the password - route this unit to the EC list."
+    if (-not $Force) {
+        Write-Warning "Skipping output. Re-run with -Force to patch anyway (experimental)."
+        exit 6
+    }
+    Write-Warning "-Force given: patching anyway."
 }
 
 # Staged credential: some BIOS revisions (e.g. 17WWCSAT601) re-apply the

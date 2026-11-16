@@ -82,10 +82,10 @@ def main(argv):
     if pol:
         pp, pst, pn, pds, pns = pol[0]
         pv = data[pp + 0x3C + pns]
-        if pv != 0:
-            print(f'WARNING: AdminAtPowerOnAuthPolicy={pv} - admin-at-power-on auth is'
-                  f' EC-side; UserCred removal may NOT clear the prompt on this unit'
-                  f' (may need the EC route).')
+        print(f'WARNING: AdminAtPowerOnAuthPolicy is PRESENT (value {pv}).'
+              f' This unit is EC-managed - the EC holds the password and restores it'
+              f' on boot, so patching the 32 MB image will NOT clear it. Route the'
+              f' unit to the EC list.')
 
     auth = [e for e in entries if e[1] == 0x3F and e[2].startswith('AuthNextCredential')]
     if auth:
