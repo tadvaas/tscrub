@@ -265,6 +265,20 @@ keep-store output (`-ForceKEEPBB`, expected md5 `90f18197…`) — password gone
 The patcher now applies KEEPBB AUTOMATICALLY for BIOS ≥ 01.24; the unverified
 range shrinks to 01.07–01.23. Windows key on VSN: `2XKNF-RM24Q-CXR7D-HRK92-8XCKC`.
 
+## Other platforms — ZBook Fury 16 G9 (2026-11-17, CND2048Y34)
+
+Dump analysed (`W25Q256FV_SOIC8-CND2048Y34.BIN`): family `21WWAVBT601`, BIOS
+01.07, `UserCred` 4544 B LIVE, **full EC-mirror machinery present**
+(`SmcInProgress` 31, `BeamLocalUser1` 53, `AuthNextCredentialId` 5, SMC GUID
+215) → a UserCred-delete patch will be re-injected; KEEPBB is NOT portable
+(donor region is 830-G5-specific). `HpPassphraseStructureVariable` ABSENT in
+the main dump (dellpwn SHA-1 target not here). **Strategy: (1) the HP
+halt-code master-password generator first** (this generation supports it —
+3 wrong passwords → "System Disabled [i XXXX]" → generator → master → clear
+in Setup, which clears the EC mirror legitimately); **(2) fallback: dump the
+EC chip and run dellpwn/hashcat -m 130 on its HpPassphraseStructureVariable**
+(Siemens 8-char pattern cracks fast).
+
 **Variant B RESULT — WORKED (2026-11-16, unit 4 / 5CG832347D):** after-flash
 re-read (`W25Q256FV_SOIC8-5CG832347D-afterkeepbb-keepstore.BIN`) shows the
 unit's OWN store survived the old-code boot: `HP_OA3` still
