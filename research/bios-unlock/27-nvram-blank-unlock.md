@@ -265,19 +265,61 @@ keep-store output (`-ForceKEEPBB`, expected md5 `90f18197…`) — password gone
 The patcher now applies KEEPBB AUTOMATICALLY for BIOS ≥ 01.24; the unverified
 range shrinks to 01.07–01.23. Windows key on VSN: `2XKNF-RM24Q-CXR7D-HRK92-8XCKC`.
 
-## Other platforms — ZBook Fury 16 G9 (2026-11-17, CND2048Y34)
+## Other platforms — ZBook Fury 15.6 G8, family T95/21WW (2026-11-17, CND2048Y34)
 
-Dump analysed (`W25Q256FV_SOIC8-CND2048Y34.BIN`): family `21WWAVBT601`, BIOS
-01.07, `UserCred` 4544 B LIVE, **full EC-mirror machinery present**
-(`SmcInProgress` 31, `BeamLocalUser1` 53, `AuthNextCredentialId` 5, SMC GUID
-215) → a UserCred-delete patch will be re-injected; KEEPBB is NOT portable
-(donor region is 830-G5-specific). `HpPassphraseStructureVariable` ABSENT in
-the main dump (dellpwn SHA-1 target not here). **Strategy: (1) the HP
-halt-code master-password generator first** (this generation supports it —
-3 wrong passwords → "System Disabled [i XXXX]" → generator → master → clear
-in Setup, which clears the EC mirror legitimately); **(2) fallback: dump the
-EC chip and run dellpwn/hashcat -m 130 on its HpPassphraseStructureVariable**
-(Siemens 8-char pattern cracks fast).
+Dump analysed (`W25Q256FV_SOIC8-CND2048Y34.BIN`): MUD says **HP ZBook Fury
+15.6 inch G8 Mobile Workstation PC** (product 596S7EC); BuildId
+`21WWAVBT601#SABU#DABU` (HP package name for this family: "HP BIOS and System
+Firmware (T95)", covering Fury 15 + 17 G8). BIOS 01.07, `UserCred` 4544 B
+LIVE, **full EC-mirror machinery present** (`SmcInProgress` 31,
+`BeamLocalUser1` 53, `AuthNextCredentialId` 5, SMC GUID 215).
+`HpPassphraseStructureVariable` ABSENT in the main dump (dellpwn SHA-1 target
+is EC-side on this platform). **Siemens fleet CSV records `wb8c43mw` for
+CND2048Y34 — try it first.** **Strategy: (1) the HP halt-code master-password
+generator** (this generation supports it — 3 wrong passwords → "System
+Disabled [i XXXX]" → generator → master → clear in Setup, which clears the EC
+mirror legitimately); **(2) fallback: dump the EC chip and run
+dellpwn/hashcat -m 130 on its HpPassphraseStructureVariable** (Siemens 8-char
+pattern cracks fast). EC model for the LA-K771P board is still a bench survey
+item (doc 21) — no EC string in the main flash.
+
+### T95 donor-region generation from official capsules — WORKS, but KEEPBB is dead on T95
+
+**We CAN generate a donor BIOS region for this platform, byte-exact like the
+830 G5 one.** Method: download the softpaq `sp*.exe` from `ftp.hp.com`, `7z x`
+it, and slice the container: the `T95_XXYYZZ00.bin` payload is a **0x320-byte
+header + a complete 16 MB BIOS region** (rel 0 = file offset 0x320). Verified
+by mapping all 26 `_FVH` headers of the unit's region onto the capsule with a
+constant +0x320 shift, including the boot block FVH at rel 0xFFE028
+(capsule offset 0xFFE348) and the GbE tail — same geometry as the 830 G5
+donor, so the KEEPBB splice mechanics port unchanged.
+
+Generated donors (kept in `BINs/`):
+
+| version | softpaq | region md5 |
+|---|---|---|
+| 01.25.00 | sp173872 | `615d138c92a6e7752076e9687cc45719` |
+| 01.01.05 (launch) | sp119372 | `a34ddf96653933cd1cff26d08bcd16b9` |
+
+Softpaq chain (HP keeps every version downloadable): sp173872 (01.25.00),
+sp172973 (01.24.01), sp168750 (01.23.00), sp163103 (01.22.00), sp158303
+(01.21.00), sp156790 (01.20.00), sp156133 (01.19.00), sp154774 (01.18.00),
+sp152739 (01.17.01), sp152209 (01.16.00), sp152208 (01.15.00), sp148062
+(01.14.00), sp146053 (01.13.01), sp144558 (01.12.00), sp143287 (01.11.00),
+sp141648 (01.10.00), sp140557 (01.09.11), sp140278 (01.09.02), sp138938
+(01.08.20), sp138218 (01.08.01), sp136628 (01.07.03), **sp119372 (01.01.05)**.
+
+**BUT the splice cannot unlock this platform.** Marker scan of BOTH generated
+regions shows the full mirror machinery in **every** T95 release including the
+launch 01.01.05 (`SmcInProgress` 31, `BeamLocalUser1` 53, `AuthNextCredentialId`
+5, SMC GUID 213/226) — identical counts across 01.01.05 / 01.07 / 01.25. The
+830 G5 trick worked only because its mirror arrived in a LATER BIOS update, so
+an old donor code neither validated nor re-injected. T95 shipped with the
+mirror from day one, so ANY official donor region re-injects the EC credential
+just like the unit's own 01.07 code. KEEPBB keep-store is therefore
+**inapplicable on T95** — the generator / EC-dump routes above are the only
+paths. (A mirror-free donor would require a non-official source, e.g. an
+engineering/unprovisioned ROM, which does not exist for download.)
 
 **Variant B RESULT — WORKED (2026-11-16, unit 4 / 5CG832347D):** after-flash
 re-read (`W25Q256FV_SOIC8-5CG832347D-afterkeepbb-keepstore.BIN`) shows the
