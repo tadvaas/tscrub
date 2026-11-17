@@ -321,6 +321,10 @@ just like the unit's own 01.07 code. KEEPBB keep-store is therefore
 paths. (A mirror-free donor would require a non-official source, e.g. an
 engineering/unprovisioned ROM, which does not exist for download.)
 
+The remaining flash routes — a V2 store probe (built) and a code patch of
+T95's `CredentialServicesSmm` (mapped, same FFS GUID as the 830 G5) — are in
+**doc 29**.
+
 **Variant B RESULT — WORKED (2026-11-16, unit 4 / 5CG832347D):** after-flash
 re-read (`W25Q256FV_SOIC8-5CG832347D-afterkeepbb-keepstore.BIN`) shows the
 unit's OWN store survived the old-code boot: `HP_OA3` still
