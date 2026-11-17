@@ -267,6 +267,10 @@ range shrinks to 01.07–01.23. Windows key on VSN: `2XKNF-RM24Q-CXR7D-HRK92-8XC
 
 ## Other platforms — ZBook Fury 15.6 G8, family T95/21WW (2026-11-17, CND2048Y34)
 
+**CORRECTION (same day):** CND2048Y34 turned out to be already BIOS-unlocked —
+the actual fleet target is CND14004KD (ZBook Fury 15 G7, family S92) — see
+**doc 30**. The T95 analysis below is retained as platform research.
+
 Dump analysed (`W25Q256FV_SOIC8-CND2048Y34.BIN`): MUD says **HP ZBook Fury
 15.6 inch G8 Mobile Workstation PC** (product 596S7EC); BuildId
 `21WWAVBT601#SABU#DABU` (HP package name for this family: "HP BIOS and System

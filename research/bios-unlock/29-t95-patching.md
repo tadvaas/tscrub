@@ -1,5 +1,10 @@
 # 29 — T95 (ZBook Fury 15.6 G8): module map, V2 probe, and code-patch route
 
+**CORRECTION (same day):** the CND2048Y34 dump this doc is based on came from an
+unlocked unit. The analysis still describes the T95/S92 credential driver
+family (same FFS GUIDs); the real locked unit is CND14004KD (S92, ZBook Fury 15
+G7) — see **doc 30**.
+
 **Date:** 2026-11-17
 **Goal:** flash-only unlock of the 32 MB main SPI chip on the T95/21WW platform
 (CND2048Y34, BIOS 01.07). KEEPBB is dead here — the EC mirror machinery is in
