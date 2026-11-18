@@ -367,6 +367,24 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **Devices are made on the Devices tab, media on the Media tab — and a
+  register entry is never counted as evidence.** "Reassign origin" took a
+  free-text serial and could record the device inline, so the account grew
+  devices that existed only because a media form created them: they were counted
+  under **tScrub** as if the appliance had inspected them, were missing from the
+  **Attested** view where an operator would look, and exported as scans with a
+  *First report* that was really the declaration date. Three changes, one rule:
+  the origin form now **picks** a device that already exists (and refuses a
+  serial that is not, pointing at the Devices page); the **Add** modal on
+  Devices records a device with no media at all (a unit with no data-bearing
+  storage is a real record) and Media's **Add** records media only; and declared
+  devices become their own source class — the tab gains a **Declared** view, they
+  are excluded from the tScrub count, and the export gains a **Provenance**
+  column (`observed` / `attested` / `declared` / `bench`) with the report dates
+  left blank for a declared row. The 21 existing declared devices are kept as
+  declared (they are already linked to 33 media items) and are simply told apart
+  honestly from now on.
+
 - **SAS sanitise progress, for real this time.** The pump captured
   `sg_requests` output with `2>/dev/null` — but `sg_requests` writes its
   sense decode ("sanitize in progress" + `Progress indication`) to STDERR

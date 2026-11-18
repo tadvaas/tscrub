@@ -1390,8 +1390,7 @@ function device_serial_known(int $userId, string $serial): bool {
  * "linked".
  */
 function media_link_declare(int $userId, string $cocid, string $assetSerial, string $mediaSerial,
-                            string $reason, string $note, int $by,
-                            bool $createDevice = false, string $deviceModel = '', string $deviceNote = ''): array {
+                            string $reason, string $note, int $by): array {
     asset_media_ensure_schema();
     $cocid        = trim($cocid);
     $assetSerial  = trim($assetSerial);
@@ -1412,16 +1411,16 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
         return ['ok' => false, 'error' => 'That serial is too long to record.'];
     }
 
-    // GATE: a media origin may only name a device that exists. "Exists" is a
-    // diagnostics snapshot OR a declared-devices row, so a machine that never
-    // boots tScrub is still recordable — but it has to BE on file first, which
-    // is what stops a typo from becoming a certificate line. The flag is the
-    // operator's explicit acknowledgement, never an automatic side effect.
-    $deviceKnown = device_serial_known($userId, $assetSerial);
-    if (!$deviceKnown && !$createDevice) {
+    // GATE: a media origin may only name a device that already exists — a
+    // diagnostics snapshot, an attested device record, or a declared-devices
+    // row. Devices are created on the Devices tab and nowhere else: this form
+    // used to be able to record the device inline, which is how the account
+    // ended up with register rows that no list counted and no export could
+    // describe. A typo is still refused, and the message names where to fix it.
+    if (!device_serial_known($userId, $assetSerial)) {
         return ['ok' => false, 'unknown_asset' => true, 'error' =>
             'No device with serial ' . $assetSerial . ' is in Devices. ' .
-            'Record the device first, then link — the form can do both in one step.'];
+            'Record it on the Devices tab first, then link the media item to it.'];
     }
 
     $ids = org_member_ids($userId);
@@ -1475,11 +1474,6 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
     try {
         $pdo = db();
         $pdo->beginTransaction();
-        // The register row goes in first: the link is only allowed to exist
-        // because that row (or a boot snapshot) makes the device real.
-        if (!$deviceKnown) {
-            declared_device_set($userId, $assetSerial, $deviceModel, $deviceNote, $by);
-        }
         foreach ($replaceIds as $rid) {
             $del = $pdo->prepare("DELETE FROM media_links WHERE id = ? AND user_id IN ($ph)");
             $del->execute(array_merge([$rid], $ids));
@@ -1498,10 +1492,10 @@ function media_link_declare(int $userId, string $cocid, string $assetSerial, str
             'error'   => '',
             'id'      => $newId,
             'replaced' => count($replaceIds),
-            // True whenever a device row now exists for this serial: the gate
-            // guarantees it, so this only distinguishes "already observed" from
-            // "recorded just now" for the dashboard's message.
-            'asset_known' => $deviceKnown,
+            // Always true: the gate above refuses a serial that has no device,
+            // and this function no longer creates one. Kept in the payload so a
+            // stale dashboard build does not read `undefined`.
+            'asset_known' => true,
         ];
     } catch (Throwable $e) {
         if (db()->inTransaction()) { db()->rollBack(); }
@@ -1652,6 +1646,7 @@ function declared_device_row(array $r): array {
     return [
         '_key'          => 'declared:' . mp_key($serial),
         'declared'      => true,
+        'declared_at'   => $created,
         'sysserial'     => $serial,
         'systemuuid'    => '',
         'bbserial'      => '',
@@ -1670,8 +1665,13 @@ function declared_device_row(array $r): array {
         'history'       => [],
         'notes'         => (string)($r['note'] ?? ''),
         'refurb_grade'  => '',
-        'first'         => $created,
-        'last'          => $created,
+        // No report has ever been seen for this machine, so the report dates are
+        // EMPTY rather than the declaration date: an export that printed
+        // first=last=declared_at claimed a scan that never happened. activity_at
+        // keeps the declaration time, because it is the list's 'Latest event'
+        // SORT key — blanking it would make every declared row tie.
+        'first'         => '',
+        'last'          => '',
         'activity_at'   => $created,
     ];
 }
@@ -4040,7 +4040,24 @@ function media_sort_value(array $d, string $sort)
 function list_source($value): string
 {
     $v = strtolower(trim((string)$value));
-    return ($v === 'verified' || $v === 'attested') ? $v : 'all';
+    // `declared` is a register entry, not evidence: it is its own class so it can
+    // never be counted as a machine the appliance inspected (it used to fall
+    // through to `verified`, because the switch only knew about `attested`).
+    return in_array($v, ['verified', 'attested', 'declared'], true) ? $v : 'all';
+}
+
+/**
+ * What a device row IS, for the export and any surface that must not blur the
+ * classes: `observed` (a diagnostics snapshot), `attested` (operator-recorded
+ * destruction), `declared` (a register entry for a machine that never booted
+ * tScrub) or `bench` (our own processing host).
+ */
+function device_provenance(array $d): string
+{
+    if (!empty($d['declared'])) return 'declared';
+    if (!empty($d['attested'])) return 'attested';
+    if (!empty($d['bench']))    return 'bench';
+    return 'observed';
 }
 
 /**
@@ -4492,9 +4509,16 @@ function load_devices(int $userId, ?array $query = null): array {
         // actually being shown rather than the whole account.
         if ($source !== 'all') {
             $wantAttested = ($source === 'attested');
+            $wantDeclared = ($source === 'declared');
             $list = array_values(array_filter(
                 $list,
-                static fn($d) => !empty($d['attested']) === $wantAttested
+                static function ($d) use ($wantAttested, $wantDeclared) {
+                    $declared = !empty($d['declared']);
+                    $attested = !empty($d['attested']);
+                    if ($wantDeclared) return $declared;
+                    // A register entry is neither verified nor attested.
+                    return !$declared && $attested === $wantAttested;
+                }
             ));
         }
 
@@ -5222,6 +5246,8 @@ function load_drives(int $userId, ?array $query = null): array {
     $out = array_merge($attested, $out);
 
     // The source switch, before anything counts or slices: see load_devices().
+    // `declared` is a DEVICE class and has no meaning for media, so it is treated
+    // as `verified` here rather than leaking every row into a hand-edited URL.
     if ($source !== 'all') {
         $wantAttested = ($source === 'attested');
         $out = array_values(array_filter(
@@ -5307,10 +5333,12 @@ function drives_paged(array $ids, string $ph, int $page, int $per, array $attest
     }
     // The source switch. 'attested' needs no payload fetch at all — an attested row has no
     // report — and 'verified' simply leaves the attested keys out of the merge.
+    // `declared` is a DEVICE class and has no meaning for media, so it is treated
+    // as 'verified' rather than silently returning every row.
     if ($source === 'attested') {
         $serials = array_keys($attByKey);
         $reportSerials = [];
-    } elseif ($source === 'verified') {
+    } elseif ($source === 'verified' || $source === 'declared') {
         $attByKey = [];
     } else {
         $serials = array_merge(array_keys($attByKey), $serials);

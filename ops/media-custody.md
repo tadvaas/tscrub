@@ -69,12 +69,12 @@ state both. The job (COCID) is the container for that evidence.
 > observation, so the appliance knows nothing about it. Do not invent a report
 > and do not expect the machine in the Devices list yet. Read the **OEM system
 > serial** from the chassis label (plus the model and the customer's asset tag)
-> before pulling the drive, then follow steps 2-4. Saving the link will tell you
-> the device is not on file and offer **Record device … and link**: that adds it
-> to Devices as a **declared device** (badged `Declared`) and records the origin
-> in one step. Put the model, tag and `device did not boot` in the notes. Every
-> statement about the link is then **declared by operator**, and the certificate
-> names the device by that serial only.
+> before pulling the drive, then follow steps 2-4. Record the device itself on
+> **Devices → Add → Record a destroyed device** first (it is badged `Declared`
+> and lives in the Declared view), then link the media item to it. Put the model,
+> tag and `device did not boot` in the notes. Every statement about the link is
+> then **declared by operator**, and the certificate names the device by that
+> serial only.
 
 2. **Photograph the drive label and the screen**, then pull the drive.
 3. **Erase the drive on the bench under the same COCID.** USB caddy or SATA is
@@ -86,11 +86,11 @@ state both. The job (COCID) is the container for that evidence.
    snapshot or in a failed row on that device. If the device could not boot, or
    the drive arrived loose, declare it:
    **Media → the media item's row → Reports ▸ → View → Reassign origin**, then
-   enter the device serial, the COCID, the reason and an optional note. The
-   origin is recorded as **declared by operator** and is never shown as
-   instrument-verified. Saving **replaces** any origin already recorded for that
-   media item in that job, so a mistyped serial is corrected by reassigning
-   again.
+   pick the **Origin device** (a picker over devices that already exist), the
+   COCID, the reason and an optional note. The origin is recorded as **declared
+   by operator** and is never shown as instrument-verified. Saving **replaces**
+   any origin already recorded for that media item in that job, so a mistyped
+   serial is corrected by reassigning again.
    **The list behind Reports tags every submission.** Each report carries one
    tag for its current state, in the status column exactly as the row above
    carries it: `bench` while the job has no declared origin, and `origin` once
@@ -99,12 +99,12 @@ state both. The job (COCID) is the container for that evidence.
    report whose origin was declared stops looking like an unexplained bench
    erase. A declaration naming the report's own host adds no tag, because that
    media item was in place for that job.
-   **The device must be in Devices first.** A serial that is neither an observed
-   machine nor a declared device is refused ("No device with serial … is in
-   Devices"), and the form offers **Record device … and link**, which adds it to
-   Devices as a declared device and records the origin in one step. Nothing is
-   recorded unless you press that button, so a typo never becomes a certificate
-   line by accident.
+   **The device must be in Devices first.** The origin form cannot create one:
+   a serial that is not already on file is refused with "No device with serial …
+   is in Devices. Record it on the Devices tab first", and the message links
+   there. Devices are created on the Devices page and media on the Media page —
+   one screen per kind of record, so a serial typed into a media flow can never
+   become a device that no list counts and no export describes.
 5. **Check the job before issuing.** On Certificates, the job shows
    `N devices to review` when a device is not the ordinary in-place case.
 6. **Generate the certificate.** The PDF now carries:

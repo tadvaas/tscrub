@@ -47,9 +47,10 @@
            a primary action. Server-side (`source`), so total, the fleet cards and the page
            boundaries all follow it together. -->
       <div id="source-switch" class="ts-seg" role="group" aria-label="Filter by how the record was made">
-        <button type="button" data-source="all" title="Everything on this account — wiped and operator-attested">All</button>
+        <button type="button" data-source="all" title="Everything on this account — observed, recorded by an operator, and declared">All</button>
         <button type="button" data-source="verified" title="Erased by the tScrub appliance — instrument-verified">tScrub</button>
         <button type="button" data-source="attested" title="Recorded by an operator — not instrument-verified">Attested</button>
+        <button type="button" data-source="declared" title="On file for a media origin, but never inspected by tScrub — a register entry, not evidence">Declared</button>
         <!-- Busy slot. It is ALWAYS in the layout and only fades — a spinner that
              is added and removed changes the width of the control it sits in, which
              is the jump this is avoiding. -->
@@ -81,7 +82,7 @@
          account total, and "Filters (3)" on a button does not say WHICH three — so the
          reason for a short list has to be visible on the page, not one click away. -->
     <div id="filter-chips" class="mt-2 hidden flex-wrap items-center gap-1.5"></div>
-    <script src="/assets/manual-assets.js?v=20" defer></script>
+    <script src="/assets/manual-assets.js?v=21" defer></script>
     <script src="/assets/report-corrections.js?v=3" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
@@ -925,7 +926,7 @@
       }
       // Mirrors list_source() on the server: anything unrecognised means All, so a
       // hand-edited URL cannot silently hide records.
-      function viewSource(v) { return (v === 'verified' || v === 'attested') ? v : 'all'; }
+      function viewSource(v) { return (v === 'verified' || v === 'attested' || v === 'declared') ? v : 'all'; }
       function viewInt(v, dflt) { var n = parseInt(v, 10); return isFinite(n) && n > 0 ? n : dflt; }
       function viewSort(v, dflt) { return VIEW_SORTS.indexOf(v) !== -1 ? v : dflt; }
       function viewDir(v, dflt) { return v === 'asc' ? 1 : v === 'desc' ? -1 : dflt; }

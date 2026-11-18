@@ -2038,6 +2038,7 @@ if ($method === 'GET' && $route === '/devices/export') {
         'refurb_grade' => 'Refurb grade', 'notes' => 'Notes',
         'status' => 'Status', 'lan_ip' => 'LAN IP', 'last_seen_at' => 'Last seen',
         'activity_at' => 'Latest event', 'bench' => 'Processing host',
+        'provenance' => 'Provenance',
         'drive_count' => 'Drives', 'first' => 'First report', 'last' => 'Last report',
         'report_id' => 'Report ID', 'digital_identifier' => 'Digital identifier',
     ];
@@ -2070,6 +2071,9 @@ if ($method === 'GET' && $route === '/devices/export') {
         if ($key === 'status') return !empty($d['online']) ? 'Online' : 'Offline';
         if ($key === 'drive_count') return (int)($d['drive_count'] ?? 0);
         if ($key === 'bench') return !empty($d['bench']) ? 'Yes' : 'No';
+        // What the row IS, so a spreadsheet can never read a register entry as a
+        // scan. `first`/`last` are report dates and a declared device has none.
+        if ($key === 'provenance') return device_provenance($d);
         return (string)($d[$key] ?? '');
     };
 
@@ -2430,12 +2434,7 @@ if ($method === 'POST' && $route === '/media/link') {
         (string)($d['media_serial'] ?? ''),
         (string)($d['reason'] ?? ''),
         (string)($d['note'] ?? ''),
-        (int)$u['id'],
-        // The operator's explicit "record this device and link" acknowledgement.
-        // Never inferred: a refused save must not create a register row.
-        !empty($d['create_device']),
-        (string)($d['device_model'] ?? ''),
-        (string)($d['device_note'] ?? '')
+        (int)$u['id']
     );
     if (!$res['ok']) {
         // `unknown_asset` is forwarded so the form can offer the one-step
@@ -2575,9 +2574,9 @@ if ($method === 'POST' && $route === '/certificates/devices') {
     }
 
     $rawMedia = (is_array($d['media'] ?? null)) ? $d['media'] : [];
-    if (count($rawMedia) < 1) {
-        fail(400, 'Record at least one medium — a device that held no storage has nothing to certify here.');
-    }
+    // A device with no media is a real record: "the unit held no data-bearing
+    // storage". It is recorded here and must not require inventing a medium —
+    // devices are added on the Devices tab, media on the Media tab.
     if (count($rawMedia) > 64) {
         fail(400, 'Too many media on one device (64 maximum).');
     }

@@ -213,11 +213,12 @@ check(
     && /outrank a declared origin/.test(bodyOf(js.devices, 'benchToggle'))
 );
 check(
-  'drives: an unknown device offers to record it and link',
+  'drives: an unknown device points at the Devices tab, and cannot be created here',
   /res\.j && res\.j\.unknown_asset/.test(js.drives)
-    && /Record device and link/.test(js.drives)
-    && /create_device: !!create/.test(js.drives)
-    && /device_model: deviceModel/.test(js.drives)
+    && /Open Devices/.test(js.drives)
+    && /origin-device-options/.test(js.drives)
+    && !/create_device/.test(js.drives)
+    && !/Record device and link/.test(js.drives)
 );
 check(
   'drives: a declared origin can be removed from the record view',

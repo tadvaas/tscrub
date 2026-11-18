@@ -143,15 +143,22 @@ t_check('declare: the replaced declaration is kept out of the dry run',
 t_check('declare: the old rows are deleted, not just ignored',
     (bool)preg_match('/foreach \(\$replaceIds as \$rid\)/', $lib));
 t_check('declare: the device must exist before a link is recorded',
-    (bool)preg_match('/\$deviceKnown = device_serial_known\(\$userId, \$assetSerial\);/', $lib)
+    (bool)preg_match('/if \(!device_serial_known\(\$userId, \$assetSerial\)\)/', $lib)
     && (bool)preg_match("/'unknown_asset' => true/", $lib));
-t_check('declare: an unknown device can be recorded in the same request',
-    (bool)preg_match('/if \(!\$deviceKnown\) \{\s*\n\s*declared_device_set\(/', $lib));
-t_check('declare: reports whether the device was already on file',
-    (bool)preg_match("/'asset_known' => \\\$deviceKnown,/", $lib));
+t_check('declare: it can no longer create the device it links to', (function () use ($lib) {
+    // The definition of declared_device_set() is still used by /api/devices/declared;
+    // what must be gone is the CALL from inside media_link_declare().
+    $start = strpos($lib, 'function media_link_declare(');
+    if ($start === false) return false;
+    $end = strpos($lib, "\nfunction ", $start + 10);
+    $body = substr($lib, $start, ($end === false ? strlen($lib) : $end) - $start);
+    return strpos($body, 'declared_device_set(') === false;
+})());
+t_check('declare: the refusal names the Devices tab',
+    (bool)preg_match("/Record it on the Devices tab first/", $lib));
 $api = (string)file_get_contents($serverDir . '/api.php');
-t_check('the link route forwards the create-device acknowledgement',
-    (bool)preg_match("/!empty\(\\\$d\['create_device'\]\)/", $api)
+t_check('the link route does not forward a create-device acknowledgement',
+    !(bool)preg_match("/create_device/", $api)
     && (bool)preg_match("/'unknown_asset' => !empty\(\\\$res\['unknown_asset'\]\)/", $api));
 
 // ---- declared devices: the register a media origin may point at ------------

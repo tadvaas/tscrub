@@ -497,14 +497,14 @@ with the release that carried them (per `CHANGELOG.md`).
       recorded as such instead of vanishing; processing hosts excluded from asset
       counts. (§9.1, §11.4)
       → Plan: `research/media-provenance/README.md`.
-- [ ] **A media origin must point at a device that exists.** Today a declared
-      origin accepts any serial the operator types: the dashboard can only warn
-      afterwards that no machine with that serial has ever been seen, and the
-      certificate then names a device that exists nowhere in the account. The
-      link should be gated on the device being in Devices, with a declared-device
-      register so a machine that never boots tScrub can still be recorded, and
-      the Reassign origin form creating that row in the same action.
+- [x] **A media origin must point at a device that exists.** The link is gated on
+      the device being in Devices, with a declared-device register so a machine
+      that never boots tScrub can still be recorded.
       → Plan: `research/declared-devices/README.md`.
+      **Superseded 2026-11-18:** creating that row from the Reassign origin form
+      is reversed — devices are made on the Devices tab only, declared devices
+      became their own source class, and the export states provenance.
+      → Plan: `research/media-origin-integrity/README.md`.
 - [ ] **Manually recorded records must be editable.** An attested device or media
       item, and a declared device, can only be removed and re-entered when a
       field is wrong, which loses the record's id and makes the operator retype

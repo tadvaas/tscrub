@@ -198,22 +198,27 @@
     }
 
     var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
-    // Edit mode starts from the record's own media set: removing a row here removes
-    // the media, adding one adds it. A device with no manual media row (possible on
-    // old records) still gets one blank row so the form can be saved.
-    if (isEdit) {
-      var rows = isDevice ? (rec.drives || []) : [rec];
-      if (!rows.length) { rows = [{}]; }
-      rows.forEach(function (m) { mediaBox.appendChild(mediaRow(isDevice, m)); });
-    } else {
-      mediaBox.appendChild(mediaRow(isDevice));
-    }
-    body.appendChild(mediaBox);
+    // Devices are recorded on the Devices tab, media on the Media tab. A NEW
+    // device gets no media block at all — a unit with no data-bearing storage is
+    // a real record, and the two used to be welded together here (a device could
+    // not be saved without inventing a medium). EDITING keeps whatever media the
+    // record already has, so an existing attestation is never silently emptied.
+    var showMedia = (isEdit || !isDevice);
+    if (showMedia) {
+      if (isEdit) {
+        var rows = isDevice ? (rec.drives || []) : [rec];
+        if (!rows.length) { rows = [{}]; }
+        rows.forEach(function (m) { mediaBox.appendChild(mediaRow(isDevice, m)); });
+      } else {
+        mediaBox.appendChild(mediaRow(isDevice));
+      }
+      body.appendChild(mediaBox);
 
-    var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
-      text: '+ Add another media item' });
-    addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow(isDevice)); });
-    body.appendChild(addRow);
+      var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
+        text: '+ Add another media item' });
+      addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow(isDevice)); });
+      body.appendChild(addRow);
+    }
 
     if (isDevice) {
       var methodWrap = select('Method', 'destroy_method', METHODS, true, rec.destroy_method);
@@ -305,9 +310,12 @@
 
   function save(isDevice, body, button) {
     var cocid = (body.querySelector('input[name=cocid]') || {}).value || '';
-    var media = collect(body.querySelector('#manual-modal-media'));
+    var mediaBoxEl = body.querySelector('#manual-modal-media');
+    var media = collect(mediaBoxEl);
     if (!cocid.trim()) { return show('A Chain of Custody ID is required.'); }
-    if (!media.length) {
+    // A new device has no media block: it is recorded on its own, and its media (if
+    // any) are recorded from the Media tab. Only the media form needs a medium.
+    if (mediaBoxEl && !media.length) {
       return show(isDevice
         ? 'Add at least one media item — a device that held no storage has nothing to record.'
         : 'Fill in the media item you are recording.');

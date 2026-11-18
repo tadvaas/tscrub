@@ -83,7 +83,7 @@
         Add
       </button>
     </div>
-    <script src="/assets/manual-assets.js?v=20" defer></script>
+    <script src="/assets/manual-assets.js?v=21" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
       <div id="drive-list" class="min-h-[200px]">
@@ -1279,29 +1279,63 @@
           form.appendChild(w);
           return i;
         };
-        var asset = mk('Device serial (OEM)', d.origin_asset || '', 'e.g. CZC1234ABC');
+        var asset = mk('Origin device (from Devices)', d.origin_asset || '', 'Start typing a serial…');
+        // The origin device must already exist. This is a picker, not a free-text
+        // field: devices are created on the Devices tab and nowhere else, because a
+        // serial typed here used to become a register row that no list counted and
+        // no export could describe.
+        var options = el('datalist', '', '');
+        options.id = 'origin-device-options';
+        form.appendChild(options);
+        asset.setAttribute('list', 'origin-device-options');
+        asset.setAttribute('autocomplete', 'off');
+        var hint = el('p', 'w-full text-[11px] text-slate-500 dark:text-slate-400',
+          'Pick a device that already exists in Devices. A machine tScrub has never booted is recorded there first (Add), then chosen here.');
+        form.appendChild(hint);
+        var searchTimer = null;
+        var searchDevices = function () {
+          var term = asset.value.trim();
+          if (term.length < 2) { options.innerHTML = ''; return; }
+          fetch('/api/devices?q=' + encodeURIComponent(term) + '&per=8')
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              options.innerHTML = '';
+              (j.devices || []).forEach(function (dv) {
+                var o = el('option', '', '');
+                o.value = String(dv.sysserial || '');
+                o.label = String(dv.system || '') + (dv.declared ? ' — declared' : '');
+                options.appendChild(o);
+              });
+              // Say out loud whether the typed serial is on file: the save will be
+              // refused otherwise, and finding that out after typing the rest is the
+              // dead end this form used to have.
+              var exact = (j.devices || []).some(function (dv) {
+                return String(dv.sysserial || '').toLowerCase() === term.toLowerCase();
+              });
+              hint.className = 'w-full text-[11px] ' + (exact ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400');
+              hint.textContent = exact
+                ? 'Device found — Save records the link.'
+                : 'No device on file with that serial. Record it in Devices first, then come back.';
+            })
+            .catch(function () { /* the save still gates server-side */ });
+        };
+        asset.addEventListener('input', function () {
+          if (searchTimer) { clearTimeout(searchTimer); }
+          searchTimer = setTimeout(searchDevices, 250);
+        });
         var cocid = mk('Chain of Custody', d.cocid || '', 'e.g. 12345');
         var reason = mk('Why', 'media_removed', 'media_removed');
         var note = mk('Note (optional)', '', 'pulled at intake');
-        // Say what the check is (and is not) before the operator saves: the serial
-        // is verified against Devices, but a machine that never booted tScrub has
-        // no device row and must still be declarable, so this cannot be a gate.
-        // The link is GATED on the device existing: either tScrub has booted it, or
-        // it is on file as a declared device. A machine that never boots tScrub is
-        // the normal case here, so the save offers to record it and link in one
-        // step rather than sending the operator to another screen.
-        form.appendChild(el('p', 'w-full text-[11px] text-slate-500 dark:text-slate-400',
-          'The device must be in Devices before media can be assigned to it. If it is not there yet, Save offers to record it.'));
         var save = el('button', 'ts-btn ts-btn--sm ts-btn--primary', 'Save');
         save.type = 'button';
         var cancel = el('button', 'ts-btn ts-btn--sm ts-btn--secondary', 'Cancel');
         cancel.type = 'button';
         var msg = el('p', 'w-full text-xs font-semibold text-red-600 dark:text-red-400', '');
 
-        // One request builder, two outcomes: a plain link, or a link that also
-        // records the device. The second is only ever sent from the explicit
-        // button, never automatically.
-        function postLink(create, deviceModel, deviceNote) {
+        // One request: link this media item to an existing device. There is no
+        // "create the device" variant — that is what produced devices the rest of
+        // the dashboard had to special-case.
+        function postLink() {
           save.disabled = true;
           msg.textContent = '';
           // This page has no global token: getCsrf() fetches one. A bare `csrf`
@@ -1315,10 +1349,7 @@
                 asset_serial: asset.value.trim(),
                 media_serial: d.serial || '',
                 reason: reason.value.trim(),
-                note: note.value.trim(),
-                create_device: !!create,
-                device_model: deviceModel || '',
-                device_note: deviceNote || ''
+                note: note.value.trim()
               })
             });
           }).then(function (r) {
@@ -1326,8 +1357,13 @@
           }).then(function (res) {
             if (!res.ok) {
               msg.textContent = (res.j && res.j.error) || 'Could not record that link.';
+              if (res.j && res.j.unknown_asset) {
+                msg.appendChild(document.createTextNode(' '));
+                var go = el('a', 'underline', 'Open Devices');
+                go.href = '/dashboard/devices';
+                msg.appendChild(go);
+              }
               save.disabled = false;
-              if (res.j && res.j.unknown_asset) { offerRecordDevice(); }
               return;
             }
             d.origin_asset = asset.value.trim();
@@ -1346,40 +1382,7 @@
           });
         }
 
-        // The server refused because no device has that serial. Recording it is a
-        // second, explicit act, and it is what makes the gate satisfiable for a
-        // machine tScrub will never boot.
-        function offerRecordDevice() {
-          var wrap = el('div', 'w-full mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20');
-          wrap.appendChild(el('p', 'text-xs font-semibold text-amber-800 dark:text-amber-300',
-            'Record device ' + asset.value.trim() + ' and link?'));
-          wrap.appendChild(el('p', 'mt-1 text-[11px] text-amber-700 dark:text-amber-400',
-            'It is added to Devices as a declared device: on file for this origin, never presented as inspected by tScrub.'));
-          var row = el('div', 'mt-2 flex flex-wrap items-end gap-2');
-          var model = el('input', 'ts-input h-8 text-xs', '');
-          model.type = 'text';
-          model.placeholder = 'Model (optional)';
-          model.className = 'ts-input h-8 flex-1 text-xs';
-          var noteIn = el('input', 'ts-input h-8 text-xs', '');
-          noteIn.type = 'text';
-          noteIn.placeholder = 'Note (optional)';
-          noteIn.className = 'ts-input h-8 flex-1 text-xs';
-          row.appendChild(model);
-          row.appendChild(noteIn);
-          wrap.appendChild(row);
-          var go = el('button', 'mt-2 ts-btn ts-btn--sm ts-btn--primary', 'Record device and link');
-          go.type = 'button';
-          go.addEventListener('click', function () {
-            go.disabled = true;
-            // The model and note ride the same request so the register row exists
-            // before the link does, inside one transaction on the server.
-            postLink(true, model.value.trim(), noteIn.value.trim()).then(function () { go.disabled = false; });
-          });
-          wrap.appendChild(go);
-          form.appendChild(wrap);
-        }
-
-        save.addEventListener('click', function () { postLink(false); });
+        save.addEventListener('click', function () { postLink(); });
         cancel.addEventListener('click', function () {
           originState(d, box);
         });

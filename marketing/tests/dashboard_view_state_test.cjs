@@ -99,8 +99,14 @@ for (const p of PAGES) {
     /if \(VIEW_EXPLICIT\) \{ return ''; \}/.test(js));
 
   // ---- hostile input ------------------------------------------------------
+  // `declared` is a DEVICE class (a register entry, not evidence); the Media tab
+  // has no such rows, so only the Devices page accepts it. The server mirrors
+  // this: list_source() knows the value, drives treat it as 'verified'.
   check('an unknown source means All (mirrors list_source)',
-    /function viewSource\(v\) \{ return \(v === 'verified' \|\| v === 'attested'\) \? v : 'all'; \}/.test(js));
+    (p.file === 'devices.html'
+      ? /function viewSource\(v\) \{ return \(v === 'verified' \|\| v === 'attested' \|\| v === 'declared'\) \? v : 'all'; \}/
+      : /function viewSource\(v\) \{ return \(v === 'verified' \|\| v === 'attested'\) \? v : 'all'; \}/
+    ).test(js));
   check('a bad page number falls back to 1',
     /function viewInt\(v, dflt\) \{ var n = parseInt\(v, 10\); return isFinite\(n\) && n > 0 \? n : dflt; \}/.test(js));
 
