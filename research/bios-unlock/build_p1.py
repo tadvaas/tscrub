@@ -2,7 +2,7 @@ import os, re, struct, lzma, hashlib
 
 BIN='/Users/user/Documents/Repositories/tscrub/research/bios-unlock/BINs'
 V3=os.path.join(BIN,'W25Q256FV_SOIC8-CND14004KD-UNLOCKED-V3.BIN')
-OUT=os.path.join(BIN,'W25Q256FV_SOIC8-CND14004KD-P2.BIN')
+OUT=os.path.join(BIN,'W25Q256FV_SOIC8-CND14004KD-P3.BIN')
 
 FILE_OFF=0x4D048         # FFS file header (9E21FD93)
 SEC_OFF =0x4D060         # GUID-defined section header (EE4E5898)
@@ -15,11 +15,12 @@ FV_SIZE=0x1F5B000
 
 patches={
  '121': ('mod121_0108.patched.pe', 0x36E768),
+ '303': ('mod303_0108.patched.pe', None),
  '107': ('mod107_0108.patched.pe', None),
  '120': ('mod120_0108.patched.pe', None),
  '268': ('mod268_0108.patched.pe', None),
 }
-mmap={'107':'107 0198','120':'120 0145','268':'268 FFFF'}
+mmap={'107':'107 0198','120':'120 0145','268':'268 FFFF','303':'303 0197'}
 dump_root=os.path.join(BIN,'CND14004KD_BIOS_region.rgn.dump/3 5473C07A-3DCB-4DCA-BD6F-1E9689E7349A/0 9E21FD93-9C72-4C15-8C4B-E77F1DB2D792/0 EE4E5898-3914-4259-9D6E-DC7BD79403CF/1 Volume image section/0 A881D567-6CB0-4EEE-8435-2E72D33E45B5')
 
 def find_pe_body_off(fv, base):
