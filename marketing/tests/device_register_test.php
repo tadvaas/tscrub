@@ -103,5 +103,32 @@ t_check('the switch still offers All, tScrub and Attested',
     && strpos($devices, 'data-source="verified"') !== false
     && strpos($devices, 'data-source="attested"') !== false);
 
+echo "\n== 7. a declared device belongs to the jobs it is the origin for ==\n";
+// Reported: 5CG4374ZPJ came up by serial but not when filtering by COCID.
+// A register entry has no report, so the COCID facet had nothing to match; the
+// jobs it is named in are the ones whose media it is the declared origin of.
+$originRow = declared_device_row([
+    'serial' => '5CG4374ZPJ', 'model' => 'HP EliteBook 830 G11',
+    'created_at' => '2026-11-04 10:00:00',
+], "33219\n33767");
+t_check('the row carries the jobs it is the origin for',
+    device_facet_values($originRow, 'cocid') === ['33219', '33767'],
+    device_facet_values($originRow, 'cocid'));
+t_check('and matches a COCID filter for one of them',
+    device_filters_match($originRow, device_filters_parse('cocid:33219')));
+t_check('but not for a job it is not in',
+    !device_filters_match($originRow, device_filters_parse('cocid:99999')));
+t_check('a declared row with no origin link matches no COCID',
+    device_facet_values(declared_device_row(['serial' => 'X1']), 'cocid') === []);
+
+$lib = (string)file_get_contents($serverDir . '/reports_lib.php');
+$start = strpos($lib, 'function declared_devices_rows(');
+$end = $start === false ? false : strpos($lib, "\nfunction ", $start + 10);
+$rowsBody = $start === false ? '' : substr($lib, $start, ($end === false ? strlen($lib) : $end) - $start);
+t_check('the loader reads the origin jobs from media_links',
+    $rowsBody !== '' && strpos($rowsBody, 'FROM media_links') !== false);
+t_check('and keeps a numeric COCID a string through the array key',
+    $rowsBody !== '' && strpos($rowsBody, "'k' . \$c") !== false);
+
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

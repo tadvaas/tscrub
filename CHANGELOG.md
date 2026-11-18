@@ -367,6 +367,16 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **A declared device now answers to the Chain of Custody it belongs to.** The
+  COCID facet and the COCID search are built from the jobs a device's *reports*
+  were uploaded under, and a register entry has no report — so a device like
+  `5CG4374ZPJ` came up when searched by serial but vanished the moment you
+  filtered by `33219`, even though that job's certificate names it in `DEVICE
+  ACCOUNTING`. The set is now the jobs it is the **declared origin** for (its
+  media links), so the filter, the search and the facet counts all agree:
+  `5CG4374ZPJ` matches `cocid:33219` (202 devices, was 201) and matches no job
+  it has no origin in.
+
 - **Devices are made on the Devices tab, media on the Media tab — and a
   register entry is never counted as evidence.** "Reassign origin" took a
   free-text serial and could record the device inline, so the account grew

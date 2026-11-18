@@ -1639,7 +1639,7 @@ function declared_device_delete(int $userId, string $deviceKey): string {
  * Every key here is read by load_devices()' presence/grade loops, so a missing
  * one produces warnings on every render.
  */
-function declared_device_row(array $r): array {
+function declared_device_row(array $r, string $cocids = ''): array {
     $serial = trim((string)($r['serial'] ?? ''));
     $model  = trim((string)($r['model'] ?? ''));
     $created = (string)($r['created_at'] ?? '');
@@ -1647,6 +1647,12 @@ function declared_device_row(array $r): array {
         '_key'          => 'declared:' . mp_key($serial),
         'declared'      => true,
         'declared_at'   => $created,
+        // The jobs this device is the DECLARED ORIGIN for. A register entry has
+        // no report of its own, so without this the COCID facet and the COCID
+        // search could never find it — even though the certificate for that job
+        // names it in DEVICE ACCOUNTING. Newline-joined like an observed row's
+        // `_cocids`, so device_facet_values() reads it the same way.
+        '_cocids'       => $cocids,
         'sysserial'     => $serial,
         'systemuuid'    => '',
         'bbserial'      => '',
@@ -1681,12 +1687,33 @@ function declared_devices_rows(int $userId): array {
     if (!db_table_exists('declared_devices')) return [];
     $ids = org_member_ids($userId);
     $ph  = implode(',', array_fill(0, count($ids), '?'));
+    // One query for every link, not one per device: the declared set is small but
+    // it is read on every device list AND every export.
+    $cocids = [];
+    try {
+        if (db_table_exists('media_links')) {
+            $lk = db()->prepare("SELECT asset_serial, cocid FROM media_links WHERE user_id IN ($ph) ORDER BY cocid");
+            $lk->execute($ids);
+            foreach ($lk->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                $k = strtolower(trim((string)$l['asset_serial']));
+                $c = trim((string)$l['cocid']);
+                if ($k === '' || $c === '') continue;
+                // A prefixed key keeps a numeric COCID a string: PHP turns "33219"
+                // into an int array key, and the facet would then compare int to
+                // string (see device_facet_values()).
+                $cocids[$k]['k' . $c] = $c;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('declared_devices_rows cocids: ' . $e->getMessage());
+    }
     try {
         $stmt = db()->prepare("SELECT serial, model, note, created_at FROM declared_devices WHERE user_id IN ($ph) ORDER BY serial");
         $stmt->execute($ids);
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $row = declared_device_row($r);
+            $k = strtolower(trim((string)($r['serial'] ?? '')));
+            $row = declared_device_row($r, implode("\n", array_values($cocids[$k] ?? [])));
             if ($row['sysserial'] !== '') { $out[$row['_key']] = $row; }
         }
         return $out;
