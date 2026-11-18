@@ -2,7 +2,7 @@ import os, re, struct, lzma, hashlib
 
 BIN='/Users/user/Documents/Repositories/tscrub/research/bios-unlock/BINs'
 V3=os.path.join(BIN,'W25Q256FV_SOIC8-CND14004KD-UNLOCKED-V3.BIN')
-OUT=os.path.join(BIN,'W25Q256FV_SOIC8-CND14004KD-P1B.BIN')
+OUT=os.path.join(BIN,'W25Q256FV_SOIC8-CND14004KD-P2.BIN')
 
 FILE_OFF=0x4D048         # FFS file header (9E21FD93)
 SEC_OFF =0x4D060         # GUID-defined section header (EE4E5898)
