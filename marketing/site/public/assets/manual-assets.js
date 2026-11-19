@@ -170,8 +170,6 @@
       // into an attested destruction record — closed (the default) means the
       // device was added for a media origin, open means the operator attests what
       // happened to it. On an edit the section IS the record, so it is shown.
-      body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-slate-50 dark:bg-ink-800/60 px-3 py-2 text-xs text-slate-600 dark:text-slate-300',
-        text: 'Puts the device on file under its Chain of Custody — a register entry media can name as their origin. It only prints as destroyed on a certificate if you attest the outcome below.' }));
       body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
       body.appendChild(el('div', { class: 'space-y-3' }, [
         input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial),
