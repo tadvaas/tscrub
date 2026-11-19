@@ -363,6 +363,8 @@ t_check('the annex receives the bench keys',
     strpos($src, "cert_render_annex(\$pdf, 10.0, \$W, \$H, \$certId, \$cocid, \$drives, \$g['reports'], \$assets, \$benchHostKeys);") !== false);
 t_check('the table prints the bench footnote',
     strpos($src, 'cert_bench_footnote()') !== false);
+t_check('header cells use each column\'s own alignment, like its rows',
+    strpos($src, "\$cols[\$key]['w'], \$headerH, \$labels[\$key], 0, \$cols[\$key]['align']") !== false);
 
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

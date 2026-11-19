@@ -776,7 +776,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $i = 0;
         foreach ($keys as $key) {
             $i++;
-            $pdf->MultiCell($cols[$key]['w'], $headerH, $labels[$key], 0, 'C', false, ($i === $nCols) ? 1 : 0, '', '', true);
+            // Headers sit on the same alignment the column's cells use, so a
+            // left-aligned text column never has a centred label floating
+            // above it.
+            $pdf->MultiCell($cols[$key]['w'], $headerH, $labels[$key], 0, $cols[$key]['align'], false, ($i === $nCols) ? 1 : 0, '', '', true);
         }
         $pdf->SetTextColor(11, 18, 32);
         $pdf->SetFont('helvetica', '', 7.5);

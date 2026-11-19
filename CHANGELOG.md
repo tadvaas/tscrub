@@ -52,7 +52,8 @@ and this project uses date-based versioning (`v1.x`).
   are guaranteed the measured width of their longest value (a token like `SATA`,
   `10` or `EXFAT` can no longer wrap), free-text cells pre-wrap at measured word
   boundaries (long serials break at their hyphens), and headers break only
-  between words. When a cramped page cannot hold every column, the least
+  between words — and each header sits on its column's own alignment, matching
+  the cells beneath it. When a cramped page cannot hold every column, the least
   claim-critical ones are dropped in a fixed order instead of letting tokens
   tear. The Origin device column then still showed orphan-fragment wraps
   (`BD7600` torn into a lone `B` line): the cells carry 1.1 mm of horizontal
