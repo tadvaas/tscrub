@@ -159,25 +159,26 @@ t_check('the update helper skips the media rewrite when none was sent',
     strpos($lib, '?array $media') !== false
     && strpos($lib, 'if ($media !== null)') !== false);
 
-echo "\n== 9. Devices → Add is one form with an attestation section ==\n";
-// One device form: the identity fields (COCID/serial/model/note) always save as
-// a register entry; opening the attestation section turns the same save into an
-// attested destruction record. There is no mode switch to choose from.
-t_check('there is no mode switch left',
+echo "\n== 9. Devices → Add is register-only; the attestation lives on edits ==\n";
+// Add puts the device on file under its job — identity only. Destruction is
+// claimed on the Media tab; the attestation fields exist solely for editing an
+// existing attested record, where they ARE the record.
+t_check('there is no mode switch and no disclosure',
     strpos($manual, 'Record device only') === false
-    && strpos($manual, 'Attest destruction / factory reset') === false);
+    && strpos($manual, 'Attest destruction / factory reset') === false
+    && strpos($manual, 'attest the outcome') === false);
 t_check('the form collects the job and identity fields',
     strpos($manual, "input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…')") !== false
     && strpos($manual, "input('Serial / IMEI / asset tag', 'serial'") !== false
     && strpos($manual, "input('Model', 'model'") !== false
     && strpos($manual, "input('Note', 'note'") !== false);
-t_check('the attestation section decides which record is saved',
+t_check('the attestation section is built only for edits',
     strpos($manual, "id: 'manual-attest-section'") !== false
-    && strpos($manual, 'attesting = !!attSection && !attSection.classList.contains(\'hidden\')') !== false);
-t_check('the closed section posts a register entry to the declared endpoint',
+    && preg_match('/if \(isEdit\) \{[\s\S]*?manual-attest-section/', $manual) === 1);
+t_check('a new device posts a register entry to the declared endpoint',
     strpos($manual, "'/api/devices/declared'") !== false
     && strpos($manual, 'payload = { cocid: cocid.trim(), serial: serial, model: model, note: note };') !== false);
-t_check('the open section posts an attested device with no media key',
+t_check('an attested edit posts the device with no media key',
     strpos($manual, "'/api/certificates/devices'") !== false
     && preg_match('/payload = \{ cocid: cocid\.trim\(\), device: dev \};/', $manual) === 1);
 t_check('the COCID is required for every device record',

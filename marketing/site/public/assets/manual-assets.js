@@ -154,7 +154,7 @@
     document.getElementById('manual-modal-sub').textContent = isEdit
       ? 'Operator attestation — not instrument-verified destruction'
       : (isDevice
-        ? 'On file under a Chain of Custody — attest a destruction outcome only if there was one'
+        ? 'On file under a Chain of Custody'
         : 'Operator attestation — not instrument-verified destruction');
     document.getElementById('manual-modal-save').textContent = isEdit
       ? 'Save changes'
@@ -165,11 +165,11 @@
     body.appendChild(err);
 
     if (isDevice) {
-      // ONE device form, no mode switch. Its identity fields always save; the
-      // attestation section below is the only thing that turns a register entry
-      // into an attested destruction record — closed (the default) means the
-      // device was added for a media origin, open means the operator attests what
-      // happened to it. On an edit the section IS the record, so it is shown.
+      // Add is register-only: the device goes on file under its job, and that is
+      // the whole record. Destruction is claimed where the storage is — on the
+      // Media tab (a sealed unit's chip is a destroyed media item). The
+      // attestation fields exist only for EDITING an existing attested record,
+      // where they ARE the record.
       body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
       body.appendChild(el('div', { class: 'space-y-3' }, [
         input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial),
@@ -177,12 +177,12 @@
         input('Note', 'note', 'e.g. media pulled and erased on the bench', rec.note)
       ]));
 
-      var attWrap = el('div', { id: 'manual-attest-section',
-        class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' + (isEdit ? '' : ' hidden') });
+      if (isEdit) {
+        var attWrap = el('div', { id: 'manual-attest-section',
+          class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' });
 
-      var buildAttestFields = function (wrap, src) {
-        var methodWrap = select('Method', 'destroy_method', METHODS, true, src.destroy_method);
-        var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor', '', src.destroy_vendor);
+        var methodWrap = select('Method', 'destroy_method', METHODS, true, rec.destroy_method);
+        var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor', '', rec.destroy_vendor);
 
         // A factory reset has no destruction vendor — the mechanism IS the method. Hiding
         // the box is deliberate: the server drops a vendor on a retained item, so leaving
@@ -194,32 +194,18 @@
         };
         methodWrap.querySelector('select').addEventListener('change', vendorSync);
 
-        wrap.appendChild(grid([
-          select('Category', 'category', CATEGORIES, true, src.category),
-          input('Make', 'make', '', src.make)
+        attWrap.appendChild(grid([
+          select('Category', 'category', CATEGORIES, true, rec.category),
+          input('Make', 'make', '', rec.make)
         ], 2));
-        wrap.appendChild(grid([
-          select('Reason', 'reason', REASONS, true, src.reason),
+        attWrap.appendChild(grid([
+          select('Reason', 'reason', REASONS, true, rec.reason),
           methodWrap,
           vendorWrap,
-          input('Date (YYYY-MM-DD)', 'destroy_date', '', src.destroy_date),
-          input('Witness', 'destroy_witness', '', src.destroy_witness),
-          input('Evidence reference (vendor certificate no.)', 'evidence_ref', '', src.evidence_ref)
+          input('Date (YYYY-MM-DD)', 'destroy_date', '', rec.destroy_date),
+          input('Witness', 'destroy_witness', '', rec.destroy_witness),
+          input('Evidence reference (vendor certificate no.)', 'evidence_ref', '', rec.evidence_ref)
         ], 2));
-      };
-
-      if (isEdit) {
-        buildAttestFields(attWrap, rec);
-        body.appendChild(attWrap);
-      } else {
-        var attDisclose = el('button', { type: 'button', class: 'mt-3 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:underline',
-          text: 'The device was destroyed or factory-reset — attest the outcome' });
-        attDisclose.addEventListener('click', function () {
-          attWrap.classList.remove('hidden');
-          attDisclose.classList.add('hidden');
-        });
-        buildAttestFields(attWrap, {});
-        body.appendChild(attDisclose);
         body.appendChild(attWrap);
       }
     } else {

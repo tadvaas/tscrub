@@ -197,26 +197,14 @@ function fillValidForm() {
   cocid.name = 'cocid';
   cocid.value = 'COC-1';
 
-  // The unified device form: identity fields always save, and the attestation
-  // section decides the record type. The stub mirrors the real layout — the
-  // device modal has no media box at all.
+  // The device form: identity fields only — Add is register-only. The attestation
+  // section exists solely on EDITs of existing attested records.
   const identity = fieldset(['serial', 'model', 'note'],
     { serial: 'SN-1', model: '7942G', note: 'pulled media' });
-
-  const att = makeNode('div');
-  att.setAttribute('id', 'manual-attest-section');
-  att.classList.add('hidden');   // the default: a register entry
-  att.appendChild(fieldset(['category', 'make'],
-    { category: 'ip_phone', make: 'Cisco' }));
-  att.appendChild(fieldset(
-    ['reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'evidence_ref'],
-    { reason: 'not_supported_by_appliance', destroy_method: 'factory_reset',
-      destroy_vendor: '', destroy_date: '2026-10-16', destroy_witness: '', evidence_ref: '' }));
 
   b.children = [];
   b.appendChild(cocid);
   b.appendChild(identity);
-  b.appendChild(att);
 
   b.querySelector = (sel) => matches(b, sel)[0] || null;
   b.querySelectorAll = (sel) => matches(b, sel);
@@ -644,10 +632,8 @@ setTimeout(() => {
                               check('add — the form has a COCID, serial, model and note',
                                 !!rb.querySelector('[name=cocid]') && !!rb.querySelector('[name=serial]')
                                   && !!rb.querySelector('[name=model]') && !!rb.querySelector('[name=note]'));
-                              check('add — it has no media box and the attestation starts hidden',
-                                !rb.querySelector('#manual-modal-media') && !!attSectionEl && attSectionEl._classes.has('hidden'));
-                              check('add — the attestation sits behind one disclosure',
-                                !!attDisclose, rbWalk.filter(n => n.tagName === 'BUTTON').map(b => b.textContent).join(', '));
+                              check('add — it has no media box and no attestation section',
+                                !rb.querySelector('#manual-modal-media') && !attSectionEl && !attDisclose);
                               check('add — the title says what the record is',
                                 byId['manual-modal-title'].textContent === 'Add a device',
                                 byId['manual-modal-title'].textContent);
@@ -660,7 +646,7 @@ setTimeout(() => {
                                 const regPost = global.__reqs.filter(r => r.method === 'POST');
                                 let regBody = null;
                                 if (regPost.length) { try { regBody = JSON.parse(regPost[0].body); } catch (e) { regBody = { bad: true }; } }
-                                check('add — the closed-section save posts a register entry',
+                                check('add — the save posts a register entry',
                                   regPost.length === 1 && regPost[0].url === '/api/devices/declared',
                                   JSON.stringify(global.__reqs.map(r => r.url)));
                                 check('add — the register payload is identity plus its job',
@@ -684,52 +670,20 @@ setTimeout(() => {
                                   global.__reqs.length === 0
                                     && /A Chain of Custody ID is required/.test(textOf(byId['manual-modal-error'])),
                                   JSON.stringify(global.__reqs) + ' | ' + textOf(byId['manual-modal-error']));
-                                // Opening the disclosure turns the SAME form into an attestation.
-                                global.__reqs = [];
-                                const rb3 = byId['manual-modal-body'];
-                                const rb3Walk = [];
-                                (function walk(n) { (n.children || []).forEach(c => { rb3Walk.push(c); walk(c); }); })(rb3);
-                                const disc = rb3Walk.find(n => n.tagName === 'BUTTON' && /attest the outcome/.test(n.textContent || ''));
-                                disc._on.click();
-                                const rb3Section = rb3Walk.find(n => n.getAttribute('id') === 'manual-attest-section');
-                                check('add — the disclosure opens the attestation section',
-                                  rb3Section && !rb3Section._classes.has('hidden'));
-                                rb3.querySelector('[name=cocid]').value = 'COC-REG';
-                                rb3.querySelector('[name=serial]').value = 'REG-SN-1';
-                                rb3.querySelector('[name=model]').value = 'Test Unit';
-                                rb3.querySelector('[name=note]').value = 'bench';
-                                rb3.querySelector('[name=category]').value = 'laptop';
-                                rb3.querySelector('[name=make]').value = 'Test';
-                                rb3.querySelector('[name=reason]').value = 'other';
-                                rb3.querySelector('[name=destroy_method]').value = 'shredded';
-                                byId['manual-modal-save']._on.click();
-                                setTimeout(() => {
-                                  const attPost = global.__reqs.filter(r => r.method === 'POST');
-                                  let attBody = null;
-                                  if (attPost.length) { try { attBody = JSON.parse(attPost[0].body); } catch (e) { attBody = { bad: true }; } }
-                                  check('add — the open-section save posts an attested device',
-                                    attPost.length === 1 && attPost[0].url === '/api/certificates/devices',
-                                    JSON.stringify(global.__reqs.map(r => r.url)));
-                                  check('add — the attested payload carries the device and no media key',
-                                    !!attBody && !!attBody.device && attBody.device.category === 'laptop'
-                                      && attBody.device.reason === 'other' && attBody.device.destroy_method === 'shredded'
-                                      && attBody.device.note === 'bench' && attBody.cocid === 'COC-REG'
-                                      && !('media' in attBody),
-                                    JSON.stringify(attBody));
-                                  // An EDIT shows the attestation section outright — the record IS an
-                                  // attestation — with no disclosure and no mode switch.
-                                  window.ManualAssets.open('device', { attested_id: 3, cocid: 'COC-1', category: 'laptop', make: 'T', model: 'M', sysserial: 'SN-9', note: 'n1', reason: 'other', destroy_method: 'shredded', destroy_vendor: '', destroy_date: '', destroy_witness: '', evidence_ref: '', drives: [] });
-                                  const edWalk2 = [];
-                                  (function walk(n) { (n.children || []).forEach(c => { edWalk2.push(c); walk(c); }); })(byId['manual-modal-body']);
-                                  const edSection = edWalk2.find(n => n.getAttribute('id') === 'manual-attest-section');
-                                  check('edit — the attestation section is shown outright, no disclosure',
-                                    !!edSection && !edSection._classes.has('hidden')
-                                      && !edWalk2.some(n => n.tagName === 'BUTTON' && /attest the outcome/.test(n.textContent || '')));
-                                  check('edit — the note field carries the stored note',
-                                    !!byId['manual-modal-body'].querySelector('[name=note]')
-                                      && byId['manual-modal-body'].querySelector('[name=note]').value === 'n1');
-                                  // The remove flow below expects a 200 again.
-                                  installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
+                                // An EDIT of an existing attested record shows the attestation
+                                // section outright — the record IS an attestation — while a new
+                                // device never gets one.
+                                window.ManualAssets.open('device', { attested_id: 3, cocid: 'COC-1', category: 'laptop', make: 'T', model: 'M', sysserial: 'SN-9', note: 'n1', reason: 'other', destroy_method: 'shredded', destroy_vendor: '', destroy_date: '', destroy_witness: '', evidence_ref: '', drives: [] });
+                                const edWalk2 = [];
+                                (function walk(n) { (n.children || []).forEach(c => { edWalk2.push(c); walk(c); }); })(byId['manual-modal-body']);
+                                const edSection = edWalk2.find(n => n.getAttribute('id') === 'manual-attest-section');
+                                check('edit — the attestation section is shown, no disclosure',
+                                  !!edSection && !edWalk2.some(n => n.tagName === 'BUTTON' && /attest the outcome/.test(n.textContent || '')));
+                                check('edit — the note field carries the stored note',
+                                  !!byId['manual-modal-body'].querySelector('[name=note]')
+                                    && byId['manual-modal-body'].querySelector('[name=note]').value === 'n1');
+                                // The remove flow below expects a 200 again.
+                                installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
 
                           global.__confirmAnswer = true;
                           global.__reqs = [];
@@ -763,7 +717,6 @@ setTimeout(() => {
                     }, 60);
                   }, 60);
                 }, 60);
-              }, 60);
               }, 60);
               }, 60);
               }, 60);

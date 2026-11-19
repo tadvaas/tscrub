@@ -10,13 +10,13 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
-- **Devices → Add is one form.** The two-mode switch is gone: Add is a single
-  device form — Chain of Custody ID, serial, model, note — that saves a register
-  entry by default. Opening the "attest the outcome" disclosure turns the same
-  save into an attested destruction record (category, make, reason, method,
-  vendor, date, witness, evidence reference). Register entries never print as
-  destroyed on a certificate; attested records store the note too
-  (`certificate_devices.note`) and show it in the detail view.
+- **Devices → Add is register-only.** Add is a single device form — Chain of
+  Custody ID, serial, model, note — that always saves a register entry.
+  Destruction is claimed where the storage is: on the Media tab (a sealed unit's
+  chip is a destroyed media item). The attestation fields now exist only when
+  editing an existing attested record, where they are the record. Attested
+  devices store a note too (`certificate_devices.note`) and show it in the
+  detail view.
 - **Register devices carry their job.** The register form now requires a Chain
   of Custody ID, stored on the declared device (`declared_devices.cocid`) and
   merged with the media-link jobs in the COCID facet and search — the device is
