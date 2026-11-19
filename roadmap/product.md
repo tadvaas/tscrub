@@ -331,6 +331,15 @@ with the release that carried them (per `CHANGELOG.md`).
       `product/tests/tools/gen_report_fixture.sh` after any column change), and
       the test also asserts the three helpers are actually CALLED by the
       importer.
+- [ ] **Certificate DEVICE DETAILS table — no mid-token wraps.** The 17-column
+      annex table scales every column to the page and wraps short fixed cells
+      mid-token: `SATA` → `SAT/A`, row `10` → `1/0`, headers `Pass/es`,
+      `Verificatio/n`, `Origin/d/evice`, serials and machine SNs split
+      mid-word. Plan: one-line guarantees for every fixed-vocabulary column
+      (deficit from the flexible columns), a drop-column ladder instead of
+      wrapping when they cannot fit, word-boundary header wraps, hyphen-aware
+      serial breaks. (§9.1)
+      → Plan: `research/cert-device-table-layout/README.md`.
 - [x] Configurable write passes + custom algorithms — `--passes N` +
       `--pattern <zero|one|random|hex>` mapped to nwipe custom patterns; record
       a `Custom` method in the report. (§11.1)
@@ -404,7 +413,9 @@ with the release that carried them (per `CHANGELOG.md`).
       explicit "manage namespaces" toggle; low priority (format/sanitise already
       cover it). (§11.1)
 - [ ] eMMC/MMC media — add `mmcblk*` to `device::discover` (currently excluded),
-      erase via `blkdiscard` (no ATA/NVMe sanitise available). (§11.1)
+      erase via firmware sanitize → software overwrite (not `blkdiscard` — it
+      guarantees nothing and produces no evidence). (§11.1)
+      → Plan: `research/chromebook-erase/README.md`.
 - [x] Reformat SATA/SAS drives after erasure — leave a drive in a clean,
       re-partitioned state (Blancco ships this; auditors sometimes expect a
       blank partition table rather than an unformatted disk). (§11.1)
@@ -523,6 +534,7 @@ with the release that carried them (per `CHANGELOG.md`).
       no product changes made).
 - [ ] Chromebook erase — dev mode / SeaBIOS boot → wipe eMMC/NVMe; capture
       ChromeOS GBB/VPD enrolment flags. (§9.1)
+      → Plan: `research/chromebook-erase/README.md`.
 - [ ] **eMMC/SD (`mmcblk*`) and virtio (`vd*`) are invisible to discovery.**
       `device::discover` only ever adds `nvme*` and `sd*`, so an eMMC/SD laptop
       reports "no storage" and no rescan can change that — a rescan re-runs the
@@ -532,6 +544,8 @@ with the release that carried them (per `CHANGELOG.md`).
       apart before (the P2 USB filter, fixed in `045d3e8`).
       Found 2026-10-30 while planning the no-media screen —
       `research/no-media-ux/README.md` §3.4.
+      → Plan: `research/chromebook-erase/README.md` (mmcblk* half; virtio still
+      open).
 - [ ] Broader media coverage — USB/SD targets and RAID/FC/iSCSI volumes (the
       long tail beyond eMMC). (§6)
       → **Status 2026-10-26:** protection and USB erasure shipped in v1.11.79
