@@ -10,14 +10,13 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Added
 
-- **Devices → Add: "Record device only" mode.** The Add modal now offers two
-  modes: the existing *Attest destruction / factory reset* (the default), and
-  *Record device only* — a register entry (serial, model, note) for a device
-  whose media are associated later. Before this, the only way to put an unknown
-  device on file was the destruction form, so an operator adding a device just
-  so media could name it as their origin had to file a false destruction claim.
-  Register entries never print as destroyed on a certificate; Media → Reassign
-  origin finds them like any other device.
+- **Devices → Add is one form.** The two-mode switch is gone: Add is a single
+  device form — Chain of Custody ID, serial, model, note — that saves a register
+  entry by default. Opening the "attest the outcome" disclosure turns the same
+  save into an attested destruction record (category, make, reason, method,
+  vendor, date, witness, evidence reference). Register entries never print as
+  destroyed on a certificate; attested records store the note too
+  (`certificate_devices.note`) and show it in the detail view.
 - **Register devices carry their job.** The register form now requires a Chain
   of Custody ID, stored on the declared device (`declared_devices.cocid`) and
   merged with the media-link jobs in the COCID facet and search — the device is

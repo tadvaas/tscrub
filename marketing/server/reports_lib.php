@@ -875,14 +875,15 @@ function manual_attested_save_device(int $certId, string $cocid, array $dev, arr
 
         $q = db()->prepare(
             'INSERT INTO certificate_devices
-             (certificate_id, cocid, category, make, model, serial, reason, destroy_method,
+             (certificate_id, cocid, category, make, model, serial, note, reason, destroy_method,
               destroy_vendor, destroy_date, attested_by, destroy_witness, evidence_ref,
               evidence_sha256, identity_key, created_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())'
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())'
         );
         $q->execute([
             $certId, $cocid,
             (string)$dev['category'], (string)$dev['make'], (string)$dev['model'], (string)$dev['serial'],
+            (string)($dev['note'] ?? ''),
             (string)$dev['reason'], (string)$dev['destroy_method'],
             (string)$dev['destroy_vendor'], (string)$dev['destroy_date'],
             $attestedBy, (string)$dev['destroy_witness'],
@@ -992,13 +993,14 @@ function manual_attested_update_device(int $certId, int $deviceId, array $dev, ?
         db()->beginTransaction();
         $q = db()->prepare(
             'UPDATE certificate_devices
-                SET category = ?, make = ?, model = ?, serial = ?, reason = ?, destroy_method = ?,
+                SET category = ?, make = ?, model = ?, serial = ?, note = ?, reason = ?, destroy_method = ?,
                     destroy_vendor = ?, destroy_date = ?, destroy_witness = ?, evidence_ref = ?,
                     evidence_sha256 = ?, identity_key = ?
               WHERE certificate_id = ? AND id = ?'
         );
         $q->execute([
             (string)$dev['category'], (string)$dev['make'], (string)$dev['model'], (string)$dev['serial'],
+            (string)($dev['note'] ?? ''),
             (string)$dev['reason'], (string)$dev['destroy_method'],
             (string)$dev['destroy_vendor'], (string)$dev['destroy_date'],
             (string)$dev['destroy_witness'], (string)$dev['evidence_ref'],

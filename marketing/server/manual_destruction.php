@@ -321,6 +321,7 @@ function md_check_common(array $row): array
     $serial = md_field($row['serial'] ?? '', 128);
     $make   = md_field($row['make'] ?? '', 128);
     $model  = md_field($row['model'] ?? '', 128);
+    $r['clean']['note'] = md_field($row['note'] ?? '', 255);
 
     if ($serial === '') {
         $errors[] = 'A serial is required — use the device serial, the IMEI, or an assigned asset tag.';

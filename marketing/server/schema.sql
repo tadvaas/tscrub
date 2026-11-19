@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS certificate_devices (
   make            VARCHAR(128)    NOT NULL DEFAULT '',
   model           VARCHAR(128)    NOT NULL DEFAULT '',
   serial          VARCHAR(128)    NOT NULL DEFAULT '',
+  note            VARCHAR(255)    NOT NULL DEFAULT '',
   reason          VARCHAR(32)     NOT NULL DEFAULT '',
   destroy_method  VARCHAR(32)     NOT NULL DEFAULT '',
   destroy_vendor  VARCHAR(255)    NOT NULL DEFAULT '',

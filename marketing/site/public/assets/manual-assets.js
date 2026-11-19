@@ -139,91 +139,99 @@
   }
 
   var editing = null;
-  // Add-mode on the Devices tab: 'attested' (the default) records a destruction
-  // or factory-reset attestation; 'register' puts the device on file so media can
-  // name it as their origin. Only a NEW device offers the choice.
-  var registerMode = false;
 
   function open(kind, record) {
     isDevice = (kind !== 'drive');
     editing = record || null;
     var isEdit = !!editing;
-    // Only a new device may be register mode; edits and the media form are always
-    // attestation. Keeping the flag across a mode-toggle rebuild is what makes the
-    // segmented control work: the toggle sets it, then re-opens the form.
-    registerMode = (isDevice && !isEdit && registerMode);
     var rec = editing || {};
     var modal = document.getElementById('manual-modal');
     var body = document.getElementById('manual-modal-body');
 
     document.getElementById('manual-modal-title').textContent = isEdit
       ? (isDevice ? 'Edit attested device' : 'Edit attested media item')
-      : (registerMode ? 'Add a device to the register'
-        : (isDevice ? 'Record a destroyed device' : 'Record a destroyed media item'));
-    document.getElementById('manual-modal-sub').textContent = registerMode
-      ? 'Identity for a media origin — a register entry, not a destruction record'
-      : 'Operator attestation — not instrument-verified destruction';
+      : (isDevice ? 'Add a device' : 'Record a destroyed media item');
+    document.getElementById('manual-modal-sub').textContent = isEdit
+      ? 'Operator attestation — not instrument-verified destruction'
+      : (isDevice
+        ? 'On file under a Chain of Custody — attest a destruction outcome only if there was one'
+        : 'Operator attestation — not instrument-verified destruction');
     document.getElementById('manual-modal-save').textContent = isEdit
       ? 'Save changes'
-      : (registerMode ? 'Add device'
-        : (isDevice ? 'Record device' : 'Record media item'));
+      : (isDevice ? 'Add device' : 'Record media item');
 
     body.innerHTML = '';
     var err = el('p', { id: 'manual-modal-error', class: 'hidden rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300' });
     body.appendChild(err);
 
-    if (isDevice && !isEdit) {
-      // The Add modal records two different things, and only the operator can say
-      // which: an attestation of what happened to the unit, or the unit's identity
-      // so media can name it as their origin. The register choice exists because a
-      // device added for media association is NOT destroyed — recording it as
-      // shredded would put a false claim on the certificate.
-      var seg = el('div', { class: 'ts-seg mb-3' });
-      [['Attest destruction / factory reset', false], ['Record device only', true]].forEach(function (o) {
-        var b = el('button', { type: 'button', class: 'flex-1', text: o[0] });
-        b.setAttribute('aria-pressed', registerMode === o[1] ? 'true' : 'false');
-        b.addEventListener('click', function () {
-          registerMode = o[1];
-          open('device');
-        });
-        seg.appendChild(b);
-      });
-      body.appendChild(seg);
-    }
-
-    if (registerMode) {
-      body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-sky-50 dark:bg-sky-900/30 px-3 py-2 text-xs text-sky-800 dark:text-sky-300',
-        text: 'Puts the device on file so media can name it as their origin. A register entry, not a destruction record — it never prints as destroyed on a certificate.' }));
+    if (isDevice) {
+      // ONE device form, no mode switch. Its identity fields always save; the
+      // attestation section below is the only thing that turns a register entry
+      // into an attested destruction record — closed (the default) means the
+      // device was added for a media origin, open means the operator attests what
+      // happened to it. On an edit the section IS the record, so it is shown.
+      body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-slate-50 dark:bg-ink-800/60 px-3 py-2 text-xs text-slate-600 dark:text-slate-300',
+        text: 'Puts the device on file under its Chain of Custody — a register entry media can name as their origin. It only prints as destroyed on a certificate if you attest the outcome below.' }));
       body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
       body.appendChild(el('div', { class: 'space-y-3' }, [
         input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial),
         input('Model', 'model', '', rec.model),
         input('Note', 'note', 'e.g. media pulled and erased on the bench', rec.note)
       ]));
-      // The page's own COCID, when one is in view, so the operator does not retype it.
-      var regPre = document.querySelector('[data-cocid]');
-      if (regPre) {
-        var regCocidIn = body.querySelector('input[name=cocid]');
-        if (regCocidIn) { regCocidIn.value = regPre.getAttribute('data-cocid'); }
+
+      var attWrap = el('div', { id: 'manual-attest-section',
+        class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' + (isEdit ? '' : ' hidden') });
+
+      var buildAttestFields = function (wrap, src) {
+        var methodWrap = select('Method', 'destroy_method', METHODS, true, src.destroy_method);
+        var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor', '', src.destroy_vendor);
+
+        // A factory reset has no destruction vendor — the mechanism IS the method. Hiding
+        // the box is deliberate: the server drops a vendor on a retained item, so leaving
+        // it on screen would let the operator type something that is then thrown away.
+        var vendorSync = function () {
+          var retained = isRetained(methodWrap.querySelector('select').value);
+          vendorWrap.classList.toggle('hidden', retained);
+          if (retained) { vendorWrap.querySelector('input').value = ''; }
+        };
+        methodWrap.querySelector('select').addEventListener('change', vendorSync);
+
+        wrap.appendChild(grid([
+          select('Category', 'category', CATEGORIES, true, src.category),
+          input('Make', 'make', '', src.make)
+        ], 2));
+        wrap.appendChild(grid([
+          select('Reason', 'reason', REASONS, true, src.reason),
+          methodWrap,
+          vendorWrap,
+          input('Date (YYYY-MM-DD)', 'destroy_date', '', src.destroy_date),
+          input('Witness', 'destroy_witness', '', src.destroy_witness),
+          input('Evidence reference (vendor certificate no.)', 'evidence_ref', '', src.evidence_ref)
+        ], 2));
+      };
+
+      if (isEdit) {
+        buildAttestFields(attWrap, rec);
+        body.appendChild(attWrap);
+      } else {
+        var attDisclose = el('button', { type: 'button', class: 'mt-3 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:underline',
+          text: 'The device was destroyed or factory-reset — attest the outcome' });
+        attDisclose.addEventListener('click', function () {
+          attWrap.classList.remove('hidden');
+          attDisclose.classList.add('hidden');
+        });
+        buildAttestFields(attWrap, {});
+        body.appendChild(attDisclose);
+        body.appendChild(attWrap);
       }
     } else {
       body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
         text: 'This records an operator attestation of physical destruction — it is not instrument-verified, and it will be labelled as attested on the certificate.' }));
       body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
 
-    if (isDevice) {
-      body.appendChild(grid([
-        select('Category', 'category', CATEGORIES, true, rec.category),
-        input('Make', 'make', '', rec.make),
-        input('Model', 'model', '', rec.model),
-        input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial)
-      ], 2));
-    }
-
-    // Media are recorded and edited on the MEDIA tab only. The device modal
-    // never carries media rows — a sealed unit's storage is a separate media
-    // item afterwards, and editing a device leaves its media untouched.
-    if (!isDevice) {
+      // Media are recorded and edited on the MEDIA tab only. The device modal
+      // never carries media rows — a sealed unit's storage is a separate media
+      // item afterwards, and editing a device leaves its media untouched.
       var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
       mediaBox.appendChild(mediaRow(isEdit ? rec : null));
       body.appendChild(mediaBox);
@@ -232,30 +240,6 @@
         text: '+ Add another media item' });
       addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow()); });
       body.appendChild(addRow);
-    }
-
-    if (isDevice) {
-      var methodWrap = select('Method', 'destroy_method', METHODS, true, rec.destroy_method);
-      var vendorWrap = input('Destroyed by (vendor / facility)', 'destroy_vendor', '', rec.destroy_vendor);
-
-      // A factory reset has no destruction vendor — the mechanism IS the method. Hiding
-      // the box is deliberate: the server drops a vendor on a retained item, so leaving
-      // it on screen would let the operator type something that is then thrown away.
-      var vendorSync = function () {
-        var retained = isRetained(methodWrap.querySelector('select').value);
-        vendorWrap.classList.toggle('hidden', retained);
-        if (retained) { vendorWrap.querySelector('input').value = ''; }
-      };
-      methodWrap.querySelector('select').addEventListener('change', vendorSync);
-
-      body.appendChild(el('div', { class: 'mt-3 space-y-3 border-t border-slate-200 dark:border-ink-700 pt-3' }, [grid([
-        select('Reason', 'reason', REASONS, true, rec.reason),
-        methodWrap,
-        vendorWrap,
-        input('Date (YYYY-MM-DD)', 'destroy_date', '', rec.destroy_date),
-        input('Witness', 'destroy_witness', '', rec.destroy_witness),
-        input('Evidence reference (vendor certificate no.)', 'evidence_ref', '', rec.evidence_ref)
-      ], 2)]));
     }
 
     // The COCID is the record's identity: an edit cannot move a record to another
@@ -271,7 +255,6 @@
       var pre = document.querySelector('[data-cocid]');
       if (pre) { cocidInput.value = pre.getAttribute('data-cocid'); }
     }
-    }
 
     // Same open strategy as the Operations and Export modals. Focus
     // containment (Tab cycle, focus return) comes from the shared dialog helper
@@ -281,7 +264,7 @@
       modal.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
     }
-    var focus = body.querySelector(registerMode ? 'input[name=serial]' : 'input[name=cocid]');
+    var focus = body.querySelector('input[name=cocid]');
     if (focus) { focus.focus(); }
   }
 
@@ -326,75 +309,64 @@
   function save(isDevice, body, button) {
     var cocid = (body.querySelector('input[name=cocid]') || {}).value || '';
     var mediaBoxEl = body.querySelector('#manual-modal-media');
-    // The REGISTER form has no media box at all — a device added for a media
-    // origin is identity-only. collect(null) would throw on container.children,
-    // which is exactly how this save used to fail: the click did nothing, no
-    // error box, no request. An empty list is the real answer.
+    // The DEVICE form has no media box at all — media live on the Media tab.
+    // collect(null) would throw on container.children, which is exactly how this
+    // save used to fail: the click did nothing, no error box, no request. An
+    // empty list is the real answer.
     var media = mediaBoxEl ? collect(mediaBoxEl) : [];
-    if (!registerMode && !cocid.trim()) { return show('A Chain of Custody ID is required.'); }
-    // Only the media form needs a medium: a new device has no media block at all
-    // (media are recorded on the Media tab), and an edit may reconcile to zero —
-    // an empty list means "keep this record as it was". Refusing it would make a
-    // legitimate media-less device un-editable, which was the edit version of an
-    // earlier defect.
+    if (!cocid.trim()) { return show('A Chain of Custody ID is required.'); }
+    // Only the media form needs a medium: the device form has no media rows at
+    // all, and a media edit always carries its one row.
     if (mediaBoxEl && !media.length && !editing) {
       return show('Fill in the media item you are recording.');
     }
 
     var payload;
     var registerSerial = '';
-    if (registerMode) {
-      var cEl = body.querySelector('input[name=cocid]');
+    var attesting = false;
+    if (isDevice) {
+      // ONE device form. The attestation section decides the record: closed
+      // (the default) → a register entry, open → an attested destruction
+      // record whose fields the server requires to be complete.
+      var attSection = body.querySelector('#manual-attest-section');
+      attesting = !!attSection && !attSection.classList.contains('hidden');
       var sEl = body.querySelector('input[name=serial]');
       var mEl = body.querySelector('input[name=model]');
       var nEl = body.querySelector('input[name=note]');
-      registerSerial = sEl ? String(sEl.value || '').trim() : '';
-      var registerCocid = cEl ? String(cEl.value || '').trim() : '';
-      if (!registerSerial) { return show('The device serial is required.'); }
-      if (!registerCocid) { return show('A Chain of Custody ID is required.'); }
-      payload = {
-        cocid: registerCocid,
-        serial: registerSerial,
-        model: mEl ? String(mEl.value || '').trim() : '',
-        note: nEl ? String(nEl.value || '').trim() : ''
-      };
-    } else if (isDevice) {
-      // The DEVICE's own field, never "the first match in the document".
-      //
-      // The media rows are appended BEFORE this block, and each media row carries a
-      // hidden Reason/Method pair for the "different outcome for this medium" override.
-      // A bare `body.querySelector('[name=reason]')` therefore returned the MEDIUM's
-      // hidden select, so the device was posted with an empty reason and method and the
-      // server refused every save with "A reason is required" — however carefully the
-      // operator had filled the form in. Add on the Devices page could not work at all.
-      var deviceField = function (name) {
-        var all = body.querySelectorAll('[name=' + name + ']');
-        for (var i = 0; i < all.length; i++) {
-          if (!all[i].closest('#manual-modal-media')) { return all[i]; }
-        }
-        return null;
-      };
-      var dev = {};
-      ['category', 'make', 'model', 'serial', 'reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'evidence_ref'].forEach(function (k) {
-        var f = deviceField(k);
-        if (f) { dev[k] = f.value.trim(); }
-      });
-      // No media key at all: a new device is recorded media-less (its media come
-      // via the Media tab), and an edit leaves the record's media untouched —
-      // sending the key would make the server reconcile the media set.
-      payload = { cocid: cocid.trim(), device: dev };
+      var serial = sEl ? String(sEl.value || '').trim() : '';
+      if (!serial) { return show('The device serial is required.'); }
+      var model = mEl ? String(mEl.value || '').trim() : '';
+      var note = nEl ? String(nEl.value || '').trim() : '';
+      if (!attesting) {
+        registerSerial = serial;
+        payload = { cocid: cocid.trim(), serial: serial, model: model, note: note };
+      } else {
+        var dev = { serial: serial, model: model, note: note };
+        // The device form has exactly one of each of these — no media rows to
+        // collide with, so a plain lookup is unambiguous here.
+        ['category', 'make', 'reason', 'destroy_method', 'destroy_vendor', 'destroy_date', 'destroy_witness', 'evidence_ref'].forEach(function (k) {
+          var f = body.querySelector('[name=' + k + ']');
+          if (f) { dev[k] = String(f.value || '').trim(); }
+        });
+        // No media key at all: a new device is recorded media-less (its media come
+        // via the Media tab), and an edit leaves the record's media untouched —
+        // sending the key would make the server reconcile the media set.
+        payload = { cocid: cocid.trim(), device: dev };
+      }
     } else {
       payload = { cocid: cocid.trim(), media: media[0] };
     }
 
     var isEdit = !!editing;
-    var url = registerMode
-      ? '/api/devices/declared'
-      : (isEdit
-          ? (isDevice
+    var url = !isDevice
+      ? (isEdit
+          ? '/api/certificates/media/' + encodeURIComponent(editing.attested_id)
+          : '/api/certificates/media')
+      : (attesting
+          ? (isEdit
               ? '/api/certificates/devices/' + encodeURIComponent(editing.attested_id)
-              : '/api/certificates/media/' + encodeURIComponent(editing.attested_id))
-          : (isDevice ? '/api/certificates/devices' : '/api/certificates/media'));
+              : '/api/certificates/devices')
+          : '/api/devices/declared');
     button.disabled = true;
     button.textContent = 'Saving…';
 
@@ -409,8 +381,7 @@
       button.disabled = false;
       button.textContent = isEdit
         ? 'Save changes'
-        : (registerMode ? 'Add device'
-          : (isDevice ? 'Record device' : 'Record media item'));
+        : (isDevice ? 'Add device' : 'Record media item');
     }
 
     fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) {
@@ -440,11 +411,9 @@
         // LAST page of a busy account: the operator saved, saw the list unchanged, and
         // reasonably reported it as a failed save. Opening the search on the serial we
         // just recorded shows it immediately — which is also how they verify a typo.
-        var raw = registerMode
-          ? registerSerial
-          : (isDevice
-              ? (payload.device && payload.device.serial)
-              : (payload.media && payload.media.serial));
+        var raw = isDevice
+          ? (registerSerial || (payload.device && payload.device.serial))
+          : (payload.media && payload.media.serial);
         var created = String(raw || '').trim();
         var dest = isDevice ? '/dashboard/devices' : '/dashboard/drives';
         window.location.href = dest + (created ? '?q=' + encodeURIComponent(created) : '');
@@ -740,6 +709,7 @@
     pairs.push(['Date destroyed', row.destroy_date]);
     pairs.push(['Witness', row.destroy_witness]);
     pairs.push(['Evidence reference', row.evidence_ref]);
+    if (row.note) { pairs.push(['Note', row.note]); }
     pairs.push(['Attested by', row.attested_by]);
     if (!isDevice) {
       // A standalone destroyed drive has no host, and the detail view must not imply

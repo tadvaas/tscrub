@@ -84,7 +84,8 @@ t_check('it still caps the media count',
 
 $manual = (string)file_get_contents(__DIR__ . '/../site/public/assets/manual-assets.js');
 t_check('only the media form builds a media box — the device modal has none',
-    (bool)preg_match('/if \(!isDevice\) \{\s*\n\s*var mediaBox/', $manual));
+    (bool)preg_match('/if \(isDevice\) \{/', $manual)
+    && preg_match('/var mediaBox = el\(\'div\', \{ id: \'manual-modal-media\'/', $manual) === 1);
 t_check('the "media required" rule fires only when a media form is shown and it is not an edit',
     (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing\)/', $manual));
 
@@ -158,30 +159,29 @@ t_check('the update helper skips the media rewrite when none was sent',
     strpos($lib, '?array $media') !== false
     && strpos($lib, 'if ($media !== null)') !== false);
 
-echo "\n== 9. Devices → Add offers a register-only mode ==\n";
-// A device added purely so media can name it as their origin must not force a
-// destruction attestation. The modal now offers both paths; the register branch
-// posts the job and the identity fields (cocid/serial/model/note) to the declared
-// endpoint.
-t_check('the Add modal offers the two modes',
-    strpos($manual, 'Record device only') !== false
-    && strpos($manual, 'Attest destruction / factory reset') !== false);
-t_check('the register mode posts to the declared endpoint',
-    strpos($manual, "'/api/devices/declared'") !== false);
-t_check('the register form collects the job and identity fields',
+echo "\n== 9. Devices → Add is one form with an attestation section ==\n";
+// One device form: the identity fields (COCID/serial/model/note) always save as
+// a register entry; opening the attestation section turns the same save into an
+// attested destruction record. There is no mode switch to choose from.
+t_check('there is no mode switch left',
+    strpos($manual, 'Record device only') === false
+    && strpos($manual, 'Attest destruction / factory reset') === false);
+t_check('the form collects the job and identity fields',
     strpos($manual, "input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…')") !== false
-    && strpos($manual, "input('Note', 'note'") !== false
-    && strpos($manual, "input('Serial / IMEI / asset tag', 'serial'") !== false);
-t_check('the register mode requires a COCID',
-    strpos($manual, 'if (!registerCocid)') !== false);
-$regPayload = preg_match('/payload = \{([^}]*?)\n      \};/', $manual, $m) ? $m[1] : '';
-t_check('the register payload carries the COCID and identity fields only',
-    strpos($regPayload, 'cocid: registerCocid') !== false
-    && strpos($regPayload, 'serial: registerSerial') !== false
-    && strpos($regPayload, 'model: mEl') !== false
-    && strpos($regPayload, 'note: nEl') !== false
-    && strpos($regPayload, 'media:') === false
-    && strpos($regPayload, 'device:') === false);
+    && strpos($manual, "input('Serial / IMEI / asset tag', 'serial'") !== false
+    && strpos($manual, "input('Model', 'model'") !== false
+    && strpos($manual, "input('Note', 'note'") !== false);
+t_check('the attestation section decides which record is saved',
+    strpos($manual, "id: 'manual-attest-section'") !== false
+    && strpos($manual, 'attesting = !!attSection && !attSection.classList.contains(\'hidden\')') !== false);
+t_check('the closed section posts a register entry to the declared endpoint',
+    strpos($manual, "'/api/devices/declared'") !== false
+    && strpos($manual, 'payload = { cocid: cocid.trim(), serial: serial, model: model, note: note };') !== false);
+t_check('the open section posts an attested device with no media key',
+    strpos($manual, "'/api/certificates/devices'") !== false
+    && preg_match('/payload = \{ cocid: cocid\.trim\(\), device: dev \};/', $manual) === 1);
+t_check('the COCID is required for every device record',
+    strpos($manual, 'if (!cocid.trim()) { return show(\'A Chain of Custody ID is required.\'); }') !== false);
 
 echo "\n== 10. a register device stores the job it was added under ==\n";
 $schemaSql = (string)file_get_contents($serverDir . '/schema.sql');
