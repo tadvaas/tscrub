@@ -162,31 +162,70 @@
   }
 
   var editing = null;
+  // Add-mode on the Devices tab: 'attested' (the default) records a destruction
+  // or factory-reset attestation; 'register' puts the device on file so media can
+  // name it as their origin. Only a NEW device offers the choice.
+  var registerMode = false;
 
   function open(kind, record) {
     isDevice = (kind !== 'drive');
     editing = record || null;
     var isEdit = !!editing;
+    // Only a new device may be register mode; edits and the media form are always
+    // attestation. Keeping the flag across a mode-toggle rebuild is what makes the
+    // segmented control work: the toggle sets it, then re-opens the form.
+    registerMode = (isDevice && !isEdit && registerMode);
     var rec = editing || {};
     var modal = document.getElementById('manual-modal');
     var body = document.getElementById('manual-modal-body');
 
     document.getElementById('manual-modal-title').textContent = isEdit
       ? (isDevice ? 'Edit attested device' : 'Edit attested media item')
-      : (isDevice ? 'Record a destroyed device' : 'Record a destroyed media item');
-    document.getElementById('manual-modal-sub').textContent =
-      'Operator attestation — not instrument-verified destruction';
+      : (registerMode ? 'Add a device to the register'
+        : (isDevice ? 'Record a destroyed device' : 'Record a destroyed media item'));
+    document.getElementById('manual-modal-sub').textContent = registerMode
+      ? 'Identity for a media origin — a register entry, not a destruction record'
+      : 'Operator attestation — not instrument-verified destruction';
     document.getElementById('manual-modal-save').textContent = isEdit
       ? 'Save changes'
-      : (isDevice ? 'Record device' : 'Record media item');
+      : (registerMode ? 'Add device'
+        : (isDevice ? 'Record device' : 'Record media item'));
 
     body.innerHTML = '';
     var err = el('p', { id: 'manual-modal-error', class: 'hidden rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300' });
-
-    body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
-      text: 'This records an operator attestation of physical destruction — it is not instrument-verified, and it will be labelled as attested on the certificate.' }));
     body.appendChild(err);
-    body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
+
+    if (isDevice && !isEdit) {
+      // The Add modal records two different things, and only the operator can say
+      // which: an attestation of what happened to the unit, or the unit's identity
+      // so media can name it as their origin. The register choice exists because a
+      // device added for media association is NOT destroyed — recording it as
+      // shredded would put a false claim on the certificate.
+      var seg = el('div', { class: 'ts-seg mb-3' });
+      [['Attest destruction / factory reset', false], ['Record device only', true]].forEach(function (o) {
+        var b = el('button', { type: 'button', class: 'flex-1', text: o[0] });
+        b.setAttribute('aria-pressed', registerMode === o[1] ? 'true' : 'false');
+        b.addEventListener('click', function () {
+          registerMode = o[1];
+          open('device');
+        });
+        seg.appendChild(b);
+      });
+      body.appendChild(seg);
+    }
+
+    if (registerMode) {
+      body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-sky-50 dark:bg-sky-900/30 px-3 py-2 text-xs text-sky-800 dark:text-sky-300',
+        text: 'Puts the device on file so media can name it as their origin. A register entry, not a destruction record — it never prints as destroyed on a certificate.' }));
+      body.appendChild(el('div', { class: 'space-y-3' }, [
+        input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial),
+        input('Model', 'model', '', rec.model),
+        input('Note', 'note', 'e.g. media pulled and erased on the bench', rec.note)
+      ]));
+    } else {
+      body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
+        text: 'This records an operator attestation of physical destruction — it is not instrument-verified, and it will be labelled as attested on the certificate.' }));
+      body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
 
     if (isDevice) {
       body.appendChild(grid([
@@ -257,6 +296,7 @@
       var pre = document.querySelector('[data-cocid]');
       if (pre) { cocidInput.value = pre.getAttribute('data-cocid'); }
     }
+    }
 
     // Same open strategy as the Operations and Export modals. Focus
     // containment (Tab cycle, focus return) comes from the shared dialog helper
@@ -266,7 +306,7 @@
       modal.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
     }
-    var focus = body.querySelector('input[name=cocid]');
+    var focus = body.querySelector(registerMode ? 'input[name=serial]' : 'input[name=cocid]');
     if (focus) { focus.focus(); }
   }
 
@@ -316,7 +356,7 @@
     // container.children, which is exactly how this save used to fail: the click
     // did nothing, no error box, no request. An empty list is the real answer.
     var media = mediaBoxEl ? collect(mediaBoxEl) : [];
-    if (!cocid.trim()) { return show('A Chain of Custody ID is required.'); }
+    if (!registerMode && !cocid.trim()) { return show('A Chain of Custody ID is required.'); }
     // A new device has no media block: it is recorded on its own, and its media (if
     // any) are recorded from the Media tab. Only the media form needs a medium.
     //
@@ -332,7 +372,19 @@
     }
 
     var payload;
-    if (isDevice) {
+    var registerSerial = '';
+    if (registerMode) {
+      var sEl = body.querySelector('input[name=serial]');
+      var mEl = body.querySelector('input[name=model]');
+      var nEl = body.querySelector('input[name=note]');
+      registerSerial = sEl ? String(sEl.value || '').trim() : '';
+      if (!registerSerial) { return show('The device serial is required.'); }
+      payload = {
+        serial: registerSerial,
+        model: mEl ? String(mEl.value || '').trim() : '',
+        note: nEl ? String(nEl.value || '').trim() : ''
+      };
+    } else if (isDevice) {
       // The DEVICE's own field, never "the first match in the document".
       //
       // The media rows are appended BEFORE this block, and each media row carries a
@@ -359,11 +411,13 @@
     }
 
     var isEdit = !!editing;
-    var url = isEdit
-      ? (isDevice
-          ? '/api/certificates/devices/' + encodeURIComponent(editing.attested_id)
-          : '/api/certificates/media/' + encodeURIComponent(editing.attested_id))
-      : (isDevice ? '/api/certificates/devices' : '/api/certificates/media');
+    var url = registerMode
+      ? '/api/devices/declared'
+      : (isEdit
+          ? (isDevice
+              ? '/api/certificates/devices/' + encodeURIComponent(editing.attested_id)
+              : '/api/certificates/media/' + encodeURIComponent(editing.attested_id))
+          : (isDevice ? '/api/certificates/devices' : '/api/certificates/media'));
     button.disabled = true;
     button.textContent = 'Saving…';
 
@@ -378,7 +432,8 @@
       button.disabled = false;
       button.textContent = isEdit
         ? 'Save changes'
-        : (isDevice ? 'Record device' : 'Record media item');
+        : (registerMode ? 'Add device'
+          : (isDevice ? 'Record device' : 'Record media item'));
     }
 
     fetch('/api/csrf').then(function (r) { return r.json(); }).then(function (d) {
@@ -408,9 +463,11 @@
         // LAST page of a busy account: the operator saved, saw the list unchanged, and
         // reasonably reported it as a failed save. Opening the search on the serial we
         // just recorded shows it immediately — which is also how they verify a typo.
-        var raw = isDevice
-          ? (payload.device && payload.device.serial)
-          : (payload.media && payload.media.serial);
+        var raw = registerMode
+          ? registerSerial
+          : (isDevice
+              ? (payload.device && payload.device.serial)
+              : (payload.media && payload.media.serial));
         var created = String(raw || '').trim();
         var dest = isDevice ? '/dashboard/devices' : '/dashboard/drives';
         window.location.href = dest + (created ? '?q=' + encodeURIComponent(created) : '');

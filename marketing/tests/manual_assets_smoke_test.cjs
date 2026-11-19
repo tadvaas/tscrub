@@ -642,8 +642,65 @@ setTimeout(() => {
                                 /injected-edit/.test(textOf(byId['manual-modal-error']))
                                   && !/media item/.test(textOf(byId['manual-modal-error'])),
                                 textOf(byId['manual-modal-error']));
-                              // The remove flow below expects a 200 again.
-                              installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
+
+                              // The Add modal's second mode: "Record device only" — a register
+                              // entry for media association, NOT a destruction claim. This is the
+                              // mode that was missing: operators were filing false "shredded"
+                              // attestations just to get a media origin on file.
+                              installResponse({ status: 409, body: JSON.stringify({ ok: false, error: 'already on file' }) });
+                              global.__reqs = [];
+                              window.ManualAssets.openFor('device');
+                              const regWalk = [];
+                              (function walk(n) { (n.children || []).forEach(c => { regWalk.push(c); walk(c); }); })(byId['manual-modal-body']);
+                              const regBtn = regWalk.find(n => n.tagName === 'BUTTON' && /Record device only/.test(n.textContent || ''));
+                              const attBtn = regWalk.find(n => n.tagName === 'BUTTON' && /Attest destruction/.test(n.textContent || ''));
+                              check('add — the new-device form offers the two modes',
+                                !!regBtn && !!attBtn, regWalk.filter(n => n.tagName === 'BUTTON').map(b => b.textContent).join(', '));
+                              check('add — attestation is the default mode',
+                                !!attBtn && attBtn.getAttribute('aria-pressed') === 'true');
+                              let regThrew = null;
+                              try { regBtn._on.click(); } catch (e) { regThrew = e; }
+                              check('add — switching to the register mode does not throw',
+                                regThrew === null, regThrew && regThrew.message);
+                              const rb = byId['manual-modal-body'];
+                              check('add — the register form has no COCID and no media block',
+                                !rb.querySelector('[name=cocid]') && !rb.querySelector('#manual-modal-media'));
+                              check('add — the register form has serial, model and note',
+                                !!rb.querySelector('[name=serial]') && !!rb.querySelector('[name=model]') && !!rb.querySelector('[name=note]'));
+                              check('add — the register form drops every destruction field',
+                                !rb.querySelector('[name=reason]') && !rb.querySelector('[name=destroy_method]')
+                                  && !rb.querySelector('[name=destroy_vendor]') && !rb.querySelector('[name=evidence_ref]'));
+                              check('add — the title says what the record is',
+                                byId['manual-modal-title'].textContent === 'Add a device to the register',
+                                byId['manual-modal-title'].textContent);
+                              rb.querySelector('[name=serial]').value = 'REG-SN-1';
+                              rb.querySelector('[name=model]').value = 'Test Unit';
+                              rb.querySelector('[name=note]').value = 'bench';
+                              byId['manual-modal-save']._on.click();
+                              setTimeout(() => {
+                                const regPost = global.__reqs.filter(r => r.method === 'POST');
+                                let regBody = null;
+                                if (regPost.length) { try { regBody = JSON.parse(regPost[0].body); } catch (e) { regBody = { bad: true }; } }
+                                check('add — the register save posts to /api/devices/declared',
+                                  regPost.length === 1 && regPost[0].url === '/api/devices/declared',
+                                  JSON.stringify(global.__reqs.map(r => r.url)));
+                                check('add — the register payload is identity only',
+                                  !!regBody && regBody.serial === 'REG-SN-1' && regBody.model === 'Test Unit' && regBody.note === 'bench'
+                                    && !('cocid' in regBody) && !('media' in regBody) && !('device' in regBody),
+                                  JSON.stringify(regBody));
+                                check('add — the duplicate message is shown verbatim and the button restored',
+                                  /already on file/.test(textOf(byId['manual-modal-error']))
+                                    && byId['manual-modal-save'].textContent === 'Add device'
+                                    && byId['manual-modal-save'].disabled === false,
+                                  textOf(byId['manual-modal-error']));
+                                // An EDIT must not offer the register switch: the record's kind is fixed.
+                                window.ManualAssets.open('device', { attested_id: 3, cocid: 'COC-1', category: 'laptop', make: 'T', model: 'M', sysserial: 'SN-9', reason: 'other', destroy_method: 'shredded', destroy_vendor: '', destroy_date: '', destroy_witness: '', evidence_ref: '', drives: [] });
+                                const edWalk = [];
+                                (function walk(n) { (n.children || []).forEach(c => { edWalk.push(c); walk(c); }); })(byId['manual-modal-body']);
+                                check('edit — the register switch is not offered on an edit',
+                                  !edWalk.some(n => n.tagName === 'BUTTON' && /Record device only/.test(n.textContent || '')));
+                                // The remove flow below expects a 200 again.
+                                installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
 
                           global.__confirmAnswer = true;
                           global.__reqs = [];
@@ -677,6 +734,7 @@ setTimeout(() => {
                     }, 60);
                   }, 60);
                 }, 60);
+              }, 60);
               }, 60);
               }, 60);
               }, 60);

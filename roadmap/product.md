@@ -505,6 +505,12 @@ with the release that carried them (per `CHANGELOG.md`).
       is reversed — devices are made on the Devices tab only, declared devices
       became their own source class, and the export states provenance.
       → Plan: `research/media-origin-integrity/README.md`.
+- [ ] **Devices → Add offers "Record device only"** — a register entry for media
+      association, without a destruction attestation. The declared endpoint
+      exists but no UI calls it, so operators wanting a media origin have to
+      file a false destruction claim. Toggle inside the Add modal, attested form
+      stays the default.
+      → Plan: `research/register-device-add/README.md`.
 - [ ] **Manually recorded records must be editable.** An attested device or media
       item, and a declared device, can only be removed and re-entered when a
       field is wrong, which loses the record's id and makes the operator retype

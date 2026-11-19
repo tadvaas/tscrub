@@ -152,5 +152,22 @@ t_check('the 404 still fires before any media validation',
     $putBody !== '' && strpos($putBody, "fail(404, 'Record not found.')") !== false
         && strpos($putBody, "fail(404, 'Record not found.')") < strpos($putBody, 'md_validate_device'));
 
+echo "\n== 9. Devices → Add offers a register-only mode ==\n";
+// A device added purely so media can name it as their origin must not force a
+// destruction attestation. The modal now offers both paths; the register branch
+// posts identity fields (serial/model/note) to the declared endpoint.
+t_check('the Add modal offers the two modes',
+    strpos($manual, 'Record device only') !== false
+    && strpos($manual, 'Attest destruction / factory reset') !== false);
+t_check('the register mode posts to the declared endpoint',
+    strpos($manual, "'/api/devices/declared'") !== false);
+t_check('the register form collects identity fields only',
+    strpos($manual, "input('Note', 'note'") !== false
+    && strpos($manual, "input('Serial / IMEI / asset tag', 'serial'") !== false);
+t_check('the COCID is not required in register mode',
+    strpos($manual, 'if (!registerMode && !cocid.trim())') !== false);
+t_check('the register payload carries no cocid, media or device keys',
+    preg_match("/payload = \{[\\s\\S]*?serial: registerSerial,[\\s\\S]*?model: mEl[\\s\\S]*?note: nEl/", $manual) === 1);
+
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

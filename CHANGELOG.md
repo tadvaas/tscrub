@@ -8,6 +8,17 @@ and this project uses date-based versioning (`v1.x`).
 
 ## [Unreleased]
 
+### Added
+
+- **Devices → Add: "Record device only" mode.** The Add modal now offers two
+  modes: the existing *Attest destruction / factory reset* (the default), and
+  *Record device only* — a register entry (serial, model, note) for a device
+  whose media are associated later. Before this, the only way to put an unknown
+  device on file was the destruction form, so an operator adding a device just
+  so media could name it as their origin had to file a false destruction claim.
+  Register entries never print as destroyed on a certificate; Media → Reassign
+  origin finds them like any other device.
+
 ### Fixed
 
 - **Devices → Add did nothing when saved.** The new-device form has no media
