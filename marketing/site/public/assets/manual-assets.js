@@ -217,11 +217,18 @@
     if (registerMode) {
       body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-sky-50 dark:bg-sky-900/30 px-3 py-2 text-xs text-sky-800 dark:text-sky-300',
         text: 'Puts the device on file so media can name it as their origin. A register entry, not a destruction record — it never prints as destroyed on a certificate.' }));
+      body.appendChild(input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…'));
       body.appendChild(el('div', { class: 'space-y-3' }, [
         input('Serial / IMEI / asset tag', 'serial', '', rec.sysserial),
         input('Model', 'model', '', rec.model),
         input('Note', 'note', 'e.g. media pulled and erased on the bench', rec.note)
       ]));
+      // The page's own COCID, when one is in view, so the operator does not retype it.
+      var regPre = document.querySelector('[data-cocid]');
+      if (regPre) {
+        var regCocidIn = body.querySelector('input[name=cocid]');
+        if (regCocidIn) { regCocidIn.value = regPre.getAttribute('data-cocid'); }
+      }
     } else {
       body.appendChild(el('p', { class: 'mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300',
         text: 'This records an operator attestation of physical destruction — it is not instrument-verified, and it will be labelled as attested on the certificate.' }));
@@ -237,12 +244,13 @@
     }
 
     var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
-    // Devices are recorded on the Devices tab, media on the Media tab. A NEW
-    // device gets no media block at all — a unit with no data-bearing storage is
-    // a real record, and the two used to be welded together here (a device could
-    // not be saved without inventing a medium). EDITING keeps whatever media the
-    // record already has, so an existing attestation is never silently emptied.
-    var showMedia = (isEdit || !isDevice);
+    // Media live in the Media tab, and the REGISTER mode is identity-only, so a
+    // register add gets no media block at all. An ATTESTED new device may carry
+    // media with it — integrated/soldered storage is one unit — but the block is
+    // optional: a blank one collects to [] and the device saves without media.
+    // EDITING keeps whatever media the record already has, so an existing
+    // attestation is never silently emptied.
+    var showMedia = (isEdit || !isDevice || !registerMode);
     if (showMedia) {
       if (isEdit) {
         var rows = isDevice ? (rec.drives || []) : [rec];
@@ -351,35 +359,34 @@
   function save(isDevice, body, button) {
     var cocid = (body.querySelector('input[name=cocid]') || {}).value || '';
     var mediaBoxEl = body.querySelector('#manual-modal-media');
-    // A NEW device has no media block at all — devices are recorded on the
-    // Devices tab, media on the Media tab. collect(null) would throw on
-    // container.children, which is exactly how this save used to fail: the click
-    // did nothing, no error box, no request. An empty list is the real answer.
+    // The REGISTER form has no media box at all — a device added for a media
+    // origin is identity-only. collect(null) would throw on container.children,
+    // which is exactly how this save used to fail: the click did nothing, no
+    // error box, no request. An empty list is the real answer.
     var media = mediaBoxEl ? collect(mediaBoxEl) : [];
     if (!registerMode && !cocid.trim()) { return show('A Chain of Custody ID is required.'); }
-    // A new device has no media block: it is recorded on its own, and its media (if
-    // any) are recorded from the Media tab. Only the media form needs a medium.
-    //
-    // An EDIT of a device that already has no media must also pass through: the blank
-    // media row collects to [], and that empty list means "keep this record as it was
-    // — no storage" (the server reconciles an edit's media set, and an empty one
-    // empties nothing that was not already empty). Refusing it would make a legitimate
-    // media-less record un-editable, which was the edit version of the same defect.
-    if (mediaBoxEl && !media.length && !editing) {
-      return show(isDevice
-        ? 'Add at least one media item — a device that held no storage has nothing to record.'
-        : 'Fill in the media item you are recording.');
+    // Only the media form needs a medium. A new attested device's media block is
+    // optional (a unit with no data-bearing storage is a real record), and an edit
+    // may reconcile to zero — an empty list means "keep this record as it was".
+    // Refusing it would make a legitimate media-less device un-editable, which was
+    // the edit version of an earlier defect.
+    if (mediaBoxEl && !media.length && !editing && !isDevice) {
+      return show('Fill in the media item you are recording.');
     }
 
     var payload;
     var registerSerial = '';
     if (registerMode) {
+      var cEl = body.querySelector('input[name=cocid]');
       var sEl = body.querySelector('input[name=serial]');
       var mEl = body.querySelector('input[name=model]');
       var nEl = body.querySelector('input[name=note]');
       registerSerial = sEl ? String(sEl.value || '').trim() : '';
+      var registerCocid = cEl ? String(cEl.value || '').trim() : '';
       if (!registerSerial) { return show('The device serial is required.'); }
+      if (!registerCocid) { return show('A Chain of Custody ID is required.'); }
       payload = {
+        cocid: registerCocid,
         serial: registerSerial,
         model: mEl ? String(mEl.value || '').trim() : '',
         note: nEl ? String(nEl.value || '').trim() : ''

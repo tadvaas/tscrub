@@ -1252,6 +1252,7 @@ function asset_media_ensure_schema(): void {
                 serial      VARCHAR(191)    NOT NULL,
                 model       VARCHAR(191)    NOT NULL DEFAULT '',
                 note        VARCHAR(255)    NOT NULL DEFAULT '',
+                cocid       VARCHAR(64)     NOT NULL DEFAULT '',
                 created_by  BIGINT UNSIGNED NOT NULL DEFAULT 0,
                 created_at  DATETIME        NOT NULL,
                 PRIMARY KEY (id),
@@ -1554,20 +1555,21 @@ function media_link_forget(int $userId, string $cocid, string $mediaSerial): int
  * It is NOT evidence: nothing in the certificate may present it as a machine the
  * appliance inspected, and it must never create a media link.
  */
-function declared_device_set(int $userId, string $serial, string $model, string $note, int $by): bool {
+function declared_device_set(int $userId, string $serial, string $model, string $note, string $cocid, int $by): bool {
     asset_media_ensure_schema();
     $serial = trim($serial);
+    $cocid  = trim($cocid);
     $key = mp_key($serial);
     if ($key === '' || mb_strlen($serial, 'UTF-8') > 191) return false;
     $ids = org_member_ids($userId);
     $ph  = implode(',', array_fill(0, count($ids), '?'));
     try {
         $q = db()->prepare(
-            'INSERT INTO declared_devices (user_id, device_key, serial, model, note, created_by, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE serial = VALUES(serial), model = VALUES(model), note = VALUES(note)'
+            'INSERT INTO declared_devices (user_id, device_key, serial, model, note, cocid, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE serial = VALUES(serial), model = VALUES(model), note = VALUES(note), cocid = VALUES(cocid)'
         );
-        $q->execute([$userId, $key, $serial, trim($model), trim($note), $by, gmdate('Y-m-d H:i:s')]);
+        $q->execute([$userId, $key, $serial, trim($model), trim($note), $cocid, $by, gmdate('Y-m-d H:i:s')]);
         return true;
     } catch (Throwable $e) {
         error_log('declared_device_set: ' . $e->getMessage());
@@ -1583,15 +1585,15 @@ function declared_device_set(int $userId, string $serial, string $model, string 
  * link that names it. To change the serial, remove the device once nothing refers
  * to it and record it again.
  */
-function declared_device_update(int $userId, string $deviceKey, string $model, string $note): bool {
+function declared_device_update(int $userId, string $deviceKey, string $model, string $note, string $cocid): bool {
     asset_media_ensure_schema();
     $key = mp_key($deviceKey);
     if ($key === '') return false;
     $ids = org_member_ids($userId);
     $ph  = implode(',', array_fill(0, count($ids), '?'));
     try {
-        $q = db()->prepare("UPDATE declared_devices SET model = ?, note = ? WHERE user_id IN ($ph) AND device_key = ?");
-        $q->execute(array_merge([trim($model), trim($note)], $ids, [$key]));
+        $q = db()->prepare("UPDATE declared_devices SET model = ?, note = ?, cocid = ? WHERE user_id IN ($ph) AND device_key = ?");
+        $q->execute(array_merge([trim($model), trim($note), trim($cocid)], $ids, [$key]));
         // MySQL counts CHANGED rows, not matched ones: saving the form unchanged
         // would report "not found" on a device that is right there.
         if ($q->rowCount() > 0) { return true; }
@@ -1654,6 +1656,9 @@ function declared_device_row(array $r, string $cocids = ''): array {
         '_key'          => 'declared:' . mp_key($serial),
         'declared'      => true,
         'declared_at'   => $created,
+        // The job recorded when the device was ADDED (the operator's own
+        // association), distinct from the jobs its media links name it in.
+        'cocid'         => trim((string)($r['cocid'] ?? '')),
         // The jobs this device is the DECLARED ORIGIN for. A register entry has
         // no report of its own, so without this the COCID facet and the COCID
         // search could never find it — even though the certificate for that job
@@ -1715,12 +1720,17 @@ function declared_devices_rows(int $userId): array {
         error_log('declared_devices_rows cocids: ' . $e->getMessage());
     }
     try {
-        $stmt = db()->prepare("SELECT serial, model, note, created_at FROM declared_devices WHERE user_id IN ($ph) ORDER BY serial");
+        $stmt = db()->prepare("SELECT serial, model, note, cocid, created_at FROM declared_devices WHERE user_id IN ($ph) ORDER BY serial");
         $stmt->execute($ids);
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $k = strtolower(trim((string)($r['serial'] ?? '')));
-            $row = declared_device_row($r, implode("\n", array_values($cocids[$k] ?? [])));
+            // The job recorded when the device was added joins the jobs its media
+            // links name it in — the COCID facet and search must see both.
+            $rowCocids = $cocids[$k] ?? [];
+            $stored = trim((string)($r['cocid'] ?? ''));
+            if ($stored !== '') { $rowCocids['k' . $stored] = $stored; }
+            $row = declared_device_row($r, implode("\n", array_values($rowCocids)));
             if ($row['sysserial'] !== '') { $out[$row['_key']] = $row; }
         }
         return $out;

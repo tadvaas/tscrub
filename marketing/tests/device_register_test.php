@@ -83,10 +83,10 @@ t_check('it still caps the media count',
     (bool)preg_match("/Too many media on one device \(64 maximum\)/", $api));
 
 $manual = (string)file_get_contents(__DIR__ . '/../site/public/assets/manual-assets.js');
-t_check('a new device form has no media block',
-    (bool)preg_match('/var showMedia = \(isEdit \|\| !isDevice\);/', $manual));
-t_check('the "media required" rule fires only when a media form is shown and it is not an edit',
-    (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing\)/', $manual));
+t_check('an attested new device may carry media; the register mode never does',
+    (bool)preg_match('/var showMedia = \(isEdit \|\| !isDevice \|\| !registerMode\);/', $manual));
+t_check('the "media required" rule fires only for a new media item, never for a device',
+    (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing && !isDevice\)/', $manual));
 
 echo "\n== 6. the origin form picks an existing device ==\n";
 $drives = (string)file_get_contents(__DIR__ . '/../site/dashboard/drives.html');
@@ -155,19 +155,40 @@ t_check('the 404 still fires before any media validation',
 echo "\n== 9. Devices → Add offers a register-only mode ==\n";
 // A device added purely so media can name it as their origin must not force a
 // destruction attestation. The modal now offers both paths; the register branch
-// posts identity fields (serial/model/note) to the declared endpoint.
+// posts the job and the identity fields (cocid/serial/model/note) to the declared
+// endpoint.
 t_check('the Add modal offers the two modes',
     strpos($manual, 'Record device only') !== false
     && strpos($manual, 'Attest destruction / factory reset') !== false);
 t_check('the register mode posts to the declared endpoint',
     strpos($manual, "'/api/devices/declared'") !== false);
-t_check('the register form collects identity fields only',
-    strpos($manual, "input('Note', 'note'") !== false
+t_check('the register form collects the job and identity fields',
+    strpos($manual, "input('Chain of Custody ID (the job this belongs to)', 'cocid', 'COC-…')") !== false
+    && strpos($manual, "input('Note', 'note'") !== false
     && strpos($manual, "input('Serial / IMEI / asset tag', 'serial'") !== false);
-t_check('the COCID is not required in register mode',
-    strpos($manual, 'if (!registerMode && !cocid.trim())') !== false);
-t_check('the register payload carries no cocid, media or device keys',
-    preg_match("/payload = \{[\\s\\S]*?serial: registerSerial,[\\s\\S]*?model: mEl[\\s\\S]*?note: nEl/", $manual) === 1);
+t_check('the register mode requires a COCID',
+    strpos($manual, 'if (!registerCocid)') !== false);
+$regPayload = preg_match('/payload = \{([^}]*?)\n      \};/', $manual, $m) ? $m[1] : '';
+t_check('the register payload carries the COCID and identity fields only',
+    strpos($regPayload, 'cocid: registerCocid') !== false
+    && strpos($regPayload, 'serial: registerSerial') !== false
+    && strpos($regPayload, 'model: mEl') !== false
+    && strpos($regPayload, 'note: nEl') !== false
+    && strpos($regPayload, 'media:') === false
+    && strpos($regPayload, 'device:') === false);
+
+echo "\n== 10. a register device stores the job it was added under ==\n";
+$schemaSql = (string)file_get_contents($serverDir . '/schema.sql');
+t_check('the schema stores the COCID column',
+    strpos($schemaSql, 'cocid       VARCHAR(64)') !== false);
+t_check('declared_device_set inserts the COCID',
+    strpos($lib, 'note, cocid, created_by') !== false);
+t_check('the update helper corrects the COCID too',
+    strpos($lib, 'note = ?, cocid = ?') !== false);
+t_check('the list merges the stored COCID with the media-link jobs',
+    strpos($lib, "'k' . \$stored") !== false);
+t_check('the POST route validates the COCID',
+    strpos($api, "'A Chain of Custody ID is required (letters, digits, dashes or underscores).'") !== false);
 
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

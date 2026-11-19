@@ -2462,10 +2462,14 @@ if ($method === 'POST' && $route === '/devices/declared') {
     if (!mp_serial_usable($serial)) {
         fail(400, 'The device serial is empty or a firmware placeholder.');
     }
+    $cocid = trim((string)($d['cocid'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $cocid)) {
+        fail(400, 'A Chain of Custody ID is required (letters, digits, dashes or underscores).');
+    }
     if (device_serial_known((int)$u['id'], $serial)) {
         fail(409, 'A device with that serial is already on file.');
     }
-    if (!declared_device_set((int)$u['id'], $serial, (string)($d['model'] ?? ''), (string)($d['note'] ?? ''), (int)$u['id'])) {
+    if (!declared_device_set((int)$u['id'], $serial, (string)($d['model'] ?? ''), (string)($d['note'] ?? ''), $cocid, (int)$u['id'])) {
         fail(500, 'Could not record that device.');
     }
     json_out(['ok' => true, 'serial' => $serial], 201);
@@ -2477,7 +2481,11 @@ if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'devices' && $seg[1] =
     auth_csrf_verify();
     $u = auth_require();
     $d = json_body();
-    if (!declared_device_update((int)$u['id'], (string)$seg[2], (string)($d['model'] ?? ''), (string)($d['note'] ?? ''))) {
+    $cocid = trim((string)($d['cocid'] ?? ''));
+    if ($cocid !== '' && !preg_match('/^[A-Za-z0-9_-]{1,64}$/', $cocid)) {
+        fail(400, 'The Chain of Custody ID must be letters, digits, dashes or underscores.');
+    }
+    if (!declared_device_update((int)$u['id'], (string)$seg[2], (string)($d['model'] ?? ''), (string)($d['note'] ?? ''), $cocid)) {
         fail(404, 'Device not found.');
     }
     json_out(['ok' => true]);

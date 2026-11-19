@@ -255,6 +255,7 @@ CREATE TABLE IF NOT EXISTS declared_devices (
   serial      VARCHAR(191)    NOT NULL,
   model       VARCHAR(191)    NOT NULL DEFAULT '',
   note        VARCHAR(255)    NOT NULL DEFAULT '',
+  cocid       VARCHAR(64)     NOT NULL DEFAULT '',
   created_by  BIGINT UNSIGNED NOT NULL DEFAULT 0,
   created_at  DATETIME        NOT NULL,
   PRIMARY KEY (id),

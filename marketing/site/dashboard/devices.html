@@ -82,7 +82,7 @@
          account total, and "Filters (3)" on a button does not say WHICH three — so the
          reason for a short list has to be visible on the page, not one click away. -->
     <div id="filter-chips" class="mt-2 hidden flex-wrap items-center gap-1.5"></div>
-    <script src="/assets/manual-assets.js?v=24" defer></script>
+    <script src="/assets/manual-assets.js?v=25" defer></script>
     <script src="/assets/report-corrections.js?v=3" defer></script>
 
     <div class="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-ink-700 dark:bg-ink-900">
@@ -3072,6 +3072,7 @@
         };
         var modelIn = mkField('Model', dev.model || dev.system || '');
         var noteIn = mkField('Note', dev.notes || '');
+        var cocidIn = mkField('Chain of Custody ID', dev.cocid || '');
         var saveBtn = el('button', 'ts-btn ts-btn--sm ts-btn--primary', 'Save details');
         saveBtn.type = 'button';
         var editMsg = el('p', 'text-xs font-semibold text-red-600 dark:text-red-400', '');
@@ -3086,7 +3087,7 @@
             return fetch('/api/devices/declared/' + encodeURIComponent(dev.sysserial || ''), {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
-              body: JSON.stringify({ model: modelIn.value.trim(), note: noteIn.value.trim() })
+              body: JSON.stringify({ model: modelIn.value.trim(), note: noteIn.value.trim(), cocid: cocidIn.value.trim() })
             });
           }).then(function (r) {
             return r.json().then(function (j) { return { ok: r.ok, j: j }; });

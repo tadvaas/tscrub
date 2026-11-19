@@ -567,8 +567,8 @@ setTimeout(() => {
                           check('edit — a new record is still a POST',
                             /'\/api\/certificates\/devices' : '\/api\/certificates\/media'/.test(src));
 
-                          // A NEW device has no media block (devices and media are recorded
-                          // separately), and save() used to call collect(null) and throw
+                          // An ATTESTED new device carries an OPTIONAL media block (integrated
+                          // storage is one unit), and save() used to call collect(null) and throw
                           // before anything was sent — the Save click silently did nothing.
                           // Fire the real save against an injected 409 and assert the request
                           // WAS built and the failure surfaced: that proves the collect path
@@ -583,8 +583,16 @@ setTimeout(() => {
                           nv('destroy_method', 'shredded'); nv('reason', 'other');
                           nv('destroy_vendor', ''); nv('destroy_date', '2026-11-19');
                           nv('destroy_witness', ''); nv('evidence_ref', '');
-                          check('save — a new device has no media block',
-                            !nb.querySelector('#manual-modal-media'));
+                          const nbWalk = [];
+                          (function walk(n) { (n.children || []).forEach(c => { nbWalk.push(c); walk(c); }); })(nb);
+                          const nbBox = nbWalk.find(n => n.getAttribute('id') === 'manual-modal-media');
+                          check('save — a new attested device has an optional media block',
+                            !!nbBox);
+                          // Stub inputs have no default value: mirror the browser's '' so
+                          // collect() can read the blank row without tripping over undefined.
+                          (nbBox.querySelectorAll('input,select') || []).forEach(f => {
+                            if (f.value === undefined) { f.value = ''; }
+                          });
                           let threw = null;
                           try { byId['manual-modal-save']._on.click(); } catch (e) { threw = e; }
                           check('save — clicking Record on a new device does not throw',
@@ -663,16 +671,17 @@ setTimeout(() => {
                               check('add — switching to the register mode does not throw',
                                 regThrew === null, regThrew && regThrew.message);
                               const rb = byId['manual-modal-body'];
-                              check('add — the register form has no COCID and no media block',
-                                !rb.querySelector('[name=cocid]') && !rb.querySelector('#manual-modal-media'));
-                              check('add — the register form has serial, model and note',
-                                !!rb.querySelector('[name=serial]') && !!rb.querySelector('[name=model]') && !!rb.querySelector('[name=note]'));
-                              check('add — the register form drops every destruction field',
-                                !rb.querySelector('[name=reason]') && !rb.querySelector('[name=destroy_method]')
-                                  && !rb.querySelector('[name=destroy_vendor]') && !rb.querySelector('[name=evidence_ref]'));
+                              check('add — the register form has a COCID, serial, model and note',
+                                !!rb.querySelector('[name=cocid]') && !!rb.querySelector('[name=serial]')
+                                  && !!rb.querySelector('[name=model]') && !!rb.querySelector('[name=note]'));
+                              check('add — the register form has no media block and no destruction fields',
+                                !rb.querySelector('#manual-modal-media') && !rb.querySelector('[name=reason]')
+                                  && !rb.querySelector('[name=destroy_method]') && !rb.querySelector('[name=destroy_vendor]')
+                                  && !rb.querySelector('[name=evidence_ref]'));
                               check('add — the title says what the record is',
                                 byId['manual-modal-title'].textContent === 'Add a device to the register',
                                 byId['manual-modal-title'].textContent);
+                              rb.querySelector('[name=cocid]').value = 'COC-REG';
                               rb.querySelector('[name=serial]').value = 'REG-SN-1';
                               rb.querySelector('[name=model]').value = 'Test Unit';
                               rb.querySelector('[name=note]').value = 'bench';
@@ -684,15 +693,30 @@ setTimeout(() => {
                                 check('add — the register save posts to /api/devices/declared',
                                   regPost.length === 1 && regPost[0].url === '/api/devices/declared',
                                   JSON.stringify(global.__reqs.map(r => r.url)));
-                                check('add — the register payload is identity only',
-                                  !!regBody && regBody.serial === 'REG-SN-1' && regBody.model === 'Test Unit' && regBody.note === 'bench'
-                                    && !('cocid' in regBody) && !('media' in regBody) && !('device' in regBody),
+                                check('add — the register payload is identity plus its job',
+                                  !!regBody && regBody.cocid === 'COC-REG' && regBody.serial === 'REG-SN-1'
+                                    && regBody.model === 'Test Unit' && regBody.note === 'bench'
+                                    && !('media' in regBody) && !('device' in regBody),
                                   JSON.stringify(regBody));
                                 check('add — the duplicate message is shown verbatim and the button restored',
                                   /already on file/.test(textOf(byId['manual-modal-error']))
                                     && byId['manual-modal-save'].textContent === 'Add device'
                                     && byId['manual-modal-save'].disabled === false,
                                   textOf(byId['manual-modal-error']));
+                                // The COCID is what ties a register device to its job — required,
+                                // and the refusal happens BEFORE any request is built.
+                                global.__reqs = [];
+                                window.ManualAssets.openFor('device');
+                                const rb2Walk = [];
+                                (function walk(n) { (n.children || []).forEach(c => { rb2Walk.push(c); walk(c); }); })(byId['manual-modal-body']);
+                                rb2Walk.find(n => n.tagName === 'BUTTON' && /Record device only/.test(n.textContent || ''))._on.click();
+                                const rb2 = byId['manual-modal-body'];
+                                rb2.querySelector('[name=serial]').value = 'REG-SN-2';
+                                byId['manual-modal-save']._on.click();
+                                check('add — the register COCID is required',
+                                  global.__reqs.length === 0
+                                    && /A Chain of Custody ID is required/.test(textOf(byId['manual-modal-error'])),
+                                  JSON.stringify(global.__reqs) + ' | ' + textOf(byId['manual-modal-error']));
                                 // An EDIT must not offer the register switch: the record's kind is fixed.
                                 window.ManualAssets.open('device', { attested_id: 3, cocid: 'COC-1', category: 'laptop', make: 'T', model: 'M', sysserial: 'SN-9', reason: 'other', destroy_method: 'shredded', destroy_vendor: '', destroy_date: '', destroy_witness: '', evidence_ref: '', drives: [] });
                                 const edWalk = [];
