@@ -25,6 +25,7 @@ declare(strict_types=1);
 
 $serverDir = $argv[1] ?? dirname(__DIR__) . '/server';
 require_once $serverDir . '/render_cert.php';
+require_once $serverDir . '/jsonld.php';
 
 // TCPDF's QR encoder trips PHP 8.4 deprecations; the PDF is unaffected and the
 // server runs 8.3. Silence them so a real warning is visible in the output.
@@ -300,6 +301,68 @@ t_check('the table wraps cells at the padded inner width',
     $tr !== '' && substr_count($tr, 'cert_table_inner_w(') >= 2);
 t_check('no legacy unpadded wrap remains in the table',
     $tr !== '' && strpos($tr, '- 1.2') === false);
+
+echo "\n== 6. bench-erased media is stated without naming the bench ==\n";
+$benchKeys = ['bench01' => true];
+$benchDrive = drive_row(1);
+$benchDrive['system'] = 'Secret Bench 9000';
+$benchDrive['sysserial'] = 'BENCH01';
+$benchDrive['bbserial'] = 'SECRETBB01';
+$benchDrive['asset_serial'] = 'CUSTOMERPC01';
+$benchDrive['origin_provenance'] = 'declared';
+// The renderer tags rows before drawing; the redaction helpers only honour the tag.
+$benchDrive['host_processing'] = 1;
+
+$normal = drive_row(2);
+t_check('a bench host is tagged on its drive row',
+    cert_tag_bench_drives([$benchDrive], $benchKeys)[0]['host_processing'] === 1);
+t_check('an ordinary host is not tagged',
+    cert_tag_bench_drives([$normal], $benchKeys)[0]['host_processing'] === 0);
+$pretag = drive_row(3);
+$pretag['host_processing'] = 1;
+t_check('an existing upstream tag is preserved',
+    cert_tag_bench_drives([$pretag], [])[0]['host_processing'] === 1);
+t_check('the Machine cell names an ordinary host',
+    cert_machine_cell($normal) === 'HP EliteBook 820 G3');
+t_check('the Machine cell never names a bench unit',
+    cert_machine_cell($benchDrive) === 'Bench unit', cert_machine_cell($benchDrive));
+t_check('the Machine SN cell withholds a bench serial',
+    cert_machine_sn_cell($benchDrive) === '—', cert_machine_sn_cell($benchDrive));
+t_check('the asset-block phrase names an ordinary host',
+    cert_host_phrase('CZC5242GFK', $benchKeys) === 'CZC5242GFK');
+t_check('the asset-block phrase withholds a bench host',
+    cert_host_phrase('BENCH01', $benchKeys) === 'a tScrub bench unit');
+t_check('the asset-block phrase covers an unknown host',
+    cert_host_phrase('', []) === 'a different host');
+
+$jd = jsonld_drive(jsonld_normalize_drive($benchDrive));
+t_check('the JSON-LD keeps the customer origin for a bench erase',
+    ($jd['originAsset'] ?? '') === 'CUSTOMERPC01'
+    && ($jd['originProvenance'] ?? '') === 'declared');
+t_check('the JSON-LD names no bench host or serial',
+    !isset($jd['hostSerial'])
+    && !isset($jd['properties']['system'])
+    && !isset($jd['properties']['system_serial'])
+    && !isset($jd['properties']['baseboard_serial']),
+    json_encode($jd['properties'] ?? []));
+t_check('the JSON-LD states the bench class instead',
+    ($jd['hostClass'] ?? '') === 'bench processing unit');
+$normalOrig = drive_row(2);
+$normalOrig['asset_serial'] = 'CUSTOMERPC02';
+$jdN = jsonld_drive(jsonld_normalize_drive($normalOrig));
+t_check('an ordinary drive still names its host in the JSON-LD',
+    ($jdN['hostSerial'] ?? '') === 'CZC5242GFK'
+    && ($jdN['properties']['system_serial'] ?? '') === 'CZC5242GFK'
+    && !isset($jdN['hostClass']));
+
+t_check('the renderer and annex both accept bench host keys',
+    substr_count($src, 'array $benchHostKeys = []') >= 2);
+t_check('the renderer tags drives before the annex renders',
+    strpos($src, 'cert_tag_bench_drives($drives, $benchHostKeys)') !== false);
+t_check('the annex receives the bench keys',
+    strpos($src, "cert_render_annex(\$pdf, 10.0, \$W, \$H, \$certId, \$cocid, \$drives, \$g['reports'], \$assets, \$benchHostKeys);") !== false);
+t_check('the table prints the bench footnote',
+    strpos($src, 'cert_bench_footnote()') !== false);
 
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

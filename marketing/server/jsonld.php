@@ -340,6 +340,7 @@ function jsonld_normalize_drive(array $d): array {
         'method'        => jsonld_na((string)($d['method'] ?? '')),
         'certification' => jsonld_na((string)($d['cert'] ?? $d['certification'] ?? '')),
         'final_status'  => jsonld_na((string)($d['status'] ?? $d['final_status'] ?? '')),
+        'host_processing' => (int)($d['host_processing'] ?? 0),
         'system'        => jsonld_na((string)($d['system'] ?? $d['system_name'] ?? '')),
         'system_serial' => jsonld_na((string)($d['sysserial'] ?? $d['system_serial'] ?? '')),
         'baseboard_serial' => jsonld_na((string)($d['bbserial'] ?? $d['baseboard_serial'] ?? '')),
@@ -411,6 +412,8 @@ function jsonld_normalize_drive(array $d): array {
 
 function jsonld_drive(array $norm): array {
     $props = [];
+    // A bench unit is stated by class, never by name or serial.
+    $isBench = (int)($norm['host_processing'] ?? 0) === 1;
     foreach ([
         'ts', 'size', 'bus', 'class', 'system', 'system_serial', 'baseboard_serial',
         'smart', 'tempc', 'poweronhours', 'powercycles', 'reallocsectors',
@@ -426,6 +429,7 @@ function jsonld_drive(array $norm): array {
         'sanitization_standard', 'sanitization_level', 'sanitization_shortfall',
         'psid_revert', 'ppi_requested', 'ppi_cleared',
     ] as $k) {
+        if ($isBench && in_array($k, ['system', 'system_serial', 'baseboard_serial'], true)) continue;
         if (($norm[$k] ?? '') !== '') { $props[$k] = $norm[$k]; }
     }
 
@@ -464,9 +468,14 @@ function jsonld_drive(array $norm): array {
         if (($norm['origin_provenance'] ?? '') !== '') {
             $d['originProvenance'] = $norm['origin_provenance'];
         }
-        if (($norm['system_serial'] ?? '') !== '') {
+        // The host that ran the erase is named only when it is not a bench
+        // unit: a bench-erased medium records the class, not the machine.
+        if (($norm['system_serial'] ?? '') !== '' && !$isBench) {
             $d['hostSerial'] = $norm['system_serial'];
         }
+    }
+    if ($isBench) {
+        $d['hostClass'] = 'bench processing unit';
     }
     return $d;
 }

@@ -28,6 +28,15 @@ and this project uses date-based versioning (`v1.x`).
   set: the update route only reconciles media when the `media` key is present,
   so editing a device leaves its media exactly as they are (an explicit empty
   list is still refused while the record has media).
+- **Bench-erased media is stated without naming the bench.** A certificate for
+  media sanitised on a marked processing host no longer reveals the bench unit:
+  the DEVICE DETAILS table shows `Bench unit` in the Machine column and `—` in
+  Machine SN (with a footnote that bench details are withheld), the DEVICE
+  ACCOUNTING detail says `sanitised on a tScrub bench unit` instead of the
+  bench's serial, and the JSON-LD sidecar omits the host name, serial and
+  baseboard serial — recording `hostClass: bench processing unit` in their
+  place. The customer's own origin asset stays fully identified, and ordinary
+  in-place erases are unchanged.
 
 ### Fixed
 

@@ -357,6 +357,49 @@ function cert_table_inner_w(float $w): float {
 }
 
 /**
+ * Bench (processing-host) erasure is stated on the certificate without
+ * revealing the bench unit itself: the machine cells show a neutral label,
+ * the asset block says where the erase happened in kind — never by serial.
+ */
+function cert_bench_label(): string {
+    return 'Bench unit';
+}
+
+/** Tag each drive with host_processing when the host that erased it is a bench. */
+function cert_tag_bench_drives(array $drives, array $benchHostKeys): array {
+    foreach ($drives as $i => $d) {
+        // A row already tagged upstream keeps its tag: one merged certificate
+        // can hold reports from several hosts.
+        if (array_key_exists('host_processing', $d)) continue;
+        $hk = mp_key(device_key($d));
+        $drives[$i]['host_processing'] = ($hk !== '' && isset($benchHostKeys[$hk])) ? 1 : 0;
+    }
+    return $drives;
+}
+
+/** Machine column cell: a bench unit is never named. */
+function cert_machine_cell(array $d): string {
+    return !empty($d['host_processing']) ? cert_bench_label() : trim((string)($d['system'] ?? ''));
+}
+
+/** Machine SN cell: withheld for a bench unit. */
+function cert_machine_sn_cell(array $d): string {
+    return !empty($d['host_processing']) ? '—' : trim((string)($d['sysserial'] ?? ''));
+}
+
+/** "sanitised on …" phrase for the asset block, bench details withheld. */
+function cert_host_phrase(string $hostSerial, array $benchHostKeys): string {
+    if ($hostSerial === '') return 'a different host';
+    $hk = mp_key(device_key(['sysserial' => $hostSerial]));
+    return isset($benchHostKeys[$hk]) ? 'a tScrub bench unit' : $hostSerial;
+}
+
+/** Note printed under the table when any media was bench-erased. */
+function cert_bench_footnote(): string {
+    return 'Media marked "' . cert_bench_label() . '" was sanitised on a tScrub bench processing unit; bench details are withheld.';
+}
+
+/**
  * Dense one-row-per-drive table for large fleets (200 drives ≈ 6 pages instead
  * of ~100 card pages). Shows the audit-critical fields only.
  */
@@ -602,8 +645,8 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 $tv = trim((string)($d['tool_version'] ?? ''));
                 return $tv !== '' ? 'tScrub ' . $tv : 'tScrub';
             }
-            case 'system':    return (string)($d['system'] ?? '');
-            case 'sysserial': return (string)($d['sysserial'] ?? '');
+            case 'system':    return cert_machine_cell($d);
+            case 'sysserial': return cert_machine_sn_cell($d);
             case 'asset':     return (string)($d['asset_serial'] ?? '');
             case 'format': {
                 $fr = strtolower(trim((string)($d['format_result'] ?? '')));
@@ -742,8 +785,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
     $drawHeader($startY);
 
     $idx = 0;
+    $anyBench = false;
     foreach ($drives as $d) {
         $idx++;
+        if (!empty($d['host_processing'])) { $anyBench = true; }
         $row = [];
         foreach ($keys as $key) { $row[] = $cell($d, $key, $idx); }
         // Free-text cells are pre-wrapped at measured word boundaries so long
@@ -790,6 +835,14 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $pdf->SetDrawColor(0, 0, 0);
     }
 
+    if ($anyBench) {
+        $pdf->SetFont('helvetica', 'I', 7.0);
+        $pdf->SetTextColor(100, 116, 139);
+        $pdf->SetX($x);
+        $pdf->MultiCell($W - 2 * $x, 3.6, cert_bench_footnote(), 0, 'L');
+        $pdf->SetTextColor(11, 18, 32);
+    }
+
     $pdf->setCellPaddings(0, 0, 0, 0);
 }
 
@@ -834,7 +887,7 @@ function cert_render_manifest(TCPDF $pdf, float $x, float $W, float $H, string $
     }
 }
 
-function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives, array $reports, array $assets = []): void {
+function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives, array $reports, array $assets = [], array $benchHostKeys = []): void {
     $bg = function () use ($pdf, $W, $H): void {
         $pdf->SetFillColor(250, 249, 246);
         $pdf->Rect(0, 0, $W, $H, 'F');
@@ -906,7 +959,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 $disp = (string)($m['disposition'] ?? '');
                 if ($disp === 'media_removed_sanitised') {
                     $host = trim((string)($m['host_serial'] ?? ''));
-                    $bits[] = 'sanitised on ' . ($host !== '' ? $host : 'a different host');
+                    $bits[] = 'sanitised on ' . cert_host_phrase($host, $benchHostKeys);
                     if ((string)($m['provenance'] ?? '') !== '') {
                         $bits[] = mp_provenance_label((string)$m['provenance']);
                     }
@@ -1316,7 +1369,7 @@ function cert_attestation_text(string $toolName, int $devices, int $attItems, in
     return $text;
 }
 
-function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = [], string $offlineCode = '', array $assets = []): array {
+function render_certificate_pdf(array $g, string $certId, bool $canSign, array $issuer = [], array $destroyed = [], array $attested = [], string $offlineCode = '', array $assets = [], array $benchHostKeys = []): array {
     $cocid = (string)$g['cocid'];
     $drives = $g['drives'];
     usort($drives, function ($a, $b) {
@@ -1346,6 +1399,9 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     // provenance was resolved; bring the asset block into line so the two parts
     // of the certificate cannot disagree.
     $assets = mp_reconcile_assets($assets, $drives);
+
+    // Bench-erased media: the report states the bench in kind, never by name.
+    $drives = cert_tag_bench_drives($drives, $benchHostKeys);
 
     $nonCompleted = 0;
     $destroyedCount = 0;
@@ -1827,7 +1883,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
 
     // ---- Annex A ----
-    cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports'], $assets);
+    cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports'], $assets, $benchHostKeys);
 
     // Manually recorded (attested) destruction goes on its own page, so it can never
     // collide with the annex table or push page 1's fixed layout around. A
