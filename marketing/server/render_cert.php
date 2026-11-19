@@ -341,6 +341,22 @@ function cert_media_text(array $d): string {
 }
 
 /**
+ * Horizontal padding of every DEVICE DETAILS cell (see setCellPaddings in
+ * cert_render_table). TCPDF's MultiCell subtracts BOTH pads from the column
+ * width, so every wrap and height measurement must use the same inner width —
+ * otherwise a fully-packed pre-wrapped line is re-wrapped by MultiCell at a
+ * width 2.2 mm tighter and tears mid-token (orphan "B"/"0" fragments).
+ */
+function cert_table_pad_lr(): float {
+    return 1.1;
+}
+
+/** Text width actually available inside a DEVICE DETAILS column cell. */
+function cert_table_inner_w(float $w): float {
+    return round(max(1.0, $w - 2 * cert_table_pad_lr()), 2);
+}
+
+/**
  * Dense one-row-per-drive table for large fleets (200 drives ≈ 6 pages instead
  * of ~100 card pages). Shows the audit-critical fields only.
  */
@@ -685,19 +701,22 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
     $usable = $W - 2 * $x;
     [$cols, $keys] = cert_table_layout($pdf, $cols, $usable);
     $nCols = count($cols);
-    $pdf->setCellPaddings(1.1, 0.6, 1.1, 0.6);
+    $pdf->setCellPaddings(cert_table_pad_lr(), 0.6, cert_table_pad_lr(), 0.6);
 
     $drawHeader = function (float $y) use ($pdf, $cols, $keys, $nCols, $x) {
         $pdf->SetFont('helvetica', 'B', 7.5);
         // Headers break only at word boundaries ("Drive\nmodel"), never mid-word
-        // ("Pass\nes") — cert_wrap_label measures both halves.
+        // ("Pass\nes") — cert_wrap_label measures both halves at the PADDED
+        // inner width so MultiCell can never re-wrap a label either.
         $labels = [];
         foreach ($keys as $key) {
-            $labels[$key] = cert_wrap_label($pdf, $cols[$key]['label'], $cols[$key]['w'] - 1.2, 7.5, true);
+            $labels[$key] = cert_wrap_label($pdf, $cols[$key]['label'], cert_table_inner_w($cols[$key]['w']), 7.5, true);
         }
         $headerH = 0.0;
         foreach ($keys as $key) {
-            $h = $pdf->getStringHeight($cols[$key]['w'] - 1.2, $labels[$key], false, true);
+            // Full column width + autopadding: TCPDF subtracts the same two
+            // pads MultiCell does, so the measured height matches the draw.
+            $h = $pdf->getStringHeight($cols[$key]['w'], $labels[$key], false, true);
             if ($h > $headerH) $headerH = $h;
         }
         $headerH += 0.8;
@@ -729,16 +748,17 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         foreach ($keys as $key) { $row[] = $cell($d, $key, $idx); }
         // Free-text cells are pre-wrapped at measured word boundaries so long
         // serials break at their hyphens and never tear a neighbouring fixed
-        // token across lines.
+        // token across lines. The width is the PADDED inner width — the exact
+        // width MultiCell draws with — so a packed line is never re-wrapped.
         foreach ($keys as $ci => $key) {
             if (in_array($key, cert_table_wrap_keys(), true)) {
-                $row[$ci] = cert_wrap_text($pdf, (string)$row[$ci], $cols[$key]['w'] - 1.2);
+                $row[$ci] = cert_wrap_text($pdf, (string)$row[$ci], cert_table_inner_w($cols[$key]['w']));
             }
         }
 
         $required = 5.0;
         foreach ($keys as $ci => $key) {
-            $h = $pdf->getStringHeight($cols[$key]['w'] - 1.2, (string)$row[$ci], false, true);
+            $h = $pdf->getStringHeight($cols[$key]['w'], (string)$row[$ci], false, true);
             if ($h > $required) $required = $h;
         }
         $required += 0.6;

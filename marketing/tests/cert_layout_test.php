@@ -277,5 +277,29 @@ t_check('label: two-word headers break only at the space',
 t_check('label: single words stay whole',
     cert_wrap_label($pdf, 'Verification', 12.0) === 'Verification');
 
+// The table cells carry 1.1 mm of horizontal padding: TCPDF's MultiCell draws
+// text at w - 2.2, so wrapping at w - 1.2 left packed lines 1.0 mm too wide
+// and MultiCell re-wrapped them mid-token (the orphan "B"/"0" fragments in the
+// 33767 Origin device column). Wrap + height must use the same inner width.
+$pdf->SetFont('helvetica', '', 7.5); // the renderer measures at the body size
+$pdf->setCellPaddings(cert_table_pad_lr(), 0.6, cert_table_pad_lr(), 0.6);
+$cellW = 24.6;
+t_check('the inner width subtracts both horizontal pads',
+    cert_table_inner_w($cellW) === 22.4, cert_table_inner_w($cellW));
+$wrapped = cert_wrap_text($pdf, 'CN0WY5HT4294547F005AA00', cert_table_inner_w($cellW));
+$wantLines = substr_count($wrapped, "\n") + 1;
+t_check('a pre-wrapped cell never re-wraps inside MultiCell',
+    $pdf->getNumLines($wrapped, $cellW, false, true) === $wantLines,
+    $wrapped . ' -> ' . $pdf->getNumLines($wrapped, $cellW, false, true) . ' lines');
+$wlab = cert_wrap_label($pdf, 'Origin device', cert_table_inner_w($cellW));
+t_check('a pre-wrapped header never re-wraps inside MultiCell',
+    $pdf->getNumLines($wlab, $cellW, false, true) === substr_count($wlab, "\n") + 1);
+$trStart = strpos($src, 'function cert_render_table');
+$tr = $trStart === false ? '' : substr($src, $trStart, strpos($src, 'function cert_render_annex') - $trStart);
+t_check('the table wraps cells at the padded inner width',
+    $tr !== '' && substr_count($tr, 'cert_table_inner_w(') >= 2);
+t_check('no legacy unpadded wrap remains in the table',
+    $tr !== '' && strpos($tr, '- 1.2') === false);
+
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

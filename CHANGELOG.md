@@ -45,7 +45,12 @@ and this project uses date-based versioning (`v1.x`).
   boundaries (long serials break at their hyphens), and headers break only
   between words. When a cramped page cannot hold every column, the least
   claim-critical ones are dropped in a fixed order instead of letting tokens
-  tear. (Plan: `research/cert-device-table-layout/README.md`.)
+  tear. The Origin device column then still showed orphan-fragment wraps
+  (`BD7600` torn into a lone `B` line): the cells carry 1.1 mm of horizontal
+  padding and the pre-wrap measured against the unpadded width, so TCPDF's
+  MultiCell re-wrapped packed lines 2.2 mm tighter — wrap and height now use
+  the same padded inner width the cells draw with. (Plan:
+  `research/cert-device-table-layout/README.md`.)
 - **Devices → Add did nothing when saved.** The new-device form has no media
   block (devices are recorded on the Devices tab, media on the Media tab), but
   `save()` still called `collect()` on the missing block and threw before any
