@@ -358,11 +358,12 @@ function cert_table_inner_w(float $w): float {
 
 /**
  * Bench (processing-host) erasure is stated on the certificate without
- * revealing the bench unit itself: the machine cells show a neutral label,
- * the asset block says where the erase happened in kind — never by serial.
+ * revealing the bench unit itself: the Method cell carries a small badge and
+ * the machine cells show the declared/attested origin data instead of the
+ * bench's identity.
  */
-function cert_bench_label(): string {
-    return 'Bench unit';
+function cert_bench_badge(): string {
+    return 'Bench-erased';
 }
 
 /** Tag each drive with host_processing when the host that erased it is a bench. */
@@ -377,14 +378,44 @@ function cert_tag_bench_drives(array $drives, array $benchHostKeys): array {
     return $drives;
 }
 
-/** Machine column cell: a bench unit is never named. */
-function cert_machine_cell(array $d): string {
-    return !empty($d['host_processing']) ? cert_bench_label() : trim((string)($d['system'] ?? ''));
+/**
+ * Method cell: a bench-erased medium keeps its method and gains a small
+ * 'Bench-erased' badge line beneath it.
+ */
+function cert_method_cell(array $d): string {
+    $m = cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
+    return !empty($d['host_processing']) ? $m . "\n" . cert_bench_badge() : $m;
 }
 
-/** Machine SN cell: withheld for a bench unit. */
+/** The declared/attested origin label shown for a bench row with no asset name. */
+function cert_bench_origin_label(array $d): string {
+    $p = strtolower(trim((string)($d['origin_provenance'] ?? '')));
+    return $p === 'attested' ? 'Attested origin' : 'Declared origin';
+}
+
+/**
+ * Machine column cell: an ordinary host keeps its name; a bench-erased row
+ * shows the declared/attested origin asset's name (or the origin label when
+ * no name is on file) — the bench unit itself is never named.
+ */
+function cert_machine_cell(array $d, array $assetNames = []): string {
+    if (empty($d['host_processing'])) {
+        return trim((string)($d['system'] ?? ''));
+    }
+    $k = mp_key((string)($d['asset_serial'] ?? ''));
+    return ($k !== '' && isset($assetNames[$k])) ? $assetNames[$k] : cert_bench_origin_label($d);
+}
+
+/**
+ * Machine SN cell: an ordinary host keeps its serial; a bench-erased row shows
+ * the declared/attested origin asset's serial instead of the bench's.
+ */
 function cert_machine_sn_cell(array $d): string {
-    return !empty($d['host_processing']) ? '—' : trim((string)($d['sysserial'] ?? ''));
+    if (empty($d['host_processing'])) {
+        return trim((string)($d['sysserial'] ?? ''));
+    }
+    $as = trim((string)($d['asset_serial'] ?? ''));
+    return $as !== '' ? $as : '—';
 }
 
 /** "sanitised on …" phrase for the asset block, bench details withheld. */
@@ -396,7 +427,7 @@ function cert_host_phrase(string $hostSerial, array $benchHostKeys): string {
 
 /** Note printed under the table when any media was bench-erased. */
 function cert_bench_footnote(): string {
-    return 'Media marked "' . cert_bench_label() . '" was sanitised on a tScrub bench processing unit; bench details are withheld.';
+    return 'Media marked "' . cert_bench_badge() . '" was sanitised on a tScrub bench processing unit; bench details are withheld.';
 }
 
 /**
@@ -524,7 +555,9 @@ function cert_table_layout(TCPDF $pdf, array $cols, float $usable): array {
         'verify'      => 'Sampled 100%',
         'tool'        => 'tScrub v1.11.15',
         'serial'      => 'WD-WCC2E1ETKXU6',
-        'sysserial'   => 'CZC5242GFK',
+        // Bench rows carry the DECLARED asset serial here, which is as long as
+        // the Origin column's sample — size for the longest of both.
+        'sysserial'   => 'CN0WY5HT4294547F',
         'asset'       => 'CN0WY5HT4294547F',
         'status'      => 'COMPLETED',
         'format'      => 'EXFAT',
@@ -614,7 +647,7 @@ function cert_table_layout(TCPDF $pdf, array $cols, float $usable): array {
     return [$cur, array_keys($cur)];
 }
 
-function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $certId, array $drives, float $startY = 28.0): void {
+function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $certId, array $drives, float $startY = 28.0, array $assetNames = []): void {
     $bg = function () use ($pdf, $W, $H): void {
         $pdf->SetFillColor(250, 249, 246);
         $pdf->Rect(0, 0, $W, $H, 'F');
@@ -628,14 +661,14 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
 
     $cols = cert_device_cols();
 
-    $cell = function (array $d, string $key, int $idx): string {
+    $cell = function (array $d, string $key, int $idx) use ($assetNames): string {
         switch ($key) {
             case '#':      return (string)$idx;
             case 'model':  return (string)($d['model'] ?? '');
             case 'serial': return (string)($d['serial'] ?? '');
             case 'media':  return cert_media_text($d);
             case 'cls':    return strtoupper((string)($d['cls'] ?? ''));
-            case 'method': return cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
+            case 'method': return cert_method_cell($d);
             case 'passes': return trim((string)($d['passes'] ?? ''));
             case 'eraser': return (string)($d['erase_engine'] ?? '');
             case 'verify': return cert_verify_label(
@@ -799,7 +832,10 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         // token across lines. The width is the PADDED inner width — the exact
         // width MultiCell draws with — so a packed line is never re-wrapped.
         foreach ($keys as $ci => $key) {
-            if (in_array($key, cert_table_wrap_keys(), true)) {
+            // A bench-erased method cell carries its own badge line break —
+            // re-wrapping it could tear the badge.
+            if (in_array($key, cert_table_wrap_keys(), true)
+                && !($key === 'method' && !empty($d['host_processing']))) {
                 $row[$ci] = cert_wrap_text($pdf, (string)$row[$ci], cert_table_inner_w($cols[$key]['w']));
             }
         }
@@ -890,7 +926,7 @@ function cert_render_manifest(TCPDF $pdf, float $x, float $W, float $H, string $
     }
 }
 
-function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives, array $reports, array $assets = [], array $benchHostKeys = []): void {
+function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $certId, string $cocid, array $drives, array $reports, array $assets = [], array $benchHostKeys = [], array $assetNames = []): void {
     $bg = function () use ($pdf, $W, $H): void {
         $pdf->SetFillColor(250, 249, 246);
         $pdf->Rect(0, 0, $W, $H, 'F');
@@ -1060,7 +1096,7 @@ function cert_render_annex(TCPDF $pdf, float $x, float $W, float $H, string $cer
     // it is the only section, in which case it takes the page it is already on
     // and the title page is not left standing alone.
     $section('DEVICE DETAILS');
-    cert_render_table($pdf, $x, $W, $H, $certId, $drives, $y);
+    cert_render_table($pdf, $x, $W, $H, $certId, $drives, $y, $assetNames);
 
     cert_render_manifest($pdf, $x, $W, $H, $certId, $reports);
 }
@@ -1405,6 +1441,15 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
 
     // Bench-erased media: the report states the bench in kind, never by name.
     $drives = cert_tag_bench_drives($drives, $benchHostKeys);
+
+    // The asset block knows each declared asset's name; a bench row's machine
+    // cells carry the declared/attested origin's data, not the bench's.
+    $assetNames = [];
+    foreach ($assets as $a) {
+        $k = mp_key((string)($a['asset_serial'] ?? ''));
+        $name = trim((string)($a['system_name'] ?? ''));
+        if ($k !== '' && $name !== '') { $assetNames[$k] = $name; }
+    }
 
     $nonCompleted = 0;
     $destroyedCount = 0;
@@ -1886,7 +1931,7 @@ function render_certificate_pdf(array $g, string $certId, bool $canSign, array $
     }
 
     // ---- Annex A ----
-    cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports'], $assets, $benchHostKeys);
+    cert_render_annex($pdf, 10.0, $W, $H, $certId, $cocid, $drives, $g['reports'], $assets, $benchHostKeys, $assetNames);
 
     // Manually recorded (attested) destruction goes on its own page, so it can never
     // collide with the annex table or push page 1's fixed layout around. A

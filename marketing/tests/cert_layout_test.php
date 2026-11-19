@@ -216,7 +216,7 @@ $samples = [
     '#' => '99', 'media' => ['HDD', 'SATA', '1000 GB'], 'cls' => 'SANITISATION',
     'method' => 'Blocked (Block SID)', 'passes' => '99', 'eraser' => 'nwipe 0.41',
     'verify' => 'Sampled 100%', 'tool' => 'tScrub v1.11.15', 'serial' => 'WD-WCC2E1ETKXU6',
-    'sysserial' => 'CZC5242GFK', 'asset' => 'CN0WY5HT4294547F', 'status' => 'COMPLETED',
+    'sysserial' => 'CN0WY5HT4294547F', 'asset' => 'CN0WY5HT4294547F', 'status' => 'COMPLETED',
     'format' => 'EXFAT', 'psid' => 'failed', 'ppi' => 'yes', 'ppi_cleared' => 'yes',
 ];
 [$lc, $lk] = cert_table_layout($pdf, $cols, 269.0);
@@ -324,10 +324,22 @@ t_check('an existing upstream tag is preserved',
     cert_tag_bench_drives([$pretag], [])[0]['host_processing'] === 1);
 t_check('the Machine cell names an ordinary host',
     cert_machine_cell($normal) === 'HP EliteBook 820 G3');
-t_check('the Machine cell never names a bench unit',
-    cert_machine_cell($benchDrive) === 'Bench unit', cert_machine_cell($benchDrive));
-t_check('the Machine SN cell withholds a bench serial',
-    cert_machine_sn_cell($benchDrive) === '—', cert_machine_sn_cell($benchDrive));
+t_check('a bench row shows the declared origin label when no asset name is on file',
+    cert_machine_cell($benchDrive) === 'Declared origin', cert_machine_cell($benchDrive));
+t_check('a bench row shows the declared asset name when it is on file',
+    cert_machine_cell($benchDrive, ['customerpc01' => 'Dell OptiPlex 7070']) === 'Dell OptiPlex 7070');
+t_check('an attested origin gets its own label',
+    cert_bench_origin_label(['origin_provenance' => 'attested']) === 'Attested origin');
+t_check('the Machine SN cell shows the declared origin serial for a bench row',
+    cert_machine_sn_cell($benchDrive) === 'CUSTOMERPC01', cert_machine_sn_cell($benchDrive));
+t_check('the Machine SN cell falls back when no origin is declared',
+    cert_machine_sn_cell(['host_processing' => 1]) === '—');
+t_check('the bench badge wording', cert_bench_badge() === 'Bench-erased');
+t_check('the Method cell gains the badge on a bench row',
+    cert_method_cell($benchDrive) === "ATA Enhanced Secure Erase\nBench-erased",
+    cert_method_cell($benchDrive));
+t_check('the Method cell is unchanged on an ordinary row',
+    cert_method_cell($normal) === 'ATA Enhanced Secure Erase');
 t_check('the asset-block phrase names an ordinary host',
     cert_host_phrase('CZC5242GFK', $benchKeys) === 'CZC5242GFK');
 t_check('the asset-block phrase withholds a bench host',
@@ -359,10 +371,16 @@ t_check('the renderer and annex both accept bench host keys',
     substr_count($src, 'array $benchHostKeys = []') >= 2);
 t_check('the renderer tags drives before the annex renders',
     strpos($src, 'cert_tag_bench_drives($drives, $benchHostKeys)') !== false);
-t_check('the annex receives the bench keys',
-    strpos($src, "cert_render_annex(\$pdf, 10.0, \$W, \$H, \$certId, \$cocid, \$drives, \$g['reports'], \$assets, \$benchHostKeys);") !== false);
+t_check('the annex receives the bench keys and asset names',
+    strpos($src, "cert_render_annex(\$pdf, 10.0, \$W, \$H, \$certId, \$cocid, \$drives, \$g['reports'], \$assets, \$benchHostKeys, \$assetNames);") !== false);
 t_check('the table prints the bench footnote',
     strpos($src, 'cert_bench_footnote()') !== false);
+t_check('the method cell renders through the badge helper',
+    strpos($src, "case 'method': return cert_method_cell(\$d);") !== false);
+t_check('a bench method cell is never re-wrapped',
+    strpos($src, "\$key === 'method' && !empty(\$d['host_processing'])") !== false);
+t_check('the table cell closure receives the asset-name map',
+    strpos($src, 'function (array $d, string $key, int $idx) use ($assetNames): string') !== false);
 t_check('header cells use each column\'s own alignment, like its rows',
     strpos($src, "\$cols[\$key]['w'], \$headerH, \$labels[\$key], 0, \$cols[\$key]['align']") !== false);
 
