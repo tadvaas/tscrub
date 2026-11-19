@@ -201,12 +201,18 @@ t_check('the Erased column is gone — the issued-at line covers timing',
     !isset($cols['ts']), implode(',', array_keys($cols)));
 t_check('Type, Bus and Size are one Media column',
     isset($cols['media']) && !isset($cols['type']) && !isset($cols['bus']) && !isset($cols['size']));
+t_check('media cell stacks type, bus and size on three lines',
+    cert_media_text(['type' => 'hdd', 'bus' => 'SATA', 'size' => '320 GB']) === "HDD\nSATA\n320 GB",
+    cert_media_text(['type' => 'hdd', 'bus' => 'SATA', 'size' => '320 GB']));
+t_check('media cell skips empty parts',
+    cert_media_text(['bus' => 'NVMe', 'size' => '512 GB']) === "NVMe\n512 GB");
+t_check('media cell empty when all parts are empty', cert_media_text([]) === '');
 $jsonld = (string)file_get_contents($serverDir . '/jsonld.php');
 t_check('per-drive timestamps stay in the JSON for the customer',
     strpos($jsonld, "'ts'") !== false);
 
 $samples = [
-    '#' => '99', 'media' => 'HDD · SATA · 1000 GB', 'cls' => 'SANITISATION',
+    '#' => '99', 'media' => ['HDD', 'SATA', '1000 GB'], 'cls' => 'SANITISATION',
     'method' => 'Blocked (Block SID)', 'passes' => '99', 'eraser' => 'nwipe 0.41',
     'verify' => 'Sampled 100%', 'tool' => 'tScrub v1.11.15', 'serial' => 'WD-WCC2E1ETKXU6',
     'sysserial' => 'CZC5242GFK', 'asset' => 'CN0WY5HT4294547F', 'status' => 'COMPLETED',
@@ -218,8 +224,11 @@ foreach ($lc as $c) { $lsum += $c['w']; }
 t_check('the laid-out widths never exceed the page', $lsum <= 269.5, $lsum);
 foreach ($lc as $k => $c) {
     if (in_array($k, ['model', 'system'], true)) continue;
-    $want = max($pdf->getStringWidth($c['label'], 'helvetica', 'B', 7.5),
-            $pdf->getStringWidth($samples[$k] ?? $c['label'], 'helvetica', '', 7.5)) + 3.2;
+    $sw = 0.0;
+    foreach ((array)($samples[$k] ?? $c['label']) as $line) {
+        $sw = max($sw, $pdf->getStringWidth((string)$line, 'helvetica', '', 7.5));
+    }
+    $want = max($pdf->getStringWidth($c['label'], 'helvetica', 'B', 7.5), $sw) + 3.2;
     t_check("column '$k' is wide enough for its tokens", $c['w'] + 0.01 >= $want, round($c['w'], 2) . ' vs ' . round($want, 2));
 }
 

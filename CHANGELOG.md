@@ -36,7 +36,8 @@ and this project uses date-based versioning (`v1.x`).
   values across lines: headers read `Typ/e`, `Pass/es`, `Verificatio/n`,
   `Origin/d/evice`, row numbers `10` became `1/0`, `SATA` became `SAT/A`,
   serials split mid-token and the per-drive Erased date wrapped. The table now
-  merges Type · Bus · Size into one compact `Media` column and drops the Erased
+  merges Type · Bus · Size into one `Media` cell — type, bus and size stacked on
+  three short lines — and drops the Erased
   column entirely — the certificate's issued-at line already covers timing and
   each drive's timestamp stays in the JSON-LD sidecar. Fixed-vocabulary columns
   are guaranteed the measured width of their longest value (a token like `SATA`,

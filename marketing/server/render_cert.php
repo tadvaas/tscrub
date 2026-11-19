@@ -319,6 +319,28 @@ function cert_method_short(string $method, string $cls, string $status): string 
 }
 
 /**
+ * The Media cell stacks type, bus and size on three short centred lines:
+ *
+ *     HDD
+ *     SATA
+ *     320 GB
+ *
+ * Empty parts are skipped entirely (a drive with no size recorded shows two
+ * lines, not a blank one). cert_table_layout() guarantees the width of the
+ * widest line, so a stacked token can still never wrap.
+ */
+function cert_media_text(array $d): string {
+    $parts = [];
+    $tv = trim((string)($d['type'] ?? ''));
+    $bv = trim((string)($d['bus'] ?? ''));
+    $sv = trim((string)($d['size'] ?? ''));
+    if ($tv !== '') { $parts[] = strtoupper($tv); }
+    if ($bv !== '') { $parts[] = $bv; }
+    if ($sv !== '') { $parts[] = $sv; }
+    return implode("\n", $parts);
+}
+
+/**
  * Dense one-row-per-drive table for large fleets (200 drives ≈ 6 pages instead
  * of ~100 card pages). Shows the audit-critical fields only.
  */
@@ -327,9 +349,10 @@ function cert_device_cols(): array {
         '#'        => ['label' => '#',            'w' => 7,  'align' => 'C'],
         'model'    => ['label' => 'Drive model',  'w' => 46, 'align' => 'L'],
         'serial'   => ['label' => 'Drive serial', 'w' => 30, 'align' => 'L'],
-        // Type · bus · size merged: three short fixed tokens used to be three
-        // columns that all wrapped mid-token once scaled; one compact cell
-        // reads better and is guaranteed a single line.
+        // Type · bus · size stacked on three short lines in one cell: three
+        // fixed tokens used to be three columns that all wrapped mid-token
+        // once scaled; a compact stacked cell reads better and every line is
+        // guaranteed single-line width.
         'media'    => ['label' => 'Media',        'w' => 34, 'align' => 'C'],
         'cls'      => ['label' => 'Class',        'w' => 24, 'align' => 'C'],
         'method'   => ['label' => 'Method',       'w' => 42, 'align' => 'L'],
@@ -434,7 +457,7 @@ function cert_wrap_label(TCPDF $pdf, string $label, float $w, float $size = 7.5,
 function cert_table_layout(TCPDF $pdf, array $cols, float $usable): array {
     $fixed = [
         '#'           => '99',
-        'media'       => 'HDD · SATA · 1000 GB',
+        'media'       => ['HDD', 'SATA', '1000 GB'],
         'cls'         => 'SANITISATION',
         'method'      => 'Blocked (Block SID)',
         'passes'      => '99',
@@ -458,7 +481,13 @@ function cert_table_layout(TCPDF $pdf, array $cols, float $usable): array {
     foreach (array_keys($cols) as $k) {
         $sample = $fixed[$k] ?? $cols[$k]['label'];
         $labelW = $pdf->getStringWidth($cols[$k]['label'], 'helvetica', 'B', 7.5);
-        $min[$k] = max($labelW, $pdf->getStringWidth($sample, 'helvetica', '', 7.5)) + 3.2;
+        // A multi-line sample (the stacked Media cell) is guaranteed the width
+        // of its WIDEST line, so no line of the stack can ever wrap.
+        $sampleW = 0.0;
+        foreach ((array)$sample as $line) {
+            $sampleW = max($sampleW, $pdf->getStringWidth((string)$line, 'helvetica', '', 7.5));
+        }
+        $min[$k] = max($labelW, $sampleW) + 3.2;
     }
 
     $candidates = [[]];
@@ -545,16 +574,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
             case '#':      return (string)$idx;
             case 'model':  return (string)($d['model'] ?? '');
             case 'serial': return (string)($d['serial'] ?? '');
-            case 'media': {
-                $parts = [];
-                $tv = trim((string)($d['type'] ?? ''));
-                $bv = trim((string)($d['bus'] ?? ''));
-                $sv = trim((string)($d['size'] ?? ''));
-                if ($tv !== '') { $parts[] = strtoupper($tv); }
-                if ($bv !== '') { $parts[] = $bv; }
-                if ($sv !== '') { $parts[] = $sv; }
-                return implode(' · ', $parts);
-            }
+            case 'media':  return cert_media_text($d);
             case 'cls':    return strtoupper((string)($d['cls'] ?? ''));
             case 'method': return cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
             case 'passes': return trim((string)($d['passes'] ?? ''));
