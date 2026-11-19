@@ -83,10 +83,10 @@ t_check('it still caps the media count',
     (bool)preg_match("/Too many media on one device \(64 maximum\)/", $api));
 
 $manual = (string)file_get_contents(__DIR__ . '/../site/public/assets/manual-assets.js');
-t_check('an attested new device may carry media; the register mode never does',
-    (bool)preg_match('/var showMedia = \(isEdit \|\| !isDevice \|\| !registerMode\);/', $manual));
-t_check('the "media required" rule fires only for a new media item, never for a device',
-    (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing && !isDevice\)/', $manual));
+t_check('a new device form has no media block — media are recorded on the Media tab',
+    (bool)preg_match('/var showMedia = \(isEdit \|\| !isDevice\);/', $manual));
+t_check('the "media required" rule fires only when a media form is shown and it is not an edit',
+    (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing\)/', $manual));
 
 echo "\n== 6. the origin form picks an existing device ==\n";
 $drives = (string)file_get_contents(__DIR__ . '/../site/dashboard/drives.html');

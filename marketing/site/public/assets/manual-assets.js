@@ -244,13 +244,12 @@
     }
 
     var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
-    // Media live in the Media tab, and the REGISTER mode is identity-only, so a
-    // register add gets no media block at all. An ATTESTED new device may carry
-    // media with it — integrated/soldered storage is one unit — but the block is
-    // optional: a blank one collects to [] and the device saves without media.
-    // EDITING keeps whatever media the record already has, so an existing
-    // attestation is never silently emptied.
-    var showMedia = (isEdit || !isDevice || !registerMode);
+    // Devices are recorded on the Devices tab, media on the Media tab. A NEW
+    // device gets no media block at all — even a sealed unit's storage is
+    // recorded as a separate media item afterwards. EDITING keeps whatever
+    // media the record already has, so an existing attestation is never
+    // silently emptied.
+    var showMedia = (isEdit || !isDevice);
     if (showMedia) {
       if (isEdit) {
         var rows = isDevice ? (rec.drives || []) : [rec];
@@ -365,12 +364,12 @@
     // error box, no request. An empty list is the real answer.
     var media = mediaBoxEl ? collect(mediaBoxEl) : [];
     if (!registerMode && !cocid.trim()) { return show('A Chain of Custody ID is required.'); }
-    // Only the media form needs a medium. A new attested device's media block is
-    // optional (a unit with no data-bearing storage is a real record), and an edit
-    // may reconcile to zero — an empty list means "keep this record as it was".
-    // Refusing it would make a legitimate media-less device un-editable, which was
-    // the edit version of an earlier defect.
-    if (mediaBoxEl && !media.length && !editing && !isDevice) {
+    // Only the media form needs a medium: a new device has no media block at all
+    // (media are recorded on the Media tab), and an edit may reconcile to zero —
+    // an empty list means "keep this record as it was". Refusing it would make a
+    // legitimate media-less device un-editable, which was the edit version of an
+    // earlier defect.
+    if (mediaBoxEl && !media.length && !editing) {
       return show('Fill in the media item you are recording.');
     }
 

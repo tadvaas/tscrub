@@ -23,10 +23,6 @@ and this project uses date-based versioning (`v1.x`).
   merged with the media-link jobs in the COCID facet and search — the device is
   findable per job the moment it is added. The COCID is correctable from the
   device's Ops edit form.
-- **Attested devices may be recorded with their media.** The attestation form
-  again offers media rows (optional) — a unit with integrated/soldered storage
-  is recorded as one device and its storage in a single step. The media block
-  can be left empty, and only the Media tab's form requires a medium.
 
 ### Fixed
 

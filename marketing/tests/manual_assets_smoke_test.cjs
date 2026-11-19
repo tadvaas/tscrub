@@ -567,12 +567,12 @@ setTimeout(() => {
                           check('edit — a new record is still a POST',
                             /'\/api\/certificates\/devices' : '\/api\/certificates\/media'/.test(src));
 
-                          // An ATTESTED new device carries an OPTIONAL media block (integrated
-                          // storage is one unit), and save() used to call collect(null) and throw
-                          // before anything was sent — the Save click silently did nothing.
-                          // Fire the real save against an injected 409 and assert the request
-                          // WAS built and the failure surfaced: that proves the collect path
-                          // ran without throwing, end to end.
+                          // A NEW device has no media block — devices are recorded on the
+                          // Devices tab, media on the Media tab. save() used to call
+                          // collect(null) and throw before anything was sent — the Save click
+                          // silently did nothing. Fire the real save against an injected 409
+                          // and assert the request WAS built and the failure surfaced: that
+                          // proves the collect path ran without throwing, end to end.
                           installResponse({ status: 409, body: JSON.stringify({ ok: false, error: 'injected' }) });
                           global.__reqs = [];
                           window.ManualAssets.openFor('device');
@@ -586,13 +586,8 @@ setTimeout(() => {
                           const nbWalk = [];
                           (function walk(n) { (n.children || []).forEach(c => { nbWalk.push(c); walk(c); }); })(nb);
                           const nbBox = nbWalk.find(n => n.getAttribute('id') === 'manual-modal-media');
-                          check('save — a new attested device has an optional media block',
-                            !!nbBox);
-                          // Stub inputs have no default value: mirror the browser's '' so
-                          // collect() can read the blank row without tripping over undefined.
-                          (nbBox.querySelectorAll('input,select') || []).forEach(f => {
-                            if (f.value === undefined) { f.value = ''; }
-                          });
+                          check('save — a new device has no media block',
+                            !nbBox);
                           let threw = null;
                           try { byId['manual-modal-save']._on.click(); } catch (e) { threw = e; }
                           check('save — clicking Record on a new device does not throw',
