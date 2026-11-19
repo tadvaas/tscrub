@@ -97,7 +97,7 @@
     return el('div', { class: 'grid grid-cols-1 gap-3 sm:grid-cols-' + (cols || 2) }, children);
   }
 
-  function mediaRow(isDevice, m) {
+  function mediaRow(m) {
     var src = m || {};
     var row = el('div', { class: 'rounded-lg border border-slate-200 dark:border-ink-700 p-3' });
     var head = el('div', { class: 'mb-2 flex items-center justify-between' });
@@ -109,9 +109,8 @@
     head.appendChild(rm);
     row.appendChild(head);
     row.appendChild(grid([
-      // Kept short on purpose: this text lands in the Drives table's Type column, and
-      // "eMMC/UFS (integrated)" does not fit one line there. "integrated" is already
-      // said by the reason ("Media soldered / integrated") and by the note below.
+      // Kept short on purpose: this text lands in the Drives table's Type column,
+      // and "eMMC/UFS (integrated)" does not fit one line there.
       input('Type', 'type', 'SSD, HDD, eMMC/UFS', src.type),
       input('Size', 'size', '', src.size),
       input('Make', 'make', '', src.make),
@@ -119,32 +118,10 @@
       input('Serial / IMEI', 'serial', '', src.serial),
       input('Bus', 'bus', '', src.bus)
     ], 3));
-    if (isDevice) {
-      // The device already carries the reason and the destruction method, so asking
-      // again per medium showed the same two questions twice. A medium only needs its
-      // own when its outcome differed (e.g. one drive pulled and wiped, the rest
-      // destroyed), so that pair stays behind a toggle.
-      row.appendChild(el('p', { class: 'mt-2 text-xs text-slate-500 dark:text-slate-400',
-        text: 'Integrated or soldered storage: use the device\'s own make, model and serial — the media item IS that storage.' }));
-
-      var override = el('div', { class: 'mt-2 hidden' }, [grid([
-        select('Reason for this media item', 'reason', REASONS, false, src.reason),
-        select('Method for this media item', 'destroy_method', METHODS, false, src.destroy_method)
-      ], 2)]);
-      var toggle = el('button', { type: 'button', class: 'mt-2 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:underline',
-        text: 'Different outcome for this media item…' });
-      toggle.addEventListener('click', function () {
-        override.classList.remove('hidden');
-        toggle.classList.add('hidden');
-      });
-      row.appendChild(toggle);
-      row.appendChild(override);
-    } else {
-      row.appendChild(grid([
-        select('Reason', 'reason', REASONS, true, src.reason),
-        select('Method', 'destroy_method', METHODS, true, src.destroy_method)
-      ], 2));
-    }
+    row.appendChild(grid([
+      select('Reason', 'reason', REASONS, true, src.reason),
+      select('Method', 'destroy_method', METHODS, true, src.destroy_method)
+    ], 2));
     return row;
   }
 
@@ -243,26 +220,17 @@
       ], 2));
     }
 
-    var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
-    // Devices are recorded on the Devices tab, media on the Media tab. A NEW
-    // device gets no media block at all — even a sealed unit's storage is
-    // recorded as a separate media item afterwards. EDITING keeps whatever
-    // media the record already has, so an existing attestation is never
-    // silently emptied.
-    var showMedia = (isEdit || !isDevice);
-    if (showMedia) {
-      if (isEdit) {
-        var rows = isDevice ? (rec.drives || []) : [rec];
-        if (!rows.length) { rows = [{}]; }
-        rows.forEach(function (m) { mediaBox.appendChild(mediaRow(isDevice, m)); });
-      } else {
-        mediaBox.appendChild(mediaRow(isDevice));
-      }
+    // Media are recorded and edited on the MEDIA tab only. The device modal
+    // never carries media rows — a sealed unit's storage is a separate media
+    // item afterwards, and editing a device leaves its media untouched.
+    if (!isDevice) {
+      var mediaBox = el('div', { id: 'manual-modal-media', class: 'mt-3 space-y-3' });
+      mediaBox.appendChild(mediaRow(isEdit ? rec : null));
       body.appendChild(mediaBox);
 
       var addRow = el('button', { type: 'button', class: 'mt-3 rounded-lg border border-brand-600 dark:border-brand-500 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50',
         text: '+ Add another media item' });
-      addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow(isDevice)); });
+      addRow.addEventListener('click', function () { mediaBox.appendChild(mediaRow()); });
       body.appendChild(addRow);
     }
 
@@ -411,7 +379,10 @@
         var f = deviceField(k);
         if (f) { dev[k] = f.value.trim(); }
       });
-      payload = { cocid: cocid.trim(), device: dev, media: media };
+      // No media key at all: a new device is recorded media-less (its media come
+      // via the Media tab), and an edit leaves the record's media untouched —
+      // sending the key would make the server reconcile the media set.
+      payload = { cocid: cocid.trim(), device: dev };
     } else {
       payload = { cocid: cocid.trim(), media: media[0] };
     }

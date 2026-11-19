@@ -23,6 +23,12 @@ and this project uses date-based versioning (`v1.x`).
   merged with the media-link jobs in the COCID facet and search — the device is
   findable per job the moment it is added. The COCID is correctable from the
   device's Ops edit form.
+- **The device modal carries no media at all.** Devices are recorded and edited
+  with device fields only; media live entirely on the Media tab — even a sealed
+  unit's storage is a separate media item. A device edit no longer sends a media
+  set: the update route only reconciles media when the `media` key is present,
+  so editing a device leaves its media exactly as they are (an explicit empty
+  list is still refused while the record has media).
 
 ### Fixed
 

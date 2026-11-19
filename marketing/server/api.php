@@ -2681,23 +2681,31 @@ if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'certificates' && $seg
     $own = lookup_attested_device((int)$u['id'], (int)$seg[2]);
     if ($own === null) { fail(404, 'Record not found.'); }
 
-    $rawMedia = (is_array($d['media'] ?? null)) ? $d['media'] : [];
-    if (count($rawMedia) < 1 && $own['media_count'] > 0) {
-        fail(400, 'Record at least one media item — a device that held no storage has nothing to certify here.');
-    }
-    if (count($rawMedia) > 64) {
-        fail(400, 'Too many media on one device (64 maximum).');
-    }
     $dev = md_validate_device(is_array($d['device'] ?? null) ? $d['device'] : []);
     if ($dev['errors']) { fail(400, $dev['errors'][0]); }
-    $media = [];
-    foreach ($rawMedia as $i => $m) {
-        $row = is_array($m) ? $m : [];
-        if (($row['reason'] ?? '') === '')         { $row['reason'] = $dev['clean']['reason']; }
-        if (($row['destroy_method'] ?? '') === '') { $row['destroy_method'] = $dev['clean']['destroy_method']; }
-        $v = md_validate_media($row);
-        if ($v['errors']) { fail(400, 'Media ' . ($i + 1) . ': ' . $v['errors'][0]); }
-        $media[] = $v['clean'];
+    // The media set is reconciled ONLY when the client sends it. The device modal
+    // carries no media rows, so it omits the key and the record's media stay
+    // untouched; an explicit list (even empty) still means "make it exactly this",
+    // and an empty one is refused while the record has media.
+    $media = null;
+    $rawMedia = $d['media'] ?? null;
+    if ($rawMedia !== null) {
+        if (!is_array($rawMedia)) { $rawMedia = []; }
+        if (count($rawMedia) < 1 && $own['media_count'] > 0) {
+            fail(400, 'Record at least one media item — a device that held no storage has nothing to certify here.');
+        }
+        if (count($rawMedia) > 64) {
+            fail(400, 'Too many media on one device (64 maximum).');
+        }
+        $media = [];
+        foreach ($rawMedia as $i => $m) {
+            $row = is_array($m) ? $m : [];
+            if (($row['reason'] ?? '') === '')         { $row['reason'] = $dev['clean']['reason']; }
+            if (($row['destroy_method'] ?? '') === '') { $row['destroy_method'] = $dev['clean']['destroy_method']; }
+            $v = md_validate_media($row);
+            if ($v['errors']) { fail(400, 'Media ' . ($i + 1) . ': ' . $v['errors'][0]); }
+            $media[] = $v['clean'];
+        }
     }
 
     $res = manual_attested_update_device((int)$own['certificate_id'], (int)$seg[2], $dev['clean'], $media, manual_attester($u));

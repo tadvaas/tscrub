@@ -83,8 +83,8 @@ t_check('it still caps the media count',
     (bool)preg_match("/Too many media on one device \(64 maximum\)/", $api));
 
 $manual = (string)file_get_contents(__DIR__ . '/../site/public/assets/manual-assets.js');
-t_check('a new device form has no media block — media are recorded on the Media tab',
-    (bool)preg_match('/var showMedia = \(isEdit \|\| !isDevice\);/', $manual));
+t_check('only the media form builds a media box — the device modal has none',
+    (bool)preg_match('/if \(!isDevice\) \{\s*\n\s*var mediaBox/', $manual));
 t_check('the "media required" rule fires only when a media form is shown and it is not an edit',
     (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing\)/', $manual));
 
@@ -151,6 +151,12 @@ t_check('an empty media list is only refused when the record has media',
 t_check('the 404 still fires before any media validation',
     $putBody !== '' && strpos($putBody, "fail(404, 'Record not found.')") !== false
         && strpos($putBody, "fail(404, 'Record not found.')") < strpos($putBody, 'md_validate_device'));
+t_check('an edit that omits media leaves the record\'s media untouched',
+    strpos($putBody, "\$media = null") !== false
+    && strpos($putBody, "\$d['media'] ?? null") !== false);
+t_check('the update helper skips the media rewrite when none was sent',
+    strpos($lib, '?array $media') !== false
+    && strpos($lib, 'if ($media !== null)') !== false);
 
 echo "\n== 9. Devices → Add offers a register-only mode ==\n";
 // A device added purely so media can name it as their origin must not force a

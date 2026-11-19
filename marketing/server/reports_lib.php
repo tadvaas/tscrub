@@ -978,7 +978,7 @@ function lookup_attested_media(int $userId, int $mediaId): ?array {
  *
  * Returns ['ok' => bool, 'id' => int, 'error' => string].
  */
-function manual_attested_update_device(int $certId, int $deviceId, array $dev, array $media, string $attestedBy): array
+function manual_attested_update_device(int $certId, int $deviceId, array $dev, ?array $media, string $attestedBy): array
 {
     if ($deviceId <= 0) { return ['ok' => false, 'id' => 0, 'error' => 'Record not found.']; }
     manual_list_cache([]);   // the lists are about to change
@@ -1005,10 +1005,15 @@ function manual_attested_update_device(int $certId, int $deviceId, array $dev, a
             (string)$dev['evidence_sha256'], (string)$dev['identity_key'],
             $certId, $deviceId,
         ]);
-        $del = db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND certificate_device_id = ? AND source = 'manual'");
-        $del->execute([$certId, $deviceId]);
-        foreach ($media as $m) {
-            manual_media_insert($certId, $deviceId, $cocid, $m, $dev, $attestedBy);
+        // null means "the client did not manage media" (the device modal has no
+        // media rows) — leave the record's media exactly as they are. An explicit
+        // list, even an empty one, reconciles the set.
+        if ($media !== null) {
+            $del = db()->prepare("DELETE FROM certificate_drives WHERE certificate_id = ? AND certificate_device_id = ? AND source = 'manual'");
+            $del->execute([$certId, $deviceId]);
+            foreach ($media as $m) {
+                manual_media_insert($certId, $deviceId, $cocid, $m, $dev, $attestedBy);
+            }
         }
         db()->commit();
         return ['ok' => true, 'id' => $deviceId, 'error' => ''];
