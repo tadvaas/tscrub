@@ -85,8 +85,8 @@ t_check('it still caps the media count',
 $manual = (string)file_get_contents(__DIR__ . '/../site/public/assets/manual-assets.js');
 t_check('a new device form has no media block',
     (bool)preg_match('/var showMedia = \(isEdit \|\| !isDevice\);/', $manual));
-t_check('the "media required" rule only fires when a media form is shown',
-    (bool)preg_match('/if \(mediaBoxEl && !media\.length\)/', $manual));
+t_check('the "media required" rule fires only when a media form is shown and it is not an edit',
+    (bool)preg_match('/if \(mediaBoxEl && !media\.length && !editing\)/', $manual));
 
 echo "\n== 6. the origin form picks an existing device ==\n";
 $drives = (string)file_get_contents(__DIR__ . '/../site/dashboard/drives.html');
@@ -129,6 +129,28 @@ t_check('the loader reads the origin jobs from media_links',
     $rowsBody !== '' && strpos($rowsBody, 'FROM media_links') !== false);
 t_check('and keeps a numeric COCID a string through the array key',
     $rowsBody !== '' && strpos($rowsBody, "'k' . \$c") !== false);
+
+echo "\n== 8. a device with no media stays editable with no media ==\n";
+// The same defect as the modal: a device recorded without any media must remain
+// editable, while one that HAS media must never be silently emptied by an edit.
+$start = strpos($lib, 'function lookup_attested_device(');
+$end = $start === false ? false : strpos($lib, "\nfunction ", $start + 10);
+$lookupBody = $start === false ? '' : substr($lib, $start, ($end === false ? strlen($lib) : $end) - $start);
+t_check('the lookup counts the record\'s own manual media rows',
+    $lookupBody !== '' && strpos($lookupBody, 'media_count') !== false
+        && strpos($lookupBody, "m.source = 'manual'") !== false);
+
+$api = (string)file_get_contents($serverDir . '/api.php');
+$putStart = strpos($api, "if (\$method === 'PUT' && count(\$seg) === 3 && \$seg[0] === 'certificates' && \$seg[1] === 'devices')");
+$putBody = $putStart === false ? '' : substr($api, $putStart, 2200);
+t_check('the update route looks the record up before the media gate',
+    $putBody !== '' && strpos($putBody, 'lookup_attested_device') !== false
+        && strpos($putBody, 'lookup_attested_device') < strpos($putBody, 'count($rawMedia) < 1'));
+t_check('an empty media list is only refused when the record has media',
+    $putBody !== '' && strpos($putBody, "count(\$rawMedia) < 1 && \$own['media_count'] > 0") !== false);
+t_check('the 404 still fires before any media validation',
+    $putBody !== '' && strpos($putBody, "fail(404, 'Record not found.')") !== false
+        && strpos($putBody, "fail(404, 'Record not found.')") < strpos($putBody, 'md_validate_device'));
 
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

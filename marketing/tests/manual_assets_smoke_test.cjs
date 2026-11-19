@@ -567,6 +567,84 @@ setTimeout(() => {
                           check('edit — a new record is still a POST',
                             /'\/api\/certificates\/devices' : '\/api\/certificates\/media'/.test(src));
 
+                          // A NEW device has no media block (devices and media are recorded
+                          // separately), and save() used to call collect(null) and throw
+                          // before anything was sent — the Save click silently did nothing.
+                          // Fire the real save against an injected 409 and assert the request
+                          // WAS built and the failure surfaced: that proves the collect path
+                          // ran without throwing, end to end.
+                          installResponse({ status: 409, body: JSON.stringify({ ok: false, error: 'injected' }) });
+                          global.__reqs = [];
+                          window.ManualAssets.openFor('device');
+                          const nb = byId['manual-modal-body'];
+                          const nv = (name, value) => { const f = nb.querySelector('[name=' + name + ']'); if (f) { f.value = value; } };
+                          nv('cocid', 'COC-TEST'); nv('category', 'Laptop');
+                          nv('make', 'Test'); nv('model', 'Unit'); nv('serial', 'TEST-SN-1');
+                          nv('destroy_method', 'shredded'); nv('reason', 'other');
+                          nv('destroy_vendor', ''); nv('destroy_date', '2026-11-19');
+                          nv('destroy_witness', ''); nv('evidence_ref', '');
+                          check('save — a new device has no media block',
+                            !nb.querySelector('#manual-modal-media'));
+                          let threw = null;
+                          try { byId['manual-modal-save']._on.click(); } catch (e) { threw = e; }
+                          check('save — clicking Record on a new device does not throw',
+                            threw === null, threw && threw.message);
+                          setTimeout(() => {
+                            const post = global.__reqs.filter(r => r.method === 'POST');
+                            let bodyMedia = 'no-request';
+                            if (post.length) { try { bodyMedia = JSON.parse(post[0].body).media.length; } catch (e) { bodyMedia = 'bad-json'; } }
+                            check('save — a new device posts to /api/certificates/devices',
+                              post.length === 1 && post[0].url === '/api/certificates/devices',
+                              JSON.stringify(global.__reqs.map(r => r.url)));
+                            check('save — the payload carries an empty media list, not a crash',
+                              bodyMedia === 0, bodyMedia);
+                            check('save — the server message is shown verbatim',
+                              byId['manual-modal-error']._classes.has('hidden') === false
+                                && /injected/.test(textOf(byId['manual-modal-error'])));
+                            check('save — the button is restored after the failure',
+                              byId['manual-modal-save'].textContent === 'Record device'
+                                && byId['manual-modal-save'].disabled === false);
+
+                            // Editing a device that ALREADY has no media must save too: the
+                            // blank edit row collects to [], and the "needs a medium" gate must
+                            // not fire for an edit or a media-less record becomes un-editable.
+                            installResponse({ status: 409, body: JSON.stringify({ ok: false, error: 'injected-edit' }) });
+                            global.__reqs = [];
+                            window.ManualAssets.open('device', {
+                              attested_id: 7, cocid: 'COC-TEST', category: 'laptop',
+                              make: 'Test', model: 'Unit', sysserial: 'TEST-SN-2',
+                              reason: 'other', destroy_method: 'shredded', destroy_vendor: '',
+                              destroy_date: '', destroy_witness: '', evidence_ref: '', drives: []
+                            });
+                            // Real inputs and selects always start with value '' — the stub only
+                            // carries a value when one is assigned, so mirror the browser for the
+                            // blank edit row the module built for the zero-media record. (The stub
+                            // matches #id by the node property, and el() sets the attribute, so
+                            // walk for it.)
+                            const allNodes = [];
+                            (function walk(n) { (n.children || []).forEach(c => { allNodes.push(c); walk(c); }); })(byId['manual-modal-body']);
+                            const mbox = allNodes.find(n => n.getAttribute('id') === 'manual-modal-media');
+                            (mbox.querySelectorAll('input,select') || []).forEach(f => {
+                              if (f.value === undefined) { f.value = ''; }
+                            });
+                            let threw2 = null;
+                            try { byId['manual-modal-save']._on.click(); } catch (e) { threw2 = e; }
+                            // The save chains through the CSRF fetch, so the PUT lands a tick later.
+                            setTimeout(() => {
+                              const put = global.__reqs.filter(r => r.method === 'PUT');
+                              check('edit — a media-less device still saves without throwing',
+                                threw2 === null, threw2 && threw2.message);
+                              check('edit — it PUTs to the record with an empty media list',
+                                put.length === 1 && put[0].url === '/api/certificates/devices/7'
+                                  && (() => { try { return JSON.parse(put[0].body).media.length === 0; } catch (e) { return false; } })(),
+                                JSON.stringify(global.__reqs));
+                              check('edit — the injected failure is shown, not the media gate',
+                                /injected-edit/.test(textOf(byId['manual-modal-error']))
+                                  && !/media item/.test(textOf(byId['manual-modal-error'])),
+                                textOf(byId['manual-modal-error']));
+                              // The remove flow below expects a 200 again.
+                              installResponse({ status: 200, body: JSON.stringify({ ok: true, removed: 1 }) });
+
                           global.__confirmAnswer = true;
                           global.__reqs = [];
                           abtns[2]._on.click();
@@ -599,6 +677,8 @@ setTimeout(() => {
                     }, 60);
                   }, 60);
                 }, 60);
+              }, 60);
+              }, 60);
               }, 60);
             });
         });

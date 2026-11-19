@@ -6,6 +6,23 @@ signed; the authoritative checksums live in `/downloads/manifest.json`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses date-based versioning (`v1.x`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Devices → Add did nothing when saved.** The new-device form has no media
+  block (devices are recorded on the Devices tab, media on the Media tab), but
+  `save()` still called `collect()` on the missing block and threw before any
+  request was built — the click failed silently with no error box. The media
+  list is now guarded (`mediaBoxEl ? collect(mediaBoxEl) : []`).
+- **A media-less attested device could not be edited.** Saving an edit of a
+  device recorded without media was refused both client-side (the "needs a
+  medium" gate fired on the empty edit row) and server-side (the PUT route
+  required at least one media item). The gate now only fires for new records,
+  and the update route only refuses an empty media list when the stored record
+  actually has media — so a media-less record stays editable while a record
+  with media can never be silently emptied.
+
 ## [v1.12.18] - 2026-11-14
 
 - **Tape health captured at erase time.** A tape loaded after the triage screen

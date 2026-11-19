@@ -924,14 +924,21 @@ function lookup_attested_device(int $userId, int $deviceId): ?array {
     $ph  = implode(',', array_fill(0, count($ids), '?'));
     try {
         $q = db()->prepare(
-            "SELECT d.certificate_id, d.cocid
+            "SELECT d.certificate_id, d.cocid,
+                    (SELECT COUNT(*)
+                       FROM certificate_drives m
+                      WHERE m.certificate_device_id = d.id AND m.source = 'manual') AS media_count
                FROM certificate_devices d
                JOIN certificates c ON c.id = d.certificate_id
               WHERE d.id = ? AND c.user_id IN ($ph) LIMIT 1"
         );
         $q->execute(array_merge([$deviceId], $ids));
         $r = $q->fetch(PDO::FETCH_ASSOC);
-        return $r === false ? null : ['certificate_id' => (int)$r['certificate_id'], 'cocid' => (string)$r['cocid']];
+        return $r === false ? null : [
+            'certificate_id' => (int)$r['certificate_id'],
+            'cocid'          => (string)$r['cocid'],
+            'media_count'    => (int)$r['media_count'],
+        ];
     } catch (Throwable $e) {
         error_log('lookup_attested_device: ' . $e->getMessage());
         return null;

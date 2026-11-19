@@ -2664,8 +2664,17 @@ if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'certificates' && $seg
     $u = auth_require();
     $d = json_body();
 
+    // The record's own COCID decides which job the edit belongs to: the route
+    // looks the device up by id and refuses anything that is not in this account.
+    // It is fetched BEFORE the media gate, because the gate needs to know whether
+    // the record already has media: a device recorded with no media must stay
+    // editable with no media, while one that HAS media must never be silently
+    // emptied by an edit.
+    $own = lookup_attested_device((int)$u['id'], (int)$seg[2]);
+    if ($own === null) { fail(404, 'Record not found.'); }
+
     $rawMedia = (is_array($d['media'] ?? null)) ? $d['media'] : [];
-    if (count($rawMedia) < 1) {
+    if (count($rawMedia) < 1 && $own['media_count'] > 0) {
         fail(400, 'Record at least one media item — a device that held no storage has nothing to certify here.');
     }
     if (count($rawMedia) > 64) {
@@ -2682,11 +2691,6 @@ if ($method === 'PUT' && count($seg) === 3 && $seg[0] === 'certificates' && $seg
         if ($v['errors']) { fail(400, 'Media ' . ($i + 1) . ': ' . $v['errors'][0]); }
         $media[] = $v['clean'];
     }
-
-    // The record's own COCID decides which job the edit belongs to: the route
-    // looks the device up by id and refuses anything that is not in this account.
-    $own = lookup_attested_device((int)$u['id'], (int)$seg[2]);
-    if ($own === null) { fail(404, 'Record not found.'); }
 
     $res = manual_attested_update_device((int)$own['certificate_id'], (int)$seg[2], $dev['clean'], $media, manual_attester($u));
     if (!$res['ok']) { fail(409, $res['error']); }

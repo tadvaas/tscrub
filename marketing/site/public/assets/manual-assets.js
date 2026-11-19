@@ -311,11 +311,21 @@
   function save(isDevice, body, button) {
     var cocid = (body.querySelector('input[name=cocid]') || {}).value || '';
     var mediaBoxEl = body.querySelector('#manual-modal-media');
-    var media = collect(mediaBoxEl);
+    // A NEW device has no media block at all — devices are recorded on the
+    // Devices tab, media on the Media tab. collect(null) would throw on
+    // container.children, which is exactly how this save used to fail: the click
+    // did nothing, no error box, no request. An empty list is the real answer.
+    var media = mediaBoxEl ? collect(mediaBoxEl) : [];
     if (!cocid.trim()) { return show('A Chain of Custody ID is required.'); }
     // A new device has no media block: it is recorded on its own, and its media (if
     // any) are recorded from the Media tab. Only the media form needs a medium.
-    if (mediaBoxEl && !media.length) {
+    //
+    // An EDIT of a device that already has no media must also pass through: the blank
+    // media row collects to [], and that empty list means "keep this record as it was
+    // — no storage" (the server reconciles an edit's media set, and an empty one
+    // empties nothing that was not already empty). Refusing it would make a legitimate
+    // media-less record un-editable, which was the edit version of the same defect.
+    if (mediaBoxEl && !media.length && !editing) {
       return show(isDevice
         ? 'Add at least one media item — a device that held no storage has nothing to record.'
         : 'Fill in the media item you are recording.');
