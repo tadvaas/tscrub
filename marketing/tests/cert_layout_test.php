@@ -194,5 +194,79 @@ t_check('no page draws a section title with its own font',
     substr_count($src, "SetFont('helvetica', 'B', 10)") === 0
     && substr_count($src, "SetFont('helvetica', 'B', 12)") === 0);
 
+echo "\n== 5. the device table cannot wrap fixed tokens ==\n";
+$pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8');
+$cols = cert_device_cols();
+t_check('the Erased column is gone — the issued-at line covers timing',
+    !isset($cols['ts']), implode(',', array_keys($cols)));
+t_check('Type, Bus and Size are one Media column',
+    isset($cols['media']) && !isset($cols['type']) && !isset($cols['bus']) && !isset($cols['size']));
+$jsonld = (string)file_get_contents($serverDir . '/jsonld.php');
+t_check('per-drive timestamps stay in the JSON for the customer',
+    strpos($jsonld, "'ts'") !== false);
+
+$samples = [
+    '#' => '99', 'media' => 'HDD · SATA · 1000 GB', 'cls' => 'SANITISATION',
+    'method' => 'Blocked (Block SID)', 'passes' => '99', 'eraser' => 'nwipe 0.41',
+    'verify' => 'Sampled 100%', 'tool' => 'tScrub v1.11.15', 'serial' => 'WD-WCC2E1ETKXU6',
+    'sysserial' => 'CZC5242GFK', 'asset' => 'CN0WY5HT4294547F', 'status' => 'COMPLETED',
+    'format' => 'EXFAT', 'psid' => 'failed', 'ppi' => 'yes', 'ppi_cleared' => 'yes',
+];
+[$lc, $lk] = cert_table_layout($pdf, $cols, 269.0);
+$lsum = 0.0;
+foreach ($lc as $c) { $lsum += $c['w']; }
+t_check('the laid-out widths never exceed the page', $lsum <= 269.5, $lsum);
+foreach ($lc as $k => $c) {
+    if (in_array($k, ['model', 'system'], true)) continue;
+    $want = max($pdf->getStringWidth($c['label'], 'helvetica', 'B', 7.5),
+            $pdf->getStringWidth($samples[$k] ?? $c['label'], 'helvetica', '', 7.5)) + 3.2;
+    t_check("column '$k' is wide enough for its tokens", $c['w'] + 0.01 >= $want, round($c['w'], 2) . ' vs ' . round($want, 2));
+}
+
+// A cramped page drops columns in the declared order instead of wrapping.
+[$tc, $tk] = cert_table_layout($pdf, $cols, 150.0);
+t_check('a cramped page drops verify and origin first',
+    !isset($tc['verify']) && !isset($tc['asset']), implode(',', array_keys($tc)));
+t_check('the core columns are never dropped',
+    isset($tc['#']) && isset($tc['media']) && isset($tc['method']) && isset($tc['serial']),
+    implode(',', array_keys($tc)));
+// 150 mm is deliberately unachievable (the fixed columns alone need ~189 mm):
+// the fallback keeps them at minimum width rather than letting tokens wrap.
+$order = ['verify', 'asset', 'format', 'passes', 'tool', 'eraser'];
+$prefix = true;
+foreach ($order as $i => $a) {
+    for ($j = $i + 1; $j < count($order); $j++) {
+        if (isset($tc[$order[$j]]) && !isset($tc[$order[$i]])) { $prefix = false; }
+    }
+}
+t_check('drops respect the priority order (prefix property)', $prefix, implode(',', array_keys($tc)));
+
+// 215 mm is the tightest page that can still hold the minimal column set:
+// every claim-critical column beyond it must have gone, and the result fits.
+[$tc2, $tk2] = cert_table_layout($pdf, $cols, 215.0);
+$t2sum = 0.0;
+foreach ($tc2 as $c) { $t2sum += $c['w']; }
+t_check('a tight-but-achievable page still fits with only the core columns',
+    $t2sum <= 215.5 && !isset($tc2['verify']) && !isset($tc2['asset'])
+    && isset($tc2['method']) && isset($tc2['serial']),
+    round($t2sum, 2) . ' ' . implode(',', array_keys($tc2)));
+
+t_check('wrap: a short fixed token never splits', cert_wrap_text($pdf, 'SATA', 20.0) === 'SATA');
+t_check('wrap: words flow onto the next line',
+    strpos(cert_wrap_text($pdf, 'HP Z840 Workstation', 20.0), "\n") !== false);
+$w1 = cert_wrap_text($pdf, 'ST1000NM0033-9ZM173', 22.0);
+$w1ok = true;
+foreach (explode("\n", $w1) as $wl) {
+    if ($pdf->getStringWidth($wl, 'helvetica', '', 7.5) > 22.0) { $w1ok = false; }
+}
+t_check('wrap: a long token breaks at its hyphen, every line fits', $w1ok, $w1);
+t_check('wrap: empty stays empty', cert_wrap_text($pdf, '   ', 10.0) === '');
+
+t_check('label: two-word headers break only at the space',
+    cert_wrap_label($pdf, 'Origin device', 12.0) === "Origin\ndevice",
+    cert_wrap_label($pdf, 'Origin device', 12.0));
+t_check('label: single words stay whole',
+    cert_wrap_label($pdf, 'Verification', 12.0) === 'Verification');
+
 echo "\n" . ($fails === 0 ? 'ALL PASS' : $fails . ' FAILED') . " — $count checks\n";
 exit($fails === 0 ? 0 : 1);

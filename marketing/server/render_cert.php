@@ -322,25 +322,15 @@ function cert_method_short(string $method, string $cls, string $status): string 
  * Dense one-row-per-drive table for large fleets (200 drives ≈ 6 pages instead
  * of ~100 card pages). Shows the audit-critical fields only.
  */
-function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $certId, array $drives, float $startY = 28.0): void {
-    $bg = function () use ($pdf, $W, $H): void {
-        $pdf->SetFillColor(250, 249, 246);
-        $pdf->Rect(0, 0, $W, $H, 'F');
-    };
-    $pageLabel = function () use ($pdf, $W, $certId): void {
-        $pdf->SetFont('helvetica', '', 7.5);
-        $pdf->SetTextColor(90, 90, 90);
-        $pdf->SetXY($W - 175, 8);
-        $pdf->Cell(165, 4, 'Certificate ID: ' . $certId . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
-    };
-
-    $cols = [
+function cert_device_cols(): array {
+    return [
         '#'        => ['label' => '#',            'w' => 7,  'align' => 'C'],
         'model'    => ['label' => 'Drive model',  'w' => 46, 'align' => 'L'],
         'serial'   => ['label' => 'Drive serial', 'w' => 30, 'align' => 'L'],
-        'type'     => ['label' => 'Type',         'w' => 11, 'align' => 'C'],
-        'size'     => ['label' => 'Drive size',   'w' => 18, 'align' => 'C'],
-        'bus'      => ['label' => 'Bus',          'w' => 12, 'align' => 'C'],
+        // Type · bus · size merged: three short fixed tokens used to be three
+        // columns that all wrapped mid-token once scaled; one compact cell
+        // reads better and is guaranteed a single line.
+        'media'    => ['label' => 'Media',        'w' => 34, 'align' => 'C'],
         'cls'      => ['label' => 'Class',        'w' => 24, 'align' => 'C'],
         'method'   => ['label' => 'Method',       'w' => 42, 'align' => 'L'],
         'passes'   => ['label' => 'Passes',       'w' => 14, 'align' => 'C'],
@@ -361,17 +351,210 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         'psid'     => ['label' => 'PSID',         'w' => 14, 'align' => 'C'],
         'ppi'      => ['label' => 'PPI',          'w' => 14, 'align' => 'C'],
         'ppi_cleared' => ['label' => 'PPI Cleared', 'w' => 16, 'align' => 'C'],
-        'ts'       => ['label' => 'Erased',       'w' => 22, 'align' => 'C'],
     ];
+}
+
+/** Free-text columns whose cells are pre-wrapped at measured word boundaries. */
+function cert_table_wrap_keys(): array {
+    return ['model', 'system', 'serial', 'sysserial', 'asset', 'method'];
+}
+
+/**
+ * Wrap a table cell's text at measured word boundaries. Hyphens stay attached
+ * to their word (a serial breaks at its own hyphens first), and a single word
+ * wider than the column is hard-broken at the measured character limit, again
+ * preferring its last hyphen. The result carries \n joins that TCPDF's
+ * MultiCell respects, so a cell can never split a short fixed token the way
+ * proportional column scaling used to.
+ */
+function cert_wrap_text(TCPDF $pdf, string $text, float $w, float $size = 7.5): string {
+    $text = trim($text);
+    if ($text === '') return '';
+    $words = preg_split('/ +/', $text) ?: [];
+    $lines = [];
+    $line = '';
+    foreach ($words as $word) {
+        if ($word === '') continue;
+        $candidate = ($line === '') ? $word : $line . ' ' . $word;
+        if ($line !== '' && $pdf->getStringWidth($candidate, 'helvetica', '', $size) > $w) {
+            $lines[] = $line;
+            $line = $word;
+        } else {
+            $line = $candidate;
+        }
+        while ($pdf->getStringWidth($line, 'helvetica', '', $size) > $w) {
+            $keep = '';
+            $lastHyphen = null;
+            foreach (preg_split('//u', $line, -1, PREG_SPLIT_NO_EMPTY) as $ch) {
+                if ($pdf->getStringWidth($keep . $ch, 'helvetica', '', $size) > $w) break;
+                $keep .= $ch;
+                if ($ch === '-') { $lastHyphen = strlen($keep); }
+            }
+            if ($keep === '') { $keep = $line; } // safety: cannot make progress
+            elseif ($lastHyphen !== null && $lastHyphen > 1) { $keep = substr($keep, 0, $lastHyphen); }
+            $lines[] = $keep;
+            $line = ltrim(substr($line, strlen($keep)));
+        }
+    }
+    if ($line !== '') $lines[] = $line;
+    return implode("\n", $lines);
+}
+
+/**
+ * Wrap a column HEADER only at word boundaries (never mid-word). A single-word
+ * label is always guaranteed its full width by cert_table_layout(), so the
+ * only fallback needed is the two-word split.
+ */
+function cert_wrap_label(TCPDF $pdf, string $label, float $w, float $size = 7.5, bool $bold = true): string {
+    $style = $bold ? 'B' : '';
+    if ($pdf->getStringWidth($label, 'helvetica', $style, $size) <= $w) return $label;
+    $parts = explode(' ', $label);
+    for ($i = 1; $i < count($parts); $i++) {
+        $a = implode(' ', array_slice($parts, 0, $i));
+        $b = implode(' ', array_slice($parts, $i));
+        if (max($pdf->getStringWidth($a, 'helvetica', $style, $size), $pdf->getStringWidth($b, 'helvetica', $style, $size)) <= $w) {
+            return $a . "\n" . $b;
+        }
+    }
+    return $label;
+}
+
+/**
+ * Assign the final column set and widths.
+ *
+ * Fixed-vocabulary columns are guaranteed the width of their longest real value
+ * (or their label, whichever is wider) so a token like "SATA", "10" or "EXFAT"
+ * can never wrap. The flexible free-text columns share what remains, and when
+ * that is not enough, the least claim-critical columns are dropped in a fixed
+ * order — a certificate with fewer columns still says everything; a wrapped one
+ * looks broken.
+ *
+ * Returns [cols, keys] where cols carry their final widths.
+ */
+function cert_table_layout(TCPDF $pdf, array $cols, float $usable): array {
+    $fixed = [
+        '#'           => '99',
+        'media'       => 'HDD · SATA · 1000 GB',
+        'cls'         => 'SANITISATION',
+        'method'      => 'Blocked (Block SID)',
+        'passes'      => '99',
+        'eraser'      => 'nwipe 0.41',
+        'verify'      => 'Sampled 100%',
+        'tool'        => 'tScrub v1.11.15',
+        'serial'      => 'WD-WCC2E1ETKXU6',
+        'sysserial'   => 'CZC5242GFK',
+        'asset'       => 'CN0WY5HT4294547F',
+        'status'      => 'COMPLETED',
+        'format'      => 'EXFAT',
+        'psid'        => 'failed',
+        'ppi'         => 'yes',
+        'ppi_cleared' => 'yes',
+    ];
+    $flex  = ['model', 'system'];
+    $order = ['verify', 'asset', 'format', 'passes', 'tool', 'eraser'];
+    $floor = 12.0;
+
+    $min = [];
+    foreach (array_keys($cols) as $k) {
+        $sample = $fixed[$k] ?? $cols[$k]['label'];
+        $labelW = $pdf->getStringWidth($cols[$k]['label'], 'helvetica', 'B', 7.5);
+        $min[$k] = max($labelW, $pdf->getStringWidth($sample, 'helvetica', '', 7.5)) + 3.2;
+    }
+
+    $candidates = [[]];
+    for ($i = 1; $i <= count($order); $i++) { $candidates[] = array_slice($order, 0, $i); }
+
+    $out = null;
+    foreach ($candidates as $dropped) {
+        $cur = $cols;
+        foreach ($dropped as $d) { unset($cur[$d]); }
+        $fixedSum = 0.0;
+        $flexNow = [];
+        foreach (array_keys($cur) as $k) {
+            if (in_array($k, $flex, true)) { $flexNow[] = $k; continue; }
+            $fixedSum += $min[$k];
+        }
+        $avail = $usable - $fixedSum;
+        $flexBase = 0.0;
+        foreach ($flexNow as $k) { $flexBase += $cur[$k]['w']; }
+        if ($flexBase <= 0 || count($flexNow) === 0 || $avail / count($flexNow) < $floor) continue;
+        $w2 = [];
+        $rest = $avail;
+        foreach ($flexNow as $i => $k) {
+            $share = ($i === count($flexNow) - 1)
+                ? $rest
+                : round($avail * $cur[$k]['w'] / $flexBase, 2);
+            $rest = round($rest - $share, 2);
+            if ($share < $floor) { $w2 = null; break; }
+            $w2[$k] = $share;
+        }
+        if ($w2 === null) continue;
+        $out = [$cur, $w2];
+        break;
+    }
+
+    // Impossible even with every drop: keep the minimal candidate and give the
+    // free-text columns whatever is left (they wrap at word boundaries).
+    if ($out === null) {
+        $cur = $cols;
+        foreach ($order as $d) { unset($cur[$d]); }
+        $fixedSum = 0.0;
+        $flexNow = [];
+        foreach (array_keys($cur) as $k) {
+            if (in_array($k, $flex, true)) { $flexNow[] = $k; continue; }
+            $fixedSum += $min[$k];
+        }
+        $avail = max(0.0, $usable - $fixedSum);
+        $flexBase = 0.0;
+        foreach ($flexNow as $k) { $flexBase += $cur[$k]['w']; }
+        $w2 = [];
+        $rest = $avail;
+        foreach ($flexNow as $i => $k) {
+            $share = ($i === count($flexNow) - 1)
+                ? $rest
+                : ($flexBase > 0 ? round($avail * $cur[$k]['w'] / $flexBase, 2) : 0.0);
+            $rest = round($rest - $share, 2);
+            $w2[$k] = max(1.0, $share);
+        }
+        $out = [$cur, $w2];
+    }
+
+    [$cur, $w2] = $out;
+    foreach ($cur as $k => $c) {
+        $cur[$k]['w'] = in_array($k, $flex, true) ? round($w2[$k], 2) : round($min[$k], 2);
+    }
+    return [$cur, array_keys($cur)];
+}
+
+function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $certId, array $drives, float $startY = 28.0): void {
+    $bg = function () use ($pdf, $W, $H): void {
+        $pdf->SetFillColor(250, 249, 246);
+        $pdf->Rect(0, 0, $W, $H, 'F');
+    };
+    $pageLabel = function () use ($pdf, $W, $certId): void {
+        $pdf->SetFont('helvetica', '', 7.5);
+        $pdf->SetTextColor(90, 90, 90);
+        $pdf->SetXY($W - 175, 8);
+        $pdf->Cell(165, 4, 'Certificate ID: ' . $certId . '  |  Page ' . $pdf->getAliasNumPage() . ' of ' . $pdf->getAliasNbPages(), 0, 0, 'R');
+    };
+
+    $cols = cert_device_cols();
 
     $cell = function (array $d, string $key, int $idx): string {
         switch ($key) {
             case '#':      return (string)$idx;
             case 'model':  return (string)($d['model'] ?? '');
             case 'serial': return (string)($d['serial'] ?? '');
-            case 'type':   return strtoupper((string)($d['type'] ?? ''));
-            case 'size':   return (string)($d['size'] ?? '');
-            case 'bus':    return (string)($d['bus'] ?? '');
+            case 'media': {
+                $parts = [];
+                $tv = trim((string)($d['type'] ?? ''));
+                $bv = trim((string)($d['bus'] ?? ''));
+                $sv = trim((string)($d['size'] ?? ''));
+                if ($tv !== '') { $parts[] = strtoupper($tv); }
+                if ($bv !== '') { $parts[] = $bv; }
+                if ($sv !== '') { $parts[] = $sv; }
+                return implode(' · ', $parts);
+            }
             case 'cls':    return strtoupper((string)($d['cls'] ?? ''));
             case 'method': return cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
             case 'passes': return trim((string)($d['passes'] ?? ''));
@@ -408,7 +591,6 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 return $p === 'yes' ? 'Yes' : '';
             }
             case 'status': return (string)($d['status'] ?? '');
-            case 'ts':     return (strtoupper(trim((string)($d['status'] ?? ''))) === 'COMPLETED') ? fmt_ts((string)($d['ts'] ?? '')) : '';
         }
         return '';
     };
@@ -417,9 +599,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         switch ($key) {
             case 'model':  return trim((string)($d['model'] ?? '')) === '';
             case 'serial': return trim((string)($d['serial'] ?? '')) === '';
-            case 'type':   return trim((string)($d['type'] ?? '')) === '';
-            case 'size':   return trim((string)($d['size'] ?? '')) === '';
-            case 'bus':    return trim((string)($d['bus'] ?? '')) === '';
+            case 'media':  return trim((string)($d['type'] ?? '') . (string)($d['bus'] ?? '') . (string)($d['size'] ?? '')) === '';
             case 'cls':    return trim((string)($d['cls'] ?? '')) === '';
             case 'method': return trim((string)($d['method'] ?? '')) === '' && trim((string)($d['cls'] ?? '')) === '';
             case 'passes': return trim((string)($d['passes'] ?? '')) === '';
@@ -448,7 +628,6 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 return $p !== 'yes';
             }
             case 'status': return trim((string)($d['status'] ?? '')) === '';
-            case 'ts':     return trim((string)($d['ts'] ?? '')) === '';
         }
         return false;
     };
@@ -479,37 +658,26 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         if ($allEmpty) unset($cols[$key]);
     }
 
-    // Scale widths to fill the page.
-    $total = 0.0;
-    foreach ($cols as $c) { $total += $c['w']; }
+    // Fixed-vocabulary columns keep their natural width; the flexible columns
+    // share the remainder, and if that cannot fit the least claim-critical
+    // columns are dropped rather than letting short tokens wrap (see
+    // cert_table_layout).
     $usable = $W - 2 * $x;
-    foreach ($cols as $k => $c) { $cols[$k]['w'] = round($c['w'] * $usable / $total, 2); }
-
-    // Keep fixed-vocabulary columns on one line.
-    $minOneLine = ['status' => 'COMPLETED', 'ts' => '2026-09-21 10:30', 'tool' => 'tScrub v1.11.15', 'cls' => 'SANITISATION'];
-    foreach ($minOneLine as $key => $sample) {
-        if (!isset($cols[$key])) continue;
-        $need = $pdf->getStringWidth($sample, 'helvetica', '', 7.5) + 3.2;
-        if ($cols[$key]['w'] >= $need) continue;
-        $deficit = $need - $cols[$key]['w'];
-        $cols[$key]['w'] = round($need, 2);
-        $widestKey = null; $widestW = 0.0;
-        foreach ($cols as $k => $c) {
-            if ($k === 'status' || $k === 'ts' || $k === '#') continue;
-            if ($c['w'] > $widestW) { $widestW = $c['w']; $widestKey = $k; }
-        }
-        if ($widestKey !== null) $cols[$widestKey]['w'] = round(max(1.0, $cols[$widestKey]['w'] - $deficit), 2);
-    }
-
-    $keys = array_keys($cols);
+    [$cols, $keys] = cert_table_layout($pdf, $cols, $usable);
     $nCols = count($cols);
     $pdf->setCellPaddings(1.1, 0.6, 1.1, 0.6);
 
     $drawHeader = function (float $y) use ($pdf, $cols, $keys, $nCols, $x) {
         $pdf->SetFont('helvetica', 'B', 7.5);
+        // Headers break only at word boundaries ("Drive\nmodel"), never mid-word
+        // ("Pass\nes") — cert_wrap_label measures both halves.
+        $labels = [];
+        foreach ($keys as $key) {
+            $labels[$key] = cert_wrap_label($pdf, $cols[$key]['label'], $cols[$key]['w'] - 1.2, 7.5, true);
+        }
         $headerH = 0.0;
         foreach ($keys as $key) {
-            $h = $pdf->getStringHeight($cols[$key]['w'] - 1.2, $cols[$key]['label'], false, true);
+            $h = $pdf->getStringHeight($cols[$key]['w'] - 1.2, $labels[$key], false, true);
             if ($h > $headerH) $headerH = $h;
         }
         $headerH += 0.8;
@@ -526,7 +694,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $i = 0;
         foreach ($keys as $key) {
             $i++;
-            $pdf->MultiCell($cols[$key]['w'], $headerH, $cols[$key]['label'], 0, 'C', false, ($i === $nCols) ? 1 : 0, '', '', true);
+            $pdf->MultiCell($cols[$key]['w'], $headerH, $labels[$key], 0, 'C', false, ($i === $nCols) ? 1 : 0, '', '', true);
         }
         $pdf->SetTextColor(11, 18, 32);
         $pdf->SetFont('helvetica', '', 7.5);
@@ -539,6 +707,14 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         $idx++;
         $row = [];
         foreach ($keys as $key) { $row[] = $cell($d, $key, $idx); }
+        // Free-text cells are pre-wrapped at measured word boundaries so long
+        // serials break at their hyphens and never tear a neighbouring fixed
+        // token across lines.
+        foreach ($keys as $ci => $key) {
+            if (in_array($key, cert_table_wrap_keys(), true)) {
+                $row[$ci] = cert_wrap_text($pdf, (string)$row[$ci], $cols[$key]['w'] - 1.2);
+            }
+        }
 
         $required = 5.0;
         foreach ($keys as $ci => $key) {

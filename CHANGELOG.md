@@ -31,6 +31,20 @@ and this project uses date-based versioning (`v1.x`).
 
 ### Fixed
 
+- **Certificate DEVICE DETAILS table wrapped mid-token.** The dense
+  one-row-per-drive table scaled 17 columns to the page, tearing short fixed
+  values across lines: headers read `Typ/e`, `Pass/es`, `Verificatio/n`,
+  `Origin/d/evice`, row numbers `10` became `1/0`, `SATA` became `SAT/A`,
+  serials split mid-token and the per-drive Erased date wrapped. The table now
+  merges Type · Bus · Size into one compact `Media` column and drops the Erased
+  column entirely — the certificate's issued-at line already covers timing and
+  each drive's timestamp stays in the JSON-LD sidecar. Fixed-vocabulary columns
+  are guaranteed the measured width of their longest value (a token like `SATA`,
+  `10` or `EXFAT` can no longer wrap), free-text cells pre-wrap at measured word
+  boundaries (long serials break at their hyphens), and headers break only
+  between words. When a cramped page cannot hold every column, the least
+  claim-critical ones are dropped in a fixed order instead of letting tokens
+  tear. (Plan: `research/cert-device-table-layout/README.md`.)
 - **Devices → Add did nothing when saved.** The new-device form has no media
   block (devices are recorded on the Devices tab, media on the Media tab), but
   `save()` still called `collect()` on the missing block and threw before any
