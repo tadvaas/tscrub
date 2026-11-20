@@ -381,6 +381,8 @@ t_check('the badge is drawn as a chip inside the method cell',
     strpos($src, "cert_bench_badge_chip(\$pdf, \$cellX, \$cellY, \$required, \$cols[\$key]['w'], (string)\$row[\$ci]);") !== false);
 t_check('the badge chip is right-aligned within the method cell',
     strpos($src, '$x + $colW - 1.2 - $bw') !== false);
+t_check('the badge label is drawn at the sized bold 6pt font',
+    substr_count($src, "SetFont('helvetica', 'B', 6.0);") >= 2);
 t_check('the table cell closure receives the asset-name map',
     strpos($src, 'function (array $d, string $key, int $idx) use ($assetNames): string') !== false);
 t_check('header cells use each column\'s own alignment, like its rows',

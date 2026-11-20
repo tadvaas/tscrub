@@ -407,6 +407,10 @@ function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, floa
     $by = $y + 0.6 + $th + 0.8;
     // Safety: never below the cell bottom.
     $by = min($by, $y + $rowH - $bh - 0.6);
+    // Restore the badge font before drawing: the chip was sized for the bold
+    // 6 pt label, so the text MUST be drawn at that same size or it overflows
+    // the rounded rect.
+    $pdf->SetFont('helvetica', 'B', 6.0);
     $pdf->SetFillColor(254, 243, 199);
     $pdf->SetDrawColor(217, 119, 6);
     $pdf->RoundedRect($bx, $by, $bw, $bh, 0.9, '1111', 'DF');
