@@ -335,8 +335,8 @@ t_check('the Machine SN cell shows the declared origin serial for a bench row',
 t_check('the Machine SN cell falls back when no origin is declared',
     cert_machine_sn_cell(['host_processing' => 1]) === '—');
 t_check('the bench badge wording', cert_bench_badge() === 'Bench-erased');
-t_check('the Method cell gains the badge on a bench row',
-    cert_method_cell($benchDrive) === "ATA Enhanced Secure Erase\nBench-erased",
+t_check('the Method cell text stays plain (the badge is a drawn chip)',
+    cert_method_cell($benchDrive) === 'ATA Enhanced Secure Erase',
     cert_method_cell($benchDrive));
 t_check('the Method cell is unchanged on an ordinary row',
     cert_method_cell($normal) === 'ATA Enhanced Secure Erase');
@@ -377,8 +377,8 @@ t_check('the table prints the bench footnote',
     strpos($src, 'cert_bench_footnote()') !== false);
 t_check('the method cell renders through the badge helper',
     strpos($src, "case 'method': return cert_method_cell(\$d);") !== false);
-t_check('a bench method cell is never re-wrapped',
-    strpos($src, "\$key === 'method' && !empty(\$d['host_processing'])") !== false);
+t_check('the badge is drawn as a chip inside the method cell',
+    strpos($src, "cert_bench_badge_chip(\$pdf, \$cellX, \$cellY, \$required, \$cols[\$key]['w']);") !== false);
 t_check('the table cell closure receives the asset-name map',
     strpos($src, 'function (array $d, string $key, int $idx) use ($assetNames): string') !== false);
 t_check('header cells use each column\'s own alignment, like its rows',

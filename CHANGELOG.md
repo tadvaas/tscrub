@@ -30,8 +30,8 @@ and this project uses date-based versioning (`v1.x`).
   list is still refused while the record has media).
 - **Bench-erased media is stated without naming the bench.** A certificate for
   media sanitised on a marked processing host no longer reveals the bench unit.
-  Each such row's Method cell gains a `Bench-erased` badge line beneath the
-  method, and the Machine / Machine SN cells carry the declared/attested
+  Each such row's Method cell gains a small amber `BENCH-ERASED` chip beneath
+  the method, and the Machine / Machine SN cells carry the declared/attested
   origin data instead of the bench's identity — the asset's name (or
   `Declared origin` / `Attested origin` when no name is on file) and its serial,
   matching the Origin device column. A footnote states that bench details are

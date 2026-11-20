@@ -379,12 +379,39 @@ function cert_tag_bench_drives(array $drives, array $benchHostKeys): array {
 }
 
 /**
- * Method cell: a bench-erased medium keeps its method and gains a small
- * 'Bench-erased' badge line beneath it.
+ * Method cell text. A bench-erased medium keeps its method unchanged; the
+ * 'Bench-erased' indication is drawn as a chip below it (see the row loop).
  */
 function cert_method_cell(array $d): string {
-    $m = cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
-    return !empty($d['host_processing']) ? $m . "\n" . cert_bench_badge() : $m;
+    return cert_method_short((string)($d['method'] ?? ''), (string)($d['cls'] ?? ''), (string)($d['status'] ?? ''));
+}
+
+/**
+ * Draw the little 'BENCH-ERASED' chip inside a method cell. The chip is a
+ * filled rounded rect in the bench amber, so it reads as a badge rather than
+ * body text.
+ */
+function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, float $colW): void {
+    $label = strtoupper(cert_bench_badge());
+    $pdf->SetFont('helvetica', 'B', 6.0);
+    $tw = $pdf->getStringWidth($label, 'helvetica', 'B', 6.0);
+    $bw = $tw + 2.6;
+    $bh = 3.4;
+    $bx = $x + 1.2;
+    $by = $y + $rowH - $bh - 0.6;
+    if ($bx + $bw > $x + $colW - 1.2) {
+        $bx = max($x + 1.2, $x + $colW - 1.2 - $bw);
+    }
+    $pdf->SetFillColor(254, 243, 199);
+    $pdf->SetDrawColor(217, 119, 6);
+    $pdf->RoundedRect($bx, $by, $bw, $bh, 0.9, '1111', 'DF');
+    $pdf->SetTextColor(180, 83, 9);
+    $pdf->SetXY($bx, $by + 0.5);
+    $pdf->Cell($bw, 2.4, $label, 0, 0, 'C');
+    // restore the table body state for the next cell
+    $pdf->SetFont('helvetica', '', 7.5);
+    $pdf->SetTextColor(11, 18, 32);
+    $pdf->SetDrawColor(0, 0, 0);
 }
 
 /** The declared/attested origin label shown for a bench row with no asset name. */
@@ -832,10 +859,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
         // token across lines. The width is the PADDED inner width — the exact
         // width MultiCell draws with — so a packed line is never re-wrapped.
         foreach ($keys as $ci => $key) {
-            // A bench-erased method cell carries its own badge line break —
-            // re-wrapping it could tear the badge.
-            if (in_array($key, cert_table_wrap_keys(), true)
-                && !($key === 'method' && !empty($d['host_processing']))) {
+            if (in_array($key, cert_table_wrap_keys(), true)) {
                 $row[$ci] = cert_wrap_text($pdf, (string)$row[$ci], cert_table_inner_w($cols[$key]['w']));
             }
         }
@@ -861,6 +885,18 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 $pdf->SetTextColor($sc[0], $sc[1], $sc[2]);
             } else {
                 $pdf->SetTextColor(11, 18, 32);
+            }
+            if ($key === 'method' && !empty($d['host_processing'])) {
+                // Bench-erased: method text at the top of the cell, with the
+                // little badge chip beneath it — not a plain text line.
+                $cellX = $pdf->GetX();
+                $cellY = $pdf->GetY();
+                $pdf->MultiCell($cols[$key]['w'], $required, (string)$row[$ci], 'LTR', $cols[$key]['align'], false, ($ci === $nCols - 1) ? 1 : 0, '', '', true, 0, 'T');
+                $afterX = $pdf->GetX();
+                $afterY = $pdf->GetY();
+                cert_bench_badge_chip($pdf, $cellX, $cellY, $required, $cols[$key]['w']);
+                $pdf->SetXY($afterX, $afterY);
+                continue;
             }
             $pdf->MultiCell($cols[$key]['w'], $required, (string)$row[$ci], 'LTR', $cols[$key]['align'], false, ($ci === $nCols - 1) ? 1 : 0, '', '', true);
         }
