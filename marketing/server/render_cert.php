@@ -387,18 +387,24 @@ function cert_method_cell(array $d): string {
 }
 
 /**
- * Draw the little 'BENCH-ERASED' chip inside a method cell. The chip is a
- * filled rounded rect in the bench amber, so it reads as a badge rather than
- * body text.
+ * Draw the little 'BENCH-ERASED' chip inside a method cell, snug under the
+ * method text (not pinned to the cell bottom). The chip is a filled rounded
+ * rect in the bench amber, so it reads as a badge rather than body text.
  */
-function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, float $colW): void {
+function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, float $colW, string $methodText): void {
     $label = strtoupper(cert_bench_badge());
     $pdf->SetFont('helvetica', 'B', 6.0);
     $tw = $pdf->getStringWidth($label, 'helvetica', 'B', 6.0);
     $bw = $tw + 2.6;
     $bh = 3.4;
     $bx = $x + 1.2;
-    $by = $y + $rowH - $bh - 0.6;
+    // The method text is top-aligned (0.6 mm top pad); sit the chip directly
+    // beneath its measured text block.
+    $pdf->SetFont('helvetica', '', 7.5);
+    $th = $pdf->getStringHeight($colW - 2 * cert_table_pad_lr(), $methodText, false, false);
+    $by = $y + 0.6 + $th + 0.8;
+    // Safety: never below the cell bottom.
+    $by = min($by, $y + $rowH - $bh - 0.6);
     if ($bx + $bw > $x + $colW - 1.2) {
         $bx = max($x + 1.2, $x + $colW - 1.2 - $bw);
     }
@@ -894,7 +900,7 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 $pdf->MultiCell($cols[$key]['w'], $required, (string)$row[$ci], 'LTR', $cols[$key]['align'], false, ($ci === $nCols - 1) ? 1 : 0, '', '', true, 0, 'T');
                 $afterX = $pdf->GetX();
                 $afterY = $pdf->GetY();
-                cert_bench_badge_chip($pdf, $cellX, $cellY, $required, $cols[$key]['w']);
+                cert_bench_badge_chip($pdf, $cellX, $cellY, $required, $cols[$key]['w'], (string)$row[$ci]);
                 $pdf->SetXY($afterX, $afterY);
                 continue;
             }
