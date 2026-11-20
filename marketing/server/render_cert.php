@@ -387,9 +387,10 @@ function cert_method_cell(array $d): string {
 }
 
 /**
- * Draw the little 'BENCH-ERASED' chip inside a method cell, snug under the
- * method text (not pinned to the cell bottom). The chip is a filled rounded
- * rect in the bench amber, so it reads as a badge rather than body text.
+ * Draw the little 'BENCH-ERASED' chip inside a method cell, on its own line
+ * under the method text and RIGHT-aligned within the cell. The chip is a filled
+ * rounded rect in the bench amber, so it reads as a badge rather than body
+ * text.
  */
 function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, float $colW, string $methodText): void {
     $label = strtoupper(cert_bench_badge());
@@ -397,7 +398,8 @@ function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, floa
     $tw = $pdf->getStringWidth($label, 'helvetica', 'B', 6.0);
     $bw = $tw + 2.6;
     $bh = 3.4;
-    $bx = $x + 1.2;
+    // Right-aligned in the cell (clipped to its left edge if ever too wide).
+    $bx = max($x + 1.2, $x + $colW - 1.2 - $bw);
     // The method text is top-aligned (0.6 mm top pad); sit the chip directly
     // beneath its measured text block.
     $pdf->SetFont('helvetica', '', 7.5);
@@ -405,9 +407,6 @@ function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, floa
     $by = $y + 0.6 + $th + 0.8;
     // Safety: never below the cell bottom.
     $by = min($by, $y + $rowH - $bh - 0.6);
-    if ($bx + $bw > $x + $colW - 1.2) {
-        $bx = max($x + 1.2, $x + $colW - 1.2 - $bw);
-    }
     $pdf->SetFillColor(254, 243, 199);
     $pdf->SetDrawColor(217, 119, 6);
     $pdf->RoundedRect($bx, $by, $bw, $bh, 0.9, '1111', 'DF');
