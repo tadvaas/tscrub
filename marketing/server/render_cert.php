@@ -387,26 +387,31 @@ function cert_method_cell(array $d): string {
 }
 
 /**
- * Draw the little 'BENCH-ERASED' chip inside a method cell, on its own line
- * under the method text and RIGHT-aligned within the cell. The chip is a filled
- * rounded rect in the bench amber, so it reads as a badge rather than body
- * text.
+ * Draw a bench-erased method cell: the method text (left-aligned) and its
+ * 'BENCH-ERASED' chip (right-aligned) as a group vertically centred in the
+ * cell. The caller draws the cell frame first, so only the content is drawn
+ * here.
  */
-function cert_bench_badge_chip(TCPDF $pdf, float $x, float $y, float $rowH, float $colW, string $methodText): void {
+function cert_bench_method_badge(TCPDF $pdf, float $x, float $y, float $rowH, float $colW, string $methodText): void {
     $label = strtoupper(cert_bench_badge());
+    $pdf->SetFont('helvetica', '', 7.5);
+    $th = $pdf->getStringHeight($colW - 2 * cert_table_pad_lr(), $methodText, false, false);
     $pdf->SetFont('helvetica', 'B', 6.0);
     $tw = $pdf->getStringWidth($label, 'helvetica', 'B', 6.0);
     $bw = $tw + 2.6;
     $bh = 3.4;
-    // Right-aligned in the cell (clipped to its left edge if ever too wide).
-    $bx = max($x + 1.2, $x + $colW - 1.2 - $bw);
-    // The method text is top-aligned (0.6 mm top pad); sit the chip directly
-    // beneath its measured text block.
+    $gap = 0.8;
+    // Vertically centre the text + chip group inside the cell.
+    $groupH = $th + $gap + $bh;
+    $top = $y + max(0.6, ($rowH - $groupH) / 2);
+    // Method text, left-aligned like the column.
     $pdf->SetFont('helvetica', '', 7.5);
-    $th = $pdf->getStringHeight($colW - 2 * cert_table_pad_lr(), $methodText, false, false);
-    $by = $y + 0.6 + $th + 0.8;
-    // Safety: never below the cell bottom.
-    $by = min($by, $y + $rowH - $bh - 0.6);
+    $pdf->SetTextColor(11, 18, 32);
+    $pdf->SetXY($x + cert_table_pad_lr(), $top);
+    $pdf->MultiCell($colW - 2 * cert_table_pad_lr(), $th, $methodText, 0, 'L', false, 0);
+    // Right-aligned chip beneath the text.
+    $bx = max($x + cert_table_pad_lr(), $x + $colW - cert_table_pad_lr() - $bw);
+    $by = $top + $th + $gap;
     // Restore the badge font before drawing: the chip was sized for the bold
     // 6 pt label, so the text MUST be drawn at that same size or it overflows
     // the rounded rect.
@@ -896,14 +901,15 @@ function cert_render_table(TCPDF $pdf, float $x, float $W, float $H, string $cer
                 $pdf->SetTextColor(11, 18, 32);
             }
             if ($key === 'method' && !empty($d['host_processing'])) {
-                // Bench-erased: method text at the top of the cell, with the
-                // little badge chip beneath it — not a plain text line.
+                // Bench-erased: draw the cell frame first, then the method text
+                // and its badge chip as a vertically centred group (the tall
+                // media cell would otherwise leave them hugging the top).
                 $cellX = $pdf->GetX();
                 $cellY = $pdf->GetY();
-                $pdf->MultiCell($cols[$key]['w'], $required, (string)$row[$ci], 'LTR', $cols[$key]['align'], false, ($ci === $nCols - 1) ? 1 : 0, '', '', true, 0, 'T');
+                $pdf->MultiCell($cols[$key]['w'], $required, '', 'LTR', $cols[$key]['align'], false, ($ci === $nCols - 1) ? 1 : 0, '', '', true);
                 $afterX = $pdf->GetX();
                 $afterY = $pdf->GetY();
-                cert_bench_badge_chip($pdf, $cellX, $cellY, $required, $cols[$key]['w'], (string)$row[$ci]);
+                cert_bench_method_badge($pdf, $cellX, $cellY, $required, $cols[$key]['w'], (string)$row[$ci]);
                 $pdf->SetXY($afterX, $afterY);
                 continue;
             }

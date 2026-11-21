@@ -378,9 +378,11 @@ t_check('the table prints the bench footnote',
 t_check('the method cell renders through the badge helper',
     strpos($src, "case 'method': return cert_method_cell(\$d);") !== false);
 t_check('the badge is drawn as a chip inside the method cell',
-    strpos($src, "cert_bench_badge_chip(\$pdf, \$cellX, \$cellY, \$required, \$cols[\$key]['w'], (string)\$row[\$ci]);") !== false);
+    strpos($src, "cert_bench_method_badge(\$pdf, \$cellX, \$cellY, \$required, \$cols[\$key]['w'], (string)\$row[\$ci]);") !== false);
 t_check('the badge chip is right-aligned within the method cell',
-    strpos($src, '$x + $colW - 1.2 - $bw') !== false);
+    strpos($src, '$x + $colW - cert_table_pad_lr() - $bw') !== false);
+t_check('the method text and badge are vertically centred as a group',
+    strpos($src, '($rowH - $groupH) / 2') !== false);
 t_check('the badge label is drawn at the sized bold 6pt font',
     substr_count($src, "SetFont('helvetica', 'B', 6.0);") >= 2);
 t_check('the table cell closure receives the asset-name map',
