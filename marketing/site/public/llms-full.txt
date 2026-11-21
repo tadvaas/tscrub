@@ -141,6 +141,7 @@ Guides at https://tscrub.com/resources:
   - **Open source vs commercial** (https://tscrub.com/resources/open-source-vs-commercial) — transparency vs certification.
   - **ITAD & refurbishment** (https://tscrub.com/resources/itad-guide) — a repeatable, certifiable wipe process.
   - **Data centre decommissioning** (https://tscrub.com/resources/data-centre-decommissioning) — PXE fleet-wipe checklist.
+  - **Chromebook erasure** (https://tscrub.com/resources/chromebook-erasure) — ARM vs x86, how to factory reset each, and recording the reset in tScrub as an operator attestation.
 
 ## Contact
 

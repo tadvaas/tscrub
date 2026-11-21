@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="/logo.png?v=2" />
+  <title>How to erase a Chromebook | tScrub</title>
+  <link rel="canonical" href="https://tscrub.com/resources/chromebook-erasure" />
+  <meta name="description" content="Chromebooks keep their storage soldered to the board and locked behind Google's bootloader. Here's the ARM vs x86 difference, how to factory reset each, and how to record it in tScrub." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-white dark:bg-ink-900 text-slate-800 dark:text-slate-200">
+
+  <!-- ============ NAVBAR (absolute links — required for /resources/* pages) ============ -->
+  <nav class="sticky top-0 z-50 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-slate-200 dark:border-ink-700">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <img src="/logo.png?v=2" alt="tScrub" class="h-8 w-8" />
+        <span class="text-xl font-extrabold tracking-tight text-ink-900 dark:text-white">tScrub</span>
+      </a>
+      <button data-collapse-toggle="navbar-cta" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 md:hidden" aria-controls="navbar-cta" aria-expanded="false">
+        <span class="sr-only">Open menu</span>
+        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      </button>
+      <div id="navbar-cta" class="hidden w-full items-center justify-between md:order-1 md:flex md:w-auto">
+        <ul class="mt-4 flex flex-col gap-1 font-medium md:mt-0 md:flex-row md:items-center md:gap-1">
+          <li><a href="/docs" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Docs</a></li>
+          <li><a href="/resources" class="block rounded-lg px-3 py-2 text-sm font-semibold text-ink-900 dark:text-white">Resources</a></li>
+          <li><a href="/compliance" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Compliance</a></li>
+          <li><a href="/pricing" class="block rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-white">Pricing</a></li>
+        </ul>
+        <a href="/dashboard" id="nav-cta" class="mt-4 inline-flex items-center rounded-lg border border-brand-600 dark:border-brand-500 bg-white dark:bg-ink-900 px-4 py-2 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 md:mt-0 md:ml-3">Dashboard</a>
+        <a href="/download" class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 md:mt-0 md:ml-3">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content" tabindex="-1">
+
+  <!-- ============ BREADCRUMB ============ -->
+  <nav class="mx-auto max-w-3xl px-4 pt-8" aria-label="Breadcrumb">
+    <ol class="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+      <li><a href="/" class="hover:text-brand-600 dark:hover:text-brand-400">Home</a></li>
+      <li aria-hidden="true">/</li>
+      <li><a href="/resources" class="hover:text-brand-600 dark:hover:text-brand-400">Resources</a></li>
+      <li aria-hidden="true">/</li>
+      <li class="text-slate-700 dark:text-slate-300">Chromebook erasure</li>
+    </ol>
+  </nav>
+
+  <!-- ============ ARTICLE ============ -->
+  <article class="mx-auto max-w-3xl px-4 py-10">
+    <h1 class="text-4xl font-extrabold tracking-tight text-ink-900 dark:text-white">How to erase a Chromebook</h1>
+    <p class="mt-3 text-lg leading-relaxed text-slate-600 dark:text-slate-400">A Chromebook's storage is soldered to the board and locked behind Google's bootloader, so you can't boot a wiper the way you would on a PC. You reset ChromeOS, then record that reset where the audit trail lives.</p>
+
+    <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+      <span class="inline-flex items-center gap-1.5">
+        <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white">t</span>
+        tScrub Team
+      </span>
+      <span aria-hidden="true">·</span>
+      <span>Last updated 21 Nov 2026</span>
+      <span aria-hidden="true">·</span>
+      <span>5 min read</span>
+    </div>
+
+    <div class="prose prose-slate dark:prose-invert prose-lg max-w-none mt-8 prose-headings:text-ink-900 dark:prose-headings:text-white prose-a:text-brand-600 dark:prose-a:text-brand-400 hover:prose-a:text-brand-700 dark:hover:prose-a:text-brand-400">
+      <p>Chromebooks are laptops and tablets running ChromeOS, and almost all of them keep their storage as a <strong>soldered eMMC</strong> chip (newer Intel models use NVMe). There is no drive to pull and no BIOS that boots whatever you point it at — so erasing one is a two-step job: a <strong>factory reset on the device</strong>, and an <strong>attestation record in tScrub</strong>. Whether the appliance could ever boot the unit is decided by the processor architecture, and the two kinds are told apart the same way.</p>
+
+      <h2>ARM or x86 — and why it matters</h2>
+      <p>At the white “OS verification is off” screen, the bottom edge prints a <strong>hardware ID</strong> string. The prefix names the platform family:</p>
+      <div class="overflow-x-auto">
+        <table>
+          <thead>
+            <tr><th>Hardware ID</th><th>Platform</th><th>Can tScrub boot it?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KIP…</code> and other Intel IDs</td><td>Intel x86</td><td>Yes, via Developer Mode + <kbd>Ctrl</kbd>+<kbd>L</kbd> (SeaBIOS) — but the soldered eMMC is not yet discovered by the appliance, so the reset-and-attest workflow below is the supported path today.</td></tr>
+            <tr><td><code>BLAZE…</code> (Tegra K1) and other ARM IDs</td><td>ARM</td><td>No — ARM Chromebooks have no legacy BIOS; <kbd>Ctrl</kbd>+<kbd>U</kbd> expects a ChromeOS-format image tScrub does not ship.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>For either kind the supported workflow is the same: <strong>reset ChromeOS, then record the unit as an operator attestation.</strong> tScrub does not yet sanitise a Chromebook's eMMC directly on either architecture, so a Chromebook is processed as a device the appliance cannot wipe.</p>
+
+      <h2>How to factory reset a Chromebook</h2>
+      <p>A ChromeOS factory reset wipes local user data and restores the device to its out-of-box state. It does <strong>not</strong> need Developer Mode. Two ways, in order of preference:</p>
+      <ol>
+        <li><strong>Powerwash, from ChromeOS.</strong> Sign in, then <em>Settings → Advanced → Reset settings → Powerwash → Restart</em>. If the device will not sign in, press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> on the sign-in screen instead.</li>
+        <li><strong>Recovery reset, when it will not boot.</strong> Hold <kbd>Esc</kbd>+<kbd>Refresh</kbd> and press <kbd>Power</kbd> to reach the recovery screen, then follow the prompts with a ChromeOS recovery USB (made with the Chromebook Recovery Utility on any computer). This reinstalls ChromeOS and wipes the device.</li>
+      </ol>
+
+      <h3>Enterprise-enrolled units first</h3>
+      <p>A Powerwash does <strong>not</strong> un-manage an enterprise-enrolled Chromebook — after reset the device will force re-enrolment and lock again. If the unit is leaving your Google Workspace, deprovision it first: <em>Google Admin console → Devices → Chrome → select the device → Deprovision</em>. Skip the reset-and-attest flow until that is done, or the unit will not stay reset.</p>
+
+      <h2>Recording the reset in tScrub</h2>
+      <ol>
+        <li><strong>Reset the device</strong> using one of the methods above, and note the serial (chassis label, or the bottom of the sign-in / recovery screen).</li>
+        <li><strong>Register the device.</strong> <strong>Devices → Add</strong> — enter the job's <strong>Chain of Custody ID</strong>, the serial, model and a note. This is a register entry only, so the device is on file and can carry the media record. A device that never booted tScrub has no row of its own until you add it.</li>
+        <li><strong>Record the storage as an attested item.</strong> On the <a href="/dashboard/drives">Media</a> page, add a record with media type <strong>eMMC/UFS (integrated)</strong>, the device's make, model and serial, the reason <strong>Not supported by tScrub (cannot be booted)</strong>, and the method <strong>Factory reset</strong>. The category is <strong>Laptop</strong> (or <strong>Tablet</strong> for a Chromebook tablet).</li>
+        <li><strong>Review the outcome.</strong> A <em>Factory reset</em> method records the device as <strong>retained</strong> — data wiped, hardware kept for reuse — never as destroyed. It appears on the certificate in the attested section, every line qualified <em>operator-attested — not instrument-verified</em>, and it is never counted as sanitised.</li>
+      </ol>
+
+      <h2>What the record does and does not claim</h2>
+      <p>A factory reset destroys the user's encryption keys and local data, but it does not overwrite or purge the eMMC media. That is an honest difference, and tScrub records it as one: the method is <em>Factory reset</em>, the disposition is <em>retained</em>, and no NIST level, wipe result or SMART evidence is attached — there is no scan data behind the record. If a customer needs instrument-verified sanitisation of a Chromebook's storage, it is not available from tScrub today.</p>
+
+      <h2>FAQ</h2>
+      <h3>Does a factory reset equal NIST Clear or Purge?</h3>
+      <p>No. A factory reset destroys encryption keys and user data but does not sanitise the media. That is why tScrub records it as an operator attestation with disposition <em>retained</em>, never as a wipe.</p>
+      <h3>Can tScrub boot an Intel Chromebook?</h3>
+      <p>Technically yes — Developer Mode plus <kbd>Ctrl</kbd>+<kbd>L</kbd> boots the appliance through SeaBIOS. But the soldered eMMC is not yet discovered, so it cannot be wiped in place. Use the reset-and-attest flow.</p>
+      <h3>What about ARM Chromebooks?</h3>
+      <p>They have no legacy BIOS and cannot boot tScrub at all. The factory reset plus attestation is the only route, and it works on every model.</p>
+    </div>
+
+    <!-- ============ RELATED ============ -->
+    <div class="mt-12 border-t border-slate-200 dark:border-ink-700 pt-8">
+      <h2 class="text-lg font-bold text-ink-900 dark:text-white">Keep reading</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+        <a href="/resources/drive-types" class="rounded-xl border border-slate-200 dark:border-ink-700 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900 dark:text-white">Drive types</span><span class="mt-1 block text-slate-600 dark:text-slate-400">The right method for NVMe, SSD, HDD, SAS &amp; LTO tape.</span></a>
+        <a href="/resources/wipe-methods" class="rounded-xl border border-slate-200 dark:border-ink-700 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900 dark:text-white">Wipe methods</span><span class="mt-1 block text-slate-600 dark:text-slate-400">Secure Erase, sanitise, crypto &amp; overwrite.</span></a>
+        <a href="/resources/certificates" class="rounded-xl border border-slate-200 dark:border-ink-700 p-4 text-sm hover:border-brand-300"><span class="font-semibold text-ink-900 dark:text-white">Certificates &amp; chain of custody</span><span class="mt-1 block text-slate-600 dark:text-slate-400">What a certificate of destruction must include.</span></a>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ CTA ============ -->
+  <section class="relative overflow-hidden bg-gradient-to-br from-brand-600 to-brand-700 text-white">
+    <div class="pointer-events-none absolute inset-0 bg-grid-ink"></div>
+    <div class="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-16 text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Prove every wipe with tScrub</h2>
+      <p class="max-w-xl text-brand-50">Signed reports, SMART capture, and a printable Certificate of Destruction — from one auditable, bootable appliance.</p>
+      <a href="/download" class="inline-flex items-center rounded-lg bg-white dark:bg-ink-900 px-5 py-3 text-sm font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30">Get tScrub</a>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="bg-ink-900 text-slate-400 dark:text-slate-500">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm md:flex-row">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 font-mono text-xs font-bold text-white">t</span>
+        <span class="font-semibold text-white">tScrub</span>
+      </div>
+      <ul class="flex flex-wrap justify-center gap-6">
+        <li><a href="/compliance" class="hover:text-white">Compliance</a></li>
+        <li><a href="/pricing" class="hover:text-white">Pricing</a></li>
+        <li><a href="/docs" class="hover:text-white">Docs</a></li>
+        <li><a href="/resources" class="hover:text-white">Resources</a></li>
+        <li><a href="/privacy" class="hover:text-white">Privacy</a></li>
+        <li><a href="/terms" class="hover:text-white">Terms</a></li>
+      </ul>
+      <p class="text-xs">© 2026 tScrub. Made in England.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -51,6 +51,7 @@
 - [Open source vs commercial](https://tscrub.com/resources/open-source-vs-commercial)
 - [ITAD & refurbishment](https://tscrub.com/resources/itad-guide)
 - [Data centre decommissioning](https://tscrub.com/resources/data-centre-decommissioning)
+- [Chromebook erasure](https://tscrub.com/resources/chromebook-erasure): ARM vs x86, how to factory reset each, and recording the reset in tScrub.
 
 ## Legal
 

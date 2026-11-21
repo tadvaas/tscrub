@@ -52,6 +52,7 @@ const pages = {
   'resources-open-source-vs-commercial': 'resources/open-source-vs-commercial.html',
   'resources-itad-guide': 'resources/itad-guide.html',
   'resources-data-centre-decommissioning': 'resources/data-centre-decommissioning.html',
+  'resources-chromebook-erasure': 'resources/chromebook-erasure.html',
   certify: 'certify.html',
   login: 'login.html',
   register: 'register.html',
