@@ -177,6 +177,27 @@ class tScrubPDF extends TCPDF {
         parent::__construct('L', 'mm', 'A4', true, 'UTF-8', false);
         $this->tcpdflink = false; // remove the hidden "Powered by TCPDF" link
     }
+
+    /**
+     * Keep the %%EOF trailing newline inside the signed content.
+     *
+     * TCPDF's stock Output() strips the final newline after %%EOF before it
+     * signs, so a signed PDF ends with a bare "%%EOF". PDFium (used by
+     * LibreOffice's PDF signature check) only records a document's trailer end
+     * when %%EOF is followed by an end-of-line, so LibreOffice reports such
+     * files as "only partially signed" — while Adobe and poppler still say
+     * "valid / total document signed". Close first and pad one extra newline:
+     * TCPDF's strip then leaves exactly one, and the ByteRange is computed over
+     * that same buffer, so the newline is covered by the signature.
+     */
+    public function Output($name = 'doc.pdf', $dest = 'I') {
+        if ($this->sign && $this->state < 3) {
+            $this->Close();                 // buffer now ends with "%%EOF\n"
+            $this->buffer .= "\n";          // "%%EOF\n\n" → strip leaves "%%EOF\n"
+            $this->bufferlen = strlen($this->buffer);
+        }
+        return parent::Output($name, $dest);
+    }
 }
 
 /**

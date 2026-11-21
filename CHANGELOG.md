@@ -77,6 +77,16 @@ and this project uses date-based versioning (`v1.x`).
   and the update route only refuses an empty media list when the stored record
   actually has media — so a media-less record stays editable while a record
   with media can never be silently emptied.
+- **Signed PDFs read as "only partially signed" in LibreOffice.** TCPDF's stock
+  `Output()` stripped the final newline after `%%EOF` before signing, so every
+  signed certificate, diagnostic and drive-report PDF ended with a bare
+  `%%EOF`. LibreOffice (via PDFium) only records a document's trailer end when
+  `%%EOF` is followed by an end-of-line, so its signature check could not match
+  the signature's byte range to any trailer end and reported the document as
+  partially signed — while Adobe and poppler still validated the same bytes as
+  "total document signed". The vendored TCPDF now keeps exactly one trailing
+  newline inside the signed content, so LibreOffice sees the signature cover
+  the whole file and all three PDFs validate everywhere.
 
 ## [v1.12.18] - 2026-11-14
 

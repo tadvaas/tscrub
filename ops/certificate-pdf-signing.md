@@ -51,6 +51,24 @@ panel. Re-run only if the files are missing (see Rotation below).
 - TCPDF embeds the signature block in the PDF; PDF readers show the document as
   signed by the certificate's subject.
 
+## Trailing-newline requirement (LibreOffice)
+
+TCPDF's stock `Output()` strips the final newline after `%%EOF` before signing,
+leaving signed files ending with a bare `%%EOF`. PDFium (used by LibreOffice's
+PDF signature check) only records a "trailer end" when `%%EOF` is followed by
+`\r`/`\n`, so LibreOffice reported those files as **"only partially signed"**
+while Adobe and poppler (`pdfsig`) still said "valid / total document signed".
+
+Fix: `tScrubPDF` (the TCPDF subclass in `render_cert.php`) overrides `Output()`
+to close the document first and pad one extra newline into the buffer, so
+TCPDF's strip leaves exactly one trailing newline *inside* the signed content —
+and the ByteRange, computed over that same buffer, covers it. All three PDF
+renderers (`render_cert.php`, `render_diag.php`, `render_drive.php`) already
+build `tScrubPDF`, so they all get the fix. Guard:
+`marketing/tests/cert_signature_test.php` (signs a PDF with a throwaway
+in-memory certificate and asserts the output ends `%%EOF\n` with the second
+byte range reaching end-of-file).
+
 ## Rotation
 
 - Regenerating the key invalidates nothing retroactively: each PDF embeds the
