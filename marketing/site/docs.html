@@ -467,6 +467,14 @@ tscrub_output=sftp:backup.example.com:incoming/tscrub:itad:s3cret</pre>
 
               <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">Machine-readable certificate (JSON-LD)</h3>
               <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">The same certificate is available as a signed JSON-LD document — add <code class="font-mono">&amp;format=jsonld</code> to the verification URL. It carries the Certificate ID, COCID, every drive and report, the PDF's SHA-256, and the same destruction evidence as the PDF (per-drive <code class="font-mono">sanitizationTechnique</code> and <code class="font-mono">nistLevel</code>, plus the chain-level <code class="font-mono">mediaDisposition</code>), signed with a detached Ed25519 signature (public key published at <code class="font-mono">/.well-known/tscrub-cert-key.json</code>) plus an RFC 3161 timestamp. Any script can verify it offline without calling tScrub.</p>
+
+              <h3 class="mt-6 text-base font-bold text-ink-900 dark:text-white">The PDF's digital signature</h3>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">Signed certificates also carry an X.509 digital signature inside the PDF itself, so the document can be checked for alteration with no network at all. That signature is <strong>self-signed by tScrub</strong> — a deliberate choice: its job is tamper-evidence, and it deliberately does not assert a third-party identity. Because of that, a viewer such as Adobe Reader or LibreOffice will still show a caution like <em>“certificate could not be validated”</em> — that only means the viewer does not already know tScrub's signing certificate, <strong>not</strong> that the document was changed.</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-400">
+                <li><strong>What it proves:</strong> the PDF has not been altered since it was issued — any change invalidates the signature.</li>
+                <li><strong>What it does not prove on its own:</strong> that tScrub issued it. That is covered by the certificate's QR code and its signed JSON-LD twin (above), checked against tScrub's published Ed25519 key at <code class="font-mono">/.well-known/tscrub-cert-key.json</code>.</li>
+                <li><strong>To make the viewer show the signature as trusted,</strong> download <a href="/signing.crt" class="font-medium text-brand-600 dark:text-brand-400 hover:underline">tscrub.com/signing.crt</a> and import it once. In LibreOffice: <em>Tools → Options → LibreOffice → Security → Certificate Path</em>, open the certificate manager and mark it trusted. In Adobe: <em>Preferences → Signatures → Trusted Identities</em>. After that the warning disappears and the signature shows as valid.</li>
+              </ul>
             </div>
           </div>
         </section>

@@ -69,6 +69,37 @@ build `tScrubPDF`, so they all get the fix. Guard:
 in-memory certificate and asserts the output ends `%%EOF\n` with the second
 byte range reaching end-of-file).
 
+## Trusting the certificate (viewers show "certificate could not be validated")
+
+The certificate is **self-signed**, so any viewer that does not already know it
+will flag the signature with wording like LibreOffice's *"At least one signature
+has problems: the certificate could not be validated"* or Adobe's *"the author
+could not be verified"*. This is the identity half of signing, not a defect:
+the signature still proves the PDF is unaltered (tamper-evidence), it just does
+not prove who signed it unless the viewer trusts the certificate.
+
+The public certificate is published at **`https://tscrub.com/signing.crt`**
+(kept in `marketing/site/public/signing.crt`, served by the site build).
+
+To trust it once per viewer:
+
+- **LibreOffice** — `Tools → Options → LibreOffice → Security → Certificate
+  Path`, open the certificate manager, import `signing.crt`, then edit its
+  trust and tick *"Trust this certificate to identify users"* (NSS). Re-open
+  the PDF; the signature now shows as valid and trusted.
+- **Adobe Acrobat** — `Preferences → Signatures → Trusted Identities → Add
+  Certificate`, import `signing.crt`, then set it as trusted for signing and
+  certification. (Or click the signature panel and *Trust this certificate*.)
+- **macOS Keychain / Adobe system trust** — `signing.crt` can also be imported
+  into the OS keychain and marked *Always Trust*, which Adobe and Preview pick
+  up.
+
+The authoritative check for recipients who do not want to touch their trust
+store is the certificate's own QR / JSON-LD path (`/verify`,
+`/verify-offline`), verified against the Ed25519 key published at
+`/.well-known/tscrub-cert-key.json` — see `ops/report-verification.md` and the
+docs page ("Verify a report").
+
 ## Rotation
 
 - Regenerating the key invalidates nothing retroactively: each PDF embeds the
@@ -78,3 +109,7 @@ byte range reaching end-of-file).
   needed for old PDFs — keep the old `sign.crt` only if you want to inspect it
   out-of-band.
 - No code change is required after rotation — the files are read by path.
+- **On rotation, also update `marketing/site/public/signing.crt`** with the new
+  public certificate and redeploy the site, so the published copy stays in step
+  with what newly issued PDFs embed (the Ed25519 key at
+  `/.well-known/tscrub-cert-key.json` is separate and unaffected).
