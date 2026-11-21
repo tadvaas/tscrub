@@ -385,6 +385,9 @@ t_check('the method text and badge are vertically centred as a group',
     strpos($src, '($rowH - $groupH) / 2') !== false);
 t_check('the badge label is drawn at the sized bold 6pt font',
     substr_count($src, "SetFont('helvetica', 'B', 6.0);") >= 2);
+t_check('the badge label zeroes the cell padding before drawing',
+    strpos($src, "\$pdf->setCellPaddings(0, 0, 0, 0);") !== false
+    && strpos($src, "\$pdf->SetXY(\$bx, \$by - 0.28);") !== false);
 t_check('the table cell closure receives the asset-name map',
     strpos($src, 'function (array $d, string $key, int $idx) use ($assetNames): string') !== false);
 t_check('header cells use each column\'s own alignment, like its rows',

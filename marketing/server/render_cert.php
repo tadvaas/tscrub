@@ -420,8 +420,14 @@ function cert_bench_method_badge(TCPDF $pdf, float $x, float $y, float $rowH, fl
     $pdf->SetDrawColor(217, 119, 6);
     $pdf->RoundedRect($bx, $by, $bw, $bh, 0.9, '1111', 'DF');
     $pdf->SetTextColor(180, 83, 9);
-    $pdf->SetXY($bx, $by + 0.5);
-    $pdf->Cell($bw, 2.4, $label, 0, 0, 'C');
+    // Centre the cap glyph in the pill. The table's cell padding (0.6 mm top)
+    // and TCPDF's line leading both push a Cell-drawn label toward the cell's
+    // bottom edge, so zero the padding and offset the label so its cap height
+    // sits on the pill's vertical centre line.
+    $pdf->setCellPaddings(0, 0, 0, 0);
+    $pdf->SetXY($bx, $by - 0.28);
+    $pdf->Cell($bw, $bh, $label, 0, 0, 'C');
+    $pdf->setCellPaddings(cert_table_pad_lr(), 0.6, cert_table_pad_lr(), 0.6);
     // restore the table body state for the next cell
     $pdf->SetFont('helvetica', '', 7.5);
     $pdf->SetTextColor(11, 18, 32);

@@ -32,8 +32,8 @@ and this project uses date-based versioning (`v1.x`).
   media sanitised on a marked processing host no longer reveals the bench unit.
   Each such row's Method cell gains a small amber `BENCH-ERASED` chip on its
   own line, right-aligned in the cell and vertically centred with the method
-  text as a group, and the Machine / Machine SN cells carry the
-  declared/attested
+  text as a group (the chip's label is centred on the pill, not offset to its
+  bottom edge), and the Machine / Machine SN cells carry the declared/attested
   origin data instead of the bench's identity — the asset's name (or
   `Declared origin` / `Attested origin` when no name is on file) and its serial,
   matching the Origin device column. A footnote states that bench details are
