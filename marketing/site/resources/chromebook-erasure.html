@@ -6,7 +6,7 @@
   <link rel="icon" type="image/png" href="/logo.png?v=2" />
   <title>How to erase a Chromebook | tScrub</title>
   <link rel="canonical" href="https://tscrub.com/resources/chromebook-erasure" />
-  <meta name="description" content="Chromebooks keep their storage soldered to the board and locked behind Google's bootloader. Here's the ARM vs x86 difference, how to factory reset each, and how to record it in tScrub." />
+  <meta name="description" content="How to erase a Chromebook: make a ChromeOS recovery USB, run a factory reset, check for MDM, and record the reset in tScrub as an operator attestation." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -67,36 +67,24 @@
     </div>
 
     <div class="prose prose-slate dark:prose-invert prose-lg max-w-none mt-8 prose-headings:text-ink-900 dark:prose-headings:text-white prose-a:text-brand-600 dark:prose-a:text-brand-400 hover:prose-a:text-brand-700 dark:hover:prose-a:text-brand-400">
-      <p>Chromebooks are laptops and tablets running ChromeOS, and almost all of them keep their storage as a <strong>soldered eMMC</strong> chip (newer Intel models use NVMe). There is no drive to pull and no BIOS that boots whatever you point it at — so erasing one is a two-step job: a <strong>factory reset on the device</strong>, and an <strong>attestation record in tScrub</strong>. Whether the appliance could ever boot the unit is decided by the processor architecture, and the two kinds are told apart the same way.</p>
+      <p>Chromebooks are laptops and tablets running ChromeOS, and almost all of them keep their storage as a <strong>soldered eMMC</strong> chip (newer Intel models use NVMe). There is no drive to pull, and tScrub does not boot on them — so erasing one is a <strong>factory reset</strong> recorded in tScrub as an <strong>operator attestation</strong>. Four steps:</p>
 
-      <h2>ARM or x86 — and why it matters</h2>
-      <p>At the white “OS verification is off” screen, the bottom edge prints a <strong>hardware ID</strong> string. The prefix names the platform family:</p>
-      <div class="overflow-x-auto">
-        <table>
-          <thead>
-            <tr><th>Hardware ID</th><th>Platform</th><th>Can tScrub boot it?</th></tr>
-          </thead>
-          <tbody>
-            <tr><td><code>KIP…</code> and other Intel IDs</td><td>Intel x86</td><td>Yes, via Developer Mode + <kbd>Ctrl</kbd>+<kbd>L</kbd> (SeaBIOS) — but the soldered eMMC is not yet discovered by the appliance, so the reset-and-attest workflow below is the supported path today.</td></tr>
-            <tr><td><code>BLAZE…</code> (Tegra K1) and other ARM IDs</td><td>ARM</td><td>No — ARM Chromebooks have no legacy BIOS; <kbd>Ctrl</kbd>+<kbd>U</kbd> expects a ChromeOS-format image tScrub does not ship.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p>For either kind the supported workflow is the same: <strong>reset ChromeOS, then record the unit as an operator attestation.</strong> tScrub does not yet sanitise a Chromebook's eMMC directly on either architecture, so a Chromebook is processed as a device the appliance cannot wipe.</p>
+      <h2>Step 1 — Put the computer in recovery mode</h2>
+      <p>With the Chromebook <strong>powered off</strong>, press and hold <kbd>Esc</kbd>+<kbd>Refresh</kbd> and tap <kbd>Power</kbd>. (<strong>Refresh</strong> is the circular-arrow key on the top row, where <kbd>F3</kbd> sits on a normal keyboard; on a keyboardless Chromebook tablet, hold <kbd>Power</kbd>+<kbd>Volume up</kbd>+<kbd>Volume down</kbd> for ten seconds.) The recovery screen appears, with the <strong>hardware ID</strong> printed on the bottom edge — something like <code>GNAWTY C5B-G2N-S2A-Q5V</code>.</p>
 
-      <h2>How to factory reset a Chromebook</h2>
-      <p>A ChromeOS factory reset wipes local user data and restores the device to its out-of-box state. It does <strong>not</strong> need Developer Mode. Two ways, in order of preference:</p>
-      <ol>
-        <li><strong>Powerwash, from ChromeOS.</strong> Sign in, then <em>Settings → Advanced → Reset settings → Powerwash → Restart</em>. If the device will not sign in, press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> on the sign-in screen instead.</li>
-        <li><strong>Recovery reset, when it will not boot.</strong> Hold <kbd>Esc</kbd>+<kbd>Refresh</kbd> and press <kbd>Power</kbd> to reach the recovery screen, then follow the prompts with a ChromeOS recovery USB (made with the Chromebook Recovery Utility on any computer). This reinstalls ChromeOS and wipes the device.</li>
-      </ol>
+      <h2>Step 2 — Identify the firmware, download and bake the USB</h2>
+      <p>Take the <strong>first word of the hardware ID</strong> — that is the board codename, here <code>GNAWTY</code>. Go to <a href="https://cros.tech" target="_blank" rel="noopener">cros.tech</a>, type the codename into the search, open its device page, and click the <strong>Recovery</strong> button to download the image. An “end of life” banner only means the device no longer gets updates — the image still works.</p>
+      <p>Flash the image to an <strong>8 GB or larger</strong> USB stick: unzip the download, then write the <code>.bin</code> to the whole USB device with <code>dd</code> on Linux/macOS, or Rufus in dd mode on Windows.</p>
 
-      <h3>Enterprise-enrolled units first</h3>
-      <p>A Powerwash does <strong>not</strong> un-manage an enterprise-enrolled Chromebook — after reset the device will force re-enrolment and lock again. If the unit is leaving your Google Workspace, deprovision it first: <em>Google Admin console → Devices → Chrome → select the device → Deprovision</em>. Skip the reset-and-attest flow until that is done, or the unit will not stay reset.</p>
+      <h2>Step 3 — Insert the USB and wait for recovery to finish</h2>
+      <p>Plug the recovery USB into the Chromebook, confirm on the recovery screen, and let it run. It reinstalls ChromeOS and wipes the device, then restarts into the out-of-box setup.</p>
+
+      <h2>Step 4 — Check for MDM</h2>
+      <p>The recovery screen cannot show enrolment, so check after the reset. When the unit restarts into the out-of-box setup, an <strong>enterprise-enrolled</strong> device demands an enterprise email, while an unmanaged one goes straight to sign-in. If it is enrolled, deprovision it in Google Admin (<em>Devices → Chrome → select the device → Deprovision</em>) — a reset alone never un-manages the device, and it will re-lock otherwise.</p>
 
       <h2>Recording the reset in tScrub</h2>
       <ol>
-        <li><strong>Reset the device</strong> using one of the methods above, and note the serial (chassis label, or the bottom of the sign-in / recovery screen).</li>
+        <li><strong>Reset the device</strong> using the recovery reset in Step 3, and note the serial (chassis label, or the bottom of the recovery screen).</li>
         <li><strong>Register the device.</strong> <strong>Devices → Add</strong> — enter the job's <strong>Chain of Custody ID</strong>, the serial, model and a note. This is a register entry only, so the device is on file and can carry the media record. A device that never booted tScrub has no row of its own until you add it.</li>
         <li><strong>Record the storage as an attested item.</strong> On the <a href="/dashboard/drives">Media</a> page, add a record with media type <strong>eMMC/UFS (integrated)</strong>, the device's make, model and serial, the reason <strong>Not supported by tScrub (cannot be booted)</strong>, and the method <strong>Factory reset</strong>. The category is <strong>Laptop</strong> (or <strong>Tablet</strong> for a Chromebook tablet).</li>
         <li><strong>Review the outcome.</strong> A <em>Factory reset</em> method records the device as <strong>retained</strong> — data wiped, hardware kept for reuse — never as destroyed. It appears on the certificate in the attested section, every line qualified <em>operator-attested — not instrument-verified</em>, and it is never counted as sanitised.</li>
@@ -108,10 +96,12 @@
       <h2>FAQ</h2>
       <h3>Does a factory reset equal NIST Clear or Purge?</h3>
       <p>No. A factory reset destroys encryption keys and user data but does not sanitise the media. That is why tScrub records it as an operator attestation with disposition <em>retained</em>, never as a wipe.</p>
-      <h3>Can tScrub boot an Intel Chromebook?</h3>
-      <p>Technically yes — Developer Mode plus <kbd>Ctrl</kbd>+<kbd>L</kbd> boots the appliance through SeaBIOS. But the soldered eMMC is not yet discovered, so it cannot be wiped in place. Use the reset-and-attest flow.</p>
+      <h3>Can tScrub erase a Chromebook directly?</h3>
+      <p>Not yet — tScrub does not boot on Chromebooks today. The supported route is a factory reset recorded as an operator attestation, which is never presented as a media sanitisation.</p>
       <h3>What about ARM Chromebooks?</h3>
       <p>They have no legacy BIOS and cannot boot tScrub at all. The factory reset plus attestation is the only route, and it works on every model.</p>
+      <h3>What if the unit has no resale value and is being scrapped?</h3>
+      <p>Skip the recovery reset. Physical destruction is the sanitisation: shredding or crushing the unit destroys the soldered eMMC with it — a NIST 800-88 Destroy. Optionally run the recovery reset first to destroy the encryption keys as defence in depth. Record it in tScrub as an attested destruction — method <em>Shredded</em> or <em>Crushed</em>, reason <em>Media soldered / integrated</em> — not as a factory reset. It then appears on the certificate as destroyed, every line qualified <em>operator-attested — not instrument-verified</em>.</p>
     </div>
 
     <!-- ============ RELATED ============ -->
